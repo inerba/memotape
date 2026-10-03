@@ -8,11 +8,37 @@ use crate::error::AppError;
 /// Trascrive una Frase per chiamata.
 pub trait TranscriptionEngine {
     /// `frames`: l'audio della Frase, frame f32 mono a 16 kHz in [-1, 1], letti man mano che
-    /// la pipeline li produce. Restituisce il testo della Frase.
+    /// la pipeline li produce. `language`: la Lingua del parlato con un codice dell'app (`it`…),
+    /// `None` per il riconoscimento automatico. `on_partial` riceve il Parziale ogni volta che
+    /// cambia; i motori che trascrivono la Frase intera non lo chiamano mai. Restituisce il testo
+    /// della Frase.
     fn transcribe(
         &mut self,
         frames: &mut dyn Iterator<Item = Vec<f32>>,
-    ) -> Result<String, AppError>;
+        language: Option<&str>,
+        on_partial: &mut dyn FnMut(&str),
+    ) -> Result<String, EngineError>;
+}
+
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum EngineError {
+    /// Il modello sta già calcolando per un'altra sessione. Riprovabile: arriva prima di leggere
+    /// l'audio della Frase.
+    #[error("modello occupato")]
+    Busy,
+    #[error("annullato")]
+    Cancelled,
+    #[error("{0}")]
+    Internal(String),
+}
+
+impl From<EngineError> for AppError {
+    fn from(error: EngineError) -> Self {
+        match error {
+            EngineError::Cancelled => Self::Cancelled,
+            error => Self::Internal(error.to_string()),
+        }
+    }
 }
 
 /// Il codice che il modello accetta per la Lingua del parlato `language` (`it`): lo stesso codice

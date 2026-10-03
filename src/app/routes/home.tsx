@@ -2,7 +2,7 @@ import { Settings } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useOutlet } from "react-router";
-import { commands, events } from "@/bindings";
+import { commands, events, type TranscriptPartial } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,11 @@ import {
   statusText,
   withProgress,
 } from "@/features/status/status";
-import { appendPhrase } from "@/features/transcription/phrases";
+import {
+  afterPhrase,
+  appendPhrase,
+  withPartial,
+} from "@/features/transcription/phrases";
 
 const COPIED_MS = 2000;
 
@@ -33,6 +37,8 @@ export function HomePage() {
   const { t } = useTranslation();
   const [source, setSource] = useState<string | null>(null);
   const [text, setText] = useState("");
+  // Il Parziale della Frase in corso (Nemotron), mostrato nella riga dopo le Frasi.
+  const [partial, setPartial] = useState<TranscriptPartial | null>(null);
   const [status, setStatus] = useState<Status>({ phase: "idle", source: null });
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -50,15 +56,20 @@ export function HomePage() {
   );
 
   useEffect(() => {
-    // Una Frase per riga, nell'ordine in cui arrivano.
+    // Una Frase per riga, nell'ordine in cui arrivano; la Frase fissa il suo Parziale.
     const phrases = events.transcriptPhrase.listen(({ payload }) => {
       setText((current) => appendPhrase(current, payload.text));
+      setPartial((current) => afterPhrase(current, payload.phraseId));
+    });
+    const partials = events.transcriptPartial.listen(({ payload }) => {
+      setPartial(payload);
     });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       setStatus((current) => withProgress(current, payload.percent));
     });
     return () => {
       phrases.then((stop) => stop());
+      partials.then((stop) => stop());
       progress.then((stop) => stop());
     };
   }, []);
@@ -94,6 +105,7 @@ export function HomePage() {
       return;
     }
     setText("");
+    setPartial(null);
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
@@ -104,6 +116,9 @@ export function HomePage() {
         error: { code: "internal", detail: String(e) },
         phase: "failed",
       });
+    } finally {
+      // Il Parziale di una Frase annullata o finita vuota non resta nel testo.
+      setPartial(null);
     }
   }, [source]);
 
@@ -249,7 +264,7 @@ export function HomePage() {
                 className="flex-1 resize-none"
                 onChange={edit}
                 readOnly={running}
-                value={text}
+                value={withPartial(text, partial)}
               />
               <div className="flex justify-end">
                 <Button

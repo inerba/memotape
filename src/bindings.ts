@@ -49,6 +49,7 @@ export const commands = {
 export const events = {
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
+	transcriptPartial: makeEvent<TranscriptPartial>("transcript-partial"),
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
 };
@@ -134,7 +135,16 @@ export type Settings = {
 /**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
 export type SpeechLanguage = "auto" | "it" | "en" | "fr" | "es" | "de" | "pl";
 
-/**  Una Frase conclusa, una per riga nell'area di testo. */
+/**
+ *  Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
+ *  ha l'id che avrà la Frase.
+ */
+export type TranscriptPartial = {
+	phraseId: number,
+	text: string,
+};
+
+/**  Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id. */
 export type TranscriptPhrase = {
 	phraseId: number,
 	text: string,

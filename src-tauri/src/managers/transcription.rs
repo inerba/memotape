@@ -18,10 +18,19 @@ use crate::managers::settings::SettingsStore;
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
-/// Una Frase conclusa, una per riga nell'area di testo.
+/// Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptPhrase {
+    pub phrase_id: u32,
+    pub text: String,
+}
+
+/// Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
+/// ha l'id che avrà la Frase.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptPartial {
     pub phrase_id: u32,
     pub text: String,
 }
@@ -50,7 +59,8 @@ pub enum TranscriptionOutcome {
     NoSpeech,
 }
 
-/// Trascrive `source` emettendo `transcription-progress` e `transcript-phrase`, poi salva il TXT.
+/// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
+/// `transcript-phrase`, poi salva il TXT.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
@@ -69,19 +79,25 @@ pub async fn transcribe(
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
         let mut engine = models.take(&app, || model.id.as_str())?;
-        engine.prepare(&cancel, settings.speech_language.code());
+        engine.set_cancel_token(&cancel);
         let transcribed = Silero::new(&silero).and_then(|mut detector| {
             let mut phrases = Vec::new();
             transcribe_file(
                 &source,
                 &mut *engine,
                 &mut detector,
+                settings.speech_language.code(),
                 &cancel,
                 &mut |event| {
                     let emitted = match event {
                         PipelineEvent::Progress(percent) => {
                             TranscriptionProgress { percent }.emit(&app)
                         }
+                        PipelineEvent::Partial { id, text } => TranscriptPartial {
+                            phrase_id: id,
+                            text,
+                        }
+                        .emit(&app),
                         PipelineEvent::Phrase { id, text } => {
                             let emitted = TranscriptPhrase {
                                 phrase_id: id,

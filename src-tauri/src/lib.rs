@@ -28,6 +28,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_settings,
         ])
         .events(collect_events![
+            managers::transcription::TranscriptPartial,
             managers::transcription::TranscriptPhrase,
             managers::transcription::TranscriptionProgress,
             managers::models::ModelDownloadProgress,
