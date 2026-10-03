@@ -16,9 +16,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             commands::app_version,
             commands::pick_source,
+            commands::open_source,
             commands::transcribe,
         ])
-        .events(collect_events![managers::transcription::TranscriptPhrase])
+        .events(collect_events![
+            managers::transcription::TranscriptPhrase,
+            managers::transcription::TranscriptionProgress,
+        ])
 }
 
 pub fn run() {

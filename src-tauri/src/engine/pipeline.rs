@@ -11,22 +11,37 @@ use crate::audio_toolkit::segmenter::{Event, Params, Segmenter};
 use crate::audio_toolkit::vad::VoiceDetector;
 use crate::error::AppError;
 
-/// Trascrive `source` chiamando `on_phrase(id, testo)` per ogni Frase non vuota, in ordine.
+/// Cosa la pipeline comunica a chi la esegue.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PipelineEvent {
+    /// Percentuale decodificata, `None` se la durata non è nota. Si emette all'inizio e a ogni
+    /// cambio di punto percentuale.
+    Progress(Option<u8>),
+    /// Una Frase non vuota, con id progressivo da 0.
+    Phrase { id: u32, text: String },
+}
+
+/// Trascrive `source` chiamando `on_event` per il progresso e per ogni Frase non vuota, in ordine.
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
-    on_phrase: &mut dyn FnMut(u32, String),
+    on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<(), AppError> {
     detector.reset();
+    let decoder = Decoder::open(source)?;
+    let progress = decoder.progress();
+    on_event(PipelineEvent::Progress(progress));
     let mut events = SegmentedSource {
-        decoder: Decoder::open(source)?,
+        decoder,
         resampler: None,
         detector,
         segmenter: Segmenter::new(Params::default()),
         queue: VecDeque::new(),
         decoded_all: false,
         error: None,
+        progress,
+        on_event,
     };
     let mut phrase_id = 0;
     while let Some(event) = events.next()? {
@@ -46,7 +61,10 @@ pub fn transcribe_file(
         }
         let text = text?;
         if !text.is_empty() {
-            on_phrase(phrase_id, text);
+            (events.on_event)(PipelineEvent::Phrase {
+                id: phrase_id,
+                text,
+            });
             phrase_id += 1;
         }
     }
@@ -63,6 +81,9 @@ struct SegmentedSource<'a> {
     decoded_all: bool,
     /// Errore incontrato mentre il motore leggeva l'audio della Frase.
     error: Option<AppError>,
+    /// L'ultimo progresso emesso.
+    progress: Option<u8>,
+    on_event: &'a mut dyn FnMut(PipelineEvent),
 }
 
 impl SegmentedSource<'_> {
@@ -76,6 +97,11 @@ impl SegmentedSource<'_> {
             }
             let frames = match self.decoder.next_mono()? {
                 Some((mono, rate)) => {
+                    let progress = self.decoder.progress();
+                    if progress != self.progress {
+                        self.progress = progress;
+                        (self.on_event)(PipelineEvent::Progress(progress));
+                    }
                     let resampler = match &mut self.resampler {
                         Some(resampler) => resampler,
                         // ponytail: frequenza fissata dal primo blocco; i file che la cambiano a metà non sono gestiti.
@@ -160,7 +186,7 @@ mod tests {
     }
 
     /// WAV PCM 16 bit: `(secondi, tono?)` in sequenza.
-    fn wav(name: &str, rate: u32, channels: u16, parts: &[(f32, bool)]) -> PathBuf {
+    fn wav_bytes(rate: u32, channels: u16, parts: &[(f32, bool)]) -> Vec<u8> {
         let mut samples = Vec::new();
         for &(seconds, tone) in parts {
             for i in 0..(seconds * rate as f32) as usize {
@@ -192,17 +218,53 @@ mod tests {
         for s in samples {
             bytes.extend_from_slice(&s.to_le_bytes());
         }
-        let path = std::env::temp_dir().join(format!("sbobino-test-{name}.wav"));
+        bytes
+    }
+
+    fn write(name: &str, bytes: &[u8]) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("sbobino-test-{name}"));
         std::fs::write(&path, bytes).unwrap();
         path
     }
 
-    fn run(path: &Path, engine: &mut FakeEngine) -> Result<Vec<(u32, String)>, AppError> {
-        let mut phrases = Vec::new();
-        transcribe_file(path, engine, &mut EnergyDetector, &mut |id, text| {
-            phrases.push((id, text));
+    fn wav(name: &str, rate: u32, channels: u16, parts: &[(f32, bool)]) -> PathBuf {
+        write(&format!("{name}.wav"), &wav_bytes(rate, channels, parts))
+    }
+
+    fn fixture(name: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+    }
+
+    /// Gli eventi della pipeline: Frasi e progresso, nell'ordine di emissione.
+    fn events(path: &Path, engine: &mut FakeEngine) -> Result<Vec<PipelineEvent>, AppError> {
+        let mut events = Vec::new();
+        transcribe_file(path, engine, &mut EnergyDetector, &mut |event| {
+            events.push(event);
         })?;
-        Ok(phrases)
+        Ok(events)
+    }
+
+    fn run(path: &Path, engine: &mut FakeEngine) -> Result<Vec<(u32, String)>, AppError> {
+        Ok(events(path, engine)?
+            .into_iter()
+            .filter_map(|event| match event {
+                PipelineEvent::Phrase { id, text } => Some((id, text)),
+                PipelineEvent::Progress(_) => None,
+            })
+            .collect())
+    }
+
+    fn progress(path: &Path) -> Vec<Option<u8>> {
+        events(path, &mut FakeEngine::default())
+            .unwrap()
+            .into_iter()
+            .filter_map(|event| match event {
+                PipelineEvent::Progress(percent) => Some(percent),
+                PipelineEvent::Phrase { .. } => None,
+            })
+            .collect()
     }
 
     #[test]
@@ -254,9 +316,60 @@ mod tests {
     }
 
     #[test]
+    fn con_la_durata_nota_il_progresso_sale_da_0_a_100() {
+        let path = wav("progresso", 16_000, 1, &[(1.0, true), (2.0, false)]);
+        let percents = progress(&path);
+        assert_eq!(percents.first(), Some(&Some(0)));
+        assert_eq!(percents.last(), Some(&Some(100)));
+        assert!(
+            percents.windows(2).all(|w| w[0] < w[1]),
+            "il progresso cresce e non si ripete: {percents:?}"
+        );
+    }
+
+    #[test]
+    fn senza_durata_nota_il_progresso_e_indeterminato() {
+        // Un WAV "in streaming", come quelli di ffmpeg su stdout: lunghezze 0xFFFFFFFF.
+        let mut bytes = wav_bytes(16_000, 1, &[(1.0, true), (1.0, false)]);
+        bytes[4..8].copy_from_slice(&u32::MAX.to_le_bytes());
+        bytes[40..44].copy_from_slice(&u32::MAX.to_le_bytes());
+        let path = write("streaming.wav", &bytes);
+        assert_eq!(progress(&path), vec![None]);
+    }
+
+    #[test]
+    fn un_video_mp4_con_audio_aac_si_trascrive() {
+        let path = fixture("parlato-it.mp4");
+        let mut engine = FakeEngine::default();
+        let events = events(&path, &mut engine).unwrap();
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, PipelineEvent::Phrase { .. })),
+            "{events:?}"
+        );
+        // Tutto l'audio (circa 9 s di parlato) arriva al motore e il progresso arriva a 100.
+        let seconds = engine.samples.iter().sum::<usize>() as f32 / 16_000.0;
+        assert!(seconds > 3.0, "{seconds}");
+        assert_eq!(events.last(), Some(&PipelineEvent::Progress(Some(100))));
+    }
+
+    #[test]
     fn un_file_che_non_e_audio_da_codec_non_supportato() {
-        let path = std::env::temp_dir().join("sbobino-test-non-audio.mp3");
-        std::fs::write(&path, b"questo non e' audio, solo testo qualunque").unwrap();
+        let path = write(
+            "non-audio.mp3",
+            b"questo non e' audio, solo testo qualunque",
+        );
+        let error = run(&path, &mut FakeEngine::default()).unwrap_err();
+        assert!(matches!(error, AppError::UnsupportedCodec(_)), "{error:?}");
+    }
+
+    #[test]
+    fn un_codec_non_supportato_in_un_contenitore_valido_da_errore_dedicato() {
+        // WAV con format tag 0x2000: AC-3, che Symphonia non decodifica.
+        let mut bytes = wav_bytes(48_000, 2, &[(0.5, true)]);
+        bytes[20..22].copy_from_slice(&0x2000u16.to_le_bytes());
+        let path = write("ac3.wav", &bytes);
         let error = run(&path, &mut FakeEngine::default()).unwrap_err();
         assert!(matches!(error, AppError::UnsupportedCodec(_)), "{error:?}");
     }
@@ -280,20 +393,27 @@ mod tests {
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
-        let mut phrases = Vec::new();
-        transcribe_file(
-            &root.join("tests/fixtures/parlato-it.wav"),
-            &mut engine,
-            &mut detector,
-            &mut |_, text| phrases.push(text),
-        )
-        .unwrap();
-        let text = phrases.join("\n").to_lowercase();
-        println!("{text}");
-        assert_eq!(phrases.len(), 2, "{phrases:?}");
-        assert!(
-            text.contains("trascrizione") && text.contains("testo"),
-            "{text}"
-        );
+        // Lo stesso parlato in WAV e nel video MP4/AAC.
+        for name in ["parlato-it.wav", "parlato-it.mp4"] {
+            let mut phrases = Vec::new();
+            transcribe_file(&fixture(name), &mut engine, &mut detector, &mut |event| {
+                if let PipelineEvent::Phrase { text, .. } = event {
+                    phrases.push(text);
+                }
+            })
+            .unwrap();
+            let text = phrases
+                .join(
+                    "
+",
+                )
+                .to_lowercase();
+            println!("{name}: {text}");
+            assert_eq!(phrases.len(), 2, "{name}: {phrases:?}");
+            assert!(
+                text.contains("trascrizione") && text.contains("testo"),
+                "{name}: {text}"
+            );
+        }
     }
 }

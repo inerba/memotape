@@ -7,6 +7,8 @@ pub enum AppError {
     UnreadableFile(String),
     #[error("codec non supportato: {0}")]
     UnsupportedCodec(String),
+    #[error("cartella non scrivibile: {0}")]
+    UnwritableFolder(String),
     #[error("modello assente: {0}")]
     ModelMissing(String),
     #[error("errore interno: {0}")]

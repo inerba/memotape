@@ -25,6 +25,9 @@ pub struct Decoder {
     decoder: Box<dyn AudioDecoder>,
     track_id: u32,
     interleaved: Vec<f32>,
+    /// Frame dichiarati dal container (`n_frames`), se li conosce.
+    total_frames: Option<u64>,
+    decoded_frames: u64,
 }
 
 impl Decoder {
@@ -60,12 +63,21 @@ impl Decoder {
             .make_audio_decoder(params, &AudioDecoderOptions::default())
             .map_err(|e| AppError::UnsupportedCodec(e.to_string()))?;
         let track_id = track.id;
+        let total_frames = track.num_frames.filter(|&n| n > 0);
         Ok(Self {
             format,
             decoder,
             track_id,
             interleaved: Vec::new(),
+            total_frames,
+            decoded_frames: 0,
         })
+    }
+
+    /// Percentuale decodificata, da frame decodificati / `n_frames`. `None` se la durata non è nota.
+    pub fn progress(&self) -> Option<u8> {
+        self.total_frames
+            .map(|total| (self.decoded_frames.saturating_mul(100) / total).min(100) as u8)
     }
 
     /// Il prossimo blocco decodificato, mixato in mono, con la sua frequenza. `None` a fine file.
@@ -75,6 +87,13 @@ impl Decoder {
                 Ok(Some(packet)) => packet,
                 // Le catene Ogg con flussi diversi non sono previste: finiscono qui.
                 Ok(None) | Err(SymphoniaError::ResetRequired) => return Ok(None),
+                // Senza durata nel container (es. WAV in streaming) la fine arriva come EOF.
+                Err(SymphoniaError::IoError(e))
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof
+                        && self.total_frames.is_none() =>
+                {
+                    return Ok(None);
+                }
                 Err(SymphoniaError::IoError(e)) => {
                     return Err(AppError::UnreadableFile(e.to_string()));
                 }
@@ -92,11 +111,12 @@ impl Decoder {
             let channels = decoded.spec().channels().count().max(1);
             let rate = decoded.spec().rate();
             decoded.copy_to_vec_interleaved(&mut self.interleaved);
-            let mono = self
+            let mono: Vec<f32> = self
                 .interleaved
                 .chunks_exact(channels)
                 .map(|frame| frame.iter().sum::<f32>() / channels as f32)
                 .collect();
+            self.decoded_frames += mono.len() as u64;
             return Ok(Some((mono, rate)));
         }
     }

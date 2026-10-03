@@ -12,22 +12,39 @@ export const commands = {
 	 *  Restituisce il percorso scelto, o `null` se l'utente annulla.
 	 */
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
-	/**  Trascrive la Sorgente: le Frasi arrivano con `transcript-phrase`, la promessa si risolve alla fine. */
-	transcribe: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("transcribe", { source })),
+	/**
+	 *  Apre la Sorgente con il programma associato. Accetta solo le estensioni di Sfoglia, così
+	 *  non diventa un modo per lanciare eseguibili.
+	 */
+	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
+	/**  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT. */
+	transcribe: (source: string) => typedError<TranscriptionFinished, AppError>(__TAURI_INVOKE("transcribe", { source })),
 };
 
 /** Events */
 export const events = {
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
+	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
 };
 
 /* Types */
-export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "modelMissing"; detail: string } | { code: "internal"; detail: string };
+export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "internal"; detail: string };
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */
 export type TranscriptPhrase = {
 	phraseId: number,
 	text: string,
+};
+
+/**  Esito di una Trascrizione completa: dove è il TXT e quanti caratteri contiene. */
+export type TranscriptionFinished = {
+	txtPath: string,
+	chars: number,
+};
+
+/**  Avanzamento della Trascrizione: `percent` è `null` se la durata della Sorgente non è nota. */
+export type TranscriptionProgress = {
+	percent: number | null,
 };
 
 /* Tauri Specta runtime */

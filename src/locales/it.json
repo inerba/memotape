@@ -5,18 +5,31 @@
   "source": {
     "browse": "Sfoglia",
     "filter": "Audio e video",
-    "none": "Nessun file scelto"
+    "none": "Nessun file scelto",
+    "open": "Apri {{name}} con il programma associato"
   },
   "transcription": {
     "start": "Trascrivi",
     "running": "Trascrizione in corso…",
-    "text": "Testo trascritto"
+    "text": "Testo trascritto",
+    "copy": "Copia testo",
+    "copied": "Copiato"
+  },
+  "status": {
+    "idle": "Scegli un file audio o video con Sfoglia",
+    "transcribing": "Trascrizione in corso…",
+    "transcribingPercent": "Trascrizione in corso… {{percent}}%",
+    "progress": "Avanzamento della Trascrizione",
+    "finished_one": "Trascrizione finita: {{count, number}} carattere salvato in {{path}}",
+    "finished_many": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
+    "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}"
   },
   "errors": {
     "label": "Errore",
     "codes": {
       "unreadableFile": "Il file non esiste più o non è leggibile: {{detail}}",
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
+      "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
       "modelMissing": "Il modello non è installato. Mettilo qui: {{detail}}",
       "internal": "Errore durante la Trascrizione: {{detail}}"
     },
