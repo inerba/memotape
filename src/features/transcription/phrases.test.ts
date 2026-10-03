@@ -4,11 +4,13 @@ import type { Ingresso } from "@/bindings";
 import {
   type Conversation,
   conversationText,
+  copyable,
   EMPTY_CONVERSATION,
   nomeTaken,
   parlanteAt,
   parlantiOf,
   relabeled,
+  shownText,
   withNome,
   withoutPartials,
   withParlanti,
@@ -46,6 +48,21 @@ test("le Frasi del mix finiscono una per riga, senza etichette", () => {
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   expect(render(c)).toBe("Buongiorno a tutti.\nOggi parliamo di trascrizione.");
   expect(conversationText(EMPTY_CONVERSATION, t)).toBe("");
+});
+
+test("durante la Trascrizione di un file l'area è vuota, dal vivo mostra la conversazione", () => {
+  let c = withPhrase(EMPTY_CONVERSATION, phrase(0, 0, "Buongiorno a tutti."));
+  c = withPartial(c, phrase(1, 1500, "Oggi parl"));
+  expect(shownText(true, true, c, "Buongiorno a tutti.", t)).toBe("");
+  expect(shownText(false, true, c, "", t)).toBe(
+    "Buongiorno a tutti.\nOggi parl"
+  );
+  // Finita l'Attività, il testo dell'area, anche modificato a mano.
+  expect(shownText(false, false, c, "testo mio", t)).toBe("testo mio");
+  // Copia testo: niente durante la Trascrizione di un file, né con solo un Parziale dal vivo.
+  expect(copyable(true, "Buongiorno a tutti.")).toBe(false);
+  expect(copyable(false, "")).toBe(false);
+  expect(copyable(false, "Buongiorno a tutti.")).toBe(true);
 });
 
 test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa", () => {

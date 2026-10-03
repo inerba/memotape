@@ -214,6 +214,29 @@ export function relabeled(text: string, voce: Parlante, nome: string): string {
 }
 
 /**
+ * Cosa mostra l'area. Durante la Trascrizione di un file (`running`) niente: il testo compare solo
+ * alla fine (ADR-0007). Mentre il testo arriva dal vivo (`writing`) la conversazione con i
+ * Parziali; poi `text`, che si modifica a mano.
+ */
+export function shownText(
+  running: boolean,
+  writing: boolean,
+  conversation: Conversation,
+  text: string,
+  t: TFunction
+): string {
+  if (running) {
+    return "";
+  }
+  return writing ? conversationText(conversation, t) : text;
+}
+
+/** Copia testo copia il testo delle Frasi, e niente durante la Trascrizione di un file. */
+export function copyable(running: boolean, text: string): boolean {
+  return !running && text !== "";
+}
+
+/**
  * Il testo dell'area: una Frase per riga in ordine di inizio, con i Parziali al loro posto. Con gli
  * Ingressi separati o i Parlanti è una conversazione: ogni turno di una voce comincia con la sua
  * etichetta (`Microfono:`, `Parlante 1:`) su una riga, dopo una riga vuota.

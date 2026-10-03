@@ -1,10 +1,14 @@
 //! Pipeline di Trascrizione: frame a 16 kHz → VAD → segmentatore → motore. La fonte dei frame può
-//! essere un file (`transcribe_file`) o qualunque altro flusso. Gira alla velocità del calcolo e non
-//! sa nulla di Tauri né dei file salvati.
+//! essere un file (`transcribe_file`, Frasi intere senza Parziali, con decodifica e VAD in un thread
+//! a parte) o qualunque altro flusso (`transcribe`, a trazione, con i Parziali). Gira alla velocità
+//! del calcolo e non sa nulla di Tauri né dei file salvati.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::mpsc;
+use std::time::Duration;
 
 use transcribe_cpp::CancelToken;
 
@@ -103,7 +107,7 @@ pub fn transcribe(
                 text: text.to_string(),
             });
         };
-        let text = engine.transcribe(&mut audio, language, &mut on_partial);
+        let text = engine.transcribe(&mut audio, language, Some(&mut on_partial));
         // Il motore può fermarsi prima della fine della Frase: il resto si scarta.
         audio.for_each(drop);
         if cancel.is_cancelled() {
@@ -136,8 +140,49 @@ pub fn transcribe(
     Ok(to_ms(events.received))
 }
 
-/// Trascrive il file `source` come `transcribe`, con il progresso della decodifica. Se c'è,
-/// `audio` riceve tutti i frame dati alla pipeline (la Diarizzazione vuole l'audio intero).
+/// Frasi intere che il thread della decodifica e del VAD tiene pronte per il motore: ognuna al
+/// massimo 18 s, circa 1,1 MB.
+const PHRASES_AHEAD: usize = 4;
+
+/// Ogni quanto il motore, in attesa di una Frase (un lungo silenzio), aggiorna il progresso.
+const PROGRESS_POLL: Duration = Duration::from_millis(200);
+
+/// Il progresso nel suo `AtomicU8` quando la durata non è nota.
+const UNKNOWN_PERCENT: u8 = u8::MAX;
+
+/// Quello che il thread della decodifica e del VAD di un file manda al motore, in ordine.
+enum Cut {
+    /// Una Frase intera, con l'indice del suo primo frame.
+    Phrase { start: usize, frames: Vec<Vec<f32>> },
+    /// Fine del file, con i frame ricevuti.
+    End(usize),
+}
+
+/// Quello che il thread della decodifica e del VAD e il motore di un file condividono fuori dal
+/// canale, che così tiene solo Frasi.
+struct Shared {
+    /// L'ultimo progresso della decodifica, `UNKNOWN_PERCENT` se la durata non è nota.
+    progress: AtomicU8,
+    /// Il motore ha smesso (fine, guasto, Annulla): il thread si ferma al frame successivo.
+    stopped: AtomicBool,
+}
+
+impl Shared {
+    fn progress(&self) -> Option<u8> {
+        Some(self.progress.load(Ordering::Relaxed)).filter(|&p| p != UNKNOWN_PERCENT)
+    }
+
+    fn set_progress(&self, progress: Option<u8>) {
+        self.progress
+            .store(progress.unwrap_or(UNKNOWN_PERCENT), Ordering::Relaxed);
+    }
+}
+
+/// Trascrive il file `source` come `transcribe`, con il progresso della decodifica, ma senza
+/// Parziali: ogni Frase arriva al motore intera. Decodifica e VAD girano in un thread a parte e
+/// tengono pronte fino a `PHRASES_AHEAD` Frasi mentre il motore trascrive, quindi il progresso
+/// può anticipare il motore di altrettanto. Se c'è, `audio` riceve tutti i frame dati alla
+/// pipeline (la Diarizzazione vuole l'audio intero).
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
@@ -147,19 +192,163 @@ pub fn transcribe_file(
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
-    let mut frames = FileFrames::open(source)?;
-    on_event(PipelineEvent::Progress(frames.progress));
-    match audio {
-        // ponytail: l'audio intero in memoria (230 MB l'ora); Sortformer lo vuole tutto in un buffer.
-        Some(audio) => {
-            let mut kept = frames.by_ref().inspect(|feed| {
-                if let Ok(Feed::Frame(frame)) = feed {
-                    audio.extend_from_slice(frame);
-                }
-            });
-            transcribe(&mut kept, engine, detector, language, cancel, on_event)
+    let frames = FileFrames::open(source)?;
+    let progress = frames.progress;
+    on_event(PipelineEvent::Progress(progress));
+    let shared = Shared {
+        progress: AtomicU8::new(UNKNOWN_PERCENT),
+        stopped: AtomicBool::new(false),
+    };
+    shared.set_progress(progress);
+    let (sender, cuts) = mpsc::sync_channel(PHRASES_AHEAD);
+    std::thread::scope(|scope| {
+        let shared = &shared;
+        // Il thread tiene l'unico `sender`: quando si ferma, il motore vede la fine del canale.
+        scope.spawn(move || cut_phrases(frames, detector, audio, shared, cancel, &sender));
+        let transcribed =
+            transcribe_phrases(cuts, engine, language, progress, shared, cancel, on_event);
+        shared.stopped.store(true, Ordering::Relaxed);
+        transcribed
+    })
+}
+
+/// Il thread della decodifica e del VAD: manda a `sender` le Frasi intere e la fine, e tiene il
+/// progresso in `shared`. Si ferma a un errore (che manda), ad Annulla o quando il motore ha smesso.
+fn cut_phrases(
+    frames: impl Iterator<Item = Result<Feed, AppError>>,
+    detector: &mut dyn VoiceDetector,
+    // ponytail: l'audio intero in memoria (230 MB l'ora); Sortformer lo vuole tutto in un buffer.
+    mut audio: Option<&mut Vec<f32>>,
+    shared: &Shared,
+    cancel: &CancelToken,
+    sender: &mpsc::SyncSender<Result<Cut, AppError>>,
+) {
+    detector.reset();
+    let mut segmenter = Segmenter::new(Params::default());
+    let mut phrase = None;
+    let mut received = 0;
+    for feed in frames {
+        if cancel.is_cancelled() || shared.stopped.load(Ordering::Relaxed) {
+            return;
         }
-        None => transcribe(&mut frames, engine, detector, language, cancel, on_event),
+        let events = match feed {
+            Ok(Feed::Frame(frame)) => {
+                received += 1;
+                if let Some(audio) = audio.as_deref_mut() {
+                    audio.extend_from_slice(&frame);
+                }
+                match detector.probability(&frame) {
+                    Ok(probability) => segmenter.push(frame, probability),
+                    Err(error) => {
+                        let _ = sender.send(Err(error));
+                        return;
+                    }
+                }
+            }
+            Ok(Feed::ClosePhrase) => segmenter.close_phrase(),
+            Ok(Feed::Progress(progress)) => {
+                shared.set_progress(progress);
+                continue;
+            }
+            Err(error) => {
+                let _ = sender.send(Err(error));
+                return;
+            }
+        };
+        if !send_phrases(events, &mut phrase, sender) {
+            return;
+        }
+    }
+    if send_phrases(segmenter.close_phrase(), &mut phrase, sender) {
+        let _ = sender.send(Ok(Cut::End(received)));
+    }
+}
+
+/// Raccoglie in `phrase` l'audio della Frase in corso e manda le Frasi finite. `false` se il motore
+/// non ascolta più.
+fn send_phrases(
+    events: Vec<Event>,
+    phrase: &mut Option<(usize, Vec<Vec<f32>>)>,
+    sender: &mpsc::SyncSender<Result<Cut, AppError>>,
+) -> bool {
+    for event in events {
+        match event {
+            Event::PhraseStart(start) => *phrase = Some((start, Vec::new())),
+            Event::Audio(frame) => {
+                if let Some((_, frames)) = phrase {
+                    frames.push(frame);
+                }
+            }
+            Event::PhraseEnd => {
+                if let Some((start, frames)) = phrase.take()
+                    && sender.send(Ok(Cut::Phrase { start, frames })).is_err()
+                {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+/// Il motore sulle Frasi intere di `cut_phrases`, con gli eventi di `transcribe` tranne i Parziali.
+/// `shown` è il progresso già emesso; il successivo si legge da `shared` dopo ogni Frase e, in
+/// attesa, ogni `PROGRESS_POLL`.
+fn transcribe_phrases(
+    cuts: mpsc::Receiver<Result<Cut, AppError>>,
+    engine: &mut dyn TranscriptionEngine,
+    language: Option<&str>,
+    mut shown: Option<u8>,
+    shared: &Shared,
+    cancel: &CancelToken,
+    on_event: &mut dyn FnMut(PipelineEvent),
+) -> Result<u32, AppError> {
+    let mut show_progress = |on_event: &mut dyn FnMut(PipelineEvent)| {
+        let progress = shared.progress();
+        if progress != shown {
+            on_event(PipelineEvent::Progress(progress));
+            shown = progress;
+        }
+    };
+    let mut phrase_id = 0;
+    loop {
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        let cut = match cuts.recv_timeout(PROGRESS_POLL) {
+            Ok(cut) => cut?,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                show_progress(on_event);
+                continue;
+            }
+            // Il thread si è fermato senza arrivare alla fine: per Annulla, o per un suo panic che
+            // lo scope rilancia.
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Err(AppError::Cancelled),
+        };
+        match cut {
+            Cut::Phrase { start, frames } => {
+                let end = start + frames.len();
+                let text = engine.transcribe(&mut frames.into_iter(), language, None);
+                if cancel.is_cancelled() {
+                    return Err(AppError::Cancelled);
+                }
+                let text = text?;
+                if !text.is_empty() {
+                    on_event(PipelineEvent::Phrase {
+                        id: phrase_id,
+                        inizio_ms: to_ms(start),
+                        fine_ms: to_ms(end),
+                        text,
+                    });
+                    phrase_id += 1;
+                }
+                show_progress(on_event);
+            }
+            Cut::End(received) => {
+                show_progress(on_event);
+                return Ok(to_ms(received));
+            }
+        }
     }
 }
 
@@ -316,6 +505,8 @@ pub(crate) mod tests {
     use crate::audio_toolkit::resample::FRAME_SAMPLES;
     use crate::engine::EngineError;
     use std::path::PathBuf;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Detector finto guidato dall'energia del frame.
     pub(crate) struct EnergyDetector;
@@ -332,7 +523,8 @@ pub(crate) mod tests {
     /// Motore finto: restituisce "frase N" e ricorda quanti campioni e quale lingua ha ricevuto
     /// ogni Frase. Con `cancel_at` preme Annulla mentre trascrive la Frase N (da 1). Con
     /// `streaming` manda un Parziale ogni 10 frame; con `empty_at` la Frase N finisce vuota; con
-    /// `busy` risponde `Busy`; con `delay` impiega quel tempo per ogni Frase.
+    /// `busy` risponde `Busy`; con `delay` impiega quel tempo per ogni Frase. Con `vad_seen`
+    /// ricorda in `vad_seen_at_end`, a fine Frase, quanti frame ha già visto il VAD.
     #[derive(Default)]
     pub(crate) struct FakeEngine {
         pub(crate) samples: Vec<usize>,
@@ -342,6 +534,20 @@ pub(crate) mod tests {
         pub(crate) empty_at: Option<usize>,
         pub(crate) busy: bool,
         pub(crate) delay: std::time::Duration,
+        pub(crate) vad_seen: Option<Arc<AtomicUsize>>,
+        pub(crate) vad_seen_at_end: Vec<usize>,
+    }
+
+    /// `EnergyDetector` che conta i frame visti.
+    struct CountingDetector(Arc<AtomicUsize>);
+
+    impl VoiceDetector for CountingDetector {
+        fn probability(&mut self, frame: &[f32]) -> Result<f32, AppError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            EnergyDetector.probability(frame)
+        }
+
+        fn reset(&mut self) {}
     }
 
     impl TranscriptionEngine for FakeEngine {
@@ -349,7 +555,7 @@ pub(crate) mod tests {
             &mut self,
             frames: &mut dyn Iterator<Item = Vec<f32>>,
             language: Option<&str>,
-            on_partial: &mut dyn FnMut(&str),
+            mut on_partial: Option<&mut dyn FnMut(&str)>,
         ) -> Result<String, EngineError> {
             if self.busy {
                 return Err(EngineError::Busy);
@@ -358,11 +564,16 @@ pub(crate) mod tests {
             let mut samples = 0;
             for (i, frame) in frames.enumerate() {
                 samples += frame.len();
-                if self.streaming && i % 10 == 9 {
+                if let Some(on_partial) = on_partial.as_mut().filter(|_| self.streaming)
+                    && i % 10 == 9
+                {
                     on_partial(&format!("frase {n} ({} frame)", i + 1));
                 }
             }
             std::thread::sleep(self.delay);
+            if let Some(vad_seen) = &self.vad_seen {
+                self.vad_seen_at_end.push(vad_seen.load(Ordering::SeqCst));
+            }
             self.samples.push(samples);
             self.languages.push(language.map(String::from));
             if let Some((at, cancel)) = &self.cancel_at
@@ -527,18 +738,16 @@ pub(crate) mod tests {
 
     #[test]
     fn i_parziali_arrivano_prima_della_frase_con_lo_stesso_id() {
-        let path = tre_frasi("parziali");
         let mut engine = FakeEngine {
             streaming: true,
             ..FakeEngine::default()
         };
         let mut events = Vec::new();
-        transcribe_file(
-            &path,
+        transcribe(
+            &mut tre_frasi_feed().into_iter(),
             &mut engine,
             &mut EnergyDetector,
             Some("it"),
-            None,
             &CancelToken::new(),
             &mut |event| events.push(event),
         )
@@ -567,13 +776,12 @@ pub(crate) mod tests {
 
     #[test]
     fn il_parziale_di_una_frase_finita_vuota_si_cancella_e_l_id_passa_alla_successiva() {
-        let path = tre_frasi("frase-vuota");
         let mut engine = FakeEngine {
             streaming: true,
             empty_at: Some(2),
             ..FakeEngine::default()
         };
-        let events = events(&path, &mut engine).unwrap();
+        let events = run_feed(tre_frasi_feed(), &mut engine).unwrap();
         // Ogni evento come (id, testo), con i Parziali ridotti alla Frase che trascrivono.
         let mut ids: Vec<(u32, &str)> = events
             .iter()
@@ -636,6 +844,95 @@ pub(crate) mod tests {
                 (0.5, false),
             ],
         )
+    }
+
+    /// Come `tre_frasi`, come fonte di frame dal vivo.
+    fn tre_frasi_feed() -> Vec<Result<Feed, AppError>> {
+        frames(&[
+            (true, 33),
+            (false, 50),
+            (true, 33),
+            (false, 50),
+            (true, 33),
+            (false, 17),
+        ])
+    }
+
+    #[test]
+    fn un_file_si_trascrive_senza_parziali_anche_con_un_motore_in_streaming() {
+        let mut engine = FakeEngine {
+            streaming: true,
+            ..FakeEngine::default()
+        };
+        let events = events(&tre_frasi("senza-parziali"), &mut engine).unwrap();
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, PipelineEvent::Partial { .. })),
+            "{events:?}"
+        );
+        assert_eq!(times(&events).len(), 3);
+    }
+
+    #[test]
+    fn decodifica_e_vad_di_un_file_vanno_avanti_mentre_il_motore_trascrive() {
+        let path = tre_frasi("in-parallelo");
+        let vad_seen = Arc::new(AtomicUsize::new(0));
+        let mut engine = FakeEngine {
+            delay: std::time::Duration::from_millis(300),
+            vad_seen: Some(Arc::clone(&vad_seen)),
+            ..FakeEngine::default()
+        };
+        transcribe_file(
+            &path,
+            &mut engine,
+            &mut CountingDetector(vad_seen),
+            None,
+            None,
+            &CancelToken::new(),
+            &mut drop,
+        )
+        .unwrap();
+        // La prima Frase finisce verso il frame 57 (1 s di parlato e 0,7 s di hangover): mentre il
+        // motore la trascrive, il VAD è già oltre la seconda (frame 140 circa).
+        assert!(
+            engine.vad_seen_at_end[0] > 140,
+            "{:?}",
+            engine.vad_seen_at_end
+        );
+    }
+
+    /// VAD che si guasta al frame N.
+    struct FailingDetector(usize);
+
+    impl VoiceDetector for FailingDetector {
+        fn probability(&mut self, frame: &[f32]) -> Result<f32, AppError> {
+            self.0 = self.0.saturating_sub(1);
+            if self.0 == 0 {
+                return Err(AppError::Internal("VAD".into()));
+            }
+            EnergyDetector.probability(frame)
+        }
+
+        fn reset(&mut self) {}
+    }
+
+    #[test]
+    fn un_errore_del_vad_di_un_file_ferma_la_trascrizione() {
+        let mut engine = FakeEngine::default();
+        let error = transcribe_file(
+            &tre_frasi("vad-guasto"),
+            &mut engine,
+            &mut FailingDetector(100),
+            None,
+            None,
+            &CancelToken::new(),
+            &mut drop,
+        )
+        .unwrap_err();
+        assert!(matches!(error, AppError::Internal(_)), "{error:?}");
+        // Solo la prima Frase (fino al frame 57) è arrivata al motore.
+        assert_eq!(engine.samples.len(), 1);
     }
 
     #[test]
@@ -917,14 +1214,8 @@ pub(crate) mod tests {
                     },
                 )
                 .unwrap();
-                println!("{} {name}: Parziali {partials:?}", model.id);
-                // Solo Nemotron è in streaming: gli altri trascrivono la Frase intera.
-                assert_eq!(
-                    !partials.is_empty(),
-                    model.mode == Some(crate::managers::models::Mode::Stream),
-                    "{} {name}",
-                    model.id
-                );
+                // Un file si trascrive a Frasi intere, anche con Nemotron.
+                assert!(partials.is_empty(), "{} {name}: {partials:?}", model.id);
                 let text = phrases.join(" ").to_lowercase();
                 println!("{} {name}: {text}", model.id);
                 assert_eq!(phrases.len(), 2, "{} {name}: {phrases:?}", model.id);

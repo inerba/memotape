@@ -1,10 +1,11 @@
 //! `TranscriptionEngine` su transcribe-cpp: `Session::stream` per i modelli in streaming
-//! (Nemotron), con un Parziale a ogni cambio del testo, e `Session::run` sulla Frase intera per
-//! gli altri (Whisper, Parakeet).
+//! (Nemotron) quando servono i Parziali (dal vivo), con un Parziale a ogni cambio del testo, e
+//! `Session::run` sulla Frase intera per gli altri (Whisper, Parakeet) e per i file.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::OnceLock;
+use std::time::Instant;
 
 use transcribe_cpp::{CancelToken, Diarize, Feature, Model, RunOptions, Session, StreamOptions};
 
@@ -36,11 +37,26 @@ impl TranscribeCpp {
             }
             Ok((model.session()?, model.capabilities()))
         })?;
-        Ok(Self {
+        let mut engine = Self {
             session,
             languages: capabilities.languages,
             streaming: capabilities.supports_streaming,
-        })
+        };
+        engine.warm_up();
+        Ok(engine)
+    }
+
+    /// La prima chiamata a un modello appena caricato paga il riscaldamento del backend (con Whisper
+    /// su Vulkan 16 s contro 0,8 sulla fixture): si paga qui, su un secondo di silenzio, nel
+    /// caricamento in background, e non alla prima Frase.
+    fn warm_up(&mut self) {
+        let started = Instant::now();
+        let silence = vec![0.0; crate::audio_toolkit::resample::TARGET_RATE];
+        let session = &mut self.session;
+        match catch_native(|| session.run(&silence, &RunOptions::default())) {
+            Ok(_) => log::info!("modello riscaldato in {:?}", started.elapsed()),
+            Err(e) => log::warn!("riscaldamento del modello: {e}"),
+        }
     }
 
     /// Le lingue che il modello accetta come indicazione, lette dal modello.
@@ -61,18 +77,20 @@ impl TranscriptionEngine for TranscribeCpp {
         &mut self,
         frames: &mut dyn Iterator<Item = Vec<f32>>,
         language: Option<&str>,
-        on_partial: &mut dyn FnMut(&str),
+        on_partial: Option<&mut dyn FnMut(&str)>,
     ) -> Result<String, EngineError> {
         let run = RunOptions {
             language: language.and_then(|l| super::resolve_language(l, &self.languages)),
             ..RunOptions::default()
         };
-        if !self.streaming {
+        // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
+        // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
+        let Some(on_partial) = on_partial.filter(|_| self.streaming) else {
             let pcm: Vec<f32> = frames.flatten().collect();
             let session = &mut self.session;
             let transcript = catch_native(|| session.run(&pcm, &run))?;
             return Ok(transcript.text.trim().to_string());
-        }
+        };
         // Uno stream per Frase. Senza estensione vale l'attenzione a destra predefinita del modello,
         // la prima del menu e la più accurata (`parakeet.h` di transcribe-cpp 0.2.4): per Nemotron
         // R=13, che la sua documentazione dà identico a `run`. Il lease del modello si libera a

@@ -5,8 +5,9 @@ use std::path::Path;
 use super::resample::TARGET_RATE;
 use crate::error::AppError;
 
-/// Probabilità di parlato di un frame da 480 campioni (30 ms a 16 kHz).
-pub trait VoiceDetector {
+/// Probabilità di parlato di un frame da 480 campioni (30 ms a 16 kHz). `Send`: per un file gira
+/// in un thread a parte, in parallelo al motore.
+pub trait VoiceDetector: Send {
     fn probability(&mut self, frame: &[f32]) -> Result<f32, AppError>;
     fn reset(&mut self);
 }

@@ -10,7 +10,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 
 Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio o video con "Sfoglia", oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
-- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo compare Frase per Frase in un'area dedicata: con Nemotron anche come Parziale, mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
+- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -197,6 +197,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Il nome sostituisce "Parlante N" solo per quel Parlante di quell'Ingresso ("Audio di sistema · Mario"), in tutte le sue Frasi: nell'area, in Copia testo, nel Bino (se la Sorgente è un Bino, in `parlanti`) e nell'ultimo Markdown prodotto per quella Sorgente, che si riscrive da capo invece di crearne uno nuovo (le modifiche fatte a mano nel Markdown si perdono). Di un Bino riaperto vale il suo Markdown modificato per ultimo; un Markdown cancellato non si ricrea.
   - Se il testo nell'area è stato modificato a mano, la rinomina cambia solo le righe delle etichette e lascia il resto com'è.
   - Un Bino riaperto mostra i nomi. Ritrascrivere un Bino li toglie, perché i Parlanti si rinumerano.
+- **V7, Trascrivi più veloce (ticket v2/10)**: per Trascrivi su un file o su un Bino sostituisce le storie 12 e 13 e il punto di M4. Cambia la 21, la 18 e il punto di V3 su Copia testo. La Trascrizione dal vivo non cambia (ADR-0007).
+  - Durante la Trascrizione di un file l'area resta vuota e la status bar mostra la percentuale e Annulla; il testo compare tutto insieme a Trascrizione finita. Con Nemotron non ci sono più Parziali.
+  - Annullando, l'area mostra le Frasi già trascritte e Copia testo le copia; il Markdown non si salva, come prima.
+  - Copia testo è disabilitato mentre la Trascrizione di un file è in corso.
+  - La Trascrizione è più veloce: su 10 minuti di riunione Nemotron passa da 93 a 32 s, Parakeet da 20 a 15 s, Whisper da 42 a 38 s (RTX 2070 SUPER).
+  - Anche la prima Trascrizione dopo l'avvio, o dopo il cambio di modello, parte senza l'attesa del riscaldamento del modello: il riscaldamento avviene nel caricamento in background.
 
 ## Fuori dal perimetro
 

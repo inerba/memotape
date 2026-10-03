@@ -1,4 +1,3 @@
-import type { TFunction } from "i18next";
 import { Circle, Settings } from "lucide-react";
 import {
   type ChangeEvent,
@@ -43,11 +42,13 @@ import { ParlantiBar } from "@/features/transcription/parlanti-bar";
 import {
   type Conversation,
   conversationText,
+  copyable,
   EMPTY_CONVERSATION,
   type Parlante,
   parlanteAt,
   parlantiOf,
   relabeled,
+  shownText,
   withNome,
   withoutPartials,
   withParlanti,
@@ -235,9 +236,9 @@ export function HomePage() {
     if (!source) {
       return;
     }
+    // Le Frasi di un file arrivano senza Parziali e l'area le mostra solo alla fine.
     setText("");
     setConversation(EMPTY_CONVERSATION);
-    acceptPartials.current = true;
     edited.current = false;
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
@@ -249,10 +250,6 @@ export function HomePage() {
         error: { code: "internal", detail: String(e) },
         phase: "failed",
       });
-    } finally {
-      // Il Parziale di una Frase annullata non resta nel testo.
-      acceptPartials.current = false;
-      setConversation(withoutPartials);
     }
   }, [source]);
 
@@ -418,6 +415,7 @@ export function HomePage() {
   // o se c'è testo.
   const showTranscription =
     writing || status.phase === "finished" || text !== "";
+  const shown = shownText(running, writing, conversation, text, t);
 
   return (
     <>
@@ -537,7 +535,7 @@ export function HomePage() {
                 onChange={edit}
                 onClick={clickText}
                 readOnly={writing}
-                value={shownText(writing, conversation, text, t)}
+                value={shown}
               />
               <div className="flex items-start justify-between gap-3">
                 <ParlantiBar
@@ -548,7 +546,7 @@ export function HomePage() {
                 />
                 <Button
                   className="ml-auto shrink-0"
-                  disabled={!text}
+                  disabled={!copyable(running, text)}
                   onClick={copy}
                   size="sm"
                   variant="outline"
@@ -605,16 +603,6 @@ function SettingCheckbox({
       {label}
     </label>
   );
-}
-
-/** Mentre la Trascrizione arriva l'area mostra anche i Parziali; poi il testo, modificabile. */
-function shownText(
-  writing: boolean,
-  conversation: Conversation,
-  text: string,
-  t: TFunction
-) {
-  return writing ? conversationText(conversation, t) : text;
 }
 
 /** La status bar: il messaggio, il link alle Impostazioni quando serve e l'avanzamento. */
