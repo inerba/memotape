@@ -1,9 +1,11 @@
 //! Trascrizione di una Sorgente, o dal vivo di una Registrazione: prende il motore del modello
 //! scelto (caricato una volta e tenuto tra una Trascrizione e l'altra), esegue la pipeline, la
-//! traduce in eventi e salva il TXT accanto alla Sorgente.
+//! traduce in eventi e salva il Markdown accanto alla Sorgente. Tiene l'ultima Trascrizione per
+//! Copia testo.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
@@ -19,7 +21,8 @@ use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::loaded_model::Lease;
 use crate::managers::models::Models;
-use crate::managers::settings::{Settings, SettingsStore};
+use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
+use crate::transcript::{self, Labels, Phrase, Transcript};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -59,11 +62,11 @@ pub struct TranscriptionProgress {
     pub percent: Option<u8>,
 }
 
-/// Dove è il TXT salvato e quanti caratteri contiene.
+/// Dove è il Markdown salvato e quanti caratteri contiene.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptionFinished {
-    pub txt_path: String,
+    pub md_path: String,
     pub chars: u32,
 }
 
@@ -71,9 +74,9 @@ pub struct TranscriptionFinished {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum TranscriptionOutcome {
-    /// Il testo è salvato nel TXT.
+    /// Il testo è salvato nel Markdown.
     Saved(TranscriptionFinished),
-    /// Nessuna Frase: il TXT non si crea.
+    /// Nessuna Frase: il Markdown non si crea.
     NoSpeech,
 }
 
@@ -81,16 +84,84 @@ pub enum TranscriptionOutcome {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum LiveTranscription {
-    /// Il testo è salvato nel TXT accanto alla Registrazione.
+    /// Il testo è salvato nel Markdown accanto alla Registrazione.
     Saved(TranscriptionFinished),
-    /// Nessuna Frase: il TXT non si crea.
+    /// Nessuna Frase: il Markdown non si crea.
     NoSpeech,
-    /// Senza TXT: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`).
+    /// Senza Markdown: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla
+    /// (`cancelled`).
     Failed { error: AppError },
 }
 
+/// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende. Si
+/// riempie man mano che arrivano le Frasi. In `tauri::State`.
+#[derive(Default)]
+pub struct LastTranscript(Mutex<Option<Transcript>>);
+
+impl LastTranscript {
+    /// Modifica la Trascrizione tenuta, se c'è.
+    fn update(&self, change: impl FnOnce(&mut Transcript)) {
+        if let Some(transcript) = self
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
+            change(transcript);
+        }
+    }
+
+    fn set(&self, transcript: Transcript) {
+        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(transcript);
+    }
+
+    fn get(&self) -> Option<Transcript> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+}
+
+/// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o in Markdown, come dicono le
+/// impostazioni. `None` se non ce n'è ancora una.
+pub fn transcript_text(last: &LastTranscript, settings: &Settings) -> Option<String> {
+    last.get()
+        .map(|t| transcript::render(&t, &labels(settings), settings.copia_come))
+}
+
+/// I testi del documento nella Lingua dell'interfaccia.
+fn labels(settings: &Settings) -> Labels {
+    Labels::of(settings.interface_language.unwrap_or_else(Language::system))
+}
+
+/// Una Trascrizione che parte adesso, ancora senza Frasi, con il modello e la Lingua del parlato
+/// delle impostazioni. Diventa subito `LastTranscript`, prima di caricare il modello: se il
+/// caricamento fallisce, Copia testo non rende la Trascrizione precedente.
+fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Transcript {
+    let transcript = Transcript {
+        title,
+        date: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
+        durata_ms: None,
+        model: SettingsStore::model_of(settings).name.clone(),
+        speech_language: settings.speech_language,
+        phrases: Vec::new(),
+    };
+    app.state::<LastTranscript>().set(transcript.clone());
+    transcript
+}
+
+/// Il nome della Sorgente senza l'ultima estensione: il titolo del documento.
+fn title_of(source: &Path) -> String {
+    source
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
-/// `transcript-phrase`, poi salva il TXT.
+/// `transcript-phrase`, poi salva il Markdown.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
@@ -105,14 +176,16 @@ pub async fn transcribe(
     let settings = app.state::<SettingsStore>().get();
     let model = SettingsStore::model_of(&settings);
     let silero = silero_path(&app)?;
+    let transcript = begin_transcript(&app, title_of(&source), &settings);
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
         let engine = models.take(&app, || model.id.as_str())?;
-        let phrases = run_pipeline(
+        let transcript = run_pipeline(
             &app,
             engine,
             &silero,
             &cancel,
+            transcript,
             |engine, detector, on_event| {
                 transcribe_file(
                     &source,
@@ -124,11 +197,11 @@ pub async fn transcribe(
                 )
             },
         )?;
-        // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
+        // Annulla premuto dopo l'ultima Frase: il Markdown non si salva lo stesso.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        save_transcript(&source, &phrases)
+        save_transcript(&source, &transcript, &labels(&settings))
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
@@ -136,15 +209,18 @@ pub async fn transcribe(
 
 /// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive `frames`
 /// man mano che arrivano, fino alla fine della Registrazione e della coda, con gli eventi di
-/// `transcribe`. Restituisce le Frasi. Se il modello non si carica (`liveTranscriptionUnavailable`)
-/// o la pipeline si guasta emette `live-transcription-failed`: la Registrazione continua.
+/// `transcribe`. Restituisce il documento, intitolato `title` finché non si sa il nome del file.
+/// Se il modello non si carica (`liveTranscriptionUnavailable`) o la pipeline si guasta emette
+/// `live-transcription-failed`: la Registrazione continua.
 pub fn transcribe_live(
     app: &AppHandle,
     mut frames: LiveFrames,
     settings: &Settings,
+    title: &str,
     cancel: &CancelToken,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Transcript, AppError> {
     let model = SettingsStore::model_of(settings);
+    let transcript = begin_transcript(app, title.to_string(), settings);
     let transcribed = silero_path(app).and_then(|silero| {
         let models = app.state::<Models>();
         let engine = models.take(app, || model.id.as_str()).map_err(|e| {
@@ -156,6 +232,7 @@ pub fn transcribe_live(
             engine,
             &silero,
             cancel,
+            transcript,
             |engine, detector, on_event| {
                 pipeline::transcribe(
                     &mut frames,
@@ -182,19 +259,43 @@ pub fn transcribe_live(
     transcribed
 }
 
-/// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: salva le
-/// Frasi nel TXT accanto, a meno che non sia stata annullata o guasta.
+/// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: il documento
+/// prende il nome del file e si salva nel Markdown accanto, a meno che la Trascrizione non sia
+/// stata annullata o guasta.
 pub fn finish_live(
+    app: &AppHandle,
     recording: &Path,
-    phrases: Result<Vec<String>, AppError>,
+    transcript: Result<Transcript, AppError>,
     cancel: &CancelToken,
 ) -> LiveTranscription {
-    let saved = phrases.and_then(|phrases| {
-        // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
+    let title = title_of(recording);
+    app.state::<LastTranscript>()
+        .update(|last| last.title.clone_from(&title));
+    let settings = app.state::<SettingsStore>().get();
+    save_live(
+        recording,
+        transcript.map(|transcript| Transcript {
+            title,
+            ..transcript
+        }),
+        cancel,
+        &labels(&settings),
+    )
+}
+
+/// Salva il documento della Trascrizione dal vivo, se non è stata annullata o guasta.
+fn save_live(
+    recording: &Path,
+    transcript: Result<Transcript, AppError>,
+    cancel: &CancelToken,
+    labels: &Labels,
+) -> LiveTranscription {
+    let saved = transcript.and_then(|transcript| {
+        // Annulla premuto dopo l'ultima Frase: il Markdown non si salva lo stesso.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        save_transcript(recording, &phrases)
+        save_transcript(recording, &transcript, labels)
     });
     match saved {
         Ok(TranscriptionOutcome::Saved(finished)) => LiveTranscription::Saved(finished),
@@ -210,22 +311,25 @@ fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
 }
 
 /// Esegue `run` con `engine` e Silero, traduce gli eventi della pipeline in
-/// `transcription-progress`, `transcript-partial` e `transcript-phrase` e restituisce le Frasi.
-/// Poi rende il motore: dopo un guasto interno si scarta e alla volta successiva si ricarica.
+/// `transcription-progress`, `transcript-partial` e `transcript-phrase` e aggiunge le Frasi a
+/// `transcript`, che restituisce con la durata. Aggiorna anche `LastTranscript` a
+/// ogni Frase. Poi rende il motore: dopo un guasto interno si scarta e alla volta successiva si
+/// ricarica.
 fn run_pipeline(
     app: &AppHandle,
     mut engine: Lease<'_, TranscribeCpp>,
     silero: &Path,
     cancel: &CancelToken,
+    mut transcript: Transcript,
     run: impl FnOnce(
         &mut dyn TranscriptionEngine,
         &mut dyn VoiceDetector,
         &mut dyn FnMut(PipelineEvent),
-    ) -> Result<(), AppError>,
-) -> Result<Vec<String>, AppError> {
+    ) -> Result<u32, AppError>,
+) -> Result<Transcript, AppError> {
     engine.set_cancel_token(cancel);
+    let last = app.state::<LastTranscript>();
     let transcribed = Silero::new(silero).and_then(|mut detector| {
-        let mut phrases = Vec::new();
         run(&mut *engine, &mut detector, &mut |event| {
             let emitted = match event {
                 PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(app),
@@ -254,7 +358,15 @@ fn run_pipeline(
                         text: text.clone(),
                     }
                     .emit(app);
-                    phrases.push(text);
+                    let phrase = Phrase {
+                        inizio_ms,
+                        fine_ms,
+                        text,
+                        ingresso: None,
+                        parlante: None,
+                    };
+                    last.update(|last| last.phrases.push(phrase.clone()));
+                    transcript.phrases.push(phrase);
                     emitted
                 }
             };
@@ -262,7 +374,13 @@ fn run_pipeline(
                 log::warn!("evento della Trascrizione non emesso: {e}");
             }
         })
-        .map(|()| phrases)
+        .map(|durata_ms| {
+            last.update(|last| last.durata_ms = Some(durata_ms));
+            Transcript {
+                durata_ms: Some(durata_ms),
+                ..transcript
+            }
+        })
     });
     app.state::<Models>().release(
         app,
@@ -290,21 +408,23 @@ pub fn preload(app: &AppHandle) {
     });
 }
 
-/// Salva le Frasi, una per riga, nel TXT accanto alla Sorgente; senza Frasi non crea il file.
-pub fn save_transcript(
+/// Salva il documento in Markdown accanto alla Sorgente; senza Frasi non crea il file.
+fn save_transcript(
     source: &Path,
-    phrases: &[String],
+    transcript: &Transcript,
+    labels: &Labels,
 ) -> Result<TranscriptionOutcome, AppError> {
-    if phrases.is_empty() {
+    if transcript.phrases.is_empty() {
         return Ok(TranscriptionOutcome::NoSpeech);
     }
-    save_txt(source, &phrases.join("\n")).map(TranscriptionOutcome::Saved)
+    let markdown = transcript::render(transcript, labels, CopiaCome::Markdown);
+    save_md(source, &markdown).map(TranscriptionOutcome::Saved)
 }
 
-/// Scrive `text` nel primo `<stem> trascrizione <N>.txt` libero accanto alla Sorgente.
-pub fn save_txt(source: &Path, text: &str) -> Result<TranscriptionFinished, AppError> {
+/// Scrive `text` nel primo `<stem> trascrizione <N>.md` libero accanto alla Sorgente.
+fn save_md(source: &Path, text: &str) -> Result<TranscriptionFinished, AppError> {
     let (path, mut file) = loop {
-        let path = txt_path(source, |p| p.exists());
+        let path = md_path(source, |p| p.exists());
         // `create_new`: un file comparso dopo il controllo non si sovrascrive, si passa al prossimo N.
         match std::fs::File::create_new(&path) {
             Ok(file) => break (path, file),
@@ -315,7 +435,7 @@ pub fn save_txt(source: &Path, text: &str) -> Result<TranscriptionFinished, AppE
     file.write_all(text.as_bytes())
         .map_err(|e| unwritable(&path, &e))?;
     Ok(TranscriptionFinished {
-        txt_path: path.display().to_string(),
+        md_path: path.display().to_string(),
         chars: u32::try_from(text.chars().count()).unwrap_or(u32::MAX),
     })
 }
@@ -324,11 +444,11 @@ fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
     AppError::UnwritableFolder(format!("{}: {e}", path.display()))
 }
 
-/// `<stem della Sorgente> trascrizione <N>.txt` accanto alla Sorgente, con N il primo libero da 1.
-pub fn txt_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
-    let stem = source.file_stem().unwrap_or_default().to_string_lossy();
+/// `<stem della Sorgente> trascrizione <N>.md` accanto alla Sorgente, con N il primo libero da 1.
+fn md_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
+    let stem = title_of(source);
     (1..)
-        .map(|n| source.with_file_name(format!("{stem} trascrizione {n}.txt")))
+        .map(|n| source.with_file_name(format!("{stem} trascrizione {n}.md")))
         .find(|path| !exists(path))
         .expect("i numeri non finiscono")
 }
@@ -336,103 +456,131 @@ pub fn txt_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::managers::settings::SpeechLanguage;
+
+    fn transcript(phrases: &[&str]) -> Transcript {
+        Transcript {
+            title: "Riunione".into(),
+            date: "2026-10-03 17:05".into(),
+            durata_ms: Some(4000),
+            model: "Nemotron".into(),
+            speech_language: SpeechLanguage::Auto,
+            phrases: phrases
+                .iter()
+                .map(|text| Phrase {
+                    inizio_ms: 0,
+                    fine_ms: 1000,
+                    text: (*text).into(),
+                    ingresso: None,
+                    parlante: None,
+                })
+                .collect(),
+        }
+    }
+
+    fn labels() -> Labels {
+        Labels::of(Language::It)
+    }
 
     #[test]
-    fn il_txt_prende_il_primo_numero_libero_da_1() {
+    fn il_markdown_prende_il_primo_numero_libero_da_1() {
         let source = Path::new(r"C:\Lezioni\Lezione 1.mp4");
         let taken = |names: &'static [&str]| {
             move |p: &Path| names.iter().any(|n| p == Path::new(r"C:\Lezioni").join(n))
         };
         assert_eq!(
-            txt_path(source, taken(&[])),
-            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 1.txt")
+            md_path(source, taken(&[])),
+            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 1.md")
         );
         assert_eq!(
-            txt_path(
+            md_path(
+                source,
+                taken(&["Lezione 1 trascrizione 1.md", "Lezione 1 trascrizione 2.md"])
+            ),
+            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 3.md")
+        );
+        // Un buco nella numerazione si riempie, e i vecchi TXT non contano.
+        assert_eq!(
+            md_path(
                 source,
                 taken(&[
-                    "Lezione 1 trascrizione 1.txt",
-                    "Lezione 1 trascrizione 2.txt"
+                    "Lezione 1 trascrizione 2.md",
+                    "Lezione 1 trascrizione 1.txt"
                 ])
             ),
-            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 3.txt")
-        );
-        // Un buco nella numerazione si riempie.
-        assert_eq!(
-            txt_path(source, taken(&["Lezione 1 trascrizione 2.txt"])),
-            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 1.txt")
+            Path::new(r"C:\Lezioni\Lezione 1 trascrizione 1.md")
         );
     }
 
     #[test]
-    fn il_nome_del_txt_toglie_solo_l_ultima_estensione() {
+    fn il_nome_del_markdown_toglie_solo_l_ultima_estensione() {
         assert_eq!(
-            txt_path(Path::new(r"D:\a\intervista.v2.mkv"), |_| false),
-            Path::new(r"D:\a\intervista.v2 trascrizione 1.txt")
+            md_path(Path::new(r"D:\a\intervista.v2.mkv"), |_| false),
+            Path::new(r"D:\a\intervista.v2 trascrizione 1.md")
         );
     }
 
     #[test]
     fn salvare_due_volte_non_sovrascrive_e_conta_i_caratteri() {
-        let dir = std::env::temp_dir().join("sbobino-test-txt");
+        let dir = std::env::temp_dir().join("sbobino-test-md");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let source = dir.join("Riunione.mp3");
-        let first = save_txt(&source, "Perché sì.\nVa bene.").unwrap();
-        let second = save_txt(&source, "altro").unwrap();
+        let first = save_md(&source, "Perché sì.\nVa bene.").unwrap();
+        let second = save_md(&source, "altro").unwrap();
         assert_eq!(
             first,
             TranscriptionFinished {
-                txt_path: dir
-                    .join("Riunione trascrizione 1.txt")
-                    .display()
-                    .to_string(),
+                md_path: dir.join("Riunione trascrizione 1.md").display().to_string(),
                 chars: 19,
             }
         );
         assert_eq!(
-            second.txt_path,
-            dir.join("Riunione trascrizione 2.txt")
-                .display()
-                .to_string()
+            second.md_path,
+            dir.join("Riunione trascrizione 2.md").display().to_string()
         );
         assert_eq!(
-            std::fs::read_to_string(&first.txt_path).unwrap(),
+            std::fs::read_to_string(&first.md_path).unwrap(),
             "Perché sì.\nVa bene."
         );
     }
 
     #[test]
-    fn senza_frasi_non_si_salva_nessun_txt() {
+    fn senza_frasi_non_si_salva_nessun_markdown() {
         let dir = std::env::temp_dir().join("sbobino-test-nessun-parlato");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let source = dir.join("Silenzio.wav");
         assert_eq!(
-            save_transcript(&source, &[]).unwrap(),
+            save_transcript(&source, &transcript(&[]), &labels()).unwrap(),
             TranscriptionOutcome::NoSpeech
         );
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        let saved = save_transcript(&source, &["Uno.".into(), "Due.".into()]).unwrap();
+        let document = transcript(&["Uno.", "Due."]);
+        let saved = save_transcript(&source, &document, &labels()).unwrap();
         let TranscriptionOutcome::Saved(finished) = saved else {
             panic!("{saved:?}");
         };
         assert_eq!(
-            std::fs::read_to_string(finished.txt_path).unwrap(),
-            "Uno.
-Due."
+            std::fs::read_to_string(finished.md_path).unwrap(),
+            transcript::render(&document, &labels(), CopiaCome::Markdown)
         );
     }
 
     #[test]
-    fn la_trascrizione_dal_vivo_annullata_o_guasta_non_salva_il_txt() {
+    fn la_trascrizione_dal_vivo_annullata_o_guasta_non_salva_il_markdown() {
         let dir = std::env::temp_dir().join("sbobino-test-dal-vivo");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let recording = dir.join("Registrazione.ogg");
-        let phrases = || Ok(vec!["Uno.".to_string()]);
+        let document = || Ok(transcript(&["Uno."]));
         let cancel = CancelToken::new();
-        let guasta = finish_live(&recording, Err(AppError::Internal("x".into())), &cancel);
+        let guasta = save_live(
+            &recording,
+            Err(AppError::Internal("x".into())),
+            &cancel,
+            &labels(),
+        );
         assert!(matches!(
             guasta,
             LiveTranscription::Failed {
@@ -440,15 +588,12 @@ Due."
             }
         ));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        let saved = finish_live(&recording, phrases(), &cancel);
-        assert!(matches!(
-            saved,
-            LiveTranscription::Saved(TranscriptionFinished { chars: 4, .. })
-        ));
-        // Annulla dopo l'ultima Frase: niente secondo TXT.
+        let saved = save_live(&recording, document(), &cancel, &labels());
+        assert!(matches!(saved, LiveTranscription::Saved(_)), "{saved:?}");
+        // Annulla dopo l'ultima Frase: niente secondo Markdown.
         cancel.cancel();
         assert_eq!(
-            finish_live(&recording, phrases(), &cancel),
+            save_live(&recording, document(), &cancel, &labels()),
             LiveTranscription::Failed {
                 error: AppError::Cancelled
             }
@@ -457,9 +602,26 @@ Due."
     }
 
     #[test]
+    fn copia_testo_rende_l_ultima_trascrizione_nel_formato_delle_impostazioni() {
+        let last = LastTranscript::default();
+        let mut settings = Settings {
+            interface_language: Some(Language::It),
+            ..Settings::default()
+        };
+        assert_eq!(transcript_text(&last, &settings), None);
+        last.set(transcript(&["Uno."]));
+        last.update(|t| t.title = "Lezione".into());
+        let text = transcript_text(&last, &settings).unwrap();
+        assert!(text.starts_with("Lezione\n\nData: "), "{text}");
+        settings.copia_come = CopiaCome::Markdown;
+        let text = transcript_text(&last, &settings).unwrap();
+        assert!(text.starts_with("# Lezione\n\n- **Data:** "), "{text}");
+    }
+
+    #[test]
     fn una_cartella_non_scrivibile_da_errore_dedicato() {
         let source = std::env::temp_dir().join("sbobino-test-non-esiste/Audio.wav");
-        let error = save_txt(&source, "testo").unwrap_err();
+        let error = save_md(&source, "testo").unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
     }
 }

@@ -51,6 +51,8 @@ export function HomePage() {
   const [partial, setPartial] = useState<TranscriptPartial | null>(null);
   // Gli eventi possono arrivare dopo la risposta di `transcribe`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
+  // Il testo è stato modificato a mano dopo l'ultima Trascrizione: Copia testo lo copia com'è.
+  const edited = useRef<boolean>(false);
   const { loadError, save, settings } = useSettings();
   // Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro da mostrare.
   const [status, setStatus] = useState<Status>(() =>
@@ -144,6 +146,7 @@ export function HomePage() {
     setText("");
     setPartial(null);
     acceptPartials.current = true;
+    edited.current = false;
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
@@ -166,6 +169,7 @@ export function HomePage() {
       setText("");
       setPartial(null);
       acceptPartials.current = true;
+      edited.current = false;
     }
     setCancelling(false);
     setStatus({ paused: false, phase: "recording" });
@@ -249,9 +253,12 @@ export function HomePage() {
     }
   }, []);
 
+  // Il documento dell'ultima Trascrizione, in testo semplice o Markdown secondo le impostazioni;
+  // il testo modificato a mano si copia com'è.
   const copy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(text);
+      const rendered = edited.current ? null : await commands.transcriptText();
+      await navigator.clipboard.writeText(rendered ?? text);
       setCopied(true);
     } catch (e) {
       setStatus({
@@ -273,10 +280,10 @@ export function HomePage() {
     [languages, save, settings]
   );
 
-  const edit = useCallback(
-    (e: ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value),
-    []
-  );
+  const edit = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
+    edited.current = true;
+    setText(e.target.value);
+  }, []);
 
   // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
   // o se c'è testo.

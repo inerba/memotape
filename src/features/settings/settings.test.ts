@@ -17,6 +17,8 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.interfaceLanguage).toBeNull();
   // Trascrivi dal vivo è spenta finché l'utente non la attiva.
   expect(defaults.trascrizioneDalVivo).toBe(false);
+  // Copia testo copia testo semplice finché l'utente non sceglie Markdown.
+  expect(defaults.copiaCome).toBe("testo");
 });
 
 test("senza backend la Lingua dell'interfaccia è quella di sistema se supportata, altrimenti l'inglese", () => {
@@ -34,6 +36,7 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     ...defaults,
     bitrateKbps: 320,
     channels: "stereo",
+    copiaCome: "markdown",
     interfaceLanguage: "pl",
     microphone: "Microfono USB",
     outputDevice: "Cuffie",
@@ -55,6 +58,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, recordingSource: "line-in" },
     { ...defaults, model: "" },
     { ...defaults, trascrizioneDalVivo: "sì" },
+    { ...defaults, copiaCome: "html" },
     { model: defaults.model },
   ];
   for (const value of invalid) {

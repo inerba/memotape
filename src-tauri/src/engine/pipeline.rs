@@ -1,6 +1,6 @@
 //! Pipeline di Trascrizione: frame a 16 kHz → VAD → segmentatore → motore. La fonte dei frame può
 //! essere un file (`transcribe_file`) o qualunque altro flusso. Gira alla velocità del calcolo e non
-//! sa nulla di Tauri né dei file TXT.
+//! sa nulla di Tauri né dei file salvati.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -56,7 +56,7 @@ pub enum Feed {
 /// ordine. `language` è la Lingua del parlato (`None`: automatica). Con `cancel` premuto si ferma
 /// al prossimo frame letto o alla fine della Frase in corso, senza emettere quella Frase, e
 /// restituisce `AppError::Cancelled`. La fonte si legge solo quando servono frame, e un suo errore
-/// ferma la pipeline.
+/// ferma la pipeline. Restituisce la durata dell'audio ricevuto, in ms.
 pub fn transcribe(
     frames: &mut dyn Iterator<Item = Result<Feed, AppError>>,
     engine: &mut dyn TranscriptionEngine,
@@ -64,7 +64,7 @@ pub fn transcribe(
     language: Option<&str>,
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
-) -> Result<(), AppError> {
+) -> Result<u32, AppError> {
     detector.reset();
     // Lo usano sia la lettura dell'audio (progresso) sia il motore (Parziali), mai insieme.
     let on_event = RefCell::new(on_event);
@@ -76,6 +76,7 @@ pub fn transcribe(
         cancel,
         queue: VecDeque::new(),
         ended: false,
+        received: 0,
         error: None,
         emit: &emit,
     };
@@ -132,7 +133,7 @@ pub fn transcribe(
             phrase_id += 1;
         }
     }
-    Ok(())
+    Ok(to_ms(events.received))
 }
 
 /// Trascrive il file `source` come `transcribe`, con il progresso della decodifica.
@@ -143,7 +144,7 @@ pub fn transcribe_file(
     language: Option<&str>,
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
-) -> Result<(), AppError> {
+) -> Result<u32, AppError> {
     let mut frames = FileFrames::open(source)?;
     on_event(PipelineEvent::Progress(frames.progress));
     transcribe(&mut frames, engine, detector, language, cancel, on_event)
@@ -232,6 +233,8 @@ struct SegmentedSource<'a> {
     cancel: &'a CancelToken,
     queue: VecDeque<Event>,
     ended: bool,
+    /// Frame ricevuti dalla fonte.
+    received: usize,
     /// Errore incontrato mentre il motore leggeva l'audio della Frase.
     error: Option<AppError>,
     emit: &'a dyn Fn(PipelineEvent),
@@ -251,6 +254,7 @@ impl SegmentedSource<'_> {
             }
             match self.frames.next().transpose()? {
                 Some(Feed::Frame(frame)) => {
+                    self.received += 1;
                     let probability = self.detector.probability(&frame)?;
                     self.queue.extend(self.segmenter.push(frame, probability));
                 }
@@ -788,6 +792,22 @@ pub(crate) mod tests {
             _ => None,
         });
         assert_eq!(first_partial, Some((300, 600)));
+    }
+
+    #[test]
+    fn la_pipeline_restituisce_la_durata_dell_audio_ricevuto() {
+        let mut feed = frames(&[(false, 20), (true, 30)]);
+        feed.push(Ok(Feed::ClosePhrase));
+        feed.extend(frames(&[(false, 50)]));
+        let durata_ms = transcribe(
+            &mut feed.into_iter(),
+            &mut FakeEngine::default(),
+            &mut EnergyDetector,
+            None,
+            &CancelToken::new(),
+            &mut drop,
+        );
+        assert_eq!(durata_ms, Ok(100 * 30));
     }
 
     #[test]

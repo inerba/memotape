@@ -10,7 +10,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 
 Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio o video con "Sfoglia", oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
-- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo compare Frase per Frase in un'area dedicata: con Nemotron anche come Parziale, mentre la Frase è in corso. Alla fine il testo viene salvato in un TXT accanto alla Sorgente.
+- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo compare Frase per Frase in un'area dedicata: con Nemotron anche come Parziale, mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -37,12 +37,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 13. Come utente con Whisper o Parakeet, voglio vedere ogni Frase appena è conclusa, così vedo comunque l'avanzamento.
 14. Come utente, voglio la percentuale di avanzamento nella status bar quando la durata è nota, così so quanto manca.
 15. Come utente, voglio un avanzamento senza percentuale quando la durata non è nota, così so comunque che l'app sta lavorando.
-16. Come utente, voglio che a fine Trascrizione il testo venga salvato in `<nome Sorgente> trascrizione <N>.txt` accanto alla Sorgente, con N il primo numero libero, così non perdo il risultato e non sovrascrivo trascrizioni precedenti. Se la Trascrizione non trova parlato il TXT non si crea e la status bar mostra "Nessun parlato rilevato".
-17. Come utente, voglio che la status bar mostri a fine Trascrizione che è finita, il numero di caratteri e il percorso del TXT, così so dove trovarlo.
-18. Come utente, voglio un pulsante "Copia testo" che copi l'area negli appunti, così incollo il testo altrove.
+16. Come utente, voglio che a fine Trascrizione il testo venga salvato in `<nome Sorgente> trascrizione <N>.md` accanto alla Sorgente, con N il primo numero libero, così non perdo il risultato e non sovrascrivo trascrizioni precedenti. Se la Trascrizione non trova parlato il Markdown non si crea e la status bar mostra "Nessun parlato rilevato".
+17. Come utente, voglio che la status bar mostri a fine Trascrizione che è finita, il numero di caratteri e il percorso del Markdown, così so dove trovarlo.
+18. Come utente, voglio un pulsante "Copia testo" che copi negli appunti l'ultima Trascrizione, in testo semplice o in Markdown secondo le Impostazioni (il testo modificato a mano si copia com'è), così incollo il testo altrove.
 19. Come utente, voglio una conferma prima che una nuova Trascrizione sostituisca il testo già presente nell'area, così non lo perdo per errore.
 20. Come utente, voglio un pulsante "Annulla" durante la Trascrizione, così fermo un lavoro lungo avviato per sbaglio.
-21. Come utente, voglio che dopo Annulla il testo già comparso resti nell'area ma che nessun TXT venga salvato, così il TXT esiste solo per Trascrizioni complete.
+21. Come utente, voglio che dopo Annulla il testo già comparso resti nell'area ma che nessun Markdown venga salvato, così il Markdown esiste solo per Trascrizioni complete.
 22. Come utente, voglio scegliere la Lingua del parlato con un selettore accanto a Trascrivi, così aiuto il modello quando il riconoscimento automatico sbaglia.
 23. Come utente, voglio che il selettore della Lingua del parlato abbia "Automatica" come default e offra solo le lingue tra it, en, fr, es, de e pl supportate dal modello selezionato, così non scelgo combinazioni impossibili.
 24. Come utente, voglio che la Lingua del parlato scelta resti salvata tra un avvio e l'altro, così non la reimposto ogni volta.
@@ -159,13 +159,17 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - `Sbobino_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Sbobino`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
   - La disinstallazione toglie l'app e lascia impostazioni e modelli scaricati, a meno di spuntare la cancellazione dei dati dell'app.
   - L'editore dell'installer non è ancora deciso: oggi è il segnaposto "EDITORE DA DEFINIRE".
-- **V1 (ticket v2/02)**: storie 1–12 della spec v2 (`.scratch/sbobino-v2/spec.md`) sul mix; il testo si salva nel TXT esistente, il Bino arriva con V2.
+- **V1 (ticket v2/02)**: storie 1–12 della spec v2 (`.scratch/sbobino-v2/spec.md`) sul mix; il testo si salvava nel TXT (dalla V3 è Markdown), il Bino arriva con V2.
   - La casella "Trascrivi dal vivo" accanto a Registra, spenta per default e salvata tra un avvio e l'altro, fa comparire il testo mentre si registra: con Nemotron i Parziali, con Whisper e Parakeet ogni Frase a fine Frase. Durante la Registrazione la casella è bloccata.
-  - La Registrazione non rallenta mai: se il motore resta indietro le Frasi vanno in coda. Dopo Stop la status bar mostra "Completamento della trascrizione…" con l'avanzamento e Annulla finché la coda non è vuota; annullando, la Registrazione resta salvata e il TXT no.
+  - La Registrazione non rallenta mai: se il motore resta indietro le Frasi vanno in coda. Dopo Stop la status bar mostra "Completamento della trascrizione…" con l'avanzamento e Annulla finché la coda non è vuota; annullando, la Registrazione resta salvata e il testo no.
   - Pausa chiude la Frase in corso, Riprendi continua nella stessa sessione; il testo non contiene l'audio in pausa.
-  - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.txt` accanto all'Ogg e la status bar lo dice.
+  - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.md` accanto all'Ogg e la status bar lo dice.
   - Con testo nell'area, Registra con la casella attiva chiede conferma prima di sostituirlo.
   - Se il modello scelto non è scaricato o non si carica la Registrazione parte comunque, con un avviso e il link alle Impostazioni.
+- **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è già nel renderer e arriva con i ticket v2/06 e v2/07.
+  - Il risultato di una Trascrizione, anche dal vivo, è `<nome Sorgente> trascrizione <N>.md` invece del TXT, con la stessa regola del primo N libero. Ha come titolo il nome della Sorgente e un'intestazione con data e ora, durata, modello e Lingua del parlato, nella Lingua dell'interfaccia.
+  - Le Frasi si uniscono in paragrafi, e se ne apre uno nuovo dopo oltre 2 s di silenzio.
+  - In Impostazioni → Generale, "Copia testo come" sceglie testo semplice (predefinito) o Markdown. Copia testo copia l'ultima Trascrizione, anche annullata o in corso, nel formato scelto; se il testo nell'area è stato modificato a mano lo copia com'è.
 
 ## Fuori dal perimetro
 
@@ -173,7 +177,7 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
 - Timestamp nel testo, diarizzazione, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
-- Storico delle trascrizioni, editor avanzato del testo, esportazioni diverse dal TXT.
+- Storico delle trascrizioni, editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.
 - La scelta della GPU: `transcribe-cpp` usa Vulkan se disponibile, altrimenti la CPU.

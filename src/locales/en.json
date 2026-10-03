@@ -15,7 +15,7 @@
     "cancelling": "Cancelling…",
     "replace": {
       "title": "Replace the text?",
-      "description": "The text in the box, including your edits, will be replaced by the new transcription. TXT files already saved are kept.",
+      "description": "The text in the box, including your edits, will be replaced by the new transcription. Markdown files already saved are kept.",
       "keep": "Keep the text",
       "confirm": "Replace"
     }
@@ -33,7 +33,7 @@
     "finished_one": "Transcription finished: {{count, number}} character saved to {{path}}",
     "finished_other": "Transcription finished: {{count, number}} characters saved to {{path}}",
     "noSpeech": "No speech detected",
-    "cancelled": "Transcription cancelled: no TXT saved",
+    "cancelled": "Transcription cancelled: no Markdown saved",
     "openModels": "Open Settings → Transcription"
   },
   "errors": {
@@ -98,13 +98,18 @@
     },
     "general": {
       "title": "General",
-      "description": "The recordings folder and the interface language.",
+      "description": "The recordings folder, the Copy text format and the interface language.",
       "folder": "Default folder",
       "folderDescription": "Where recordings are saved. Created if it doesn't exist.",
       "choose": "Choose…",
       "reset": "Use Documents\\Sbobino",
       "language": "Interface language",
-      "languageRestart": "The new language takes effect the next time Sbobino starts."
+      "languageRestart": "The new language takes effect the next time Sbobino starts.",
+      "copyAs": "Copy text as",
+      "copyFormats": {
+        "testo": "Plain text",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -180,5 +185,10 @@
       "onnx": "Runs Silero VAD",
       "vadRs": "Bridge between Silero VAD and Rust"
     }
+  },
+  "transcript": {
+    "date": "Date",
+    "duration": "Duration",
+    "model": "Model"
   }
 }

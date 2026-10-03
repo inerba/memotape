@@ -34,6 +34,20 @@ pub struct Settings {
     /// prima che esistesse: allora è spenta.
     #[serde(default)]
     pub trascrizione_dal_vivo: bool,
+    /// Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo.
+    #[serde(default)]
+    pub copia_come: CopiaCome,
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum CopiaCome {
+    /// Testo semplice, senza sintassi Markdown.
+    #[default]
+    Testo,
+    Markdown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -126,6 +140,7 @@ impl Default for Settings {
             recordings_folder: None,
             interface_language: None,
             trascrizione_dal_vivo: false,
+            copia_come: CopiaCome::Testo,
         }
     }
 }
@@ -285,21 +300,25 @@ mod tests {
         assert_eq!(settings.recordings_folder, None);
         assert_eq!(settings.interface_language, None);
         assert!(!settings.trascrizione_dal_vivo);
+        assert_eq!(settings.copia_come, CopiaCome::Testo);
     }
 
     #[test]
-    fn un_file_di_prima_della_trascrizione_dal_vivo_la_tiene_spenta_senza_perdere_il_resto() {
+    fn un_file_di_prima_delle_impostazioni_v2_le_tiene_ai_predefiniti_senza_perdere_il_resto() {
         let path = temp_file("senza-dal-vivo");
         let mut value = serde_json::to_value(Settings {
             bitrate_kbps: 64,
             ..Settings::default()
         })
         .unwrap();
-        value.as_object_mut().unwrap().remove("trascrizioneDalVivo");
+        let object = value.as_object_mut().unwrap();
+        object.remove("trascrizioneDalVivo");
+        object.remove("copiaCome");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
         assert!(!settings.trascrizione_dal_vivo);
+        assert_eq!(settings.copia_come, CopiaCome::Testo);
     }
 
     #[test]
@@ -369,6 +388,7 @@ mod tests {
             recordings_folder: Some(r"D:\Registrazioni".into()),
             interface_language: Some(Language::Pl),
             trascrizione_dal_vivo: true,
+            copia_come: CopiaCome::Markdown,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

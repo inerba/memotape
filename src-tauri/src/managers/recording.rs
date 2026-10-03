@@ -112,7 +112,8 @@ pub async fn record(
         let (feed, frames) = live::channel(settings.sample_rate, channel_count(settings.channels))?;
         let live = tauri::async_runtime::spawn_blocking({
             let (app, settings, cancel) = (app.clone(), settings.clone(), cancel.clone());
-            move || transcription::transcribe_live(&app, frames, &settings, &cancel)
+            let title = prefix.clone();
+            move || transcription::transcribe_live(&app, frames, &settings, &title, &cancel)
         });
         (Some(feed), Some(live))
     } else {
@@ -143,10 +144,14 @@ pub async fn record(
         log::warn!("transcription-progress non emesso: {e}");
     }
     // L'Attività finisce quando la coda è smaltita.
-    let phrases = live.await.map_err(internal).and_then(|phrases| phrases);
+    let transcript = live
+        .await
+        .map_err(internal)
+        .and_then(|transcript| transcript);
     saved.transcription = Some(transcription::finish_live(
+        &app,
         Path::new(&saved.path),
-        phrases,
+        transcript,
         &cancel,
     ));
     Ok(saved)

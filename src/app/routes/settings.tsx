@@ -13,6 +13,7 @@ import { Link } from "react-router";
 import {
   type AppError,
   type AudioDevice,
+  type CopiaCome,
   commands,
   type RecordingSource,
   type Settings,
@@ -34,6 +35,7 @@ const SELECT =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
+const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
 
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
@@ -109,6 +111,14 @@ export function SettingsPage() {
           settings.interfaceLanguage,
       }),
     [choose, settings.interfaceLanguage]
+  );
+  const chooseCopyFormat = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        copiaCome:
+          COPY_FORMATS.find((f) => f === e.target.value) ?? settings.copiaCome,
+      }),
+    [choose, settings.copiaCome]
   );
   const resetFolder = useCallback(
     () => choose({ recordingsFolder: null }),
@@ -289,6 +299,23 @@ export function SettingsPage() {
                 {t("settings.general.reset")}
               </Button>
             )}
+          </div>
+          <div className="flex max-w-xl flex-col gap-2">
+            <label className="text-sm" htmlFor="copy-format">
+              {t("settings.general.copyAs")}
+            </label>
+            <select
+              className={`${SELECT} self-start`}
+              id="copy-format"
+              onChange={chooseCopyFormat}
+              value={settings.copiaCome ?? "testo"}
+            >
+              {COPY_FORMATS.map((value) => (
+                <option key={value} value={value}>
+                  {t(`settings.general.copyFormats.${value}`)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex max-w-xl flex-col gap-2">
             <label className="text-sm" htmlFor="interface-language">

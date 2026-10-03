@@ -91,7 +91,7 @@ test("un dispositivo scollegato salva comunque e mostra l'errore con il suo nome
     data: {
       error: { code: "deviceDisconnected", detail: "Microfono USB" },
       path,
-      transcription: { chars: 3, outcome: "saved", txtPath: "a.txt" },
+      transcription: { chars: 3, mdPath: "a.md", outcome: "saved" },
     },
     status: "ok",
   });
@@ -115,19 +115,18 @@ test("una Registrazione che non parte lascia la Sorgente com'era", () => {
 
 test("con la Trascrizione dal vivo la status bar dice dov'è il testo salvato", () => {
   const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
-  const txtPath =
-    "D:\\Reg\\Registrazione 2026-10-03 10-00-00 trascrizione 1.txt";
+  const mdPath = "D:\\Reg\\Registrazione 2026-10-03 10-00-00 trascrizione 1.md";
   const after = afterRecording({
     data: {
       error: null,
       path,
-      transcription: { chars: 12, outcome: "saved", txtPath },
+      transcription: { chars: 12, mdPath, outcome: "saved" },
     },
     status: "ok",
   });
   expect(after.source).toBe(path);
   expect(statusText(after.status, t)).toBe(
-    `Trascrizione finita: 12 caratteri salvati in ${txtPath}`
+    `Trascrizione finita: 12 caratteri salvati in ${mdPath}`
   );
   const silent = afterRecording({
     data: { error: null, path, transcription: { outcome: "noSpeech" } },
@@ -136,7 +135,7 @@ test("con la Trascrizione dal vivo la status bar dice dov'è il testo salvato", 
   expect(silent.status).toEqual({ phase: "noSpeech" });
 });
 
-test("annullare il completamento della trascrizione salva la Registrazione senza TXT", () => {
+test("annullare il completamento della trascrizione salva la Registrazione senza Markdown", () => {
   const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
   const cancelled = afterRecording({
     data: {

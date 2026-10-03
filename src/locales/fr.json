@@ -15,7 +15,7 @@
     "cancelling": "Annulation…",
     "replace": {
       "title": "Remplacer le texte ?",
-      "description": "Le texte de la zone, y compris vos modifications, sera remplacé par la nouvelle transcription. Les TXT déjà enregistrés sont conservés.",
+      "description": "Le texte de la zone, y compris vos modifications, sera remplacé par la nouvelle transcription. Les fichiers Markdown déjà enregistrés sont conservés.",
       "keep": "Garder le texte",
       "confirm": "Remplacer"
     }
@@ -34,7 +34,7 @@
     "finished_many": "Transcription terminée : {{count, number}} de caractères enregistrés dans {{path}}",
     "finished_other": "Transcription terminée : {{count, number}} caractères enregistrés dans {{path}}",
     "noSpeech": "Aucune parole détectée",
-    "cancelled": "Transcription annulée : aucun TXT enregistré",
+    "cancelled": "Transcription annulée : aucun Markdown enregistré",
     "openModels": "Ouvrir Paramètres → Transcription"
   },
   "errors": {
@@ -99,13 +99,18 @@
     },
     "general": {
       "title": "Général",
-      "description": "Le dossier des enregistrements et la langue de l'interface.",
+      "description": "Le dossier des enregistrements, le format de Copier le texte et la langue de l'interface.",
       "folder": "Dossier par défaut",
       "folderDescription": "Où les enregistrements sont sauvegardés. Il est créé s'il n'existe pas.",
       "choose": "Choisir…",
       "reset": "Utiliser Documents\\Sbobino",
       "language": "Langue de l'interface",
-      "languageRestart": "La nouvelle langue s'applique au prochain démarrage de Sbobino."
+      "languageRestart": "La nouvelle langue s'applique au prochain démarrage de Sbobino.",
+      "copyAs": "Copier le texte en",
+      "copyFormats": {
+        "testo": "Texte brut",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -181,5 +186,10 @@
       "onnx": "Exécution de Silero VAD",
       "vadRs": "Liaison entre Silero VAD et Rust"
     }
+  },
+  "transcript": {
+    "date": "Date",
+    "duration": "Durée",
+    "model": "Modèle"
   }
 }

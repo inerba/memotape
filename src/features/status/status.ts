@@ -8,7 +8,7 @@ export type Status =
   | { phase: "completing"; percent: number | null }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null }
-  | { phase: "finished"; txtPath: string; chars: number }
+  | { phase: "finished"; mdPath: string; chars: number }
   | { phase: "noSpeech" }
   | { phase: "cancelled" }
   | { phase: "failed"; error: AppError };
@@ -37,7 +37,7 @@ export function statusText(status: Status, t: TFunction): string {
     case "finished":
       return t("status.finished", {
         count: status.chars,
-        path: status.txtPath,
+        path: status.mdPath,
       });
     case "noSpeech":
       return t("status.noSpeech");
@@ -105,8 +105,8 @@ export function outcomeStatus(outcome: TranscriptionOutcome): Status {
   if (outcome.outcome === "noSpeech") {
     return { phase: "noSpeech" };
   }
-  const { chars, txtPath } = outcome;
-  return { chars, phase: "finished", txtPath };
+  const { chars, mdPath } = outcome;
+  return { chars, mdPath, phase: "finished" };
 }
 
 /** La status bar per una Trascrizione fallita: Annulla non è un errore. */

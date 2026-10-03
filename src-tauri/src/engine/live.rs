@@ -164,7 +164,7 @@ mod tests {
         engine: &mut FakeEngine,
         cancel: &CancelToken,
         on_event: &mut dyn FnMut(PipelineEvent),
-    ) -> Result<(), AppError> {
+    ) -> Result<u32, AppError> {
         transcribe(frames, engine, &mut EnergyDetector, None, cancel, on_event)
     }
 

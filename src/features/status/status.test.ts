@@ -30,13 +30,13 @@ test("durante la Trascrizione mostra la percentuale solo se la durata è nota", 
   );
 });
 
-test("a fine Trascrizione mostra i caratteri e il percorso del TXT", () => {
-  const txtPath = "C:\\Lezioni\\Lezione 1 trascrizione 1.txt";
-  expect(statusText({ chars: 12_345, phase: "finished", txtPath }, t)).toBe(
-    `Trascrizione finita: 12.345 caratteri salvati in ${txtPath}`
+test("a fine Trascrizione mostra i caratteri e il percorso del Markdown", () => {
+  const mdPath = "C:\\Lezioni\\Lezione 1 trascrizione 1.md";
+  expect(statusText({ chars: 12_345, mdPath, phase: "finished" }, t)).toBe(
+    `Trascrizione finita: 12.345 caratteri salvati in ${mdPath}`
   );
-  expect(statusText({ chars: 1, phase: "finished", txtPath }, t)).toBe(
-    `Trascrizione finita: 1 carattere salvato in ${txtPath}`
+  expect(statusText({ chars: 1, mdPath, phase: "finished" }, t)).toBe(
+    `Trascrizione finita: 1 carattere salvato in ${mdPath}`
   );
 });
 
@@ -71,11 +71,11 @@ test("il progresso aggiorna solo una Trascrizione in corso", () => {
     phase: "transcribing",
   });
   // Un evento in ritardo non riporta indietro una Trascrizione già finita.
-  const finished: Status = { chars: 3, phase: "finished", txtPath: "a.txt" };
+  const finished: Status = { chars: 3, mdPath: "a.md", phase: "finished" };
   expect(withProgress(finished, 100)).toBe(finished);
 });
 
-test("una Trascrizione senza Frasi dice che non c'è parlato, senza TXT", () => {
+test("una Trascrizione senza Frasi dice che non c'è parlato, senza Markdown", () => {
   const status = afterTranscription({
     data: { outcome: "noSpeech" },
     status: "ok",
@@ -84,23 +84,23 @@ test("una Trascrizione senza Frasi dice che non c'è parlato, senza TXT", () => 
   expect(statusText(status, t)).toBe("Nessun parlato rilevato");
 });
 
-test("una Trascrizione salvata porta caratteri e percorso del TXT", () => {
+test("una Trascrizione salvata porta caratteri e percorso del Markdown", () => {
   expect(
     afterTranscription({
-      data: { chars: 3, outcome: "saved", txtPath: "a.txt" },
+      data: { chars: 3, mdPath: "a.md", outcome: "saved" },
       status: "ok",
     })
-  ).toEqual({ chars: 3, phase: "finished", txtPath: "a.txt" });
+  ).toEqual({ chars: 3, mdPath: "a.md", phase: "finished" });
 });
 
-test("Annulla non è un errore: la status bar dice che il TXT non c'è", () => {
+test("Annulla non è un errore: la status bar dice che il Markdown non c'è", () => {
   const status = afterTranscription({
     error: { code: "cancelled" },
     status: "error",
   });
   expect(status).toEqual({ phase: "cancelled" });
   expect(statusText(status, t)).toBe(
-    "Trascrizione annullata: nessun TXT salvato"
+    "Trascrizione annullata: nessun Markdown salvato"
   );
 });
 

@@ -15,7 +15,7 @@
     "cancelling": "Annullamento…",
     "replace": {
       "title": "Sostituire il testo?",
-      "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I TXT già salvati restano.",
+      "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I file Markdown già salvati restano.",
       "keep": "Mantieni il testo",
       "confirm": "Sostituisci"
     }
@@ -34,7 +34,7 @@
     "finished_many": "Trascrizione finita: {{count, number}} di caratteri salvati in {{path}}",
     "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
     "noSpeech": "Nessun parlato rilevato",
-    "cancelled": "Trascrizione annullata: nessun TXT salvato",
+    "cancelled": "Trascrizione annullata: nessun Markdown salvato",
     "openModels": "Apri Impostazioni → Trascrizione"
   },
   "errors": {
@@ -99,13 +99,18 @@
     },
     "general": {
       "title": "Generale",
-      "description": "La cartella delle Registrazioni e la Lingua dell'interfaccia.",
+      "description": "La cartella delle Registrazioni, il formato di Copia testo e la Lingua dell'interfaccia.",
       "folder": "Cartella predefinita",
       "folderDescription": "Dove si salvano le Registrazioni. Se non esiste viene creata.",
       "choose": "Scegli…",
       "reset": "Usa Documenti\\Sbobino",
       "language": "Lingua dell'interfaccia",
-      "languageRestart": "La nuova lingua si applica al prossimo avvio di Sbobino."
+      "languageRestart": "La nuova lingua si applica al prossimo avvio di Sbobino.",
+      "copyAs": "Copia testo come",
+      "copyFormats": {
+        "testo": "Testo semplice",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -181,5 +186,10 @@
       "onnx": "Esecuzione di Silero VAD",
       "vadRs": "Collegamento tra Silero VAD e Rust"
     }
+  },
+  "transcript": {
+    "date": "Data",
+    "duration": "Durata",
+    "model": "Modello"
   }
 }

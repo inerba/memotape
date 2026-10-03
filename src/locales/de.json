@@ -15,7 +15,7 @@
     "cancelling": "Wird abgebrochen…",
     "replace": {
       "title": "Text ersetzen?",
-      "description": "Der Text im Feld wird einschließlich deiner Änderungen durch die neue Transkription ersetzt. Bereits gespeicherte TXT-Dateien bleiben erhalten.",
+      "description": "Der Text im Feld wird einschließlich deiner Änderungen durch die neue Transkription ersetzt. Bereits gespeicherte Markdown-Dateien bleiben erhalten.",
       "keep": "Text behalten",
       "confirm": "Ersetzen"
     }
@@ -33,7 +33,7 @@
     "finished_one": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
     "finished_other": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
     "noSpeech": "Keine Sprache erkannt",
-    "cancelled": "Transkription abgebrochen: keine TXT-Datei gespeichert",
+    "cancelled": "Transkription abgebrochen: keine Markdown-Datei gespeichert",
     "openModels": "Einstellungen → Transkription öffnen"
   },
   "errors": {
@@ -98,13 +98,18 @@
     },
     "general": {
       "title": "Allgemein",
-      "description": "Der Ordner für Aufnahmen und die Sprache der Oberfläche.",
+      "description": "Der Ordner für Aufnahmen, das Format von Text kopieren und die Sprache der Oberfläche.",
       "folder": "Standardordner",
       "folderDescription": "Hier werden die Aufnahmen gespeichert. Der Ordner wird angelegt, falls er nicht existiert.",
       "choose": "Auswählen…",
       "reset": "Dokumente\\Sbobino verwenden",
       "language": "Sprache der Oberfläche",
-      "languageRestart": "Die neue Sprache gilt ab dem nächsten Start von Sbobino."
+      "languageRestart": "Die neue Sprache gilt ab dem nächsten Start von Sbobino.",
+      "copyAs": "Text kopieren als",
+      "copyFormats": {
+        "testo": "Nur Text",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -180,5 +185,10 @@
       "onnx": "Ausführung von Silero VAD",
       "vadRs": "Verbindung zwischen Silero VAD und Rust"
     }
+  },
+  "transcript": {
+    "date": "Datum",
+    "duration": "Dauer",
+    "model": "Modell"
   }
 }

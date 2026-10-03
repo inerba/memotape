@@ -4,14 +4,14 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Renderer puro, con due uscite: Markdown e testo semplice. Riceve i metadati (titolo = nome della Sorgente, data, durata, modello, Lingua del parlato) e le Frasi con i tempi. Prevede già etichette di Ingresso e Parlante, che arriveranno con i ticket 06 e 07
-- [ ] Paragrafo nuovo quando la pausa tra due Frasi supera i 2 s. Con le etichette, un paragrafo per turno (`**Etichetta:**`), con le Frasi consecutive della stessa voce unite
-- [ ] `.md` con il primo N libero accanto alla Sorgente; il TXT sparisce del tutto, e il risultato del comando di Trascrizione restituisce il percorso del `.md`
-- [ ] Impostazione `copia_come: testo | markdown` (default testo) in Impostazioni; "Copia testo" usa il renderer tramite un comando
-- [ ] Test del renderer: intestazione, soglia di 2 s, turni e unione, testo semplice
-- [ ] Verifica in `bun tauri dev`: il `.md` si apre bene in un visualizzatore Markdown, e Copia testo funziona nei due modi
+- [x] Renderer puro, con due uscite: Markdown e testo semplice. Riceve i metadati (titolo = nome della Sorgente, data, durata, modello, Lingua del parlato) e le Frasi con i tempi. Prevede già etichette di Ingresso e Parlante, che arriveranno con i ticket 06 e 07
+- [x] Paragrafo nuovo quando la pausa tra due Frasi supera i 2 s. Con le etichette, un paragrafo per turno (`**Etichetta:**`), con le Frasi consecutive della stessa voce unite
+- [x] `.md` con il primo N libero accanto alla Sorgente; il TXT sparisce del tutto, e il risultato del comando di Trascrizione restituisce il percorso del `.md`
+- [x] Impostazione `copia_come: testo | markdown` (default testo) in Impostazioni; "Copia testo" usa il renderer tramite un comando
+- [x] Test del renderer: intestazione, soglia di 2 s, turni e unione, testo semplice
+- [x] Verifica in `bun tauri dev`: il `.md` si apre bene in un visualizzatore Markdown, e Copia testo funziona nei due modi
 
 ## Note per chi lo implementa
 - Leggi prima `AGENTS.md` (comandi, prerequisiti, Insidie), `CONTEXT.md` (usa i suoi termini), gli ADR in `docs/adr/` e la spec `.scratch/sbobino-v2/spec.md`.

@@ -15,7 +15,7 @@
     "cancelling": "Cancelando…",
     "replace": {
       "title": "¿Reemplazar el texto?",
-      "description": "El texto del área, incluidos tus cambios, se reemplazará por la nueva transcripción. Los TXT ya guardados se conservan.",
+      "description": "El texto del área, incluidos tus cambios, se reemplazará por la nueva transcripción. Los archivos Markdown ya guardados se conservan.",
       "keep": "Conservar el texto",
       "confirm": "Reemplazar"
     }
@@ -34,7 +34,7 @@
     "finished_many": "Transcripción terminada: {{count, number}} de caracteres guardados en {{path}}",
     "finished_other": "Transcripción terminada: {{count, number}} caracteres guardados en {{path}}",
     "noSpeech": "No se ha detectado voz",
-    "cancelled": "Transcripción cancelada: no se ha guardado ningún TXT",
+    "cancelled": "Transcripción cancelada: no se ha guardado ningún Markdown",
     "openModels": "Abrir Configuración → Transcripción"
   },
   "errors": {
@@ -99,13 +99,18 @@
     },
     "general": {
       "title": "General",
-      "description": "La carpeta de las grabaciones y el idioma de la interfaz.",
+      "description": "La carpeta de las grabaciones, el formato de Copiar texto y el idioma de la interfaz.",
       "folder": "Carpeta predeterminada",
       "folderDescription": "Donde se guardan las grabaciones. Si no existe, se crea.",
       "choose": "Elegir…",
       "reset": "Usar Documentos\\Sbobino",
       "language": "Idioma de la interfaz",
-      "languageRestart": "El nuevo idioma se aplica la próxima vez que se inicie Sbobino."
+      "languageRestart": "El nuevo idioma se aplica la próxima vez que se inicie Sbobino.",
+      "copyAs": "Copiar texto como",
+      "copyFormats": {
+        "testo": "Texto sin formato",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -181,5 +186,10 @@
       "onnx": "Ejecución de Silero VAD",
       "vadRs": "Enlace entre Silero VAD y Rust"
     }
+  },
+  "transcript": {
+    "date": "Fecha",
+    "duration": "Duración",
+    "model": "Modelo"
   }
 }

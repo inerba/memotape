@@ -67,7 +67,8 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT.
+/// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel
+/// Markdown.
 /// Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 /// `cancel_transcription`.
 #[tauri::command]
@@ -85,6 +86,17 @@ pub async fn transcribe(
 #[specta::specta]
 pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
     activity.cancel()
+}
+
+/// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o Markdown, secondo
+/// `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
+#[tauri::command]
+#[specta::specta]
+pub fn transcript_text(
+    last: State<'_, managers::transcription::LastTranscript>,
+    settings: State<'_, SettingsStore>,
+) -> Option<String> {
+    managers::transcription::transcript_text(&last, &settings.get())
 }
 
 /// I modelli del catalogo con il loro stato.

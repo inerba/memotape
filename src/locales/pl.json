@@ -15,7 +15,7 @@
     "cancelling": "Anulowanie…",
     "replace": {
       "title": "Zastąpić tekst?",
-      "description": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony nową transkrypcją. Zapisane już pliki TXT pozostaną.",
+      "description": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony nową transkrypcją. Zapisane już pliki Markdown pozostaną.",
       "keep": "Zachowaj tekst",
       "confirm": "Zastąp"
     }
@@ -35,7 +35,7 @@
     "finished_many": "Transkrypcja zakończona: zapisano {{count, number}} znaków w pliku {{path}}",
     "finished_other": "Transkrypcja zakończona: zapisano {{count, number}} znaku w pliku {{path}}",
     "noSpeech": "Nie wykryto mowy",
-    "cancelled": "Transkrypcja anulowana: nie zapisano pliku TXT",
+    "cancelled": "Transkrypcja anulowana: nie zapisano pliku Markdown",
     "openModels": "Otwórz Ustawienia → Transkrypcja"
   },
   "errors": {
@@ -100,13 +100,18 @@
     },
     "general": {
       "title": "Ogólne",
-      "description": "Folder nagrań i język interfejsu.",
+      "description": "Folder nagrań, format Kopiuj tekst i język interfejsu.",
       "folder": "Folder domyślny",
       "folderDescription": "Tu zapisywane są nagrania. Jeśli folder nie istnieje, zostanie utworzony.",
       "choose": "Wybierz…",
       "reset": "Użyj Dokumenty\\Sbobino",
       "language": "Język interfejsu",
-      "languageRestart": "Nowy język zostanie zastosowany przy następnym uruchomieniu Sbobino."
+      "languageRestart": "Nowy język zostanie zastosowany przy następnym uruchomieniu Sbobino.",
+      "copyAs": "Kopiuj tekst jako",
+      "copyFormats": {
+        "testo": "Zwykły tekst",
+        "markdown": "Markdown"
+      }
     }
   },
   "models": {
@@ -182,5 +187,10 @@
       "onnx": "Uruchamianie Silero VAD",
       "vadRs": "Łącznik między Silero VAD a Rustem"
     }
+  },
+  "transcript": {
+    "date": "Data",
+    "duration": "Czas trwania",
+    "model": "Model"
   }
 }

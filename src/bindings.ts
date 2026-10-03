@@ -18,13 +18,19 @@ export const commands = {
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
-	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT.
+	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel
+	 *  Markdown.
 	 *  Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 	 *  `cancel_transcription`.
 	 */
 	transcribe: (source: string) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source })),
 	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
 	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
+	/**
+	 *  Il testo di Copia testo: l'ultima Trascrizione in testo semplice o Markdown, secondo
+	 *  `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
+	 */
+	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**  I modelli del catalogo con il loro stato. */
 	listModels: () => __TAURI_INVOKE<ModelInfo[]>("list_models"),
 	/**
@@ -116,6 +122,10 @@ export type AudioDevice = {
 
 export type Channels = "mono" | "stereo";
 
+export type CopiaCome = 
+/**  Testo semplice, senza sintassi Markdown. */
+"testo" | "markdown";
+
 /**  Le sei lingue dell'interfaccia. */
 export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 
@@ -127,13 +137,16 @@ export type Levels = {
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
 export type LiveTranscription = 
-/**  Il testo è salvato nel TXT accanto alla Registrazione. */
+/**  Il testo è salvato nel Markdown accanto alla Registrazione. */
 {
 	outcome: "saved",
 } & TranscriptionFinished | 
-/**  Nessuna Frase: il TXT non si crea. */
+/**  Nessuna Frase: il Markdown non si crea. */
 ({ outcome: "noSpeech" }) & { error?: never } | 
-/**  Senza TXT: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`). */
+/**
+ *  Senza Markdown: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla
+ *  (`cancelled`).
+ */
 { outcome: "failed"; error: AppError };
 
 /**
@@ -231,6 +244,8 @@ export type Settings = {
 	 *  prima che esistesse: allora è spenta.
 	 */
 	trascrizioneDalVivo?: boolean,
+	/**  Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo. */
+	copiaCome?: CopiaCome,
 };
 
 /**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
@@ -258,19 +273,19 @@ export type TranscriptPhrase = {
 	text: string,
 };
 
-/**  Dove è il TXT salvato e quanti caratteri contiene. */
+/**  Dove è il Markdown salvato e quanti caratteri contiene. */
 export type TranscriptionFinished = {
-	txtPath: string,
+	mdPath: string,
 	chars: number,
 };
 
 /**  Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`. */
 export type TranscriptionOutcome = 
-/**  Il testo è salvato nel TXT. */
+/**  Il testo è salvato nel Markdown. */
 {
 	outcome: "saved",
 } & TranscriptionFinished | 
-/**  Nessuna Frase: il TXT non si crea. */
+/**  Nessuna Frase: il Markdown non si crea. */
 { outcome: "noSpeech" };
 
 /**

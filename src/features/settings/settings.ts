@@ -44,6 +44,7 @@ export const SAMPLE_RATES = [8000, 16_000, 24_000, 48_000];
 export const DEFAULT_SETTINGS: Settings = {
   bitrateKbps: 32,
   channels: "mono",
+  copiaCome: "testo",
   interfaceLanguage: null,
   microphone: null,
   model: catalog.predefinito,
@@ -63,6 +64,8 @@ const oneOf = (values: number[]) =>
 export const settingsSchema = z.object({
   bitrateKbps: oneOf(BITRATES_KBPS),
   channels: z.enum(["mono", "stereo"]),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  copiaCome: z.enum(["testo", "markdown"]).optional(),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
   model: z.string().min(1),

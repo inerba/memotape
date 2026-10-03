@@ -3,6 +3,7 @@ mod commands;
 mod engine;
 mod error;
 mod managers;
+mod transcript;
 
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands, collect_events};
@@ -20,6 +21,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_source,
             commands::transcribe,
             commands::cancel_transcription,
+            commands::transcript_text,
             commands::list_models,
             commands::download_model,
             commands::cancel_model_download,
@@ -60,6 +62,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(managers::activity::Activity::default())
         .manage(managers::recording::Recorder::default())
+        .manage(managers::transcription::LastTranscript::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
