@@ -1,9 +1,10 @@
 mod audio_toolkit;
 mod commands;
 mod engine;
+mod error;
 mod managers;
 
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, collect_commands, collect_events};
 
 /// Percorso di `bindings.ts`, relativo a `src-tauri` (la cwd di `tauri dev` e di `cargo test`).
 #[cfg(any(debug_assertions, test))]
@@ -11,7 +12,13 @@ const BINDINGS_PATH: &str = "../src/bindings.ts";
 
 /// Comandi ed eventi esposti al frontend, tipizzati in `src/bindings.ts`.
 fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_version])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            commands::app_version,
+            commands::pick_source,
+            commands::transcribe,
+        ])
+        .events(collect_events![managers::transcription::TranscriptPhrase])
 }
 
 pub fn run() {

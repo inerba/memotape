@@ -2,8 +2,24 @@
   "home": {
     "version": "Versione {{version}}"
   },
+  "source": {
+    "browse": "Sfoglia",
+    "filter": "Audio e video",
+    "none": "Nessun file scelto"
+  },
+  "transcription": {
+    "start": "Trascrivi",
+    "running": "Trascrizione in corso…",
+    "text": "Testo trascritto"
+  },
   "errors": {
     "label": "Errore",
+    "codes": {
+      "unreadableFile": "Il file non esiste più o non è leggibile: {{detail}}",
+      "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
+      "modelMissing": "Il modello non è installato. Mettilo qui: {{detail}}",
+      "internal": "Errore durante la Trascrizione: {{detail}}"
+    },
     "app": {
       "title": "Qualcosa è andato storto",
       "description": "L'app ha incontrato un errore e va ricaricata.",

@@ -22,6 +22,17 @@ serde_json = "1"
 specta = "=2.0.0-rc.25"
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+thiserror = "2"
+log = "0.4"
+# Pipeline audio (spec, "Pipeline: crate e modulo per componente").
+symphonia = { version = "0.6.1", default-features = false, features = ["isomp4", "mkv", "ogg", "wav", "aiff", "aac", "mp3", "mp1", "mp2", "flac", "vorbis", "pcm", "alac", "adpcm"] }
+symphonia-adapter-libopus = "0.3.0"
+rubato = "5.0.1"
+audioadapter-buffers = "5.1"
+# Fork usato da Handy: Silero v4 su ort rc.12. Senza `helpers` (samplerate, ebur128).
+vad-rs = { git = "https://github.com/cjpais/vad-rs", rev = "2a412ed858695b9251f3f5a1a20d95b59fa7c498", default-features = false }
+# Il default è `metal`. `dynamic-backends` arriva con l'installer (ticket 12).
+transcribe-cpp = { version = "0.2.4", default-features = false, features = ["vulkan"] }
 
 [features]
 # Usata dalle build di produzione o quando non c'è un dev server: non rimuovere.

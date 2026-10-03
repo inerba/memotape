@@ -25,5 +25,8 @@ dist-ssr
 *.sw?
 
 # Config locale di Cargo (percorsi della macchina, vedi AGENTS.md)
-/src-tauri/.cargo/config.toml
+/.cargo/config.toml
 *.tsbuildinfo
+
+# DLL copiate da build.rs per il bundle (ONNX Runtime)
+/src-tauri/runtime-libs/
