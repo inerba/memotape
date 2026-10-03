@@ -43,7 +43,7 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
     ```
 
     `LOCALAPPDATA` serve a `transcribe-cpp-sys`, che compila passando da una junction corta in `%LOCALAPPDATA%\tcs` (vedi Insidie). `relative = true` risolve il percorso rispetto alla cartella che contiene `.cargo`.
-- Per trascrivere, finché non arriva il download dei modelli (ticket 05), il modello Nemotron si mette a mano in `%APPDATA%\sbobino\models` (`app_data_dir/models`). Non va committato:
+- Per trascrivere, finché non arriva il download dei modelli (ticket 05), il modello Nemotron si mette a mano in `%APPDATA%\it.sbobino.desktop\models` (`app_data_dir/models`). Non va committato:
   - URL: `https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`;
   - 559 647 200 byte, SHA-256 `86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65`;
   - il nome del file resta `nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`. Senza il file Trascrivi mostra l'errore "modello assente" con il percorso atteso.
@@ -107,7 +107,7 @@ src-tauri/tests/fixtures/ audio per i test (`parlato-it.wav`, sintesi vocale di 
   - Una build Rust alla volta: due build contemporanee condividono la cartella CMake. Se si corrompe, cancella `src-tauri/target/debug/build/transcribe-cpp-sys-*`.
   - La build statica è ottimizzata per la CPU della macchina di build: per distribuire serve `dynamic-backends` (ticket 12), con le DLL dei backend accanto all'exe.
 - **Loopback WASAPI**: la config del dispositivo di uscita si prende da `default_output_config()`; `default_input_config()` lì dà errore. A riproduzione ferma il loopback non consegna pacchetti: timer e mix di "Entrambi" usano il timestamp di cattura dei buffer (QPC, lo stesso orologio per le due sorgenti), non il conteggio dei campioni.
-- **Cartelle dell'app**: `app_data_dir` è `%APPDATA%\sbobino` (roaming); `app_local_data_dir` è `%LOCALAPPDATA%\sbobino` ed è anche la cartella dati della webview.
+- **Cartelle dell'app**: l'identifier Tauri è `it.sbobino.desktop`, non `sbobino`: `%APPDATA%\sbobino` appartiene a una vecchia app con lo stesso nome e va lasciata intatta. Quindi `app_data_dir` è `%APPDATA%\it.sbobino.desktop` (roaming), mentre `app_local_data_dir` è `%LOCALAPPDATA%\it.sbobino.desktop` ed è anche la cartella dati della webview. Tauri sconsiglia un identifier che finisce in `.app`.
 
 ### Da verificare sull'hardware reale
 

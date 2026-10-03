@@ -209,7 +209,7 @@ I `commands/` restano sottili: validano gli argomenti e delegano ai manager regi
   - Registrazione: `<prefisso tradotto> AAAA-MM-GG HH-MM-SS.ogg`, con " 2", " 3"… se il nome esiste.
 
   Le due regole sono funzioni pure.
-- **Identifier Tauri**: `sbobino`.
+- **Identifier Tauri**: `it.sbobino.desktop`. Non `sbobino`, perché `%APPDATA%\sbobino` appartiene a una vecchia app con lo stesso nome.
 
 ### Registrazione
 

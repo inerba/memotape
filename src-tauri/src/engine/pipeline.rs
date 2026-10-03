@@ -268,13 +268,13 @@ mod tests {
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
 
-    /// Smoke test con Silero e Nemotron veri: richiede il modello in `%APPDATA%\sbobino\models`.
+    /// Smoke test con Silero e Nemotron veri: richiede il modello in `%APPDATA%\it.sbobino.desktop\models`.
     #[test]
     #[ignore = "richiede Nemotron scaricato a mano (vedi AGENTS.md)"]
     fn nemotron_trascrive_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let model = PathBuf::from(std::env::var("APPDATA").unwrap())
-            .join("sbobino/models")
+            .join("it.sbobino.desktop/models")
             .join(super::super::transcribe_cpp::NEMOTRON_FILE);
         let mut engine = super::super::transcribe_cpp::TranscribeCpp::load(&model).unwrap();
         let mut detector =
