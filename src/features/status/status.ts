@@ -28,12 +28,17 @@ export function statusText(status: Status, t: TFunction): string {
     case "cancelled":
       return t("status.cancelled");
     case "failed":
-      return t(`errors.codes.${status.error.code}`, {
-        detail: "detail" in status.error ? status.error.detail : "",
-      });
+      return errorText(status.error, t);
     default:
       return status satisfies never;
   }
+}
+
+/** Il messaggio tradotto di un errore applicativo. */
+export function errorText(error: AppError, t: TFunction): string {
+  return t(`errors.codes.${error.code}`, {
+    detail: "detail" in error ? error.detail : "",
+  });
 }
 
 /** Applica `transcription-progress`, ignorando gli eventi arrivati dopo la fine. */

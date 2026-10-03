@@ -474,12 +474,12 @@ mod tests {
 
     /// Smoke test con Silero e Nemotron veri: richiede il modello in `%APPDATA%\it.sbobino.desktop\models`.
     #[test]
-    #[ignore = "richiede Nemotron scaricato a mano (vedi AGENTS.md)"]
+    #[ignore = "richiede Nemotron scaricato (Impostazioni → Trascrizione)"]
     fn nemotron_trascrive_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let model = PathBuf::from(std::env::var("APPDATA").unwrap())
-            .join("it.sbobino.desktop/models")
-            .join(super::super::transcribe_cpp::NEMOTRON_FILE);
+        let model = crate::managers::models::default_model().path(
+            &PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.sbobino.desktop/models"),
+        );
         let mut engine =
             super::super::transcribe_cpp::TranscribeCpp::load(&model, &CancelToken::new()).unwrap();
         let mut detector =

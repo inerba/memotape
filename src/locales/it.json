@@ -40,7 +40,9 @@
       "unreadableFile": "Il file non esiste più o non è leggibile: {{detail}}",
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
       "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
-      "modelMissing": "Il modello non è installato. Mettilo qui: {{detail}}",
+      "modelMissing": "Il modello non è scaricato: scaricalo in Impostazioni → Trascrizione. Percorso atteso: {{detail}}",
+      "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova: riprende da dove si era fermato",
+      "verificationFailed": "Il modello scaricato è corrotto ed è stato cancellato: {{detail}}. Riprova il download",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"
@@ -54,6 +56,42 @@
       "title": "Pagina non trovata",
       "description": "La pagina richiesta non esiste.",
       "action": "Torna indietro"
+    }
+  },
+  "settings": {
+    "open": "Impostazioni",
+    "title": "Impostazioni",
+    "back": "Indietro",
+    "transcription": {
+      "title": "Trascrizione",
+      "description": "I modelli trascrivono in locale: si scaricano una volta, poi funzionano senza rete."
+    }
+  },
+  "models": {
+    "recommended": "Consigliato",
+    "size": "{{mb, number}} MB",
+    "mode": {
+      "stream": "Testo in streaming",
+      "frase": "Testo a fine frase"
+    },
+    "license": "Licenza {{license}}",
+    "progress": "Download di {{name}}",
+    "state": {
+      "notDownloaded": "Non scaricato",
+      "interrupted": "Download interrotto al {{percent}}%",
+      "downloading": "Download in corso… {{percent}}%",
+      "verifying": "Verifica dell'integrità…",
+      "downloaded": "Scaricato"
+    },
+    "download": "Scarica",
+    "resume": "Riprendi",
+    "cancel": "Annulla",
+    "delete": {
+      "action": "Elimina",
+      "title": "Eliminare {{name}}?",
+      "description": "Il file del modello viene cancellato dal disco. Per usarlo di nuovo andrà riscaricato.",
+      "keep": "Mantieni",
+      "confirm": "Elimina"
     }
   }
 }

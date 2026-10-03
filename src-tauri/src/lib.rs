@@ -4,6 +4,7 @@ mod engine;
 mod error;
 mod managers;
 
+use tauri::Manager;
 use tauri_specta::{Builder, collect_commands, collect_events};
 
 /// Percorso di `bindings.ts`, relativo a `src-tauri` (la cwd di `tauri dev` e di `cargo test`).
@@ -19,10 +20,16 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_source,
             commands::transcribe,
             commands::cancel_transcription,
+            commands::list_models,
+            commands::download_model,
+            commands::cancel_model_download,
+            commands::delete_model,
         ])
         .events(collect_events![
             managers::transcription::TranscriptPhrase,
             managers::transcription::TranscriptionProgress,
+            managers::models::ModelDownloadProgress,
+            managers::models::ModelStateChanged,
         ])
 }
 
@@ -42,6 +49,8 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            let models = app.path().app_data_dir()?.join("models");
+            app.manage(managers::models::Models::new(models)?);
             Ok(())
         })
         .run(tauri::generate_context!())

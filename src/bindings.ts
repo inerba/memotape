@@ -25,16 +25,69 @@ export const commands = {
 	transcribe: (source: string) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source })),
 	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
 	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
+	/**  I modelli del catalogo con il loro stato. */
+	listModels: () => __TAURI_INVOKE<ModelInfo[]>("list_models"),
+	/**
+	 *  Avvia il download di un modello in background, o lo riprende da un parziale. Avanzamento ed
+	 *  esito arrivano con `model-download-progress` e `model-state-changed`.
+	 */
+	downloadModel: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("download_model", { id })),
+	/**  Annulla il download e cancella il parziale. Restituisce `false` se non c'era un download. */
+	cancelModelDownload: (id: string) => __TAURI_INVOKE<boolean>("cancel_model_download", { id }),
+	/**  Elimina il modello scaricato. */
+	deleteModel: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_model", { id })),
 };
 
 /** Events */
 export const events = {
+	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
+	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
 };
 
 /* Types */
-export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "downloadFailed"; detail: string } | 
+/**  Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo. */
+{ code: "verificationFailed"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+
+/**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
+export type Mode = "stream" | "frase";
+
+/**  Avanzamento del download di un modello, al massimo 10 volte al secondo. */
+export type ModelDownloadProgress = {
+	modelId: string,
+	percent: number,
+};
+
+/**  Un modello del catalogo con il suo stato, per Impostazioni → Trascrizione. */
+export type ModelInfo = {
+	id: string,
+	name: string,
+	/**  Byte da scaricare. */
+	size: number,
+	mode: Mode,
+	license: string,
+	/**  Consigliato e predefinito. */
+	recommended: boolean,
+	state: ModelState,
+	/**  L'errore dell'ultimo download, finché non se ne avvia un altro. */
+	error: AppError | null,
+};
+
+/**  Lo stato di un modello per l'interfaccia. */
+export type ModelState = { state: "notDownloaded" } | 
+/**  Un download interrotto: il parziale resta e il prossimo download riprende da lì. */
+{ state: "interrupted"; percent: number } | { state: "downloading"; percent: number } | 
+/**  Controllo di dimensione e SHA-256 prima che il modello diventi utilizzabile. */
+{ state: "verifying" } | { state: "downloaded" };
+
+/**  Un modello ha cambiato stato: download avviato, in verifica, finito, fallito, eliminato. */
+export type ModelStateChanged = {
+	modelId: string,
+	state: ModelState,
+	error: AppError | null,
+};
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */
 export type TranscriptPhrase = {

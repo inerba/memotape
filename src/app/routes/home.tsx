@@ -1,5 +1,7 @@
+import { Settings } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useOutlet } from "react-router";
 import { commands, events } from "@/bindings";
 import {
   AlertDialog,
@@ -33,6 +35,8 @@ export function HomePage() {
   const [cancelling, setCancelling] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const running = status.phase === "transcribing";
+  // Impostazioni, aperta sopra questa finestra.
+  const settings = useOutlet();
 
   useEffect(() => {
     // Una Frase per riga, nell'ordine in cui arrivano.
@@ -134,105 +138,120 @@ export function HomePage() {
   const message = statusText(status, t);
 
   return (
-    <div className="flex h-screen flex-col">
-      <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-        <section className="flex items-center gap-3">
-          <Button disabled={running} onClick={browse} variant="outline">
-            {t("source.browse")}
-          </Button>
-          {source ? (
-            <div className="min-w-0 flex-1">
-              <button
-                className="block max-w-full cursor-pointer truncate rounded-sm text-left text-sm underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={open}
-                title={t("source.open", { path: source })}
-                type="button"
-              >
-                {fileName(source)}
-              </button>
-            </div>
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
-              {t("source.none")}
-            </span>
-          )}
-          <Button disabled={!source || running} onClick={requestTranscription}>
-            {running ? t("transcription.running") : t("transcription.start")}
-          </Button>
-          {running ? (
-            <Button disabled={cancelling} onClick={cancel} variant="outline">
-              {cancelling
-                ? t("transcription.cancelling")
-                : t("transcription.cancel")}
+    <>
+      <div className="flex h-screen flex-col" inert={settings !== null}>
+        <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+          <section className="flex items-center gap-3">
+            <Button disabled={running} onClick={browse} variant="outline">
+              {t("source.browse")}
             </Button>
-          ) : null}
-        </section>
-        <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {t("transcription.replace.title")}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {t("transcription.replace.description")}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>
-                {t("transcription.replace.keep")}
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={transcribe}>
-                {t("transcription.replace.confirm")}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-        {showTranscription ? (
-          <section className="flex min-h-0 flex-1 flex-col gap-2">
-            <Textarea
-              aria-label={t("transcription.text")}
-              className="flex-1 resize-none"
-              onChange={edit}
-              readOnly={running}
-              value={text}
-            />
-            <div className="flex justify-end">
-              <Button
-                disabled={!text}
-                onClick={copy}
-                size="sm"
-                variant="outline"
-              >
-                {copied ? t("transcription.copied") : t("transcription.copy")}
+            {source ? (
+              <div className="min-w-0 flex-1">
+                <button
+                  className="block max-w-full cursor-pointer truncate rounded-sm text-left text-sm underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  onClick={open}
+                  title={t("source.open", { path: source })}
+                  type="button"
+                >
+                  {fileName(source)}
+                </button>
+              </div>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
+                {t("source.none")}
+              </span>
+            )}
+            <Button
+              disabled={!source || running}
+              onClick={requestTranscription}
+            >
+              {running ? t("transcription.running") : t("transcription.start")}
+            </Button>
+            {running ? (
+              <Button disabled={cancelling} onClick={cancel} variant="outline">
+                {cancelling
+                  ? t("transcription.cancelling")
+                  : t("transcription.cancel")}
               </Button>
-            </div>
+            ) : null}
+            <Button asChild size="icon" variant="ghost">
+              <Link
+                aria-label={t("settings.open")}
+                title={t("settings.open")}
+                to="/settings"
+              >
+                <Settings />
+              </Link>
+            </Button>
           </section>
-        ) : null}
-      </main>
-      <footer
-        aria-live="polite"
-        className="flex items-center gap-3 border-t px-6 py-2 text-muted-foreground text-xs"
-        role={status.phase === "failed" ? "alert" : "status"}
-      >
-        <span
-          className={
-            status.phase === "failed"
-              ? "min-w-0 flex-1 truncate text-destructive"
-              : "min-w-0 flex-1 truncate"
-          }
-          title={message}
+          <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t("transcription.replace.title")}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("transcription.replace.description")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>
+                  {t("transcription.replace.keep")}
+                </AlertDialogCancel>
+                <AlertDialogAction onClick={transcribe}>
+                  {t("transcription.replace.confirm")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          {showTranscription ? (
+            <section className="flex min-h-0 flex-1 flex-col gap-2">
+              <Textarea
+                aria-label={t("transcription.text")}
+                className="flex-1 resize-none"
+                onChange={edit}
+                readOnly={running}
+                value={text}
+              />
+              <div className="flex justify-end">
+                <Button
+                  disabled={!text}
+                  onClick={copy}
+                  size="sm"
+                  variant="outline"
+                >
+                  {copied ? t("transcription.copied") : t("transcription.copy")}
+                </Button>
+              </div>
+            </section>
+          ) : null}
+        </main>
+        <footer
+          aria-live="polite"
+          className="flex items-center gap-3 border-t px-6 py-2 text-muted-foreground text-xs"
+          role={status.phase === "failed" ? "alert" : "status"}
         >
-          {message}
-        </span>
-        {status.phase === "transcribing" ? (
-          <progress
-            aria-label={t("status.progress")}
-            className="h-1.5 w-40 shrink-0 accent-primary"
-            max={100}
-            value={status.percent ?? undefined}
-          />
-        ) : null}
-      </footer>
-    </div>
+          <span
+            className={
+              status.phase === "failed"
+                ? "min-w-0 flex-1 truncate text-destructive"
+                : "min-w-0 flex-1 truncate"
+            }
+            title={message}
+          >
+            {message}
+          </span>
+          {status.phase === "transcribing" ? (
+            <progress
+              aria-label={t("status.progress")}
+              className="h-1.5 w-40 shrink-0 accent-primary"
+              max={100}
+              value={status.percent ?? undefined}
+            />
+          ) : null}
+        </footer>
+      </div>
+      {settings}
+    </>
   );
 }

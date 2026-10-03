@@ -1,6 +1,6 @@
 //! L'unico enum degli errori applicativi. Il frontend mappa `code` a un messaggio tradotto.
 
-#[derive(Debug, thiserror::Error, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, specta::Type)]
 #[serde(tag = "code", content = "detail", rename_all = "camelCase")]
 pub enum AppError {
     #[error("file illeggibile: {0}")]
@@ -11,10 +11,15 @@ pub enum AppError {
     UnwritableFolder(String),
     #[error("modello assente: {0}")]
     ModelMissing(String),
+    #[error("download fallito: {0}")]
+    DownloadFailed(String),
+    /// Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo.
+    #[error("verifica fallita: {0}")]
+    VerificationFailed(String),
     #[error("Attività in corso")]
     ActivityInProgress,
-    // L'utente ha premuto Annulla: non è un guasto, la status bar lo dice senza allarme.
-    #[error("Trascrizione annullata")]
+    // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.
+    #[error("annullato")]
     Cancelled,
     #[error("errore interno: {0}")]
     Internal(String),

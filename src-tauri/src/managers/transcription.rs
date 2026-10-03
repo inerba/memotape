@@ -10,9 +10,10 @@ use tauri_specta::Event;
 
 use crate::audio_toolkit::vad::Silero;
 use crate::engine::pipeline::{PipelineEvent, transcribe_file};
-use crate::engine::transcribe_cpp::{NEMOTRON_FILE, TranscribeCpp};
+use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
+use crate::managers::models::{Models, default_model};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -58,12 +59,8 @@ pub async fn transcribe(
     let guard = activity.begin()?;
     let cancel = guard.cancel.clone();
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
-    let model = app
-        .path()
-        .app_data_dir()
-        .map_err(internal)?
-        .join("models")
-        .join(NEMOTRON_FILE);
+    // ponytail: sempre il modello predefinito; la scelta del modello arriva con il ticket 06.
+    let model = default_model().path(app.state::<Models>().dir());
     let silero = app
         .path()
         .resolve(SILERO_RESOURCE, BaseDirectory::Resource)

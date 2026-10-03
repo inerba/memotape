@@ -9,6 +9,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::error::AppError;
 use crate::managers;
 use crate::managers::activity::Activity;
+use crate::managers::models::{ModelInfo, Models};
 
 /// Estensioni accettate da Sfoglia (spec, storia 2).
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -81,4 +82,37 @@ pub async fn transcribe(
 #[specta::specta]
 pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
     activity.cancel()
+}
+
+/// I modelli del catalogo con il loro stato.
+#[tauri::command]
+#[specta::specta]
+pub fn list_models(models: State<'_, Models>) -> Vec<ModelInfo> {
+    models.list()
+}
+
+/// Avvia il download di un modello in background, o lo riprende da un parziale. Avanzamento ed
+/// esito arrivano con `model-download-progress` e `model-state-changed`.
+#[tauri::command]
+#[specta::specta]
+pub fn download_model(
+    app: AppHandle,
+    models: State<'_, Models>,
+    id: String,
+) -> Result<(), AppError> {
+    models.start_download(&app, &id)
+}
+
+/// Annulla il download e cancella il parziale. Restituisce `false` se non c'era un download.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_model_download(models: State<'_, Models>, id: String) -> bool {
+    models.cancel(&id)
+}
+
+/// Elimina il modello scaricato.
+#[tauri::command]
+#[specta::specta]
+pub fn delete_model(app: AppHandle, models: State<'_, Models>, id: String) -> Result<(), AppError> {
+    models.delete(&app, &id)
 }

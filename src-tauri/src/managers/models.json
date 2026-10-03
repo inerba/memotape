@@ -1,0 +1,32 @@
+{
+  "predefinito": "nemotron-3.5-streaming-0.6b-q5km",
+  "modelli": [
+    {
+      "id": "nemotron-3.5-streaming-0.6b-q5km",
+      "nome": "Nemotron Streaming 3.5 0.6B",
+      "url": "https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf",
+      "sha256": "86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65",
+      "size": 559647200,
+      "modalita": "stream",
+      "licenza": "OpenMDW-1.1"
+    },
+    {
+      "id": "whisper-large-v3-turbo-q5km",
+      "nome": "Whisper Large v3 Turbo",
+      "url": "https://huggingface.co/handy-computer/whisper-large-v3-turbo-gguf/resolve/5eaf945c7978e564bae5b28a5b1639dd93c2bfb1/whisper-large-v3-turbo-Q5_K_M.gguf",
+      "sha256": "977b5db4e004349dffd1ab9caa10ba5aaba3fc3edd3ba72cadb84328a3203e36",
+      "size": 619628128,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v3-q5km",
+      "nome": "Parakeet TDT v3 0.6B",
+      "url": "https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf/resolve/85ac09ea12fc4b1112fa76810059364bc6adc9de/parakeet-tdt-0.6b-v3-Q5_K_M.gguf",
+      "sha256": "cc722e76adc1a629fc0b2535de879d99b8160d07ad4c0215e2ca7d7ea0ae4b8f",
+      "size": 548946272,
+      "modalita": "frase",
+      "licenza": "CC-BY-4.0"
+    }
+  ]
+}

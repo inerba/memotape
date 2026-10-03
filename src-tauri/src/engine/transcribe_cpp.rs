@@ -8,9 +8,6 @@ use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session};
 use super::TranscriptionEngine;
 use crate::error::AppError;
 
-// ponytail: modello fisso messo a mano in `app_data_dir/models`; il catalogo arriva con il ticket 05.
-pub const NEMOTRON_FILE: &str = "nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf";
-
 pub struct TranscribeCpp {
     session: Session,
 }
