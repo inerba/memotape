@@ -5,6 +5,10 @@ mod managers;
 
 use tauri_specta::{Builder, collect_commands};
 
+/// Percorso di `bindings.ts`, relativo a `src-tauri` (la cwd di `tauri dev` e di `cargo test`).
+#[cfg(any(debug_assertions, test))]
+const BINDINGS_PATH: &str = "../src/bindings.ts";
+
 /// Comandi ed eventi esposti al frontend, tipizzati in `src/bindings.ts`.
 fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_version])
@@ -15,10 +19,7 @@ pub fn run() {
 
     #[cfg(debug_assertions)]
     builder
-        .export(
-            specta_typescript::Typescript::default(),
-            "../src/bindings.ts",
-        )
+        .export(specta_typescript::Typescript::default(), BINDINGS_PATH)
         .expect("export di src/bindings.ts fallito");
 
     tauri::Builder::default()
@@ -36,7 +37,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::specta_builder;
+    use super::{BINDINGS_PATH, specta_builder};
 
     #[test]
     fn i_bindings_committati_sono_aggiornati() {
@@ -45,7 +46,7 @@ mod tests {
             .export(specta_typescript::Typescript::default(), &path)
             .expect("i comandi e gli eventi devono essere esportabili (niente u64/i64)");
         let fresh = std::fs::read_to_string(&path).unwrap();
-        let committed = std::fs::read_to_string("../src/bindings.ts").unwrap_or_default();
+        let committed = std::fs::read_to_string(BINDINGS_PATH).unwrap_or_default();
         assert!(
             committed == fresh,
             "src/bindings.ts non è aggiornato: rigeneralo con `bun tauri dev`"

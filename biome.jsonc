@@ -2,7 +2,8 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "extends": ["ultracite/biome/core", "ultracite/biome/react"],
   "files": {
-    // "**" deve venire prima delle negazioni, altrimenti Biome non controlla nulla.
+    // Solo negazioni: il core di ultracite 7.12 apre già con "**", e ripeterlo è un errore
+    // (noBiomeFirstException). Senza un "**" da qualche parte Biome non controlla nulla.
     // I componenti shadcn e i bindings generati non si toccano a mano.
     "includes": ["!**/components/ui", "!**/bindings.ts"]
   }

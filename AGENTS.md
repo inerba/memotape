@@ -78,7 +78,7 @@ src-tauri/src/
 - **`cargo test` e il manifest Windows**: `tauri-plugin-dialog` richiede Common Controls v6. `build.rs` incorpora `windows-app-manifest.xml` in tutti gli eseguibili, test compresi; senza, i test escono con `STATUS_ENTRYPOINT_NOT_FOUND`.
 - **TypeScript**: resta su 6.0.3, non la 7 (binari nativi, API JS sperimentale). In TS 6 `types` vale `[]` per default: i tipi globali (`bun`, `node`) vanno elencati nel tsconfig.
 - **react-router**: resta su 7.18.x, non la 8.
-- **Biome**: in `biome.jsonc` gli `includes` iniziano con `"**"`. Con le sole negazioni Biome non controlla nessun file.
+- **Biome**: senza un `"**"` iniziale negli `includes` Biome non controlla nessun file (era il bug del template). Il core di ultracite 7.12 lo mette già, quindi in `biome.jsonc` restano solo le negazioni (`components/ui`, `bindings.ts`): ripetere `"**"` fa scattare `noBiomeFirstException`, e `ultracite fix` lo toglie. Se aggiorni ultracite, verifica che un `debugger` in `src/` venga ancora segnalato.
 - **shadcn**: `components.json` è scritto a mano (stile `new-york`, base `neutral`); si usa solo `shadcn add`, perché `init` ora parte dai preset. I componenti importano `cn` dal pacchetto `cn`: è voluto (changelog shadcn del 2026-09-03), e `@/lib/utils` lo ri-esporta. Non riscrivere l'import.
 - **Animazioni**: `tw-animate-css` è importato in `global.css`. `tailwindcss-animate` è il plugin di Tailwind 3 e non serve.
 - **Line ending**: `.gitattributes` forza LF, come si aspetta Biome.
