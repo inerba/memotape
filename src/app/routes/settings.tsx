@@ -35,7 +35,8 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const { save, settings } = useSettings();
   const [error, setError] = useState<AppError | null>(null);
-  const [microphones, setMicrophones] = useState<AudioDevice[]>([]);
+  // `null` finché `list_microphones` non risponde.
+  const [microphones, setMicrophones] = useState<AudioDevice[] | null>(null);
   const [folder, setFolder] = useState("");
   // Ogni scelta si salva subito: non c'è un pulsante Salva.
   const form = useForm<Settings>({
@@ -113,8 +114,9 @@ export function SettingsPage() {
     }
   }, [choose]);
 
-  const defaultMicrophone = microphones.find((m) => m.isDefault);
+  const defaultMicrophone = microphones?.find((m) => m.isDefault);
   const savedMissing =
+    microphones !== null &&
     settings.microphone !== null &&
     !microphones.some((m) => m.id === settings.microphone);
 
@@ -157,7 +159,7 @@ export function SettingsPage() {
                     })
                   : t("settings.recording.defaultMicrophone")}
               </option>
-              {microphones.map((m) => (
+              {microphones?.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
                 </option>

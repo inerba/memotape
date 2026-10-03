@@ -21,8 +21,8 @@ use crate::managers::settings::{Channels, SettingsStore};
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
 
-/// Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni sorgente attiva
-/// dall'evento precedente.
+/// Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni ingresso attivo
+/// dall'evento precedente (oggi solo il microfono).
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingTick {
@@ -35,7 +35,8 @@ pub struct RecordingTick {
 #[serde(rename_all = "camelCase")]
 pub struct RecordingSaved {
     pub path: String,
-    /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`); `null` dopo Stop.
+    /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`);
+    /// `null` dopo Stop.
     pub error: Option<AppError>,
 }
 
@@ -144,7 +145,11 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         path.display()
     );
     let mut writer =
-        OggOpusWriter::new(file, settings.sample_rate, channels, settings.bitrate_kbps)?;
+        OggOpusWriter::new(file, settings.sample_rate, channels, settings.bitrate_kbps)
+            .inspect_err(|_| {
+                // Senza intestazioni il file è vuoto: non resta nella cartella.
+                let _ = std::fs::remove_file(&path);
+            })?;
     let mut out = Vec::new();
     let mut peak = 0.0f32;
     let mut last_tick = Instant::now();
@@ -160,7 +165,12 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
                 let paused = controls.paused.load(Ordering::Relaxed);
                 peak = peak.max(mixer.push(block.capture_ns, &block.samples, paused, &mut out));
                 capture.recycle(block.samples);
-                writer.write(&out)?;
+                // Un errore di scrittura (disco pieno) ferma come Stop: quanto è già sul disco
+                // diventa comunque la Sorgente.
+                if let Err(e) = writer.write(&out) {
+                    error = Some(e);
+                    break;
+                }
                 out.clear();
             }
             Err(RecvTimeoutError::Timeout) => {}
@@ -187,8 +197,10 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
     }
     drop(capture);
     mixer.finish(&mut out);
-    writer.write(&out)?;
-    writer.finish()?;
+    if let Err(e) = writer.write(&out).and_then(|()| writer.finish().map(drop)) {
+        log::warn!("chiusura della Registrazione: {e}");
+        error.get_or_insert(e);
+    }
     log::info!("Registrazione salvata: {} ms", mixer.elapsed_ms());
     Ok(RecordingSaved {
         path: path.display().to_string(),

@@ -55,7 +55,7 @@ test("un dispositivo scollegato salva comunque e mostra l'errore con il suo nome
   expect(after.source).toBe(path);
   expect(after.status.phase).toBe("failed");
   expect(statusText(after.status, t)).toBe(
-    "Il dispositivo Microfono USB si è scollegato: la Registrazione è stata fermata e salvata"
+    "Il dispositivo Microfono USB non è più disponibile (scollegato o cambiato in Windows): la Registrazione è stata fermata e salvata"
   );
 });
 

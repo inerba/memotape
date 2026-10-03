@@ -97,7 +97,7 @@ impl<W: Write> OggOpusWriter<W> {
     /// Codifica il resto completato con silenzio, chiude il flusso (`EndStream`) con la granule
     /// della fine esatta dell'audio e restituisce il writer.
     pub fn finish(mut self) -> Result<W, AppError> {
-        let end = self.pre_skip + (self.frames_in * 48_000).div_ceil(self.rate);
+        let end = self.end_granule();
         // Si codifica finché i pacchetti coprono il ritardo dell'encoder più tutto l'audio.
         loop {
             let mut frame = std::mem::take(&mut self.pending);
@@ -113,6 +113,11 @@ impl<W: Write> OggOpusWriter<W> {
         Ok(out)
     }
 
+    /// La granule della fine esatta dell'audio: pre-skip più i campioni ricevuti, a 48 kHz.
+    fn end_granule(&self) -> u64 {
+        self.pre_skip + (self.frames_in * 48_000).div_ceil(self.rate)
+    }
+
     fn encode(&mut self, frame: &[f32], last: bool) -> Result<(), AppError> {
         let len = self
             .encoder
@@ -121,7 +126,7 @@ impl<W: Write> OggOpusWriter<W> {
         self.packets += 1;
         let packet = self.packet[..len].to_vec();
         if last {
-            let end = self.pre_skip + (self.frames_in * 48_000).div_ceil(self.rate);
+            let end = self.end_granule();
             return self.page(packet, PacketWriteEndInfo::EndStream, end);
         }
         let info = if self.packets.is_multiple_of(PACKETS_PER_PAGE) {

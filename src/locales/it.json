@@ -48,7 +48,7 @@
       "modelInUse": "Il modello è in uso da una Trascrizione o si sta caricando: riprova quando ha finito",
       "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova",
       "verificationFailed": "Il modello scaricato è corrotto ed è stato cancellato: {{detail}}. Riprova il download",
-      "deviceDisconnected": "Il dispositivo {{detail}} si è scollegato: la Registrazione è stata fermata e salvata",
+      "deviceDisconnected": "Il dispositivo {{detail}} non è più disponibile (scollegato o cambiato in Windows): la Registrazione è stata fermata e salvata",
       "microphoneMissing": "Nessun microfono collegato, o quello scelto in Impostazioni non è disponibile",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",

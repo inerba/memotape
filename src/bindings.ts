@@ -146,15 +146,18 @@ export type ModelStateChanged = {
 /**  La Registrazione salvata, che diventa la Sorgente. */
 export type RecordingSaved = {
 	path: string,
-	/**  Perché la Registrazione si è fermata da sola (`deviceDisconnected`); `null` dopo Stop. */
+	/**
+	 *  Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`);
+	 *  `null` dopo Stop.
+	 */
 	error: AppError | null,
 };
 
 export type RecordingSource = "mic" | "system" | "both";
 
 /**
- *  Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni sorgente attiva
- *  dall'evento precedente.
+ *  Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni ingresso attivo
+ *  dall'evento precedente (oggi solo il microfono).
  */
 export type RecordingTick = {
 	elapsedMs: number,

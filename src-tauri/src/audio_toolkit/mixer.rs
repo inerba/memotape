@@ -8,9 +8,15 @@ const NS_PER_S: u64 = 1_000_000_000;
 /// Un vuoto tra due blocchi da qui in su è audio perso (discontinuità): diventa silenzio. Sotto è
 /// il tremolio dei timestamp, e i blocchi restano attaccati.
 const HOLE_NS: u64 = 20_000_000;
+/// Un vuoto da qui in su non è una discontinuità ma una sospensione del PC: vale come una pausa,
+/// senza ore di silenzio in memoria e nel file. ponytail: con l'audio di sistema (ticket 09) i
+/// vuoti lunghi sono silenzio vero e andranno riempiti a pezzi.
+const MAX_HOLE_NS: u64 = 10 * NS_PER_S;
 
-/// Una sorgente della Registrazione. ponytail: una sola sorgente (il microfono); la somma di
-/// microfono e audio di sistema arriva con "Entrambi" (ticket 09).
+/// Un ingresso della Registrazione (il microfono). ponytail: un ingresso solo; la somma di
+/// microfono e audio di sistema arriva con "Entrambi" (ticket 09). Ogni vuoto si misura dal blocco
+/// precedente, quindi lo scarto tra il clock del dispositivo e QPC (decine di ppm, meno di 0,5 s
+/// all'ora) non si corregge: timer e file possono divergere di tanto. Va misurato sull'hardware.
 pub struct Mixer {
     in_rate: u64,
     in_channels: usize,
@@ -65,7 +71,7 @@ impl Mixer {
             None => self.origin = capture_ns,
             Some(end) => {
                 let gap = capture_ns.saturating_sub(end);
-                if self.resuming {
+                if self.resuming || gap >= MAX_HOLE_NS {
                     self.paused_ns += gap;
                 } else if gap >= HOLE_NS {
                     let silence = (gap * self.in_rate / NS_PER_S) as usize * self.out_channels;
@@ -180,6 +186,26 @@ mod tests {
     }
 
     #[test]
+    fn un_vuoto_lunghissimo_conta_come_una_pausa_e_non_diventa_silenzio() {
+        let device = (16_000, 1);
+        let mut mixer = Mixer::new(device, (16_000, 1)).unwrap();
+        let mut out = Vec::new();
+        let ts = capture(&mut mixer, device, 0, 1.0, false, &mut out);
+        // Il PC sospeso per un'ora: niente ore di silenzio in memoria né nel file.
+        capture(
+            &mut mixer,
+            device,
+            ts + 3_600_000 * MS,
+            1.0,
+            false,
+            &mut out,
+        );
+        mixer.finish(&mut out);
+        assert_eq!(mixer.elapsed_ms(), 2_000);
+        assert_eq!(out.len(), 32_000);
+    }
+
+    #[test]
     fn mono_e_stereo_si_convertono_nei_canali_della_registrazione() {
         // Stereo con un canale muto → mono: la media dei due.
         let mut mixer = Mixer::new((48_000, 2), (48_000, 1)).unwrap();
@@ -198,7 +224,10 @@ mod tests {
     fn una_registrazione_con_pausa_rilegge_con_la_durata_senza_la_pausa() {
         let dir = temp_dir("mixer-registrazione");
         let device = (44_100, 2);
-        for (rate, channels) in [(16_000, 1), (48_000, 2)] {
+        let combinations = [8_000, 16_000, 24_000, 48_000]
+            .into_iter()
+            .flat_map(|rate| [(rate, 1), (rate, 2)]);
+        for (rate, channels) in combinations {
             let path = dir.join(format!("{rate}-{channels}.ogg"));
             let mut writer =
                 OggOpusWriter::new(std::fs::File::create(&path).unwrap(), rate, channels, 32)
@@ -212,7 +241,10 @@ mod tests {
             writer.write(&out).unwrap();
             writer.finish().unwrap();
             let seconds = decoded_seconds(&path);
-            assert!((seconds - 2.0).abs() < 0.001, "{rate} Hz: {seconds} s");
+            assert!(
+                (seconds - 2.0).abs() < 0.001,
+                "{rate} Hz, {channels} canali: {seconds} s"
+            );
         }
     }
 }
