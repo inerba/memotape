@@ -110,6 +110,10 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 71. Come sviluppatore, voglio che `AGENTS.md` documenti comandi, prerequisiti di build, architettura e insidie, così un agente o un collega riparte senza chiedere.
 72. Come utente finale, voglio un installer NSIS che includa tutto il necessario (DLL di runtime, modello Silero, testi delle licenze), così installo e uso l'app su qualsiasi PC Windows x64 recente.
 
+## Stato
+
+- **M1 (tracer bullet)**: storie 1, 2, 9, 11 e 13. Sfoglia sceglie un file audio, Trascrivi mostra le Frasi una per riga mentre arrivano. Il modello è sempre Nemotron e si mette a mano nella cartella dei modelli (`AGENTS.md`) finché non arriva il download (storie 29–39). Il nome della Sorgente compare già, non ancora cliccabile (storia 4).
+
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).

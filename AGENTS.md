@@ -31,18 +31,23 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
 - Da M1 in poi, per la pipeline audio:
   - CMake nel PATH: lo usano `opus` e `transcribe-cpp`;
   - Vulkan SDK LunarG (`VULKAN_SDK` impostata), per la feature `vulkan` di `transcribe-cpp`;
-  - lo zip ufficiale `onnxruntime-win-x64-1.24.2.zip` dalle release GitHub di Microsoft, estratto in locale;
-  - un `src-tauri/.cargo/config.toml` locale (ignorato da git) che fissa le variabili anche nei terminali che non le hanno:
+  - lo zip ufficiale `onnxruntime-win-x64-1.24.2.zip` dalle [release GitHub di Microsoft](https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-win-x64-1.24.2.zip) (74 075 355 byte, SHA-256 `8e3e9c826375352e29cb2614fe44f3d7a4b0ff7b8028ad7a456af9d949a7e8b0`), estratto **fuori dal repo**. Sulla macchina di sviluppo sta in `..\sbobino-deps\onnxruntime-win-x64-1.24.2`, accanto alla cartella del repo;
+  - un `.cargo/config.toml` locale **alla root del repo** (ignorato da git). Va alla root e non in `src-tauri`, perché Cargo cerca la config partendo dalla cwd e gli script `bun run *:backend` girano dalla root con `--manifest-path`:
 
     ```toml
     [env]
-    VULKAN_SDK = "C:\\VulkanSDK\\<versione>"
-    ORT_LIB_LOCATION = "C:\\percorso\\onnxruntime-win-x64-1.24.2\\lib"
+    LOCALAPPDATA = { value = "src-tauri/target", relative = true, force = true }
+    VULKAN_SDK = { value = 'C:\VulkanSDK\<versione>', force = false }
+    ORT_LIB_LOCATION = 'D:\percorso\onnxruntime-win-x64-1.24.2\lib'
     ORT_PREFER_DYNAMIC_LINK = "1"
-    LOCALAPPDATA = "C:\\Users\\<utente>\\AppData\\Local"
     ```
 
-    `LOCALAPPDATA` serve a `transcribe-cpp-sys`, che compila passando da una junction corta in `%LOCALAPPDATA%\tcs` (vedi Insidie).
+    `LOCALAPPDATA` serve a `transcribe-cpp-sys`, che compila passando da una junction corta in `%LOCALAPPDATA%\tcs` (vedi Insidie). `relative = true` risolve il percorso rispetto alla cartella che contiene `.cargo`.
+- Per trascrivere, finché non arriva il download dei modelli (ticket 05), il modello Nemotron si mette a mano in `%APPDATA%\sbobino\models` (`app_data_dir/models`). Non va committato:
+  - URL: `https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`;
+  - 559 647 200 byte, SHA-256 `86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65`;
+  - il nome del file resta `nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`. Senza il file Trascrivi mostra l'errore "modello assente" con il percorso atteso.
+  - Lo smoke test con il modello vero si lancia a mano: `cargo test -- --ignored` in `src-tauri`.
 
 ## Architettura
 
@@ -56,11 +61,17 @@ src/                     frontend React, struttura bulletproof-react, alias @/ �
   bindings.ts            generato da tauri-specta, committato, non si modifica a mano
 src-tauri/src/
   lib.rs                 builder tauri-specta (comandi, eventi) e avvio di Tauri
+  error.rs               `AppError`, l'enum degli errori applicativi
   commands/              comandi sottili: validano gli argomenti e delegano ai manager
   managers/              stato in `tauri::State`; traducono i callback della pipeline in eventi
   audio_toolkit/         cattura, ricampionamento, VAD, segmentatore, decodifica, mixer, writer Ogg/Opus
   engine/                trait `TranscriptionEngine`, motore transcribe-cpp, pipeline di un file
+src-tauri/resources/     risorse del bundle (`silero_vad.onnx`)
+src-tauri/runtime-libs/  DLL copiate da `build.rs` e messe accanto all'exe dal bundle (ignorata da git)
+src-tauri/tests/fixtures/ audio per i test (`parlato-it.wav`, sintesi vocale di Windows)
 ```
+
+- La pipeline di un file (`engine::pipeline`) è a trazione: il motore legge i frame della Frase da un iteratore, e ogni `next()` decodifica, ricampiona e passa per VAD e segmentatore solo quanto serve. Così con lo streaming (ticket 07) il motore riceverà l'audio mentre la Frase è ancora in corso.
 
 - `audio_toolkit` ed `engine` non dipendono da Tauri: si testano senza `AppHandle`. Le uniche seam finte nei test sono `TranscriptionEngine` e `VoiceDetector`.
 - Il frontend chiama il backend solo tramite `commands` ed `events` di `@/bindings`.
@@ -88,10 +99,14 @@ src-tauri/src/
 
 - **rubato 5** non ha `FftFixedIn`: si usa `Fft` con `FixedSync::Input` e buffer `audioadapter`.
 - **Symphonia** non ha una feature `opus`: Opus passa da `symphonia-adapter-libopus`.
-- **ONNX Runtime**: niente `DirectML.dll`. Si caricano dinamicamente le DLL dell'ONNX Runtime ufficiale 1.24.2 (`ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1`), perché la build prebuilt di `ort` è compilata AVX2 e va in crash all'avvio sulle CPU pre-Haswell.
+- **ONNX Runtime**: niente build prebuilt di `ort` (compilata AVX2, va in crash all'avvio sulle CPU pre-Haswell) e niente `DirectML.dll`. Si usa l'ONNX Runtime ufficiale 1.24.2 in link dinamico (`ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1`): `build.rs` copia `onnxruntime.dll` in `target/<profilo>`, in `target/<profilo>/deps` (per i test) e in `runtime-libs/` per il bundle. Senza quella copia Windows carica l'`onnxruntime.dll` di System32 (Windows ML), più vecchio, e l'avvio fallisce. L'installer NSIS (ticket 12) deve includere la DLL insieme a Silero.
 - **Silero**: il file è `silero_vad.onnx` dal tag v4.0 di snakers4/silero-vad (1 807 522 byte, SHA-256 `a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28`). vad-rs accetta solo 8 o 16 kHz.
-- **transcribe-cpp**: la feature di default è `metal`, quindi `default-features = false` con `vulkan`. Compila passando da una junction NTFS corta in `%LOCALAPPDATA%\tcs` perché MSBuild ignora `LongPathsEnabled`; se la junction fallisce, usa un `CARGO_TARGET_DIR` corto (es. `C:\tc-target`).
-- **Loopback WASAPI**: la config del dispositivo di uscita si prende da `default_output_config()`; `default_input_config()` lì dà errore.
+- **transcribe-cpp**: la feature di default è `metal`, quindi `default-features = false` con `vulkan`.
+  - Con `vulkan` serve il Vulkan SDK: `build.rs` aggiunge `%VULKAN_SDK%\Lib` al percorso del linker per `vulkan-1.lib`. La prima build nativa dura diversi minuti.
+  - `transcribe-cpp-sys` compila passando da una junction NTFS corta in `%LOCALAPPDATA%\tcs`, perché MSBuild ignora `LongPathsEnabled`. **Dentro l'app desktop di Claude `%LOCALAPPDATA%` è virtualizzato e CMake fallisce con "os error 267"**: per questo il `.cargo/config.toml` locale sposta `LOCALAPPDATA` in `src-tauri/target`. Se la junction fallisce comunque, usa un `CARGO_TARGET_DIR` corto (es. `C:\tc-target`).
+  - Una build Rust alla volta: due build contemporanee condividono la cartella CMake. Se si corrompe, cancella `src-tauri/target/debug/build/transcribe-cpp-sys-*`.
+  - La build statica è ottimizzata per la CPU della macchina di build: per distribuire serve `dynamic-backends` (ticket 12), con le DLL dei backend accanto all'exe.
+- **Loopback WASAPI**: la config del dispositivo di uscita si prende da `default_output_config()`; `default_input_config()` lì dà errore. A riproduzione ferma il loopback non consegna pacchetti: timer e mix di "Entrambi" usano il timestamp di cattura dei buffer (QPC, lo stesso orologio per le due sorgenti), non il conteggio dei campioni.
 - **Cartelle dell'app**: `app_data_dir` è `%APPDATA%\sbobino` (roaming); `app_local_data_dir` è `%LOCALAPPDATA%\sbobino` ed è anche la cartella dati della webview.
 
 ### Da verificare sull'hardware reale
