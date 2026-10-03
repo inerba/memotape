@@ -27,6 +27,8 @@
     "recorded": "Aufnahme gespeichert unter {{path}}",
     "transcribing": "Transkription läuft…",
     "transcribingPercent": "Transkription läuft… {{percent}} %",
+    "completing": "Transkription wird abgeschlossen…",
+    "completingPercent": "Transkription wird abgeschlossen… {{percent}} %",
     "progress": "Fortschritt der Transkription",
     "finished_one": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
     "finished_other": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
@@ -48,6 +50,7 @@
       "microphoneMissing": "Kein Mikrofon angeschlossen, oder das in den Einstellungen gewählte ist nicht verfügbar",
       "outputDeviceMissing": "Kein Ausgabegerät für das Systemaudio, oder das in den Einstellungen gewählte ist nicht verfügbar",
       "unreadableSettings": "Die Einstellungen können nicht gelesen werden, die App verwendet die Standardwerte: {{detail}}",
+      "liveTranscriptionUnavailable": "Live-Transkription nicht verfügbar: Das Modell {{detail}} ist nicht heruntergeladen oder lässt sich nicht laden (die Aufnahme wird trotzdem gespeichert)",
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
       "internal": "Interner Fehler: {{detail}}"
@@ -148,6 +151,7 @@
   "recording": {
     "title": "Aufnahme",
     "start": "Aufnehmen",
+    "live": "Live transkribieren",
     "prefix": "Aufnahme",
     "pause": "Pause",
     "resume": "Fortsetzen",

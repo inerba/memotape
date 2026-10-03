@@ -1,5 +1,6 @@
 //! Motore di Trascrizione (`TranscriptionEngine`) e pipeline di un file, senza Tauri.
 
+pub mod live;
 pub mod pipeline;
 pub mod transcribe_cpp;
 

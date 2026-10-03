@@ -159,12 +159,19 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - `Sbobino_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Sbobino`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
   - La disinstallazione toglie l'app e lascia impostazioni e modelli scaricati, a meno di spuntare la cancellazione dei dati dell'app.
   - L'editore dell'installer non è ancora deciso: oggi è il segnaposto "EDITORE DA DEFINIRE".
+- **V1 (ticket v2/02)**: storie 1–12 della spec v2 (`.scratch/sbobino-v2/spec.md`) sul mix; il testo si salva nel TXT esistente, il Bino arriva con V2.
+  - La casella "Trascrivi dal vivo" accanto a Registra, spenta per default e salvata tra un avvio e l'altro, fa comparire il testo mentre si registra: con Nemotron i Parziali, con Whisper e Parakeet ogni Frase a fine Frase. Durante la Registrazione la casella è bloccata.
+  - La Registrazione non rallenta mai: se il motore resta indietro le Frasi vanno in coda. Dopo Stop la status bar mostra "Completamento della trascrizione…" con l'avanzamento e Annulla finché la coda non è vuota; annullando, la Registrazione resta salvata e il TXT no.
+  - Pausa chiude la Frase in corso, Riprendi continua nella stessa sessione; il testo non contiene l'audio in pausa.
+  - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.txt` accanto all'Ogg e la status bar lo dice.
+  - Con testo nell'area, Registra con la casella attiva chiede conferma prima di sostituirlo.
+  - Se il modello scelto non è scaricato o non si carica la Registrazione parte comunque, con un avviso e il link alle Impostazioni.
 
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
-- La Trascrizione durante la Registrazione (ADR-0003) e la Trascrizione di più file in coda.
+- La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
 - Timestamp nel testo, diarizzazione, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
 - Storico delle trascrizioni, editor avanzato del testo, esportazioni diverse dal TXT.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.

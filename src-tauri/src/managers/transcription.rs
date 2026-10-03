@@ -1,6 +1,6 @@
-//! Trascrizione di una Sorgente: prende il motore del modello scelto (caricato una volta e tenuto
-//! tra una Trascrizione e l'altra), esegue la pipeline, la traduce in eventi e salva il TXT
-//! accanto alla Sorgente.
+//! Trascrizione di una Sorgente, o dal vivo di una Registrazione: prende il motore del modello
+//! scelto (caricato una volta e tenuto tra una Trascrizione e l'altra), esegue la pipeline, la
+//! traduce in eventi e salva il TXT accanto alla Sorgente.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -10,12 +10,16 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
 
-use crate::audio_toolkit::vad::Silero;
-use crate::engine::pipeline::{PipelineEvent, transcribe_file};
+use crate::audio_toolkit::vad::{Silero, VoiceDetector};
+use crate::engine::TranscriptionEngine;
+use crate::engine::live::LiveFrames;
+use crate::engine::pipeline::{self, PipelineEvent, transcribe_file};
+use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
+use crate::managers::loaded_model::Lease;
 use crate::managers::models::Models;
-use crate::managers::settings::SettingsStore;
+use crate::managers::settings::{Settings, SettingsStore};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -41,7 +45,15 @@ pub struct TranscriptPartial {
     pub text: String,
 }
 
-/// Avanzamento della Trascrizione: `percent` è `null` se la durata della Sorgente non è nota.
+/// La Trascrizione dal vivo si è fermata (modello assente, guasto): la Registrazione continua senza
+/// testo.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+pub struct LiveTranscriptionFailed {
+    pub error: AppError,
+}
+
+/// Avanzamento della Trascrizione, o dello smaltimento della coda dal vivo dopo Stop: `percent` è
+/// `null` se la durata della Sorgente non è nota.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 pub struct TranscriptionProgress {
     pub percent: Option<u8>,
@@ -65,6 +77,18 @@ pub enum TranscriptionOutcome {
     NoSpeech,
 }
 
+/// Com'è finita la Trascrizione dal vivo di una Registrazione salvata.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(tag = "outcome", rename_all = "camelCase")]
+pub enum LiveTranscription {
+    /// Il testo è salvato nel TXT accanto alla Registrazione.
+    Saved(TranscriptionFinished),
+    /// Nessuna Frase: il TXT non si crea.
+    NoSpeech,
+    /// Senza TXT: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`).
+    Failed { error: AppError },
+}
+
 /// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
 /// `transcript-phrase`, poi salva il TXT.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
@@ -78,73 +102,28 @@ pub async fn transcribe(
         let cancel = cancel.clone();
         move || cancel.cancel()
     })?;
-    let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
     let model = SettingsStore::model_of(&settings);
-    let silero = app
-        .path()
-        .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
-        .map_err(internal)?;
+    let silero = silero_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
-        let mut engine = models.take(&app, || model.id.as_str())?;
-        engine.set_cancel_token(&cancel);
-        let transcribed = Silero::new(&silero).and_then(|mut detector| {
-            let mut phrases = Vec::new();
-            transcribe_file(
-                &source,
-                &mut *engine,
-                &mut detector,
-                settings.speech_language.code(),
-                &cancel,
-                &mut |event| {
-                    let emitted = match event {
-                        PipelineEvent::Progress(percent) => {
-                            TranscriptionProgress { percent }.emit(&app)
-                        }
-                        PipelineEvent::Partial {
-                            id,
-                            inizio_ms,
-                            fine_ms,
-                            text,
-                        } => TranscriptPartial {
-                            phrase_id: id,
-                            inizio_ms,
-                            fine_ms,
-                            text,
-                        }
-                        .emit(&app),
-                        PipelineEvent::Phrase {
-                            id,
-                            inizio_ms,
-                            fine_ms,
-                            text,
-                        } => {
-                            let emitted = TranscriptPhrase {
-                                phrase_id: id,
-                                inizio_ms,
-                                fine_ms,
-                                text: text.clone(),
-                            }
-                            .emit(&app);
-                            phrases.push(text);
-                            emitted
-                        }
-                    };
-                    if let Err(e) = emitted {
-                        log::warn!("evento della Trascrizione non emesso: {e}");
-                    }
-                },
-            )
-            .map(|()| phrases)
-        });
-        // Dopo un guasto interno il motore si scarta e alla prossima Trascrizione si ricarica.
-        models.release(
+        let engine = models.take(&app, || model.id.as_str())?;
+        let phrases = run_pipeline(
             &app,
             engine,
-            !matches!(transcribed, Err(AppError::Internal(_))),
-        );
-        let phrases = transcribed?;
+            &silero,
+            &cancel,
+            |engine, detector, on_event| {
+                transcribe_file(
+                    &source,
+                    engine,
+                    detector,
+                    settings.speech_language.code(),
+                    &cancel,
+                    on_event,
+                )
+            },
+        )?;
         // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
@@ -153,6 +132,144 @@ pub async fn transcribe(
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive `frames`
+/// man mano che arrivano, fino alla fine della Registrazione e della coda, con gli eventi di
+/// `transcribe`. Restituisce le Frasi. Se il modello non si carica (`liveTranscriptionUnavailable`)
+/// o la pipeline si guasta emette `live-transcription-failed`: la Registrazione continua.
+pub fn transcribe_live(
+    app: &AppHandle,
+    mut frames: LiveFrames,
+    settings: &Settings,
+    cancel: &CancelToken,
+) -> Result<Vec<String>, AppError> {
+    let model = SettingsStore::model_of(settings);
+    let transcribed = silero_path(app).and_then(|silero| {
+        let models = app.state::<Models>();
+        let engine = models.take(app, || model.id.as_str()).map_err(|e| {
+            log::warn!("Trascrizione dal vivo senza modello: {e}");
+            AppError::LiveTranscriptionUnavailable(model.name.clone())
+        })?;
+        run_pipeline(
+            app,
+            engine,
+            &silero,
+            cancel,
+            |engine, detector, on_event| {
+                pipeline::transcribe(
+                    &mut frames,
+                    engine,
+                    detector,
+                    settings.speech_language.code(),
+                    cancel,
+                    on_event,
+                )
+            },
+        )
+    });
+    // Annullata (anche perché la Registrazione non è partita): nessun avviso.
+    if let Err(error) = &transcribed
+        && !cancel.is_cancelled()
+    {
+        let failed = LiveTranscriptionFailed {
+            error: error.clone(),
+        };
+        if let Err(e) = failed.emit(app) {
+            log::warn!("live-transcription-failed non emesso: {e}");
+        }
+    }
+    transcribed
+}
+
+/// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: salva le
+/// Frasi nel TXT accanto, a meno che non sia stata annullata o guasta.
+pub fn finish_live(
+    recording: &Path,
+    phrases: Result<Vec<String>, AppError>,
+    cancel: &CancelToken,
+) -> LiveTranscription {
+    let saved = phrases.and_then(|phrases| {
+        // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        save_transcript(recording, &phrases)
+    });
+    match saved {
+        Ok(TranscriptionOutcome::Saved(finished)) => LiveTranscription::Saved(finished),
+        Ok(TranscriptionOutcome::NoSpeech) => LiveTranscription::NoSpeech,
+        Err(error) => LiveTranscription::Failed { error },
+    }
+}
+
+fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+    app.path()
+        .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+/// Esegue `run` con `engine` e Silero, traduce gli eventi della pipeline in
+/// `transcription-progress`, `transcript-partial` e `transcript-phrase` e restituisce le Frasi.
+/// Poi rende il motore: dopo un guasto interno si scarta e alla volta successiva si ricarica.
+fn run_pipeline(
+    app: &AppHandle,
+    mut engine: Lease<'_, TranscribeCpp>,
+    silero: &Path,
+    cancel: &CancelToken,
+    run: impl FnOnce(
+        &mut dyn TranscriptionEngine,
+        &mut dyn VoiceDetector,
+        &mut dyn FnMut(PipelineEvent),
+    ) -> Result<(), AppError>,
+) -> Result<Vec<String>, AppError> {
+    engine.set_cancel_token(cancel);
+    let transcribed = Silero::new(silero).and_then(|mut detector| {
+        let mut phrases = Vec::new();
+        run(&mut *engine, &mut detector, &mut |event| {
+            let emitted = match event {
+                PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(app),
+                PipelineEvent::Partial {
+                    id,
+                    inizio_ms,
+                    fine_ms,
+                    text,
+                } => TranscriptPartial {
+                    phrase_id: id,
+                    inizio_ms,
+                    fine_ms,
+                    text,
+                }
+                .emit(app),
+                PipelineEvent::Phrase {
+                    id,
+                    inizio_ms,
+                    fine_ms,
+                    text,
+                } => {
+                    let emitted = TranscriptPhrase {
+                        phrase_id: id,
+                        inizio_ms,
+                        fine_ms,
+                        text: text.clone(),
+                    }
+                    .emit(app);
+                    phrases.push(text);
+                    emitted
+                }
+            };
+            if let Err(e) = emitted {
+                log::warn!("evento della Trascrizione non emesso: {e}");
+            }
+        })
+        .map(|()| phrases)
+    });
+    app.state::<Models>().release(
+        app,
+        engine,
+        !matches!(transcribed, Err(AppError::Internal(_))),
+    );
+    transcribed
 }
 
 /// Carica in background il modello scelto, se non è già quello tenuto, così la prossima
@@ -305,6 +422,38 @@ mod tests {
             "Uno.
 Due."
         );
+    }
+
+    #[test]
+    fn la_trascrizione_dal_vivo_annullata_o_guasta_non_salva_il_txt() {
+        let dir = std::env::temp_dir().join("sbobino-test-dal-vivo");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let recording = dir.join("Registrazione.ogg");
+        let phrases = || Ok(vec!["Uno.".to_string()]);
+        let cancel = CancelToken::new();
+        let guasta = finish_live(&recording, Err(AppError::Internal("x".into())), &cancel);
+        assert!(matches!(
+            guasta,
+            LiveTranscription::Failed {
+                error: AppError::Internal(_)
+            }
+        ));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let saved = finish_live(&recording, phrases(), &cancel);
+        assert!(matches!(
+            saved,
+            LiveTranscription::Saved(TranscriptionFinished { chars: 4, .. })
+        ));
+        // Annulla dopo l'ultima Frase: niente secondo TXT.
+        cancel.cancel();
+        assert_eq!(
+            finish_live(&recording, phrases(), &cancel),
+            LiveTranscription::Failed {
+                error: AppError::Cancelled
+            }
+        );
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
     }
 
     #[test]

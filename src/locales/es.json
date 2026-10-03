@@ -27,6 +27,8 @@
     "recorded": "Grabación guardada en {{path}}",
     "transcribing": "Transcribiendo…",
     "transcribingPercent": "Transcribiendo… {{percent}} %",
+    "completing": "Completando la transcripción…",
+    "completingPercent": "Completando la transcripción… {{percent}} %",
     "progress": "Progreso de la transcripción",
     "finished_one": "Transcripción terminada: {{count, number}} carácter guardado en {{path}}",
     "finished_many": "Transcripción terminada: {{count, number}} de caracteres guardados en {{path}}",
@@ -49,6 +51,7 @@
       "microphoneMissing": "No hay ningún micrófono conectado, o el elegido en Configuración no está disponible",
       "outputDeviceMissing": "No hay ningún dispositivo de salida para el audio del sistema, o el elegido en Configuración no está disponible",
       "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
+      "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
       "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
       "cancelled": "Transcripción cancelada",
       "internal": "Error interno: {{detail}}"
@@ -149,6 +152,7 @@
   "recording": {
     "title": "Grabación",
     "start": "Grabar",
+    "live": "Transcribir en directo",
     "prefix": "Grabación",
     "pause": "Pausa",
     "resume": "Reanudar",

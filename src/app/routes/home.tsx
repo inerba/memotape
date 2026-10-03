@@ -29,8 +29,10 @@ import { useSettings } from "@/features/settings/settings-context";
 import { fileName } from "@/features/source/file-name";
 import {
   afterTranscription,
+  needsSettings,
   type Status,
   statusText,
+  withLiveError,
   withProgress,
 } from "@/features/status/status";
 import {
@@ -58,12 +60,20 @@ export function HomePage() {
   );
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [confirmReplace, setConfirmReplace] = useState(false);
+  // L'Attività che aspetta la conferma prima di sostituire il testo nell'area.
+  const [confirmReplace, setConfirmReplace] = useState<
+    "transcribe" | "record" | null
+  >(null);
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
+  // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
+  const completing = status.phase === "completing";
   const paused = status.phase === "recording" && status.paused;
   // Una Attività alla volta: durante l'una, l'altra e Sfoglia sono disabilitate.
-  const busy = running || recording;
+  const busy = running || recording || completing;
+  const live = settings.trascrizioneDalVivo ?? false;
+  // Il testo arriva dalla pipeline: non si modifica finché non è finita.
+  const writing = running || completing || (recording && live);
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
   const models = useModels();
@@ -88,10 +98,16 @@ export function HomePage() {
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       setStatus((current) => withProgress(current, payload.percent));
     });
+    // La Trascrizione dal vivo si è fermata: la Registrazione continua senza testo.
+    const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
+      setPartial(null);
+      setStatus((current) => withLiveError(current, payload.error));
+    });
     return () => {
       phrases.then((stop) => stop());
       partials.then((stop) => stop());
       progress.then((stop) => stop());
+      liveFailed.then((stop) => stop());
     };
   }, []);
 
@@ -146,6 +162,12 @@ export function HomePage() {
   }, [source]);
 
   const record = useCallback(async () => {
+    if (live) {
+      setText("");
+      setPartial(null);
+      acceptPartials.current = true;
+    }
+    setCancelling(false);
     setStatus({ paused: false, phase: "recording" });
     try {
       const after = afterRecording(
@@ -160,8 +182,11 @@ export function HomePage() {
         error: { code: "internal", detail: String(e) },
         phase: "failed",
       });
+    } finally {
+      acceptPartials.current = false;
+      setPartial(null);
     }
-  }, [t]);
+  }, [live, t]);
 
   const setPaused = useCallback((value: boolean) => {
     setStatus((current) =>
@@ -172,11 +197,47 @@ export function HomePage() {
   // Il testo nell'area, anche se modificato a mano, si sostituisce solo dopo conferma.
   const requestTranscription = useCallback(() => {
     if (text.trim()) {
-      setConfirmReplace(true);
+      setConfirmReplace("transcribe");
     } else {
       transcribe();
     }
   }, [text, transcribe]);
+
+  // Con Trascrivi dal vivo la Registrazione sostituisce il testo: anche lei chiede conferma.
+  const requestRecording = useCallback(() => {
+    if (live && text.trim()) {
+      setConfirmReplace("record");
+    } else {
+      record();
+    }
+  }, [live, record, text]);
+
+  const closeConfirm = useCallback((opened: boolean) => {
+    if (!opened) {
+      setConfirmReplace(null);
+    }
+  }, []);
+
+  const replace = useCallback(() => {
+    if (confirmReplace === "record") {
+      record();
+    } else {
+      transcribe();
+    }
+  }, [confirmReplace, record, transcribe]);
+
+  const toggleLive = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const error = await save({
+        ...settings,
+        trascrizioneDalVivo: e.target.checked,
+      });
+      if (error) {
+        setStatus({ error, phase: "failed" });
+      }
+    },
+    [save, settings]
+  );
 
   const cancel = useCallback(async () => {
     setCancelling(true);
@@ -217,10 +278,10 @@ export function HomePage() {
     []
   );
 
-  // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, o se c'è testo.
+  // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
+  // o se c'è testo.
   const showTranscription =
-    running || status.phase === "finished" || text !== "";
-  const message = statusText(status, t);
+    writing || status.phase === "finished" || text !== "";
 
   return (
     <>
@@ -230,10 +291,24 @@ export function HomePage() {
             <Button disabled={busy} onClick={browse} variant="outline">
               {t("source.browse")}
             </Button>
-            <Button disabled={busy} onClick={record} variant="outline">
+            <Button
+              disabled={busy}
+              onClick={requestRecording}
+              variant="outline"
+            >
               <Circle className="fill-destructive text-destructive" />
               {t("recording.start")}
             </Button>
+            <label className="flex shrink-0 items-center gap-2 text-sm has-[:disabled]:opacity-50">
+              <input
+                checked={live}
+                className="size-4 accent-primary"
+                disabled={busy}
+                onChange={toggleLive}
+                type="checkbox"
+              />
+              {t("recording.live")}
+            </label>
             {source ? (
               <div className="min-w-0 flex-1">
                 <button
@@ -268,7 +343,7 @@ export function HomePage() {
             <Button disabled={!source || busy} onClick={requestTranscription}>
               {running ? t("transcription.running") : t("transcription.start")}
             </Button>
-            {running ? (
+            {running || completing ? (
               <Button disabled={cancelling} onClick={cancel} variant="outline">
                 {cancelling
                   ? t("transcription.cancelling")
@@ -288,7 +363,10 @@ export function HomePage() {
           {recording ? (
             <RecordingPanel onPausedChange={setPaused} paused={paused} />
           ) : null}
-          <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
+          <AlertDialog
+            onOpenChange={closeConfirm}
+            open={confirmReplace !== null}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
@@ -302,7 +380,7 @@ export function HomePage() {
                 <AlertDialogCancel>
                   {t("transcription.replace.keep")}
                 </AlertDialogCancel>
-                <AlertDialogAction onClick={transcribe}>
+                <AlertDialogAction onClick={replace}>
                   {t("transcription.replace.confirm")}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -314,7 +392,7 @@ export function HomePage() {
                 aria-label={t("transcription.text")}
                 className="flex-1 resize-none"
                 onChange={edit}
-                readOnly={running}
+                readOnly={writing}
                 value={withPartial(text, partial)}
               />
               <div className="flex justify-end">
@@ -330,40 +408,50 @@ export function HomePage() {
             </section>
           ) : null}
         </main>
-        <footer
-          aria-live="polite"
-          className="flex items-center gap-3 border-t px-6 py-2 text-muted-foreground text-xs"
-          role={status.phase === "failed" ? "alert" : "status"}
-        >
-          <span
-            className={
-              status.phase === "failed"
-                ? "min-w-0 flex-1 truncate text-destructive"
-                : "min-w-0 flex-1 truncate"
-            }
-            title={message}
-          >
-            {message}
-          </span>
-          {status.phase === "failed" && status.error.code === "modelMissing" ? (
-            <Link
-              className="shrink-0 text-foreground underline underline-offset-4"
-              to="/settings"
-            >
-              {t("status.openModels")}
-            </Link>
-          ) : null}
-          {status.phase === "transcribing" ? (
-            <progress
-              aria-label={t("status.progress")}
-              className="h-1.5 w-40 shrink-0 accent-primary"
-              max={100}
-              value={status.percent ?? undefined}
-            />
-          ) : null}
-        </footer>
+        <StatusBar status={status} />
       </div>
       {settingsPage}
     </>
+  );
+}
+
+/** La status bar: il messaggio, il link alle Impostazioni quando serve e l'avanzamento. */
+function StatusBar({ status }: { status: Status }) {
+  const { t } = useTranslation();
+  const message = statusText(status, t);
+  const failed = status.phase === "failed";
+  return (
+    <footer
+      aria-live="polite"
+      className="flex items-center gap-3 border-t px-6 py-2 text-muted-foreground text-xs"
+      role={failed ? "alert" : "status"}
+    >
+      <span
+        className={
+          failed
+            ? "min-w-0 flex-1 truncate text-destructive"
+            : "min-w-0 flex-1 truncate"
+        }
+        title={message}
+      >
+        {message}
+      </span>
+      {needsSettings(status) ? (
+        <Link
+          className="shrink-0 text-foreground underline underline-offset-4"
+          to="/settings"
+        >
+          {t("status.openModels")}
+        </Link>
+      ) : null}
+      {status.phase === "transcribing" || status.phase === "completing" ? (
+        <progress
+          aria-label={t("status.progress")}
+          className="h-1.5 w-40 shrink-0 accent-primary"
+          max={100}
+          value={status.percent ?? undefined}
+        />
+      ) : null}
+    </footer>
   );
 }

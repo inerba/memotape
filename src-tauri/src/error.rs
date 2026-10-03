@@ -31,6 +31,10 @@ pub enum AppError {
     /// `settings.json` esiste ma non si legge: valgono i predefiniti.
     #[error("impostazioni illeggibili: {0}")]
     UnreadableSettings(String),
+    /// Il modello scelto, di cui porta il nome, non è scaricato o non si carica: la Registrazione
+    /// continua senza Trascrizione dal vivo.
+    #[error("Trascrizione dal vivo non disponibile: {0}")]
+    LiveTranscriptionUnavailable(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

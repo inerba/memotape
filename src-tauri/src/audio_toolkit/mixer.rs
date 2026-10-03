@@ -237,10 +237,16 @@ impl Mixer {
 
     /// L'orologio (QPC, ns) e lo stato della pausa, da chiamare di continuo (almeno ogni 100 ms).
     /// Conta pause e sospensioni e riempie di silenzio gli ingressi rimasti indietro, come il
-    /// loopback a riproduzione ferma. Accoda in `out` l'audio pronto.
+    /// loopback a riproduzione ferma. All'inizio di una pausa li completa fino a lì, così in `out`
+    /// esce subito tutto l'audio prima della pausa. Accoda in `out` l'audio pronto.
     pub fn advance(&mut self, now_ns: u64, paused: bool, out: &mut Vec<f32>) {
         if paused {
-            self.pause_start.get_or_insert(now_ns);
+            if self.pause_start.is_none() {
+                self.pause_start = Some(now_ns);
+                // I blocchi arrivati in pausa si scartano: quello che manca fin qui è silenzio.
+                self.fill_to(self.timeline(now_ns), HOLE_NS);
+                self.emit(out);
+            }
             return;
         }
         let excluded = match self.pause_start.take() {
@@ -379,6 +385,22 @@ mod tests {
         let end = capture(&mut mixer, 0, device, ts, 0.5, false, &mut out);
         mixer.finish(end, &mut out);
         assert_eq!(mixer.elapsed_ms(), 1_500);
+        assert_eq!(out.len(), 72_000);
+    }
+
+    #[test]
+    fn all_inizio_della_pausa_esce_tutto_l_audio_prima_della_pausa() {
+        // Microfono e loopback a riproduzione ferma, che trattiene il mix fino a `LAG_NS`.
+        let device = (48_000, 1);
+        let mut mixer = Mixer::new(0, &[device, device], (48_000, 1)).unwrap();
+        let mut out = Vec::new();
+        let ts = capture(&mut mixer, 0, device, 0, 1.0, false, &mut out);
+        assert!(out.len() < 48_000);
+        mixer.advance(ts, true, &mut out);
+        assert_eq!(out.len(), 48_000);
+        // Dopo Riprendi l'audio continua da lì.
+        let end = capture(&mut mixer, 0, device, ts + 2_000 * MS, 0.5, false, &mut out);
+        mixer.finish(end, &mut out);
         assert_eq!(out.len(), 72_000);
     }
 

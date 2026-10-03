@@ -11,13 +11,16 @@ use std::time::{Duration, Instant};
 use chrono::NaiveDateTime;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
+use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::capture::{self, Capture, Kind};
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
+use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::managers::activity::Activity;
-use crate::managers::settings::{Channels, RecordingSource, SettingsStore};
+use crate::managers::settings::{Channels, RecordingSource, Settings, SettingsStore};
+use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgress};
 
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
@@ -46,6 +49,8 @@ pub struct RecordingSaved {
     /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`);
     /// `null` dopo Stop.
     pub error: Option<AppError>,
+    /// L'esito della Trascrizione dal vivo; `null` se era spenta.
+    pub transcription: Option<LiveTranscription>,
 }
 
 #[derive(Default)]
@@ -90,20 +95,68 @@ pub async fn record(
     prefix: String,
 ) -> Result<RecordingSaved, AppError> {
     let controls = Arc::new(Controls::default());
+    let cancel = CancelToken::new();
     let _activity = activity.begin({
         let controls = Arc::clone(&controls);
-        move || controls.stop.store(true, Ordering::Relaxed)
+        let cancel = cancel.clone();
+        // Stop durante la Registrazione, Annulla durante lo smaltimento della coda dal vivo.
+        move || {
+            controls.stop.store(true, Ordering::Relaxed);
+            cancel.cancel();
+        }
     })?;
+    let internal = |e: tauri::Error| AppError::Internal(e.to_string());
+    let settings = app.state::<SettingsStore>().get();
+    // Con la Trascrizione dal vivo, la pipeline gira in un suo thread e legge l'uscita del mixer.
+    let (feed, live) = if settings.trascrizione_dal_vivo {
+        let (feed, frames) = live::channel(settings.sample_rate, channel_count(settings.channels))?;
+        let live = tauri::async_runtime::spawn_blocking({
+            let (app, settings, cancel) = (app.clone(), settings.clone(), cancel.clone());
+            move || transcription::transcribe_live(&app, frames, &settings, &cancel)
+        });
+        (Some(feed), Some(live))
+    } else {
+        (None, None)
+    };
     *recorder.current() = Some(Arc::clone(&controls));
     let recorded = tauri::async_runtime::spawn_blocking({
-        let controls = Arc::clone(&controls);
-        move || run(&app, &prefix, &controls)
+        let (app, controls) = (app.clone(), Arc::clone(&controls));
+        move || run(&app, &prefix, &controls, &settings, feed)
     })
     .await
-    .map_err(|e| AppError::Internal(e.to_string()))
+    .map_err(internal)
     .and_then(|recorded| recorded);
     *recorder.current() = None;
-    recorded
+    let Some(live) = live else {
+        return recorded;
+    };
+    let mut saved = match recorded {
+        Ok(saved) => saved,
+        Err(e) => {
+            // La Registrazione non è partita: la pipeline si ferma da sola, senza aspettarla.
+            cancel.cancel();
+            return Err(e);
+        }
+    };
+    // Dopo Stop la status bar passa subito al completamento, anche col motore a metà Frase.
+    if let Err(e) = (TranscriptionProgress { percent: None }).emit(&app) {
+        log::warn!("transcription-progress non emesso: {e}");
+    }
+    // L'Attività finisce quando la coda è smaltita.
+    let phrases = live.await.map_err(internal).and_then(|phrases| phrases);
+    saved.transcription = Some(transcription::finish_live(
+        Path::new(&saved.path),
+        phrases,
+        &cancel,
+    ));
+    Ok(saved)
+}
+
+fn channel_count(channels: Channels) -> usize {
+    match channels {
+        Channels::Mono => 1,
+        Channels::Stereo => 2,
+    }
 }
 
 /// La Cartella predefinita: quella delle impostazioni, o `Documenti\Sbobino`.
@@ -122,12 +175,15 @@ pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSaved, AppError> {
-    let settings = app.state::<SettingsStore>().get();
-    let channels = match settings.channels {
-        Channels::Mono => 1,
-        Channels::Stereo => 2,
-    };
+/// Registra fino a Stop. Con `feed` l'audio salvato va anche alla Trascrizione dal vivo.
+fn run(
+    app: &AppHandle,
+    prefix: &str,
+    controls: &Controls,
+    settings: &Settings,
+    mut feed: Option<LiveFeed>,
+) -> Result<RecordingSaved, AppError> {
+    let channels = channel_count(settings.channels);
     let kinds: &[Kind] = match settings.recording_source {
         RecordingSource::Mic => &[Kind::Microphone],
         RecordingSource::System => &[Kind::System],
@@ -192,7 +248,8 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         }
         // Anche senza blocchi (il loopback a riproduzione ferma) l'orologio avanza ogni `TICK`.
         let received = blocks.recv_timeout(TICK);
-        mixer.advance(now(), controls.paused.load(Ordering::Relaxed), &mut out);
+        let paused = controls.paused.load(Ordering::Relaxed);
+        mixer.advance(now(), paused, &mut out);
         match received {
             Ok(block) => {
                 mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
@@ -209,6 +266,9 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         if let Err(e) = writer.write(&out) {
             error = Some(e);
             break;
+        }
+        if let Some(feed) = &mut feed {
+            feed.push(&out, paused);
         }
         out.clear();
         if last_tick.elapsed() >= TICK {
@@ -241,9 +301,14 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         error.get_or_insert(e);
     }
     log::info!("Registrazione salvata: {} ms", mixer.elapsed_ms());
+    if let Some(mut feed) = feed {
+        feed.push(&out, false);
+        feed.finish();
+    }
     Ok(RecordingSaved {
         path: path.display().to_string(),
         error,
+        transcription: None,
     })
 }
 

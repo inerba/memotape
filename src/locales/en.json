@@ -27,6 +27,8 @@
     "recorded": "Recording saved to {{path}}",
     "transcribing": "Transcribing…",
     "transcribingPercent": "Transcribing… {{percent}}%",
+    "completing": "Completing the transcription…",
+    "completingPercent": "Completing the transcription… {{percent}}%",
     "progress": "Transcription progress",
     "finished_one": "Transcription finished: {{count, number}} character saved to {{path}}",
     "finished_other": "Transcription finished: {{count, number}} characters saved to {{path}}",
@@ -48,6 +50,7 @@
       "microphoneMissing": "No microphone connected, or the one chosen in Settings is not available",
       "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
+      "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}"
@@ -148,6 +151,7 @@
   "recording": {
     "title": "Recording",
     "start": "Record",
+    "live": "Transcribe live",
     "prefix": "Recording",
     "pause": "Pause",
     "resume": "Resume",

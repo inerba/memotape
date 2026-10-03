@@ -39,6 +39,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::transcription::TranscriptPartial,
             managers::transcription::TranscriptPhrase,
             managers::transcription::TranscriptionProgress,
+            managers::transcription::LiveTranscriptionFailed,
             managers::models::ModelDownloadProgress,
             managers::models::ModelStateChanged,
             managers::recording::RecordingTick,

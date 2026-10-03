@@ -47,10 +47,6 @@ pub enum Feed {
     Frame(Vec<f32>),
     /// Chiude la Frase in corso come a fine parlato (la Pausa): il frame successivo può solo
     /// aprirne una nuova.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "la userà la Trascrizione dal vivo")
-    )]
     ClosePhrase,
     /// Avanzamento da inoltrare com'è in `PipelineEvent::Progress`.
     Progress(Option<u8>),
@@ -298,14 +294,14 @@ impl Iterator for PhraseAudio<'_, '_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::audio_toolkit::resample::FRAME_SAMPLES;
     use crate::engine::EngineError;
     use std::path::PathBuf;
 
     /// Detector finto guidato dall'energia del frame.
-    struct EnergyDetector;
+    pub(crate) struct EnergyDetector;
 
     impl VoiceDetector for EnergyDetector {
         fn probability(&mut self, frame: &[f32]) -> Result<f32, AppError> {
@@ -319,15 +315,16 @@ mod tests {
     /// Motore finto: restituisce "frase N" e ricorda quanti campioni e quale lingua ha ricevuto
     /// ogni Frase. Con `cancel_at` preme Annulla mentre trascrive la Frase N (da 1). Con
     /// `streaming` manda un Parziale ogni 10 frame; con `empty_at` la Frase N finisce vuota; con
-    /// `busy` risponde `Busy`.
+    /// `busy` risponde `Busy`; con `delay` impiega quel tempo per ogni Frase.
     #[derive(Default)]
-    struct FakeEngine {
-        samples: Vec<usize>,
-        languages: Vec<Option<String>>,
-        cancel_at: Option<(usize, CancelToken)>,
-        streaming: bool,
-        empty_at: Option<usize>,
-        busy: bool,
+    pub(crate) struct FakeEngine {
+        pub(crate) samples: Vec<usize>,
+        pub(crate) languages: Vec<Option<String>>,
+        pub(crate) cancel_at: Option<(usize, CancelToken)>,
+        pub(crate) streaming: bool,
+        pub(crate) empty_at: Option<usize>,
+        pub(crate) busy: bool,
+        pub(crate) delay: std::time::Duration,
     }
 
     impl TranscriptionEngine for FakeEngine {
@@ -348,6 +345,7 @@ mod tests {
                     on_partial(&format!("frase {n} ({} frame)", i + 1));
                 }
             }
+            std::thread::sleep(self.delay);
             self.samples.push(samples);
             self.languages.push(language.map(String::from));
             if let Some((at, cancel)) = &self.cancel_at

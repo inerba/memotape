@@ -3,8 +3,10 @@ import "@/lib/i18n";
 import i18n from "i18next";
 import {
   afterTranscription,
+  needsSettings,
   type Status,
   statusText,
+  withLiveError,
   withProgress,
 } from "@/features/status/status";
 
@@ -111,4 +113,47 @@ test("una seconda Attività è rifiutata con un messaggio dedicato", () => {
   expect(statusText(status, t)).toBe(
     "Un'altra Attività è in corso: aspetta che finisca o annullala"
   );
+});
+
+test("dopo Stop il progresso della Trascrizione dal vivo diventa il completamento della trascrizione", () => {
+  const completing = withProgress({ paused: false, phase: "recording" }, 40);
+  expect(completing).toEqual({ percent: 40, phase: "completing" });
+  expect(statusText(completing, t)).toBe(
+    "Completamento della trascrizione… 40%"
+  );
+  expect(withProgress(completing, 41)).toEqual({
+    percent: 41,
+    phase: "completing",
+  });
+  // A Stop arriva subito un progresso indeterminato, anche col motore a metà Frase.
+  const stopped = withProgress({ paused: false, phase: "recording" }, null);
+  expect(statusText(stopped, t)).toBe("Completamento della trascrizione…");
+});
+
+test("senza modello la Registrazione continua e la status bar lo dice con il link alle Impostazioni", () => {
+  const error = {
+    code: "liveTranscriptionUnavailable",
+    detail: "Nemotron",
+  } as const;
+  const recording = withLiveError({ paused: false, phase: "recording" }, error);
+  expect(recording).toEqual({
+    liveError: error,
+    paused: false,
+    phase: "recording",
+  });
+  expect(statusText(recording, t)).toBe(
+    "Trascrizione dal vivo non disponibile: il modello Nemotron non è scaricato o non si carica (la Registrazione si salva comunque)"
+  );
+  expect(needsSettings(recording)).toBe(true);
+  expect(needsSettings({ error, phase: "failed" })).toBe(true);
+  expect(
+    needsSettings({
+      error: { code: "modelMissing", detail: "x" },
+      phase: "failed",
+    })
+  ).toBe(true);
+  expect(needsSettings({ paused: false, phase: "recording" })).toBe(false);
+  // Finita la Registrazione l'avviso arriva con il suo esito, non con l'evento.
+  const recorded: Status = { path: "a.ogg", phase: "recorded" };
+  expect(withLiveError(recorded, error)).toBe(recorded);
 });

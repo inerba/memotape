@@ -27,6 +27,8 @@
     "recorded": "Enregistrement sauvegardé dans {{path}}",
     "transcribing": "Transcription en cours…",
     "transcribingPercent": "Transcription en cours… {{percent}} %",
+    "completing": "Finalisation de la transcription…",
+    "completingPercent": "Finalisation de la transcription… {{percent}} %",
     "progress": "Progression de la transcription",
     "finished_one": "Transcription terminée : {{count, number}} caractère enregistré dans {{path}}",
     "finished_many": "Transcription terminée : {{count, number}} de caractères enregistrés dans {{path}}",
@@ -49,6 +51,7 @@
       "microphoneMissing": "Aucun microphone branché, ou celui choisi dans Paramètres n'est pas disponible",
       "outputDeviceMissing": "Aucun périphérique de sortie pour l'audio système, ou celui choisi dans Paramètres n'est pas disponible",
       "unreadableSettings": "Impossible de lire les paramètres, l'application utilise les valeurs par défaut : {{detail}}",
+      "liveTranscriptionUnavailable": "Transcription en direct indisponible : le modèle {{detail}} n'est pas téléchargé ou ne se charge pas (l'enregistrement est sauvegardé quand même)",
       "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
       "cancelled": "Transcription annulée",
       "internal": "Erreur interne : {{detail}}"
@@ -149,6 +152,7 @@
   "recording": {
     "title": "Enregistrement",
     "start": "Enregistrer",
+    "live": "Transcrire en direct",
     "prefix": "Enregistrement",
     "pause": "Pause",
     "resume": "Reprendre",

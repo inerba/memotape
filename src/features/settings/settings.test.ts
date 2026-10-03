@@ -15,6 +15,8 @@ test("i predefiniti sono quelli di Rust", () => {
     defaults.sampleRate,
   ]).toEqual([32, "mono", 48_000]);
   expect(defaults.interfaceLanguage).toBeNull();
+  // Trascrivi dal vivo è spenta finché l'utente non la attiva.
+  expect(defaults.trascrizioneDalVivo).toBe(false);
 });
 
 test("senza backend la Lingua dell'interfaccia è quella di sistema se supportata, altrimenti l'inglese", () => {
@@ -39,6 +41,7 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     recordingsFolder: "D:\\Registrazioni",
     sampleRate: 8000,
     speechLanguage: "it",
+    trascrizioneDalVivo: true,
   };
   expect(settingsSchema.parse(full)).toEqual(full);
 });
@@ -51,6 +54,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, speechLanguage: null },
     { ...defaults, recordingSource: "line-in" },
     { ...defaults, model: "" },
+    { ...defaults, trascrizioneDalVivo: "sì" },
     { model: defaults.model },
   ];
   for (const value of invalid) {

@@ -77,7 +77,10 @@ test("durante la Registrazione la status bar dice se è in pausa", () => {
 test("dopo Stop il file diventa la Sorgente e la status bar dice dov'è", () => {
   const path =
     "C:\\Users\\me\\Documents\\Sbobino\\Registrazione 2026-10-03 10-00-00.ogg";
-  const after = afterRecording({ data: { error: null, path }, status: "ok" });
+  const after = afterRecording({
+    data: { error: null, path, transcription: null },
+    status: "ok",
+  });
   expect(after.source).toBe(path);
   expect(statusText(after.status, t)).toBe(`Registrazione salvata in ${path}`);
 });
@@ -88,6 +91,7 @@ test("un dispositivo scollegato salva comunque e mostra l'errore con il suo nome
     data: {
       error: { code: "deviceDisconnected", detail: "Microfono USB" },
       path,
+      transcription: { chars: 3, outcome: "saved", txtPath: "a.txt" },
     },
     status: "ok",
   });
@@ -107,4 +111,54 @@ test("una Registrazione che non parte lascia la Sorgente com'era", () => {
   expect(statusText(after.status, t)).toBe(
     "Nessun microfono collegato, o quello scelto in Impostazioni non è disponibile"
   );
+});
+
+test("con la Trascrizione dal vivo la status bar dice dov'è il testo salvato", () => {
+  const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
+  const txtPath =
+    "D:\\Reg\\Registrazione 2026-10-03 10-00-00 trascrizione 1.txt";
+  const after = afterRecording({
+    data: {
+      error: null,
+      path,
+      transcription: { chars: 12, outcome: "saved", txtPath },
+    },
+    status: "ok",
+  });
+  expect(after.source).toBe(path);
+  expect(statusText(after.status, t)).toBe(
+    `Trascrizione finita: 12 caratteri salvati in ${txtPath}`
+  );
+  const silent = afterRecording({
+    data: { error: null, path, transcription: { outcome: "noSpeech" } },
+    status: "ok",
+  });
+  expect(silent.status).toEqual({ phase: "noSpeech" });
+});
+
+test("annullare il completamento della trascrizione salva la Registrazione senza TXT", () => {
+  const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
+  const cancelled = afterRecording({
+    data: {
+      error: null,
+      path,
+      transcription: { error: { code: "cancelled" }, outcome: "failed" },
+    },
+    status: "ok",
+  });
+  expect(cancelled.source).toBe(path);
+  expect(cancelled.status).toEqual({ phase: "cancelled" });
+  const missing = afterRecording({
+    data: {
+      error: null,
+      path,
+      transcription: {
+        error: { code: "liveTranscriptionUnavailable", detail: "Nemotron" },
+        outcome: "failed",
+      },
+    },
+    status: "ok",
+  });
+  expect(missing.source).toBe(path);
+  expect(missing.status.phase).toBe("failed");
 });

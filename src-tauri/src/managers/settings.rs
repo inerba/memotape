@@ -30,6 +30,10 @@ pub struct Settings {
     pub recordings_folder: Option<String>,
     /// `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese.
     pub interface_language: Option<Language>,
+    /// Trascrivi dal vivo: la Registrazione trascrive mentre registra. Manca nei file salvati
+    /// prima che esistesse: allora è spenta.
+    #[serde(default)]
+    pub trascrizione_dal_vivo: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -121,6 +125,7 @@ impl Default for Settings {
             sample_rate: 48_000,
             recordings_folder: None,
             interface_language: None,
+            trascrizione_dal_vivo: false,
         }
     }
 }
@@ -279,6 +284,22 @@ mod tests {
         );
         assert_eq!(settings.recordings_folder, None);
         assert_eq!(settings.interface_language, None);
+        assert!(!settings.trascrizione_dal_vivo);
+    }
+
+    #[test]
+    fn un_file_di_prima_della_trascrizione_dal_vivo_la_tiene_spenta_senza_perdere_il_resto() {
+        let path = temp_file("senza-dal-vivo");
+        let mut value = serde_json::to_value(Settings {
+            bitrate_kbps: 64,
+            ..Settings::default()
+        })
+        .unwrap();
+        value.as_object_mut().unwrap().remove("trascrizioneDalVivo");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let settings = Settings::load(&path).unwrap();
+        assert_eq!(settings.bitrate_kbps, 64);
+        assert!(!settings.trascrizione_dal_vivo);
     }
 
     #[test]
@@ -347,6 +368,7 @@ mod tests {
             sample_rate: 24_000,
             recordings_folder: Some(r"D:\Registrazioni".into()),
             interface_language: Some(Language::Pl),
+            trascrizione_dal_vivo: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

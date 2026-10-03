@@ -77,6 +77,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
 	recordingTick: makeEvent<RecordingTick>("recording-tick"),
@@ -98,7 +99,12 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 /**  Nessun dispositivo di uscita per l'audio di sistema, o quello scelto non è collegato. */
 { code: "outputDeviceMissing" } | 
 /**  `settings.json` esiste ma non si legge: valgono i predefiniti. */
-{ code: "unreadableSettings"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "unreadableSettings"; detail: string } | 
+/**
+ *  Il modello scelto, di cui porta il nome, non è scaricato o non si carica: la Registrazione
+ *  continua senza Trascrizione dal vivo.
+ */
+{ code: "liveTranscriptionUnavailable"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -117,6 +123,25 @@ export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 export type Levels = {
 	microphone: number | null,
 	system: number | null,
+};
+
+/**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
+export type LiveTranscription = 
+/**  Il testo è salvato nel TXT accanto alla Registrazione. */
+{
+	outcome: "saved",
+} & TranscriptionFinished | 
+/**  Nessuna Frase: il TXT non si crea. */
+({ outcome: "noSpeech" }) & { error?: never } | 
+/**  Senza TXT: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`). */
+{ outcome: "failed"; error: AppError };
+
+/**
+ *  La Trascrizione dal vivo si è fermata (modello assente, guasto): la Registrazione continua senza
+ *  testo.
+ */
+export type LiveTranscriptionFailed = {
+	error: AppError,
 };
 
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
@@ -172,6 +197,8 @@ export type RecordingSaved = {
 	 *  `null` dopo Stop.
 	 */
 	error: AppError | null,
+	/**  L'esito della Trascrizione dal vivo; `null` se era spenta. */
+	transcription: LiveTranscription | null,
 };
 
 export type RecordingSource = "mic" | "system" | "both";
@@ -199,6 +226,11 @@ export type Settings = {
 	recordingsFolder: string | null,
 	/**  `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese. */
 	interfaceLanguage: Language | null,
+	/**
+	 *  Trascrivi dal vivo: la Registrazione trascrive mentre registra. Manca nei file salvati
+	 *  prima che esistesse: allora è spenta.
+	 */
+	trascrizioneDalVivo?: boolean,
 };
 
 /**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
@@ -241,7 +273,10 @@ export type TranscriptionOutcome =
 /**  Nessuna Frase: il TXT non si crea. */
 { outcome: "noSpeech" };
 
-/**  Avanzamento della Trascrizione: `percent` è `null` se la durata della Sorgente non è nota. */
+/**
+ *  Avanzamento della Trascrizione, o dello smaltimento della coda dal vivo dopo Stop: `percent` è
+ *  `null` se la durata della Sorgente non è nota.
+ */
 export type TranscriptionProgress = {
 	percent: number | null,
 };

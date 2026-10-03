@@ -27,6 +27,8 @@
     "recorded": "Nagranie zapisano w {{path}}",
     "transcribing": "Trwa transkrypcja…",
     "transcribingPercent": "Trwa transkrypcja… {{percent}}%",
+    "completing": "Kończenie transkrypcji…",
+    "completingPercent": "Kończenie transkrypcji… {{percent}}%",
     "progress": "Postęp transkrypcji",
     "finished_one": "Transkrypcja zakończona: zapisano {{count, number}} znak w pliku {{path}}",
     "finished_few": "Transkrypcja zakończona: zapisano {{count, number}} znaki w pliku {{path}}",
@@ -50,6 +52,7 @@
       "microphoneMissing": "Nie podłączono mikrofonu albo mikrofon wybrany w Ustawieniach jest niedostępny",
       "outputDeviceMissing": "Brak urządzenia wyjściowego dla dźwięku systemowego albo urządzenie wybrane w Ustawieniach jest niedostępne",
       "unreadableSettings": "Nie można odczytać ustawień, aplikacja używa wartości domyślnych: {{detail}}",
+      "liveTranscriptionUnavailable": "Transkrypcja na żywo niedostępna: model {{detail}} nie jest pobrany lub nie daje się załadować (nagranie i tak zostanie zapisane)",
       "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
       "cancelled": "Transkrypcja anulowana",
       "internal": "Błąd wewnętrzny: {{detail}}"
@@ -150,6 +153,7 @@
   "recording": {
     "title": "Nagrywanie",
     "start": "Nagrywaj",
+    "live": "Transkrybuj na żywo",
     "prefix": "Nagranie",
     "pause": "Wstrzymaj",
     "resume": "Wznów",

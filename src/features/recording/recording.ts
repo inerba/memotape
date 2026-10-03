@@ -1,5 +1,15 @@
-import type { commands, Levels, RecordingSource } from "@/bindings";
-import type { Status } from "@/features/status/status";
+import type {
+  AppError,
+  commands,
+  Levels,
+  LiveTranscription,
+  RecordingSource,
+} from "@/bindings";
+import {
+  failedStatus,
+  outcomeStatus,
+  type Status,
+} from "@/features/status/status";
 
 /** Il livello più basso mostrato, in dBFS: sotto è silenzio. */
 const FLOOR_DB = -60;
@@ -53,7 +63,8 @@ type RecordResult = Awaited<ReturnType<typeof commands.record>>;
 
 /**
  * La Sorgente e la status bar alla fine di `record`. Il file salvato diventa la Sorgente anche se
- * il dispositivo si è scollegato; se la Registrazione non è partita, `source` è assente.
+ * il dispositivo si è scollegato; se la Registrazione non è partita, `source` è assente. Con la
+ * Trascrizione dal vivo la status bar dice com'è finita, dopo l'eventuale errore del dispositivo.
  */
 export function afterRecording(result: RecordResult): {
   source?: string;
@@ -62,9 +73,22 @@ export function afterRecording(result: RecordResult): {
   if (result.status === "error") {
     return { status: { error: result.error, phase: "failed" } };
   }
-  const { error, path } = result.data;
-  return {
-    source: path,
-    status: error ? { error, phase: "failed" } : { path, phase: "recorded" },
-  };
+  const { error, path, transcription } = result.data;
+  return { source: path, status: recordedStatus(path, error, transcription) };
+}
+
+function recordedStatus(
+  path: string,
+  error: AppError | null,
+  transcription: LiveTranscription | null
+): Status {
+  if (error) {
+    return { error, phase: "failed" };
+  }
+  if (!transcription) {
+    return { path, phase: "recorded" };
+  }
+  return transcription.outcome === "failed"
+    ? failedStatus(transcription.error)
+    : outcomeStatus(transcription);
 }

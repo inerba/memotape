@@ -9,16 +9,16 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Casella "Trascrivi dal vivo" accanto a Registra: impostazione `trascrizione_dal_vivo`, default spenta, salvata tra un avvio e l'altro, bloccata durante la Registrazione
-- [ ] L'uscita del mixer passa per downmix e ricampionamento a 16 kHz, poi va in un canale senza limite consumato da un thread di Trascrizione con il modello caricato e la Lingua del parlato delle impostazioni
-- [ ] La Pausa chiude la Frase in corso. Il tempo delle Frasi esclude le pause e coincide con l'audio salvato
-- [ ] Dopo Stop il canale si chiude e la coda si smaltisce, con avanzamento = frame consumati / frame ricevuti e Annulla. L'Attività Registrazione finisce quando la coda è vuota
-- [ ] Con testo nell'area, Registra con il flag attivo chiede conferma prima di sostituirlo
-- [ ] Modello non scaricato o non caricabile: la Registrazione parte comunque, con un avviso dedicato e il link alle Impostazioni
-- [ ] Test: motore finto più lento dell'audio (tutte le Frasi arrivano, smaltimento dopo la chiusura), Pausa, Annulla durante lo smaltimento
-- [ ] Verifica in `bun tauri dev` con Audio di sistema che riproduce la fixture: il testo compare durante la Registrazione
+- [x] Casella "Trascrivi dal vivo" accanto a Registra: impostazione `trascrizione_dal_vivo`, default spenta, salvata tra un avvio e l'altro, bloccata durante la Registrazione
+- [x] L'uscita del mixer passa per downmix e ricampionamento a 16 kHz, poi va in un canale senza limite consumato da un thread di Trascrizione con il modello caricato e la Lingua del parlato delle impostazioni
+- [x] La Pausa chiude la Frase in corso. Il tempo delle Frasi esclude le pause e coincide con l'audio salvato
+- [x] Dopo Stop il canale si chiude e la coda si smaltisce, con avanzamento = frame consumati / frame ricevuti e Annulla. L'Attività Registrazione finisce quando la coda è vuota
+- [x] Con testo nell'area, Registra con il flag attivo chiede conferma prima di sostituirlo
+- [x] Modello non scaricato o non caricabile: la Registrazione parte comunque, con un avviso dedicato e il link alle Impostazioni
+- [x] Test: motore finto più lento dell'audio (tutte le Frasi arrivano, smaltimento dopo la chiusura), Pausa, Annulla durante lo smaltimento
+- [x] Verifica in `bun tauri dev` con Audio di sistema che riproduce la fixture: il testo compare durante la Registrazione
 
 ## Note per chi lo implementa
 - Leggi prima `AGENTS.md` (comandi, prerequisiti, Insidie), `CONTEXT.md` (usa i suoi termini), gli ADR in `docs/adr/` e la spec `.scratch/sbobino-v2/spec.md`.
@@ -27,3 +27,10 @@
 - Chiudi con la skill `code-review`, eseguita in foreground, e applica le correzioni fondate.
 - Commit con prefissi convenzionali, niente push. Aggiorna `AGENTS.md`, `PRODUCT.md` e questo ticket (criteri spuntati, `Status: done`).
 - Non toccare `%APPDATA%\sbobino` (vecchia app) e non mettere mai l'email dell'utente in richieste HTTP.
+
+## Verifica (2026-10-03)
+- `bun tauri dev`, Audio di sistema che riproduce `parlato-it.wav`: con Nemotron i Parziali compaiono durante la Registrazione, Pausa/Riprendi chiude la Frase, a Stop il TXT si salva (269 caratteri). Con Whisper le Frasi compaiono a fine Frase.
+- Parlato TTS continuo di 28 s fermato a metà Frase con Whisper: "Completamento della trascrizione… 100%" per circa 0,5 s, poi il TXT; con Annulla subito dopo Stop resta l'Ogg, niente TXT, status "Trascrizione annullata".
+- Con testo nell'area, Registra ha chiesto conferma.
+- Dopo la code review: con Entrambi e Whisper, Pausa subito dopo il parlato e Riprendi danno quattro Frasi intere; a Stop la status bar passa subito al completamento.
+- Non provato nell'app il modello assente (sono scaricati tutti e tre): il percorso è `Models::take` → `liveTranscriptionUnavailable` + `live-transcription-failed`.

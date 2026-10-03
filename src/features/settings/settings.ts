@@ -52,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recordingsFolder: null,
   sampleRate: 48_000,
   speechLanguage: "auto",
+  trascrizioneDalVivo: false,
 };
 
 /** Un numero tra `values`: il tipo resta `number`, come nei bindings. */
@@ -70,6 +71,8 @@ export const settingsSchema = z.object({
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),
   speechLanguage: z.enum(["auto", ...LANGUAGES]),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  trascrizioneDalVivo: z.boolean().optional(),
 }) satisfies z.ZodType<Settings>;
 
 /** Cosa mostra il selettore della Lingua del parlato, oltre ad Automatica. */

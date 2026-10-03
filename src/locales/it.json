@@ -27,6 +27,8 @@
     "recorded": "Registrazione salvata in {{path}}",
     "transcribing": "Trascrizione in corso…",
     "transcribingPercent": "Trascrizione in corso… {{percent}}%",
+    "completing": "Completamento della trascrizione…",
+    "completingPercent": "Completamento della trascrizione… {{percent}}%",
     "progress": "Avanzamento della Trascrizione",
     "finished_one": "Trascrizione finita: {{count, number}} carattere salvato in {{path}}",
     "finished_many": "Trascrizione finita: {{count, number}} di caratteri salvati in {{path}}",
@@ -49,6 +51,7 @@
       "microphoneMissing": "Nessun microfono collegato, o quello scelto in Impostazioni non è disponibile",
       "outputDeviceMissing": "Nessun dispositivo di uscita per l'audio di sistema, o quello scelto in Impostazioni non è disponibile",
       "unreadableSettings": "Impossibile leggere le impostazioni, l'app usa i valori predefiniti: {{detail}}",
+      "liveTranscriptionUnavailable": "Trascrizione dal vivo non disponibile: il modello {{detail}} non è scaricato o non si carica (la Registrazione si salva comunque)",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"
@@ -149,6 +152,7 @@
   "recording": {
     "title": "Registrazione",
     "start": "Registra",
+    "live": "Trascrivi dal vivo",
     "prefix": "Registrazione",
     "pause": "Pausa",
     "resume": "Riprendi",
