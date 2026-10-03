@@ -4,9 +4,7 @@
 
 **Blocked by:** 03 (Sorgente e TXT)
 
-**Status:** ready-for-agent
-
-Implementato e verificato in `bun tauri dev` (commit 0cb8b56); resta aperto finché la code review (Standards e Spec) non è chiusa e le sue correzioni applicate.
+**Status:** done
 
 - [x] Durante la Trascrizione c'è un pulsante "Annulla". Dopo Annulla il testo già comparso resta, nessun TXT viene salvato e la status bar lo dice
 - [x] L'annullamento usa il `CancelToken` di `transcribe-cpp` (se il modello supporta la cancellazione) e il controllo tra una Frase e l'altra
