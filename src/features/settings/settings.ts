@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   copiaCome: "testo",
   interfaceLanguage: null,
   microphone: null,
+  modalitaDalVivo: "mix",
   model: catalog.predefinito,
   outputDevice: null,
   recordingSource: "mic",
@@ -68,6 +69,8 @@ export const settingsSchema = z.object({
   copiaCome: z.enum(["testo", "markdown"]).optional(),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  modalitaDalVivo: z.enum(["mix", "ingressiSeparati"]).optional(),
   model: z.string().min(1),
   outputDevice: z.string().nullable(),
   recordingSource: z.enum(["mic", "system", "both"]),

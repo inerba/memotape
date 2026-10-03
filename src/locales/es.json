@@ -88,6 +88,12 @@
         "system": "Audio del sistema",
         "both": "Ambos"
       },
+      "liveMode": "Transcripción en directo",
+      "liveModes": {
+        "mix": "Mezcla",
+        "ingressiSeparati": "Entradas separadas"
+      },
+      "liveModeDescription": "Solo con Ambos: Entradas separadas transcribe el micrófono y el audio del sistema cada uno por su cuenta, como una conversación, con dos instancias del modelo (el doble de memoria).",
       "microphone": "Micrófono",
       "outputDevice": "Dispositivo de salida",
       "defaultDevice": "Predeterminado del sistema",

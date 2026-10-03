@@ -20,7 +20,19 @@ pub struct Transcript {
     /// Il nome del modello.
     pub model: String,
     pub speech_language: SpeechLanguage,
+    /// In ordine di inizio.
     pub phrases: Vec<Phrase>,
+}
+
+impl Transcript {
+    /// Aggiunge una Frase in ordine di inizio, dopo quelle che iniziano insieme a lei: con gli
+    /// Ingressi separati una Frase può arrivare dopo un'altra iniziata più tardi.
+    pub fn insert(&mut self, phrase: Phrase) {
+        let at = self
+            .phrases
+            .partition_point(|p| p.inizio_ms <= phrase.inizio_ms);
+        self.phrases.insert(at, phrase);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,18 +40,33 @@ pub struct Phrase {
     pub inizio_ms: u32,
     pub fine_ms: u32,
     pub text: String,
-    /// Il nome dell'Ingresso (`Microfono`), con gli Ingressi separati.
-    pub ingresso: Option<String>,
+    pub ingresso: Ingresso,
     /// Il nome del Parlante (`Parlante 2` o quello dato dall'utente), con la Diarizzazione.
     pub parlante: Option<String>,
 }
 
+/// Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
+/// sistema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum Ingresso {
+    Mix,
+    Microfono,
+    Sistema,
+}
+
 impl Phrase {
-    /// `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta.
-    fn label(&self) -> Option<String> {
-        match (&self.ingresso, &self.parlante) {
+    /// `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta (il mix).
+    fn label(&self, labels: &Labels) -> Option<String> {
+        let ingresso = match self.ingresso {
+            Ingresso::Mix => None,
+            Ingresso::Microfono => Some(labels.get("/settings/recording/inputs/mic")),
+            Ingresso::Sistema => Some(labels.get("/settings/recording/inputs/system")),
+        };
+        match (ingresso, &self.parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
-            (Some(label), None) | (None, Some(label)) => Some(label.clone()),
+            (Some(ingresso), None) => Some(ingresso.to_string()),
+            (None, Some(parlante)) => Some(parlante.clone()),
             (None, None) => None,
         }
     }
@@ -106,7 +133,7 @@ pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> St
             writeln!(out, "{label}: {value}")
         };
     }
-    for (label, text) in paragraphs(&transcript.phrases) {
+    for (label, text) in paragraphs(&transcript.phrases, labels) {
         let _ = match label {
             Some(label) if markdown => writeln!(out, "\n**{label}:** {text}"),
             Some(label) => writeln!(out, "\n{label}: {text}"),
@@ -132,15 +159,15 @@ fn escape_block_start(text: &str) -> String {
 
 /// Le Frasi unite in paragrafi. Con le etichette, un paragrafo per turno: le Frasi consecutive
 /// della stessa voce si uniscono. Senza, un paragrafo nuovo dopo una pausa lunga.
-fn paragraphs(phrases: &[Phrase]) -> Vec<(Option<String>, String)> {
-    let turns = phrases.iter().any(|p| p.label().is_some());
+fn paragraphs(phrases: &[Phrase], labels: &Labels) -> Vec<(Option<String>, String)> {
+    let turns = phrases.iter().any(|p| p.label(labels).is_some());
     let mut out: Vec<(Option<String>, String)> = Vec::new();
     let mut previous: Option<&Phrase> = None;
     for phrase in phrases {
-        let label = phrase.label();
+        let label = phrase.label(labels);
         let same = previous.is_some_and(|previous| {
             if turns {
-                previous.label() == label
+                previous.label(labels) == label
             } else {
                 silence_ms(previous, phrase) <= PARAGRAPH_PAUSE_MS
             }
@@ -190,14 +217,14 @@ mod tests {
             inizio_ms,
             fine_ms,
             text: text.into(),
-            ingresso: None,
+            ingresso: Ingresso::Mix,
             parlante: None,
         }
     }
 
-    fn voice(ingresso: Option<&str>, parlante: Option<&str>, text: &str) -> Phrase {
+    fn voice(ingresso: Ingresso, parlante: Option<&str>, text: &str) -> Phrase {
         Phrase {
-            ingresso: ingresso.map(Into::into),
+            ingresso,
             parlante: parlante.map(Into::into),
             ..phrase(0, 0, text)
         }
@@ -263,12 +290,12 @@ mod tests {
     #[test]
     fn con_le_etichette_un_paragrafo_per_turno_e_le_frasi_della_stessa_voce_unite() {
         let text = markdown(&transcript(vec![
-            voice(Some("Microfono"), None, "Mi senti?"),
-            voice(Some("Microfono"), None, "Pronto?"),
-            voice(Some("Audio di sistema"), Some("Parlante 1"), "Sì."),
-            voice(Some("Audio di sistema"), Some("Anna"), "Anch'io."),
-            voice(Some("Audio di sistema"), Some("Anna"), "Ciao."),
-            voice(None, Some("Parlante 2"), "Eccomi."),
+            voice(Ingresso::Microfono, None, "Mi senti?"),
+            voice(Ingresso::Microfono, None, "Pronto?"),
+            voice(Ingresso::Sistema, Some("Parlante 1"), "Sì."),
+            voice(Ingresso::Sistema, Some("Anna"), "Anch'io."),
+            voice(Ingresso::Sistema, Some("Anna"), "Ciao."),
+            voice(Ingresso::Mix, Some("Parlante 2"), "Eccomi."),
         ]));
         assert!(
             text.ends_with(
@@ -284,8 +311,8 @@ mod tests {
     #[test]
     fn il_testo_semplice_non_ha_sintassi_markdown() {
         let document = transcript(vec![
-            voice(None, Some("Parlante 1"), "Uno."),
-            voice(None, Some("Parlante 2"), "Due."),
+            voice(Ingresso::Mix, Some("Parlante 1"), "Uno."),
+            voice(Ingresso::Mix, Some("Parlante 2"), "Due."),
         ]);
         let text = render(&document, &Labels::of(Language::It), CopiaCome::Testo);
         assert_eq!(
@@ -316,6 +343,35 @@ mod tests {
             CopiaCome::Testo,
         );
         assert!(plain.ends_with("\n- Sì.\n"), "{plain}");
+    }
+
+    #[test]
+    fn le_frasi_si_inseriscono_in_ordine_di_inizio() {
+        let mut document = transcript(Vec::new());
+        for (inizio_ms, ingresso, text) in [
+            (0, Ingresso::Microfono, "Mi senti?"),
+            // Il microfono è più avanti: la risposta dell'audio di sistema arriva dopo, ma prima.
+            (4000, Ingresso::Microfono, "Allora?"),
+            (2000, Ingresso::Sistema, "Sì."),
+            (4000, Ingresso::Sistema, "Ti sento."),
+        ] {
+            document.insert(Phrase {
+                inizio_ms,
+                ..voice(ingresso, None, text)
+            });
+        }
+        let texts: Vec<&str> = document.phrases.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(texts, ["Mi senti?", "Sì.", "Allora?", "Ti sento."]);
+        let text = markdown(&document);
+        assert!(
+            text.ends_with(
+                "\n**Microfono:** Mi senti?\n\
+                 \n**Audio di sistema:** Sì.\n\
+                 \n**Microfono:** Allora?\n\
+                 \n**Audio di sistema:** Ti sento.\n"
+            ),
+            "{text}"
+        );
     }
 
     #[test]
@@ -351,6 +407,8 @@ mod tests {
                 "/transcript/duration",
                 "/transcript/model",
                 "/speechLanguage/label",
+                "/settings/recording/inputs/mic",
+                "/settings/recording/inputs/system",
             ] {
                 assert!(!labels.get(pointer).is_empty(), "{language:?} {pointer}");
             }

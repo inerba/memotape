@@ -399,24 +399,38 @@ impl Models {
         app: &AppHandle,
         id: impl FnOnce() -> &'static str,
     ) -> Result<Lease<'_, TranscribeCpp>, AppError> {
-        let lease = self.loaded.take(id, |id| {
-            let model = known(id)?;
-            if disk_state(model, &self.dir) != ModelState::Downloaded {
-                return Err(AppError::ModelMissing(model.name.clone()));
-            }
-            // Durante il caricamento Elimina è già disabilitato.
-            self.emit_state(app, model);
-            let started = Instant::now();
-            let loaded = TranscribeCpp::load(&model.path(&self.dir));
-            log::info!("{id} caricato in {:?}", started.elapsed());
-            let engine = loaded.inspect_err(|_| self.emit_state(app, model))?;
-            lock(&self.languages).insert(id, engine.languages().to_vec());
-            Ok(engine)
-        });
+        let lease = self.loaded.take(id, |id| self.load_engine(app, id));
         if let Ok(lease) = &lease {
             self.emit_state(app, known(lease.id())?);
         }
         lease
+    }
+
+    /// Un'altra istanza del modello di `lease`, fuori da quella tenuta: con gli Ingressi separati
+    /// ogni Ingresso oltre il primo ne ha una sua per la durata della Registrazione, perché
+    /// transcribe-cpp ammette un solo stream per modello. Si libera al drop; finché c'è il prestito
+    /// il modello è in uso e non si elimina.
+    pub fn load_instance(
+        &self,
+        app: &AppHandle,
+        lease: &Lease<'_, TranscribeCpp>,
+    ) -> Result<TranscribeCpp, AppError> {
+        self.load_engine(app, lease.id())
+    }
+
+    fn load_engine(&self, app: &AppHandle, id: &'static str) -> Result<TranscribeCpp, AppError> {
+        let model = known(id)?;
+        if disk_state(model, &self.dir) != ModelState::Downloaded {
+            return Err(AppError::ModelMissing(model.name.clone()));
+        }
+        // Durante il caricamento Elimina è già disabilitato.
+        self.emit_state(app, model);
+        let started = Instant::now();
+        let loaded = TranscribeCpp::load(&model.path(&self.dir));
+        log::info!("{id} caricato in {:?}", started.elapsed());
+        let engine = loaded.inspect_err(|_| self.emit_state(app, model))?;
+        lock(&self.languages).insert(id, engine.languages().to_vec());
+        Ok(engine)
     }
 
     /// Restituisce il motore, che resta caricato, oppure lo scarta (`keep` falso) dopo un guasto.

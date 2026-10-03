@@ -87,6 +87,12 @@
         "system": "Systemaudio",
         "both": "Beides"
       },
+      "liveMode": "Live-Transkription",
+      "liveModes": {
+        "mix": "Mix",
+        "ingressiSeparati": "Getrennte Eingänge"
+      },
+      "liveModeDescription": "Nur mit Beides: Getrennte Eingänge transkribiert Mikrofon und Systemaudio jeweils für sich, als Gespräch, mit zwei Instanzen des Modells (doppelter Speicherbedarf).",
       "microphone": "Mikrofon",
       "outputDevice": "Ausgabegerät",
       "defaultDevice": "Systemstandard",

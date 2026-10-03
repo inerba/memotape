@@ -1,7 +1,8 @@
-//! Trascrizione di una Sorgente, o dal vivo di una Registrazione: prende il motore del modello
-//! scelto (caricato una volta e tenuto tra una Trascrizione e l'altra), esegue la pipeline, la
-//! traduce in eventi e salva il Markdown accanto alla Sorgente; di un Bino riscrive anche il testo
-//! dentro il Bino. Tiene l'ultima Trascrizione per Copia testo.
+//! Trascrizione di una Sorgente, o dal vivo di una Registrazione (il mix, o con gli Ingressi separati
+//! ogni Ingresso con una sua pipeline): prende il motore del modello scelto (caricato una volta e
+//! tenuto tra una Trascrizione e l'altra), esegue la pipeline, la traduce in eventi e salva il
+//! Markdown accanto alla Sorgente; di un Bino riscrive anche il testo dentro il Bino. Tiene l'ultima
+//! Trascrizione per Copia testo.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -20,10 +21,9 @@ use crate::engine::pipeline::{self, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
-use crate::managers::loaded_model::Lease;
 use crate::managers::models::{self, Models};
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
-use crate::transcript::{self, Labels, Phrase, Transcript};
+use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -36,6 +36,8 @@ pub struct TranscriptPhrase {
     pub inizio_ms: u32,
     pub fine_ms: u32,
     pub text: String,
+    /// Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri.
+    pub ingresso: Ingresso,
 }
 
 /// Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
@@ -47,6 +49,7 @@ pub struct TranscriptPartial {
     pub inizio_ms: u32,
     pub fine_ms: u32,
     pub text: String,
+    pub ingresso: Ingresso,
 }
 
 /// La Trascrizione dal vivo si è fermata (modello assente, guasto): la Registrazione continua senza
@@ -181,16 +184,17 @@ pub async fn transcribe(
     let bino = bino::is_bino(&source)
         .then(|| bino::read(&source))
         .transpose()?;
-    let mut transcript = begin_transcript(&app, title_of(&source), &settings);
+    let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
-        let engine = models.take(&app, || model.id.as_str())?;
-        run_pipeline(
+        let mut engine = models.take(&app, || model.id.as_str())?;
+        let transcribed = run_pipeline(
             &app,
-            engine,
+            &mut engine,
             &silero,
             &cancel,
-            &mut transcript,
+            Ingresso::Mix,
+            &transcript,
             |engine, detector, on_event| {
                 transcribe_file(
                     &source,
@@ -201,15 +205,21 @@ pub async fn transcribe(
                     on_event,
                 )
             },
-        )?;
+        );
+        models.release(&app, engine, keep_engine(&transcribed));
+        transcribed?;
+        let transcript = transcript
+            .into_inner()
+            .unwrap_or_else(PoisonError::into_inner);
         // Annulla premuto dopo l'ultima Frase: né il Bino né il Markdown cambiano.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
         if let Some(old) = bino {
-            let document = bino::Document::of_mix(
+            let document = bino::Document::new(
                 old.creato,
                 old.durata_ms,
+                bino::Modalita::Mix,
                 Some(model.id.clone()),
                 settings.speech_language,
                 true,
@@ -223,57 +233,115 @@ pub async fn transcribe(
     .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive `frames`
-/// man mano che arrivano, fino alla fine della Registrazione e della coda, con gli eventi di
-/// `transcribe`. Restituisce il documento, intitolato `title` finché non si sa il nome del file, con
-/// le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata, e com'è finita.
-/// Se il modello non si carica (`liveTranscriptionUnavailable`) o la pipeline si guasta emette
-/// `live-transcription-failed`: la Registrazione continua.
+/// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive ogni fonte di
+/// `sources` (il mix, o con gli Ingressi separati ogni Ingresso, ciascuno con una sua istanza del
+/// modello e una sua pipeline, in parallelo) man mano che arrivano i frame, fino alla fine della
+/// Registrazione e delle code, con gli eventi di `transcribe`. Restituisce il documento, intitolato
+/// `title` finché non si sa il nome del file, con le Frasi arrivate in ordine di inizio anche se la
+/// Trascrizione è stata annullata o si è guastata, e com'è finita (il primo errore). Se il modello
+/// non si carica (`liveTranscriptionUnavailable`) o una pipeline si guasta emette subito
+/// `live-transcription-failed`: la Registrazione continua, e l'altro Ingresso anche.
 pub fn transcribe_live(
     app: &AppHandle,
-    mut frames: LiveFrames,
+    sources: Vec<(Ingresso, LiveFrames)>,
     settings: &Settings,
     title: &str,
     cancel: &CancelToken,
 ) -> (Transcript, Result<(), AppError>) {
     let model = SettingsStore::model_of(settings);
-    let mut transcript = begin_transcript(app, title.to_string(), settings);
-    let transcribed = silero_path(app).and_then(|silero| {
-        let models = app.state::<Models>();
-        let engine = models.take(app, || model.id.as_str()).map_err(|e| {
-            log::warn!("Trascrizione dal vivo senza modello: {e}");
-            AppError::LiveTranscriptionUnavailable(model.name.clone())
-        })?;
-        run_pipeline(
-            app,
-            engine,
-            &silero,
-            cancel,
-            &mut transcript,
-            |engine, detector, on_event| {
-                pipeline::transcribe(
-                    &mut frames,
-                    engine,
-                    detector,
-                    settings.speech_language.code(),
-                    cancel,
-                    on_event,
-                )
-            },
-        )
-    });
-    // Annullata (anche perché la Registrazione non è partita): nessun avviso.
-    if let Err(error) = &transcribed
-        && !cancel.is_cancelled()
-    {
-        let failed = LiveTranscriptionFailed {
-            error: error.clone(),
-        };
-        if let Err(e) = failed.emit(app) {
-            log::warn!("live-transcription-failed non emesso: {e}");
+    let transcript = Mutex::new(begin_transcript(app, title.to_string(), settings));
+    let models = app.state::<Models>();
+    let unavailable = |e: AppError| {
+        log::warn!("Trascrizione dal vivo senza modello: {e}");
+        AppError::LiveTranscriptionUnavailable(model.name.clone())
+    };
+    let prepared = silero_path(app).and_then(|silero| {
+        let lease = models
+            .take(app, || model.id.as_str())
+            .map_err(unavailable)?;
+        let extra: Result<Vec<_>, _> = (1..sources.len())
+            .map(|_| models.load_instance(app, &lease))
+            .collect();
+        match extra {
+            Ok(extra) => Ok((silero, lease, extra)),
+            Err(e) => {
+                models.release(app, lease, true);
+                Err(unavailable(e))
+            }
         }
-    }
+    });
+    let transcribed = match prepared {
+        Err(error) => {
+            live_failed(app, &error, cancel);
+            Err(error)
+        }
+        Ok((silero, mut lease, mut extra)) => {
+            let engines = std::iter::once(&mut *lease).chain(&mut extra);
+            let results: Vec<_> = std::thread::scope(|scope| {
+                let pipelines: Vec<_> = sources
+                    .into_iter()
+                    .zip(engines)
+                    .map(|((ingresso, mut frames), engine)| {
+                        let (silero, transcript) = (&silero, &transcript);
+                        scope.spawn(move || {
+                            let transcribed = run_pipeline(
+                                app,
+                                engine,
+                                silero,
+                                cancel,
+                                ingresso,
+                                transcript,
+                                |engine, detector, on_event| {
+                                    pipeline::transcribe(
+                                        &mut frames,
+                                        engine,
+                                        detector,
+                                        settings.speech_language.code(),
+                                        cancel,
+                                        on_event,
+                                    )
+                                },
+                            );
+                            if let Err(error) = &transcribed {
+                                live_failed(app, error, cancel);
+                            }
+                            transcribed
+                        })
+                    })
+                    .collect();
+                pipelines
+                    .into_iter()
+                    .map(|pipeline| {
+                        pipeline.join().unwrap_or_else(|_| {
+                            Err(AppError::Internal("pipeline dal vivo interrotta".into()))
+                        })
+                    })
+                    .collect()
+            });
+            // La seconda istanza si libera con la Registrazione.
+            drop(extra);
+            models.release(app, lease, results.iter().all(keep_engine));
+            results.into_iter().collect()
+        }
+    };
+    let transcript = transcript
+        .into_inner()
+        .unwrap_or_else(PoisonError::into_inner);
     (transcript, transcribed)
+}
+
+/// Avvisa che la Trascrizione dal vivo si è fermata, a meno che non sia stata annullata (anche
+/// perché la Registrazione non è partita).
+fn live_failed(app: &AppHandle, error: &AppError, cancel: &CancelToken) {
+    if cancel.is_cancelled() {
+        return;
+    }
+    let failed = LiveTranscriptionFailed {
+        error: error.clone(),
+    };
+    if let Err(e) = failed.emit(app) {
+        log::warn!("live-transcription-failed non emesso: {e}");
+    }
 }
 
 /// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: il documento
@@ -325,17 +393,23 @@ fn save_live(
 }
 
 /// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione, senza
-/// ritrascrivere. Restituisce il testo dell'area, una Frase per riga.
-pub fn open_bino(app: &AppHandle, source: &Path) -> Result<String, AppError> {
-    let transcript = bino_transcript(title_of(source), bino::read(source)?);
-    let text = transcript
-        .phrases
+/// ritrascrivere. Restituisce le Frasi per l'area, come se arrivassero da una Trascrizione.
+pub fn open_bino(app: &AppHandle, source: &Path) -> Result<Vec<TranscriptPhrase>, AppError> {
+    let document = bino::read(source)?;
+    let phrases = document
+        .frasi
         .iter()
-        .map(|p| p.text.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-    app.state::<LastTranscript>().set(transcript);
-    Ok(text)
+        .map(|frase| TranscriptPhrase {
+            phrase_id: frase.id,
+            inizio_ms: frase.inizio_ms,
+            fine_ms: frase.fine_ms,
+            text: frase.testo.clone(),
+            ingresso: frase.ingresso,
+        })
+        .collect();
+    app.state::<LastTranscript>()
+        .set(bino_transcript(title_of(source), document));
+    Ok(phrases)
 }
 
 /// Il documento di un Bino come Trascrizione, con il nome del modello dal catalogo.
@@ -349,7 +423,7 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
             .map(|id| models::find(&id).map_or(id, |m| m.name.clone()))
             .unwrap_or_default(),
         speech_language: document.lingua_parlato,
-        // ponytail: Ingresso e Parlante arrivano con gli Ingressi separati e la Diarizzazione.
+        // ponytail: il Parlante arriva con la Diarizzazione.
         phrases: document
             .frasi
             .into_iter()
@@ -357,7 +431,7 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
                 inizio_ms: frase.inizio_ms,
                 fine_ms: frase.fine_ms,
                 text: frase.testo,
-                ingresso: None,
+                ingresso: frase.ingresso,
                 parlante: None,
             })
             .collect(),
@@ -371,16 +445,17 @@ fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
 }
 
 /// Esegue `run` con `engine` e Silero, traduce gli eventi della pipeline in
-/// `transcription-progress`, `transcript-partial` e `transcript-phrase` e aggiunge le Frasi a
-/// `transcript`, e alla fine la durata. Aggiorna anche `LastTranscript` a ogni Frase. Poi rende
-/// il motore: dopo un guasto interno si scarta e alla volta successiva si
-/// ricarica.
+/// `transcription-progress`, `transcript-partial` e `transcript-phrase` con `ingresso`, e
+/// inserisce le Frasi in `transcript` in ordine di inizio, e alla fine la durata. Aggiorna anche
+/// `LastTranscript` a ogni Frase. Con gli Ingressi separati girano due pipeline sullo stesso
+/// `transcript`.
 fn run_pipeline(
     app: &AppHandle,
-    mut engine: Lease<'_, TranscribeCpp>,
+    engine: &mut TranscribeCpp,
     silero: &Path,
     cancel: &CancelToken,
-    transcript: &mut Transcript,
+    ingresso: Ingresso,
+    transcript: &Mutex<Transcript>,
     run: impl FnOnce(
         &mut dyn TranscriptionEngine,
         &mut dyn VoiceDetector,
@@ -389,8 +464,12 @@ fn run_pipeline(
 ) -> Result<(), AppError> {
     engine.set_cancel_token(cancel);
     let last = app.state::<LastTranscript>();
-    let transcribed = Silero::new(silero).and_then(|mut detector| {
-        run(&mut *engine, &mut detector, &mut |event| {
+    let update = |change: &dyn Fn(&mut Transcript)| {
+        last.update(change);
+        change(&mut transcript.lock().unwrap_or_else(PoisonError::into_inner));
+    };
+    Silero::new(silero).and_then(|mut detector| {
+        run(engine, &mut detector, &mut |event| {
             let emitted = match event {
                 PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(app),
                 PipelineEvent::Partial {
@@ -403,6 +482,7 @@ fn run_pipeline(
                     inizio_ms,
                     fine_ms,
                     text,
+                    ingresso,
                 }
                 .emit(app),
                 PipelineEvent::Phrase {
@@ -416,17 +496,17 @@ fn run_pipeline(
                         inizio_ms,
                         fine_ms,
                         text: text.clone(),
+                        ingresso,
                     }
                     .emit(app);
                     let phrase = Phrase {
                         inizio_ms,
                         fine_ms,
                         text,
-                        ingresso: None,
+                        ingresso,
                         parlante: None,
                     };
-                    last.update(|last| last.phrases.push(phrase.clone()));
-                    transcript.phrases.push(phrase);
+                    update(&|t| t.insert(phrase.clone()));
                     emitted
                 }
             };
@@ -434,17 +514,15 @@ fn run_pipeline(
                 log::warn!("evento della Trascrizione non emesso: {e}");
             }
         })
-        .map(|durata_ms| {
-            last.update(|last| last.durata_ms = Some(durata_ms));
-            transcript.durata_ms = Some(durata_ms);
-        })
-    });
-    app.state::<Models>().release(
-        app,
-        engine,
-        !matches!(transcribed, Err(AppError::Internal(_))),
-    );
-    transcribed
+        // Gli Ingressi separati ricevono lo stesso audio: vale la durata più lunga.
+        .map(|durata_ms| update(&|t| t.durata_ms = t.durata_ms.max(Some(durata_ms))))
+    })
+}
+
+/// Se il motore torna a `Models` dopo `transcribed`: dopo un guasto interno si scarta e alla volta
+/// successiva si ricarica.
+fn keep_engine(transcribed: &Result<(), AppError>) -> bool {
+    !matches!(transcribed, Err(AppError::Internal(_)))
 }
 
 /// Carica in background il modello scelto, se non è già quello tenuto, così la prossima
@@ -528,7 +606,7 @@ mod tests {
                     inizio_ms: 0,
                     fine_ms: 1000,
                     text: (*text).into(),
-                    ingresso: None,
+                    ingresso: Ingresso::Mix,
                     parlante: None,
                 })
                 .collect(),
@@ -679,9 +757,10 @@ mod tests {
     #[test]
     fn il_testo_di_un_bino_diventa_la_trascrizione_con_il_nome_del_modello() {
         let phrases = transcript(&["Uno.", "Due."]).phrases;
-        let document = bino::Document::of_mix(
+        let document = bino::Document::new(
             "2026-10-03T17:05:42+02:00".into(),
             4000,
+            bino::Modalita::Mix,
             Some(models::default_model().id.clone()),
             SpeechLanguage::It,
             false,

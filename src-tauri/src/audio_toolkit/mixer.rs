@@ -1,6 +1,7 @@
 //! Mixer della Registrazione: posiziona i blocchi di ogni ingresso (microfono, audio di sistema)
 //! per timestamp di cattura rispetto all'inizio della sessione, esclude le pause, riempie di
 //! silenzio i buchi, porta l'audio a canali e frequenza delle impostazioni e somma gli ingressi.
+//! Con gli Ingressi separati dà anche l'audio di ogni ingresso, allineato al mix.
 //!
 //! I timestamp vengono tutti da QPC (anche `now`), quindi gli ingressi restano allineati tra loro.
 //! Ogni ingresso resta entro `HOLE_NS` dai suoi timestamp: un vuoto più lungo diventa silenzio, un
@@ -39,6 +40,8 @@ pub struct Mixer {
     last_now: u64,
     /// Un blocco nei canali della Registrazione, prima del ricampionamento.
     converted: Vec<f32>,
+    /// Con gli Ingressi separati, l'audio pronto di ogni ingresso, come in `out` per il mix.
+    tracks: Vec<Vec<f32>>,
 }
 
 struct Input {
@@ -59,6 +62,8 @@ struct Input {
     received: u64,
     first_ns: Option<u64>,
     last_end_ns: u64,
+    /// Con gli Ingressi separati, l'audio ricampionato non ancora uscito, dal frame `Mix::emitted`.
+    pending: Option<Vec<f32>>,
 }
 
 /// I campioni sommati non ancora usciti, interleaved nei canali della Registrazione, dal frame
@@ -107,7 +112,15 @@ impl Input {
         self.frames += (samples.len() / mix.channels) as u64;
         self.resampled.clear();
         self.resampler.push(samples, &mut self.resampled);
+        self.add(mix);
+    }
+
+    /// Somma nel mix `resampled`, e lo tiene per l'audio dell'ingresso.
+    fn add(&mut self, mix: &mut Mix) {
         mix.add(&mut self.mixed, &self.resampled);
+        if let Some(pending) = &mut self.pending {
+            pending.extend_from_slice(&self.resampled);
+        }
     }
 
     fn feed_silence(&mut self, frames: u64, mix: &mut Mix) {
@@ -175,6 +188,7 @@ impl Mixer {
                     received: 0,
                     first_ns: None,
                     last_end_ns: 0,
+                    pending: None,
                 })
             })
             .collect::<Result<_, AppError>>()?;
@@ -190,7 +204,26 @@ impl Mixer {
             pause_start: None,
             last_now: origin_ns,
             converted: Vec::new(),
+            tracks: Vec::new(),
         })
+    }
+
+    /// Dà anche l'audio di ogni ingresso, in `tracks`.
+    #[must_use]
+    pub fn with_tracks(mut self) -> Self {
+        for input in &mut self.inputs {
+            input.pending = Some(Vec::new());
+        }
+        self.tracks = vec![Vec::new(); self.inputs.len()];
+        self
+    }
+
+    /// Con gli Ingressi separati, l'audio pronto di ogni ingresso dall'ultimo svuotamento, nei canali
+    /// e alla frequenza della Registrazione: lo stesso tratto della linea del tempo uscito in `out`
+    /// per il mix, silenzio nei buchi e pause escluse. Lo svuota chi lo usa. Vuoto senza
+    /// `with_tracks`.
+    pub fn tracks(&mut self) -> &mut [Vec<f32>] {
+        &mut self.tracks
     }
 
     /// Un blocco dell'ingresso `input`: `capture_ns` è il suo timestamp di cattura, `samples` i
@@ -271,7 +304,7 @@ impl Mixer {
         for input in &mut self.inputs {
             input.resampled.clear();
             input.resampler.finish(&mut input.resampled);
-            self.mix.add(&mut input.mixed, &input.resampled);
+            input.add(&mut self.mix);
             // Con una consegna continua (il microfono, il loopback durante una riproduzione) la
             // differenza tra le due durate è la deriva del clock del dispositivo rispetto a QPC.
             log::info!(
@@ -290,7 +323,7 @@ impl Mixer {
         self.mix
             .samples
             .resize((last - self.mix.emitted) * self.mix.channels, 0.0);
-        self.mix.emit(last, out);
+        self.emit_to(last, out);
     }
 
     /// La durata registrata, pause escluse, dai timestamp.
@@ -325,6 +358,19 @@ impl Mixer {
     /// Accoda in `out` i frame che tutti gli ingressi hanno già sommato.
     fn emit(&mut self, out: &mut Vec<f32>) {
         let ready = self.inputs.iter().map(|i| i.mixed).min().unwrap_or(0);
+        self.emit_to(ready, out);
+    }
+
+    /// Accoda in `out` il mix fino al frame `ready`, e lo stesso tratto di ogni ingresso in `tracks`
+    /// (completato di silenzio a fine sessione).
+    fn emit_to(&mut self, ready: usize, out: &mut Vec<f32>) {
+        let n = (ready - self.mix.emitted) * self.mix.channels;
+        for (input, track) in self.inputs.iter_mut().zip(&mut self.tracks) {
+            if let Some(pending) = &mut input.pending {
+                pending.resize(pending.len().max(n), 0.0);
+                track.extend(pending.drain(..n).map(|s| s.clamp(-1.0, 1.0)));
+            }
+        }
         self.mix.emit(ready, out);
     }
 }
@@ -597,6 +643,63 @@ mod tests {
                 "{rate} Hz, {channels} canali: {seconds} s"
             );
         }
+    }
+
+    #[test]
+    fn con_gli_ingressi_separati_ogni_ingresso_esce_allineato_al_mix() {
+        let (mic, system) = ((44_100, 1), (48_000, 2));
+        let mut mixer = Mixer::new(0, &[mic, system], (48_000, 1))
+            .unwrap()
+            .with_tracks();
+        let mut out = Vec::new();
+        let mut tracks = [Vec::new(), Vec::new()];
+        let mut collect = |mixer: &mut Mixer| {
+            for (all, ready) in tracks.iter_mut().zip(mixer.tracks()) {
+                all.append(ready);
+            }
+        };
+        // Microfono continuo per 1 s; il loopback consegna solo tra 0,2 s e 0,4 s.
+        for k in 0..100u64 {
+            let ts = k * 10 * MS;
+            mixer.advance(ts, false, &mut out);
+            mixer.push(0, ts, &[0.25; 441], &mut out);
+            if (20..40).contains(&k) {
+                mixer.push(1, ts, &[0.5; 960], &mut out);
+            }
+            collect(&mut mixer);
+        }
+        // 2 s di pausa, poi altri 0,5 s di microfono.
+        let ts = capture(&mut mixer, 0, mic, 1_000 * MS, 2.0, true, &mut out);
+        collect(&mut mixer);
+        let end = capture(&mut mixer, 0, mic, ts, 0.5, false, &mut out);
+        mixer.finish(end, &mut out);
+        collect(&mut mixer);
+        // Pause escluse, ogni Ingresso lungo quanto il mix e il mix è la loro somma.
+        assert_eq!(out.len(), 72_000);
+        for track in &tracks {
+            assert_eq!(track.len(), out.len());
+        }
+        assert!(
+            out.iter()
+                .zip(tracks[0].iter().zip(&tracks[1]))
+                .all(|(m, (a, b))| (m - (a + b)).abs() < 1e-6)
+        );
+        // Il buco del loopback è silenzio, dove consegna c'è il suo audio.
+        let at = |track: &[f32], seconds: f64| track[(seconds * 48_000.0) as usize];
+        assert!(at(&tracks[1], 0.1).abs() < 1e-4);
+        assert!((at(&tracks[1], 0.3) - 0.5).abs() < 0.01);
+        assert!(at(&tracks[1], 0.7).abs() < 1e-4);
+        assert!((at(&tracks[0], 0.3) - 0.25).abs() < 0.01);
+    }
+
+    #[test]
+    fn senza_ingressi_separati_non_c_e_l_audio_di_ogni_ingresso() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1), (48_000, 1)], (48_000, 1)).unwrap();
+        let mut out = Vec::new();
+        mixer.push(0, 0, &[0.5; 480], &mut out);
+        mixer.push(1, 0, &[0.5; 480], &mut out);
+        assert_eq!(out.len(), 480);
+        assert!(mixer.tracks().is_empty());
     }
 
     #[test]

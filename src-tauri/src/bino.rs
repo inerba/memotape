@@ -1,5 +1,6 @@
-//! Il Bino: lo zip di una Registrazione con l'audio del mix (`mix.ogg`, salvato senza
-//! ricompressione) e il testo con i suoi metadati (`trascrizione.json`, schema v1). Senza Tauri.
+//! Il Bino: lo zip di una Registrazione con l'audio del mix (`mix.ogg`) e, con gli Ingressi separati,
+//! di ogni Ingresso (`microfono.ogg`, `sistema.ogg`), salvati senza ricompressione, e il testo con i
+//! suoi metadati (`trascrizione.json`, schema v1). Senza Tauri.
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -12,12 +13,21 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::error::AppError;
 use crate::managers::settings::SpeechLanguage;
+use crate::transcript::Ingresso;
 use crate::transcript::Phrase;
 
 /// La versione dello schema che questa app scrive e sa leggere.
 pub const VERSION: u32 = 1;
-const MIX: &str = "mix.ogg";
 const DOCUMENT: &str = "trascrizione.json";
+
+/// La voce dello zip con l'audio dell'Ingresso; è anche la fine del nome del suo Ogg temporaneo.
+pub fn audio_entry(ingresso: Ingresso) -> &'static str {
+    match ingresso {
+        Ingresso::Mix => "mix.ogg",
+        Ingresso::Microfono => "microfono.ogg",
+        Ingresso::Sistema => "sistema.ogg",
+    }
+}
 
 /// `trascrizione.json`. In lettura i campi sconosciuti si ignorano.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -44,14 +54,6 @@ pub enum Modalita {
     IngressiSeparati,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Ingresso {
-    Mix,
-    Microfono,
-    Sistema,
-}
-
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Frase {
     pub id: u32,
@@ -76,10 +78,12 @@ impl Document {
             .replace('T', " ")
     }
 
-    /// Il documento di una Trascrizione del mix: le Frasi hanno l'id della loro posizione.
-    pub fn of_mix(
+    /// Il documento di una Trascrizione: le Frasi, in ordine di inizio, hanno l'id della loro
+    /// posizione.
+    pub fn new(
         creato: String,
         durata_ms: u32,
+        modalita: Modalita,
         modello: Option<String>,
         lingua_parlato: SpeechLanguage,
         completa: bool,
@@ -89,12 +93,12 @@ impl Document {
             version: VERSION,
             creato,
             durata_ms,
-            modalita: Modalita::Mix,
+            modalita,
             modello,
             lingua_parlato,
             completa,
             parlanti: BTreeMap::new(),
-            // ponytail: Ingresso e Parlante arrivano con gli Ingressi separati e la Diarizzazione.
+            // ponytail: il Parlante arriva con la Diarizzazione.
             frasi: phrases
                 .iter()
                 .zip(0..)
@@ -103,7 +107,7 @@ impl Document {
                     inizio_ms: phrase.inizio_ms,
                     fine_ms: phrase.fine_ms,
                     testo: phrase.text.clone(),
-                    ingresso: Ingresso::Mix,
+                    ingresso: phrase.ingresso,
                     parlante: None,
                 })
                 .collect(),
@@ -111,19 +115,25 @@ impl Document {
     }
 }
 
-/// Crea il Bino `path` con l'Ogg `mix` e `document`. Non sovrascrive un file esistente; se non
-/// riesce a finirlo, lo cancella.
-pub fn write(path: &Path, mix: &Path, document: &Document) -> Result<(), AppError> {
+/// Crea il Bino `path` con gli Ogg di `audio` (il mix e, con gli Ingressi separati, ogni Ingresso) e
+/// `document`. Non sovrascrive un file esistente; se non riesce a finirlo, lo cancella.
+pub fn write(
+    path: &Path,
+    audio: &[(Ingresso, &Path)],
+    document: &Document,
+) -> Result<(), AppError> {
     let file = File::create_new(path).map_err(|e| unwritable(path, &e))?;
     let written = (|| {
         let mut zip = ZipWriter::new(file);
-        let mut audio = File::open(mix).map_err(|e| unreadable(mix, &e))?;
-        zip.start_file(
-            MIX,
-            SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
-        )
-        .map_err(|e| unwritable(path, &e))?;
-        std::io::copy(&mut audio, &mut zip).map_err(|e| unwritable(path, &e))?;
+        for &(ingresso, ogg) in audio {
+            let mut ogg_file = File::open(ogg).map_err(|e| unreadable(ogg, &e))?;
+            zip.start_file(
+                audio_entry(ingresso),
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
+            )
+            .map_err(|e| unwritable(path, &e))?;
+            std::io::copy(&mut ogg_file, &mut zip).map_err(|e| unwritable(path, &e))?;
+        }
         write_document(&mut zip, path, document)?;
         zip.finish().map_err(|e| unwritable(path, &e))?;
         Ok(())
@@ -192,11 +202,12 @@ pub struct Mix {
 impl Mix {
     pub fn open(path: &Path) -> Result<Self, AppError> {
         let mut zip = open(path)?;
-        let entry = zip.by_name(MIX).map_err(|e| unreadable(path, &e))?;
+        let name = audio_entry(Ingresso::Mix);
+        let entry = zip.by_name(name).map_err(|e| unreadable(path, &e))?;
         let (Some(start), CompressionMethod::Stored) = (entry.data_start(), entry.compression())
         else {
             return Err(AppError::UnreadableFile(format!(
-                "{}: {MIX} compresso",
+                "{}: {name} compresso",
                 path.display()
             )));
         };
@@ -316,9 +327,13 @@ mod tests {
 
     /// Un Ogg/Opus di 1,5 s.
     fn ogg(dir: &Path) -> PathBuf {
-        let path = dir.join("mix.ogg");
+        ogg_named(dir, "mix.ogg", 1.5)
+    }
+
+    fn ogg_named(dir: &Path, name: &str, seconds: f64) -> PathBuf {
+        let path = dir.join(name);
         let mut writer = OggOpusWriter::new(File::create(&path).unwrap(), 48_000, 2, 64).unwrap();
-        writer.write(&sine(48_000, 2, 1.5)).unwrap();
+        writer.write(&sine(48_000, 2, seconds)).unwrap();
         writer.finish().unwrap();
         path
     }
@@ -338,15 +353,60 @@ mod tests {
         let mix = ogg(&dir);
         let path = dir.join("Registrazione.bino");
         let written = document(&["Buongiorno.", "Iniziamo."]);
-        write(&path, &mix, &written).unwrap();
+        write(&path, &[(Ingresso::Mix, &mix)], &written).unwrap();
         assert_eq!(read(&path).unwrap(), written);
         let mut audio = Vec::new();
         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
         assert_eq!(audio, std::fs::read(&mix).unwrap());
         // Non sovrascrive un Bino esistente.
-        let error = write(&path, &mix, &written).unwrap_err();
+        let error = write(&path, &[(Ingresso::Mix, &mix)], &written).unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
         assert_eq!(read(&path).unwrap(), written);
+    }
+
+    #[test]
+    fn con_gli_ingressi_separati_il_bino_ha_l_audio_di_ogni_ingresso() {
+        let dir = temp_dir("bino-ingressi-separati");
+        let (mix, mic, system) = (
+            ogg(&dir),
+            ogg_named(&dir, "mic.ogg", 1.0),
+            ogg_named(&dir, "sys.ogg", 0.5),
+        );
+        let path = dir.join("Call.bino");
+        let mut written = document(&["Mi senti?", "Sì."]);
+        written.modalita = Modalita::IngressiSeparati;
+        written.frasi[0].ingresso = Ingresso::Microfono;
+        written.frasi[1].ingresso = Ingresso::Sistema;
+        write(
+            &path,
+            &[
+                (Ingresso::Mix, &mix),
+                (Ingresso::Microfono, &mic),
+                (Ingresso::Sistema, &system),
+            ],
+            &written,
+        )
+        .unwrap();
+        assert_eq!(read(&path).unwrap(), written);
+        let json = serde_json::to_value(&written).unwrap();
+        assert_eq!(json["modalita"], "ingressi_separati");
+        assert_eq!(json["frasi"][0]["ingresso"], "microfono");
+        let mut zip = open(&path).unwrap();
+        for (name, ogg) in [
+            ("mix.ogg", &mix),
+            ("microfono.ogg", &mic),
+            ("sistema.ogg", &system),
+        ] {
+            let mut entry = zip.by_name(name).unwrap();
+            assert_eq!(entry.compression(), CompressionMethod::Stored, "{name}");
+            let mut audio = Vec::new();
+            entry.read_to_end(&mut audio).unwrap();
+            assert_eq!(audio, std::fs::read(ogg).unwrap(), "{name}");
+        }
+        drop(zip);
+        // Trascrivi legge sempre il mix.
+        let seconds = decoded_seconds(&path);
+        assert!((seconds - 1.5).abs() < 0.001, "{seconds} s");
     }
 
     #[test]
@@ -369,7 +429,7 @@ mod tests {
     fn il_mix_si_decodifica_come_sorgente() {
         let dir = temp_dir("bino-decodifica");
         let path = dir.join("Registrazione.bino");
-        write(&path, &ogg(&dir), &document(&[])).unwrap();
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &document(&[])).unwrap();
         let seconds = decoded_seconds(&path);
         assert!((seconds - 1.5).abs() < 0.001, "{seconds} s");
     }
@@ -403,7 +463,7 @@ mod tests {
         let path = dir.join("Registrazione.bino");
         let mut incompleta = document(&["Uno."]);
         incompleta.completa = false;
-        write(&path, &mix, &incompleta).unwrap();
+        write(&path, &[(Ingresso::Mix, &mix)], &incompleta).unwrap();
         assert!(!read(&path).unwrap().completa);
         let nuovo = document(&["Uno.", "Due."]);
         rewrite(&path, &nuovo).unwrap();
@@ -423,7 +483,7 @@ mod tests {
     fn una_riscrittura_fallita_lascia_il_bino_com_era() {
         let dir = temp_dir("bino-riscrittura-fallita");
         let path = dir.join("Registrazione.bino");
-        write(&path, &ogg(&dir), &document(&["Uno."])).unwrap();
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &document(&["Uno."])).unwrap();
         let before = std::fs::read(&path).unwrap();
         // Il Bino aperto in esclusiva da un altro programma: il rename non riesce.
         let lock = {

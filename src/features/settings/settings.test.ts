@@ -17,6 +17,8 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.interfaceLanguage).toBeNull();
   // Trascrivi dal vivo è spenta finché l'utente non la attiva.
   expect(defaults.trascrizioneDalVivo).toBe(false);
+  // Dal vivo si trascrive il mix finché l'utente non sceglie gli Ingressi separati.
+  expect(defaults.modalitaDalVivo).toBe("mix");
   // Copia testo copia testo semplice finché l'utente non sceglie Markdown.
   expect(defaults.copiaCome).toBe("testo");
 });
@@ -39,6 +41,7 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     copiaCome: "markdown",
     interfaceLanguage: "pl",
     microphone: "Microfono USB",
+    modalitaDalVivo: "ingressiSeparati",
     outputDevice: "Cuffie",
     recordingSource: "both",
     recordingsFolder: "D:\\Registrazioni",
@@ -59,6 +62,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, model: "" },
     { ...defaults, trascrizioneDalVivo: "sì" },
     { ...defaults, copiaCome: "html" },
+    { ...defaults, modalitaDalVivo: "canali" },
     { model: defaults.model },
   ];
   for (const value of invalid) {

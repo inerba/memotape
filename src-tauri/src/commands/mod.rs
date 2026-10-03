@@ -72,11 +72,14 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     opened.map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Apre un Bino scelto come Sorgente: restituisce il suo testo, una Frase per riga, che diventa
-/// l'ultima Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+/// Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
+/// Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
 #[tauri::command]
 #[specta::specta]
-pub fn open_bino(app: AppHandle, source: String) -> Result<String, AppError> {
+pub fn open_bino(
+    app: AppHandle,
+    source: String,
+) -> Result<Vec<managers::transcription::TranscriptPhrase>, AppError> {
     let path = Path::new(&source);
     if !bino::is_bino(path) {
         return Err(AppError::Internal(format!("non è un Bino: {source}")));

@@ -166,7 +166,7 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.md` accanto alla Registrazione (dalla V2 il Bino) e la status bar lo dice.
   - Con testo nell'area, Registra con la casella attiva chiede conferma prima di sostituirlo.
   - Se il modello scelto non è scaricato o non si carica la Registrazione parte comunque, con un avviso e il link alle Impostazioni.
-- **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è già nel renderer e arriva con i ticket v2/06 e v2/07.
+- **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è già nel renderer e arriva con i ticket v2/06 (Ingressi, fatto) e v2/07.
   - Il risultato di una Trascrizione, anche dal vivo, è `<nome Sorgente> trascrizione <N>.md` invece del TXT, con la stessa regola del primo N libero. Ha come titolo il nome della Sorgente e un'intestazione con data e ora, durata, modello e Lingua del parlato, nella Lingua dell'interfaccia.
   - Le Frasi si uniscono in paragrafi, e se ne apre uno nuovo dopo oltre 2 s di silenzio.
   - In Impostazioni → Generale, "Copia testo come" sceglie testo semplice (predefinito) o Markdown. Copia testo copia l'ultima Trascrizione, anche annullata o in corso, nel formato scelto; se il testo nell'area è stato modificato a mano lo copia com'è.
@@ -178,6 +178,11 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Trascrivi su un Bino ne decodifica l'audio e, dopo la conferma (chiesta sempre, anche con l'area vuota, e che avvisa che cambia anche il Bino), sostituisce il testo dentro il Bino e salva un nuovo Markdown accanto. Annullando, il Bino non cambia.
   - Il clic sul nome di un Bino lo mostra in Esplora file invece di aprirlo. Le vecchie Registrazioni `.ogg` si aprono ancora come Sorgente.
   - L'installer associa `.bino` a Sbobino (tipo "Bino (Sbobino)", con l'icona dell'app) e la disinstallazione toglie l'associazione. Il doppio clic su un Bino in Esplora file avvia Sbobino con quel Bino come Sorgente; se Sbobino è già aperto, il Bino arriva alla finestra esistente, che torna in primo piano, e non si apre una seconda finestra. Come con Sfoglia, se l'area contiene testo chiede conferma. Durante una Trascrizione o una Registrazione, o con una conferma aperta, il Bino si apre quando finiscono; se è aperta Impostazioni, si chiude.
+- **V4, Ingressi separati (ticket v2/06)**: storie 13–17 della spec v2 e la parte della 29 sugli Ingressi.
+  - In Impostazioni → Registrazione, "Trascrizione dal vivo" sceglie tra Mix (predefinito) e Ingressi separati; è attivo solo con "Registra da" su Entrambi e vale solo con "Trascrivi dal vivo" attiva.
+  - Con Ingressi separati microfono e audio di sistema si trascrivono in parallelo, ognuno con la sua istanza del modello (il doppio della memoria), caricata all'inizio della Registrazione e liberata alla fine. Se un Ingresso si guasta compare l'avviso e l'altro continua; il Markdown non si salva.
+  - Il testo è una conversazione: le Frasi in ordine di inizio, non di arrivo, e ogni turno di un Ingresso comincia con l'etichetta "Microfono:" o "Audio di sistema:" su una riga. Con Nemotron ogni Ingresso ha i suoi Parziali, al loro posto.
+  - Il Bino contiene anche `microfono.ogg` e `sistema.ogg` ed è segnato come Ingressi separati; riaperto mostra la conversazione. Il Markdown e Copia testo hanno un paragrafo per turno, `**Microfono:**` e `**Audio di sistema:**`. Trascrivi su un Bino trascrive sempre il mix.
 
 ## Fuori dal perimetro
 

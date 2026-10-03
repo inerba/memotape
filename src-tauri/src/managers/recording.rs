@@ -3,6 +3,7 @@
 //! registra, in una cartella nascosta dentro la Cartella predefinita; a Stop, finita la
 //! Trascrizione dal vivo, diventa un Bino con il testo, che è la Sorgente.
 
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
@@ -23,6 +24,7 @@ use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::settings::{Channels, RecordingSource, Settings, SettingsStore};
 use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgress};
+use crate::transcript::Ingresso;
 
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
@@ -114,23 +116,37 @@ pub async fn record(
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
     let folder = recordings_folder(&app)?;
-    // Con la Trascrizione dal vivo, la pipeline gira in un suo thread e legge l'uscita del mixer.
-    let (feed, live) = if settings.trascrizione_dal_vivo {
-        let (feed, frames) = live::channel(settings.sample_rate, channel_count(settings.channels))?;
+    let separate = settings.ingressi_separati();
+    // Con la Trascrizione dal vivo le pipeline girano in un loro thread e leggono l'uscita del
+    // mixer: il mix, o con gli Ingressi separati ogni Ingresso, nell'ordine degli ingressi di `run`.
+    let transcribed: &[Ingresso] = match (settings.trascrizione_dal_vivo, separate) {
+        (false, _) => &[],
+        (true, false) => &[Ingresso::Mix],
+        (true, true) => &[Ingresso::Microfono, Ingresso::Sistema],
+    };
+    let (feeds, live) = if transcribed.is_empty() {
+        (Vec::new(), None)
+    } else {
+        let (feeds, frames): (Vec<_>, Vec<_>) = live::channels(
+            settings.sample_rate,
+            channel_count(settings.channels),
+            transcribed.len(),
+        )?
+        .into_iter()
+        .unzip();
+        let sources = transcribed.iter().copied().zip(frames).collect();
         let live = tauri::async_runtime::spawn_blocking({
             let (app, settings, cancel) = (app.clone(), settings.clone(), cancel.clone());
             let title = prefix.clone();
-            move || transcription::transcribe_live(&app, frames, &settings, &title, &cancel)
+            move || transcription::transcribe_live(&app, sources, &settings, &title, &cancel)
         });
-        (Some(feed), Some(live))
-    } else {
-        (None, None)
+        (feeds, Some(live))
     };
     *recorder.current() = Some(Arc::clone(&controls));
     let recorded = tauri::async_runtime::spawn_blocking({
         let (app, controls, settings) = (app.clone(), Arc::clone(&controls), settings.clone());
         let (folder, prefix) = (folder.clone(), prefix.clone());
-        move || run(&app, &folder, &prefix, &controls, &settings, feed)
+        move || run(&app, &folder, &prefix, &controls, &settings, feeds)
     })
     .await
     .map_err(internal)
@@ -163,9 +179,14 @@ pub async fn record(
         .as_ref()
         .and_then(|(transcript, _)| transcript.as_ref())
         .map_or(&[][..], |transcript| &transcript.phrases);
-    let document = bino::Document::of_mix(
+    let document = bino::Document::new(
         bino::creato(recorded.start),
         recorded.durata_ms,
+        if separate {
+            bino::Modalita::IngressiSeparati
+        } else {
+            bino::Modalita::Mix
+        },
         live.is_some()
             .then(|| SettingsStore::model_of(&settings).id.clone()),
         settings.speech_language,
@@ -201,9 +222,9 @@ fn completa(transcribed: Option<&Result<(), AppError>>, cancelled: bool) -> bool
     matches!(transcribed, Some(Ok(()))) && !cancelled
 }
 
-/// Senza Bino, l'Ogg temporaneo esce dalla cartella nascosta e va nella Cartella predefinita come
-/// `<prefisso> <data ora>.ogg`: è la Sorgente, con il Markdown accanto. Se nemmeno questo riesce
-/// resta dov'è.
+/// Senza Bino, l'Ogg temporaneo del mix esce dalla cartella nascosta e va nella Cartella
+/// predefinita come `<prefisso> <data ora>.ogg`: è la Sorgente, con il Markdown accanto. Se nemmeno
+/// questo riesce resta dov'è. Gli Ogg degli Ingressi restano nella cartella nascosta.
 fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
     let path = recording_path(
         folder,
@@ -212,7 +233,8 @@ fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
         "ogg",
         Path::exists,
     );
-    match std::fs::rename(&recorded.ogg, &path) {
+    let mix = recorded.mix();
+    match std::fs::rename(mix, &path) {
         Ok(()) => {
             log::warn!("Bino non scritto, la Registrazione è in {}", path.display());
             let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
@@ -221,24 +243,31 @@ fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
         Err(e) => {
             log::warn!(
                 "Bino non scritto, la Registrazione resta in {}: {e}",
-                recorded.ogg.display()
+                mix.display()
             );
-            recorded.ogg.clone()
+            mix.to_path_buf()
         }
     }
 }
 
-/// La Registrazione finita, ancora nell'Ogg temporaneo.
+/// La Registrazione finita, ancora negli Ogg temporanei.
 struct Recorded {
-    ogg: PathBuf,
+    /// Il mix e, con gli Ingressi separati, ogni Ingresso.
+    oggs: Vec<(Ingresso, PathBuf)>,
     start: DateTime<Local>,
     durata_ms: u32,
     /// Perché si è fermata da sola, se non è stato Stop.
     error: Option<AppError>,
 }
 
-/// Scrive il Bino `<prefisso> <data ora>.bino` nella Cartella predefinita e cancella l'Ogg
-/// temporaneo, e con lui la cartella nascosta se resta vuota.
+impl Recorded {
+    fn mix(&self) -> &Path {
+        &self.oggs[0].1
+    }
+}
+
+/// Scrive il Bino `<prefisso> <data ora>.bino` nella Cartella predefinita e cancella gli Ogg
+/// temporanei, e con loro la cartella nascosta se resta vuota.
 fn save_bino(
     folder: &Path,
     prefix: &str,
@@ -252,9 +281,16 @@ fn save_bino(
         "bino",
         Path::exists,
     );
-    bino::write(&path, &recorded.ogg, document)?;
-    if let Err(e) = std::fs::remove_file(&recorded.ogg) {
-        log::warn!("{} non cancellato: {e}", recorded.ogg.display());
+    let audio: Vec<_> = recorded
+        .oggs
+        .iter()
+        .map(|(ingresso, ogg)| (*ingresso, ogg.as_path()))
+        .collect();
+    bino::write(&path, &audio, document)?;
+    for (_, ogg) in &recorded.oggs {
+        if let Err(e) = std::fs::remove_file(ogg) {
+            log::warn!("{} non cancellato: {e}", ogg.display());
+        }
     }
     // Fallisce se ci sono altri Ogg (una Registrazione interrotta da un crash): restano lì.
     let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
@@ -302,16 +338,45 @@ pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Registra fino a Stop nell'Ogg temporaneo dentro `folder`. Con `feed` l'audio salvato va anche
-/// alla Trascrizione dal vivo.
+/// Un Ogg della Registrazione in corso: il mix o, con gli Ingressi separati, un Ingresso, con la sua
+/// Trascrizione dal vivo.
+struct Output {
+    ingresso: Ingresso,
+    path: PathBuf,
+    writer: OggOpusWriter<File>,
+    feed: Option<LiveFeed>,
+}
+
+/// Scrive in ogni Ogg il suo audio pronto (il mix da `mix`, gli Ingressi da `tracks`), lo manda alla
+/// sua Trascrizione dal vivo e lo svuota.
+fn write_ready(
+    outputs: &mut [Output],
+    mix: &mut Vec<f32>,
+    tracks: &mut [Vec<f32>],
+    paused: bool,
+) -> Result<(), AppError> {
+    for (output, audio) in outputs.iter_mut().zip(std::iter::once(mix).chain(tracks)) {
+        output.writer.write(audio)?;
+        if let Some(feed) = &mut output.feed {
+            feed.push(audio, paused);
+        }
+        audio.clear();
+    }
+    Ok(())
+}
+
+/// Registra fino a Stop negli Ogg temporanei dentro `folder`: il mix e, con gli Ingressi separati,
+/// ogni Ingresso. `feeds` sono le Trascrizioni dal vivo dell'audio salvato: una per il mix, una per
+/// Ingresso con gli Ingressi separati, o nessuna.
 fn run(
     app: &AppHandle,
     folder: &Path,
     prefix: &str,
     controls: &Controls,
     settings: &Settings,
-    mut feed: Option<LiveFeed>,
+    feeds: Vec<LiveFeed>,
 ) -> Result<Recorded, AppError> {
+    let separate = settings.ingressi_separati();
     let channels = channel_count(settings.channels);
     let kinds: &[Kind] = match settings.recording_source {
         RecordingSource::Mic => &[Kind::Microphone],
@@ -336,12 +401,16 @@ fn run(
     let now = || captures[0].now();
     let formats: Vec<_> = captures.iter().map(|c| (c.rate, c.channels)).collect();
     let mut mixer = Mixer::new(now(), &formats, (settings.sample_rate, channels))?;
+    if separate {
+        // Gli ingressi sono microfono e audio di sistema, in quest'ordine.
+        mixer = mixer.with_tracks();
+    }
     let temp = temp_folder(folder)?;
     let start = Local::now();
     let (path, file) = loop {
         let path = recording_path(&temp, prefix, start.naive_local(), "ogg", Path::exists);
         // `create_new`: un file comparso dopo il controllo non si sovrascrive.
-        match std::fs::File::create_new(&path) {
+        match File::create_new(&path) {
             Ok(file) => break (path, file),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(unwritable(&path, &e)),
@@ -356,12 +425,46 @@ fn run(
             path.display()
         );
     }
-    let mut writer =
-        OggOpusWriter::new(file, settings.sample_rate, channels, settings.bitrate_kbps)
-            .inspect_err(|_| {
-                // Senza intestazioni il file è vuoto: non resta nella cartella.
-                let _ = std::fs::remove_file(&path);
-            })?;
+    let mut created = vec![path.clone()];
+    let outputs = (|| {
+        let mut files = vec![(Ingresso::Mix, path.clone(), file)];
+        if separate {
+            // Accanto al mix, con il suo nome: `<nome>.microfono.ogg`, `<nome>.sistema.ogg`.
+            for ingresso in [Ingresso::Microfono, Ingresso::Sistema] {
+                let track = path.with_extension(bino::audio_entry(ingresso));
+                // Come il mix, non sovrascrive gli Ogg di una Registrazione interrotta da un crash.
+                let file = File::create_new(&track).map_err(|e| unwritable(&track, &e))?;
+                created.push(track.clone());
+                files.push((ingresso, track, file));
+            }
+        }
+        let mut feeds = feeds.into_iter();
+        files
+            .into_iter()
+            .map(|(ingresso, path, file)| {
+                let writer = OggOpusWriter::new(
+                    file,
+                    settings.sample_rate,
+                    channels,
+                    settings.bitrate_kbps,
+                )?;
+                // Si trascrive il mix, o con gli Ingressi separati ogni Ingresso.
+                let transcribed = separate == (ingresso != Ingresso::Mix);
+                Ok(Output {
+                    ingresso,
+                    path,
+                    writer,
+                    feed: if transcribed { feeds.next() } else { None },
+                })
+            })
+            .collect::<Result<Vec<_>, AppError>>()
+    })();
+    let mut outputs = outputs.inspect_err(|_| {
+        // Senza intestazioni i file sono vuoti: non restano nella cartella.
+        for path in &created {
+            let _ = std::fs::remove_file(path);
+        }
+    })?;
     let mut out = Vec::new();
     let mut last_tick = Instant::now();
     let mut error = None;
@@ -391,14 +494,10 @@ fn run(
         }
         // Un errore di scrittura (disco pieno) ferma come Stop: quanto è già sul disco diventa
         // comunque la Sorgente.
-        if let Err(e) = writer.write(&out) {
+        if let Err(e) = write_ready(&mut outputs, &mut out, mixer.tracks(), paused) {
             error = Some(e);
             break;
         }
-        if let Some(feed) = &mut feed {
-            feed.push(&out, paused);
-        }
-        out.clear();
         if last_tick.elapsed() >= TICK {
             last_tick = Instant::now();
             let mut levels = Levels::default();
@@ -424,19 +523,33 @@ fn run(
     }
     drop(captures);
     mixer.finish(stop, &mut out);
-    if let Err(e) = writer.write(&out).and_then(|()| writer.finish().map(drop)) {
-        log::warn!("chiusura della Registrazione: {e}");
-        error.get_or_insert(e);
+    let durata_ms = mixer.elapsed_ms();
+    let mut oggs = Vec::new();
+    for (output, audio) in outputs
+        .into_iter()
+        .zip(std::iter::once(&mut out).chain(mixer.tracks()))
+    {
+        let Output {
+            ingresso,
+            path,
+            mut writer,
+            feed,
+        } = output;
+        if let Err(e) = writer.write(audio).and_then(|()| writer.finish().map(drop)) {
+            log::warn!("chiusura della Registrazione: {e}");
+            error.get_or_insert(e);
+        }
+        if let Some(mut feed) = feed {
+            feed.push(audio, false);
+            feed.finish();
+        }
+        oggs.push((ingresso, path));
     }
-    log::info!("Registrazione salvata: {} ms", mixer.elapsed_ms());
-    if let Some(mut feed) = feed {
-        feed.push(&out, false);
-        feed.finish();
-    }
+    log::info!("Registrazione salvata: {durata_ms} ms");
     Ok(Recorded {
-        ogg: path,
+        oggs,
         start,
-        durata_ms: mixer.elapsed_ms(),
+        durata_ms,
         error,
     })
 }

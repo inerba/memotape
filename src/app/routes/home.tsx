@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { Circle, Settings } from "lucide-react";
 import {
   type ChangeEvent,
@@ -8,7 +9,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
-import { commands, events, type TranscriptPartial } from "@/bindings";
+import { commands, events } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,9 +37,12 @@ import {
   withProgress,
 } from "@/features/status/status";
 import {
-  afterPhrase,
-  appendPhrase,
+  type Conversation,
+  conversationText,
+  EMPTY_CONVERSATION,
+  withoutPartials,
   withPartial,
+  withPhrase,
 } from "@/features/transcription/phrases";
 import {
   type ReplaceAction,
@@ -52,8 +56,10 @@ export function HomePage() {
   const { t } = useTranslation();
   const [source, setSource] = useState<string | null>(null);
   const [text, setText] = useState("");
-  // Il Parziale della Frase in corso (Nemotron), mostrato nella riga dopo le Frasi.
-  const [partial, setPartial] = useState<TranscriptPartial | null>(null);
+  // Le Frasi dell'ultima Trascrizione (o del Bino aperto) e i Parziali in corso (Nemotron), uno per
+  // Ingresso: l'area li mostra mentre arrivano, poi il testo resta modificabile.
+  const [conversation, setConversation] =
+    useState<Conversation>(EMPTY_CONVERSATION);
   // Gli eventi possono arrivare dopo la risposta di `transcribe`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
   // Il testo è stato modificato a mano dopo l'ultima Trascrizione: Copia testo lo copia com'è.
@@ -97,14 +103,13 @@ export function HomePage() {
   );
 
   useEffect(() => {
-    // Una Frase per riga, nell'ordine in cui arrivano; la Frase fissa il suo Parziale.
+    // Le Frasi in ordine di inizio; la Frase fissa il Parziale del suo Ingresso.
     const phrases = events.transcriptPhrase.listen(({ payload }) => {
-      setText((current) => appendPhrase(current, payload.text));
-      setPartial((current) => afterPhrase(current, payload.phraseId));
+      setConversation((current) => withPhrase(current, payload));
     });
     const partials = events.transcriptPartial.listen(({ payload }) => {
       if (acceptPartials.current) {
-        setPartial(payload);
+        setConversation((current) => withPartial(current, payload));
       }
     });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
@@ -112,7 +117,7 @@ export function HomePage() {
     });
     // La Trascrizione dal vivo si è fermata: la Registrazione continua senza testo.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
-      setPartial(null);
+      setConversation(withoutPartials);
       setStatus((current) => withLiveError(current, payload.error));
     });
     // Il Bino dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
@@ -130,6 +135,12 @@ export function HomePage() {
     };
   }, []);
 
+  // Il testo dell'area segue le Frasi che arrivano, una per riga (con gli Ingressi separati come
+  // conversazione); dopo si può modificare.
+  useEffect(() => {
+    setText(conversationText(conversation.phrases, [], t));
+  }, [conversation.phrases, t]);
+
   useEffect(() => {
     if (!copied) {
       return;
@@ -146,8 +157,7 @@ export function HomePage() {
       return;
     }
     setSource(path);
-    setText(result.data);
-    setPartial(null);
+    setConversation({ partials: [], phrases: result.data });
     edited.current = false;
     setStatus({ phase: "idle", source: path });
   }, []);
@@ -200,7 +210,7 @@ export function HomePage() {
       return;
     }
     setText("");
-    setPartial(null);
+    setConversation(EMPTY_CONVERSATION);
     acceptPartials.current = true;
     edited.current = false;
     setCancelling(false);
@@ -216,14 +226,14 @@ export function HomePage() {
     } finally {
       // Il Parziale di una Frase annullata non resta nel testo.
       acceptPartials.current = false;
-      setPartial(null);
+      setConversation(withoutPartials);
     }
   }, [source]);
 
   const record = useCallback(async () => {
     if (live) {
       setText("");
-      setPartial(null);
+      setConversation(EMPTY_CONVERSATION);
       acceptPartials.current = true;
       edited.current = false;
     }
@@ -244,7 +254,7 @@ export function HomePage() {
       });
     } finally {
       acceptPartials.current = false;
-      setPartial(null);
+      setConversation(withoutPartials);
     }
   }, [live, t]);
 
@@ -463,7 +473,7 @@ export function HomePage() {
                 className="flex-1 resize-none"
                 onChange={edit}
                 readOnly={writing}
-                value={withPartial(text, partial)}
+                value={shownText(writing, conversation, text, t)}
               />
               <div className="flex justify-end">
                 <Button
@@ -483,6 +493,18 @@ export function HomePage() {
       {settingsPage}
     </>
   );
+}
+
+/** Mentre la Trascrizione arriva l'area mostra anche i Parziali; poi il testo, modificabile. */
+function shownText(
+  writing: boolean,
+  conversation: Conversation,
+  text: string,
+  t: TFunction
+) {
+  return writing
+    ? conversationText(conversation.phrases, conversation.partials, t)
+    : text;
 }
 
 /** La status bar: il messaggio, il link alle Impostazioni quando serve e l'avanzamento. */

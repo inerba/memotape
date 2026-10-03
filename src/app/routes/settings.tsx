@@ -15,6 +15,7 @@ import {
   type AudioDevice,
   type CopiaCome,
   commands,
+  type ModalitaDalVivo,
   type RecordingSource,
   type Settings,
 } from "@/bindings";
@@ -36,6 +37,7 @@ const SELECT =
 
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
+const LIVE_MODES: ModalitaDalVivo[] = ["mix", "ingressiSeparati"];
 
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
@@ -72,6 +74,15 @@ export function SettingsPage() {
           SOURCES.find((s) => s === e.target.value) ?? settings.recordingSource,
       }),
     [choose, settings.recordingSource]
+  );
+  const chooseLiveMode = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        modalitaDalVivo:
+          LIVE_MODES.find((m) => m === e.target.value) ??
+          settings.modalitaDalVivo,
+      }),
+    [choose, settings.modalitaDalVivo]
   );
   const chooseOutput = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
@@ -217,6 +228,29 @@ export function SettingsPage() {
               onChange={chooseOutput}
               value={settings.outputDevice}
             />
+            <label className="text-sm" htmlFor="live-mode">
+              {t("settings.recording.liveMode")}
+            </label>
+            <select
+              aria-describedby="live-mode-description"
+              className={SELECT}
+              disabled={settings.recordingSource !== "both"}
+              id="live-mode"
+              onChange={chooseLiveMode}
+              value={settings.modalitaDalVivo ?? "mix"}
+            >
+              {LIVE_MODES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`settings.recording.liveModes.${value}`)}
+                </option>
+              ))}
+            </select>
+            <p
+              className="col-start-2 text-muted-foreground text-sm"
+              id="live-mode-description"
+            >
+              {t("settings.recording.liveModeDescription")}
+            </p>
             <label className="text-sm" htmlFor="bitrate">
               {t("settings.recording.bitrate")}
             </label>

@@ -88,6 +88,12 @@
         "system": "Audio système",
         "both": "Les deux"
       },
+      "liveMode": "Transcription en direct",
+      "liveModes": {
+        "mix": "Mixage",
+        "ingressiSeparati": "Entrées séparées"
+      },
+      "liveModeDescription": "Uniquement avec Les deux : Entrées séparées transcrit le microphone et l'audio système chacun de son côté, comme une conversation, avec deux instances du modèle (le double de mémoire).",
       "microphone": "Microphone",
       "outputDevice": "Périphérique de sortie",
       "defaultDevice": "Par défaut du système",

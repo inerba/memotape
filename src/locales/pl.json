@@ -89,6 +89,12 @@
         "system": "Dźwięk systemowy",
         "both": "Oba"
       },
+      "liveMode": "Transkrypcja na żywo",
+      "liveModes": {
+        "mix": "Miks",
+        "ingressiSeparati": "Oddzielne wejścia"
+      },
+      "liveModeDescription": "Tylko z opcją Oba: Oddzielne wejścia transkrybuje mikrofon i dźwięk systemowy osobno, jak rozmowę, z dwiema instancjami modelu (dwa razy więcej pamięci).",
       "microphone": "Mikrofon",
       "outputDevice": "Urządzenie wyjściowe",
       "defaultDevice": "Domyślne systemowe",

@@ -34,6 +34,10 @@ pub struct Settings {
     /// prima che esistesse: allora è spenta.
     #[serde(default)]
     pub trascrizione_dal_vivo: bool,
+    /// Cosa trascrive dal vivo una Registrazione da Entrambi. Manca nei file salvati prima che
+    /// esistesse: allora è il mix.
+    #[serde(default)]
+    pub modalita_dal_vivo: ModalitaDalVivo,
     /// Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo.
     #[serde(default)]
     pub copia_come: CopiaCome,
@@ -48,6 +52,20 @@ pub enum CopiaCome {
     #[default]
     Testo,
     Markdown,
+}
+
+/// La modalità della Trascrizione dal vivo.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum ModalitaDalVivo {
+    /// Si trascrive il mix.
+    #[default]
+    Mix,
+    /// Ogni Ingresso si trascrive per conto suo, con una sua istanza del modello. Vale solo
+    /// registrando da Entrambi.
+    IngressiSeparati,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -140,12 +158,21 @@ impl Default for Settings {
             recordings_folder: None,
             interface_language: None,
             trascrizione_dal_vivo: false,
+            modalita_dal_vivo: ModalitaDalVivo::Mix,
             copia_come: CopiaCome::Testo,
         }
     }
 }
 
 impl Settings {
+    /// Se la Registrazione trascrive dal vivo ogni Ingresso per conto suo: con la Trascrizione dal
+    /// vivo, la modalità Ingressi separati e la sorgente di registrazione Entrambi.
+    pub fn ingressi_separati(&self) -> bool {
+        self.trascrizione_dal_vivo
+            && self.modalita_dal_vivo == ModalitaDalVivo::IngressiSeparati
+            && self.recording_source == RecordingSource::Both
+    }
+
     /// Legge `path`. Se manca, è corrotto o non è valido restituisce i predefiniti: l'avvio non si
     /// blocca. Un modello non più nel catalogo torna al predefinito senza toccare il resto. Un file
     /// che esiste ma non si legge (permessi, una cartella al suo posto) dà `unreadableSettings`.
@@ -300,7 +327,39 @@ mod tests {
         assert_eq!(settings.recordings_folder, None);
         assert_eq!(settings.interface_language, None);
         assert!(!settings.trascrizione_dal_vivo);
+        assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
+    }
+
+    #[test]
+    fn gli_ingressi_separati_valgono_solo_dal_vivo_e_registrando_da_entrambi() {
+        let separati = Settings {
+            trascrizione_dal_vivo: true,
+            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
+            recording_source: RecordingSource::Both,
+            ..Settings::default()
+        };
+        assert!(separati.ingressi_separati());
+        for settings in [
+            Settings {
+                trascrizione_dal_vivo: false,
+                ..separati.clone()
+            },
+            Settings {
+                modalita_dal_vivo: ModalitaDalVivo::Mix,
+                ..separati.clone()
+            },
+            Settings {
+                recording_source: RecordingSource::Mic,
+                ..separati.clone()
+            },
+            Settings {
+                recording_source: RecordingSource::System,
+                ..separati.clone()
+            },
+        ] {
+            assert!(!settings.ingressi_separati(), "{settings:?}");
+        }
     }
 
     #[test]
@@ -313,11 +372,13 @@ mod tests {
         .unwrap();
         let object = value.as_object_mut().unwrap();
         object.remove("trascrizioneDalVivo");
+        object.remove("modalitaDalVivo");
         object.remove("copiaCome");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
         assert!(!settings.trascrizione_dal_vivo);
+        assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
     }
 
@@ -388,6 +449,7 @@ mod tests {
             recordings_folder: Some(r"D:\Registrazioni".into()),
             interface_language: Some(Language::Pl),
             trascrizione_dal_vivo: true,
+            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
             copia_come: CopiaCome::Markdown,
         };
         settings.save(&path).unwrap();

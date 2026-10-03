@@ -88,6 +88,12 @@
         "system": "Audio di sistema",
         "both": "Entrambi"
       },
+      "liveMode": "Trascrizione dal vivo",
+      "liveModes": {
+        "mix": "Mix",
+        "ingressiSeparati": "Ingressi separati"
+      },
+      "liveModeDescription": "Solo con Entrambi: Ingressi separati trascrive microfono e audio di sistema ognuno per conto suo, come una conversazione, con due istanze del modello (il doppio della memoria).",
       "microphone": "Microfono",
       "outputDevice": "Dispositivo di uscita",
       "defaultDevice": "Predefinito di sistema",

@@ -32,10 +32,10 @@ export const commands = {
 	 */
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**
-	 *  Apre un Bino scelto come Sorgente: restituisce il suo testo, una Frase per riga, che diventa
-	 *  l'ultima Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+	 *  Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
+	 *  Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
 	 */
-	openBino: (source: string) => typedError<string, AppError>(__TAURI_INVOKE("open_bino", { source })),
+	openBino: (source: string) => typedError<TranscriptPhrase[], AppError>(__TAURI_INVOKE("open_bino", { source })),
 	/**
 	 *  Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
 	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
@@ -142,6 +142,12 @@ export type CopiaCome =
 /**  Testo semplice, senza sintassi Markdown. */
 "testo" | "markdown";
 
+/**
+ *  Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
+ *  sistema.
+ */
+export type Ingresso = "mix" | "microfono" | "sistema";
+
 /**  Le sei lingue dell'interfaccia. */
 export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 
@@ -172,6 +178,16 @@ export type LiveTranscription =
 export type LiveTranscriptionFailed = {
 	error: AppError,
 };
+
+/**  La modalità della Trascrizione dal vivo. */
+export type ModalitaDalVivo = 
+/**  Si trascrive il mix. */
+"mix" | 
+/**
+ *  Ogni Ingresso si trascrive per conto suo, con una sua istanza del modello. Vale solo
+ *  registrando da Entrambi.
+ */
+"ingressiSeparati";
 
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
 export type Mode = "stream" | "frase";
@@ -261,6 +277,11 @@ export type Settings = {
 	 *  prima che esistesse: allora è spenta.
 	 */
 	trascrizioneDalVivo?: boolean,
+	/**
+	 *  Cosa trascrive dal vivo una Registrazione da Entrambi. Manca nei file salvati prima che
+	 *  esistesse: allora è il mix.
+	 */
+	modalitaDalVivo?: ModalitaDalVivo,
 	/**  Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo. */
 	copiaCome?: CopiaCome,
 };
@@ -277,6 +298,7 @@ export type TranscriptPartial = {
 	inizioMs: number,
 	fineMs: number,
 	text: string,
+	ingresso: Ingresso,
 };
 
 /**
@@ -288,6 +310,8 @@ export type TranscriptPhrase = {
 	inizioMs: number,
 	fineMs: number,
 	text: string,
+	/**  Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri. */
+	ingresso: Ingresso,
 };
 
 /**  Dove è il Markdown salvato e quanti caratteri contiene. */

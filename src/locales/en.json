@@ -87,6 +87,12 @@
         "system": "System audio",
         "both": "Both"
       },
+      "liveMode": "Live transcription",
+      "liveModes": {
+        "mix": "Mix",
+        "ingressiSeparati": "Separate inputs"
+      },
+      "liveModeDescription": "Only with Both: Separate inputs transcribes the microphone and system audio each on its own, as a conversation, with two instances of the model (twice the memory).",
       "microphone": "Microphone",
       "outputDevice": "Output device",
       "defaultDevice": "System default",
