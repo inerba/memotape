@@ -43,12 +43,32 @@ export const commands = {
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	/**  Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background. */
 	setSettings: (settings: Settings) => typedError<null, AppError>(__TAURI_INVOKE("set_settings", { settings })),
+	/**  I microfoni rilevati, per la scelta in Impostazioni. */
+	listMicrophones: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_microphones")),
+	/**
+	 *  Registra dal microfono finché arriva `stop_recording` o il dispositivo si scollega; poi il file
+	 *  diventa la Sorgente. Durata e livello arrivano con `recording-tick`. `prefix` è il prefisso
+	 *  tradotto del nome del file. Rifiuta con `activityInProgress` se un'Attività è già in corso.
+	 */
+	record: (prefix: string) => typedError<RecordingSaved, AppError>(__TAURI_INVOKE("record", { prefix })),
+	/**  Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso. */
+	pauseRecording: (paused: boolean) => __TAURI_INVOKE<boolean>("pause_recording", { paused }),
+	/**
+	 *  Ferma e salva la Registrazione: l'esito arriva come risultato di `record`. Restituisce
+	 *  `false` se non è in corso.
+	 */
+	stopRecording: () => __TAURI_INVOKE<boolean>("stop_recording"),
+	/**  La Cartella predefinita in uso: quella delle impostazioni o `Documenti\Sbobino`. */
+	recordingsFolder: () => typedError<string, AppError>(__TAURI_INVOKE("recordings_folder")),
+	/**  Apre il dialog di sistema per scegliere una cartella. `null` se l'utente annulla. */
+	pickFolder: () => __TAURI_INVOKE<string | null>("pick_folder"),
 };
 
 /** Events */
 export const events = {
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
+	recordingTick: makeEvent<RecordingTick>("recording-tick"),
 	transcriptPartial: makeEvent<TranscriptPartial>("transcript-partial"),
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
@@ -59,7 +79,19 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 /**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 { code: "modelInUse"; detail: string } | { code: "downloadFailed"; detail: string } | 
 /**  Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo. */
-{ code: "verificationFailed"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "verificationFailed"; detail: string } | 
+/**  Il dispositivo si è scollegato durante la Registrazione, che si è salvata: porta il nome. */
+{ code: "deviceDisconnected"; detail: string } | 
+/**  Nessun microfono, o quello scelto in Impostazioni non è collegato. */
+{ code: "microphoneMissing" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+
+/**  Un dispositivo di ingresso, per la scelta in Impostazioni. */
+export type AudioDevice = {
+	/**  L'id stabile di cpal (`wasapi:{…}`), salvato nelle impostazioni. */
+	id: string,
+	name: string,
+	isDefault: boolean,
+};
 
 export type Channels = "mono" | "stereo";
 
@@ -111,7 +143,23 @@ export type ModelStateChanged = {
 	error: AppError | null,
 };
 
+/**  La Registrazione salvata, che diventa la Sorgente. */
+export type RecordingSaved = {
+	path: string,
+	/**  Perché la Registrazione si è fermata da sola (`deviceDisconnected`); `null` dopo Stop. */
+	error: AppError | null,
+};
+
 export type RecordingSource = "mic" | "system" | "both";
+
+/**
+ *  Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni sorgente attiva
+ *  dall'evento precedente.
+ */
+export type RecordingTick = {
+	elapsedMs: number,
+	levels: (number | null)[],
+};
 
 export type Settings = {
 	recordingSource: RecordingSource,

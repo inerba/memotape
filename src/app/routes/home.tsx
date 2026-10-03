@@ -1,4 +1,4 @@
-import { Settings } from "lucide-react";
+import { Circle, Settings } from "lucide-react";
 import {
   type ChangeEvent,
   useCallback,
@@ -22,6 +22,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useModels } from "@/features/models/use-models";
+import { afterRecording } from "@/features/recording/recording";
+import { RecordingPanel } from "@/features/recording/recording-panel";
 import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { fileName } from "@/features/source/file-name";
@@ -52,6 +54,10 @@ export function HomePage() {
   const [cancelling, setCancelling] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
   const running = status.phase === "transcribing";
+  const recording = status.phase === "recording";
+  const paused = status.phase === "recording" && status.paused;
+  // Una Attività alla volta: durante l'una, l'altra e Sfoglia sono disabilitate.
+  const busy = running || recording;
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
   const { save, settings } = useSettings();
@@ -134,6 +140,30 @@ export function HomePage() {
     }
   }, [source]);
 
+  const record = useCallback(async () => {
+    setStatus({ paused: false, phase: "recording" });
+    try {
+      const after = afterRecording(
+        await commands.record(t("recording.prefix"))
+      );
+      if (after.source) {
+        setSource(after.source);
+      }
+      setStatus(after.status);
+    } catch (e) {
+      setStatus({
+        error: { code: "internal", detail: String(e) },
+        phase: "failed",
+      });
+    }
+  }, [t]);
+
+  const setPaused = useCallback((value: boolean) => {
+    setStatus((current) =>
+      current.phase === "recording" ? { ...current, paused: value } : current
+    );
+  }, []);
+
   // Il testo nell'area, anche se modificato a mano, si sostituisce solo dopo conferma.
   const requestTranscription = useCallback(() => {
     if (text.trim()) {
@@ -192,8 +222,12 @@ export function HomePage() {
       <div className="flex h-screen flex-col" inert={settingsPage !== null}>
         <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
           <section className="flex items-center gap-3">
-            <Button disabled={running} onClick={browse} variant="outline">
+            <Button disabled={busy} onClick={browse} variant="outline">
               {t("source.browse")}
+            </Button>
+            <Button disabled={busy} onClick={record} variant="outline">
+              <Circle className="fill-destructive text-destructive" />
+              {t("recording.start")}
             </Button>
             {source ? (
               <div className="min-w-0 flex-1">
@@ -214,7 +248,7 @@ export function HomePage() {
             <select
               aria-label={t("speechLanguage.label")}
               className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              disabled={running}
+              disabled={busy}
               onChange={chooseLanguage}
               title={t("speechLanguage.label")}
               value={language}
@@ -226,10 +260,7 @@ export function HomePage() {
                 </option>
               ))}
             </select>
-            <Button
-              disabled={!source || running}
-              onClick={requestTranscription}
-            >
+            <Button disabled={!source || busy} onClick={requestTranscription}>
               {running ? t("transcription.running") : t("transcription.start")}
             </Button>
             {running ? (
@@ -249,6 +280,9 @@ export function HomePage() {
               </Link>
             </Button>
           </section>
+          {recording ? (
+            <RecordingPanel onPausedChange={setPaused} paused={paused} />
+          ) : null}
           <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
             <AlertDialogContent>
               <AlertDialogHeader>

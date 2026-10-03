@@ -26,6 +26,12 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::delete_model,
             commands::get_settings,
             commands::set_settings,
+            commands::list_microphones,
+            commands::record,
+            commands::pause_recording,
+            commands::stop_recording,
+            commands::recordings_folder,
+            commands::pick_folder,
         ])
         .events(collect_events![
             managers::transcription::TranscriptPartial,
@@ -33,6 +39,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::transcription::TranscriptionProgress,
             managers::models::ModelDownloadProgress,
             managers::models::ModelStateChanged,
+            managers::recording::RecordingTick,
         ])
 }
 
@@ -49,6 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(managers::activity::Activity::default())
+        .manage(managers::recording::Recorder::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

@@ -1,7 +1,8 @@
-//! Normalizzazione: audio mono a qualsiasi frequenza → frame da 30 ms a 16 kHz.
+//! Ricampionamento con rubato: `Resampler` da una frequenza all'altra (mono o stereo
+//! interleaved) e, per la Trascrizione, `FrameResampler` che produce frame da 30 ms a 16 kHz.
 
 use audioadapter_buffers::direct::InterleavedSlice;
-use rubato::{Fft, FixedSync, Indexing, Resampler};
+use rubato::{Fft, FixedSync, Indexing, Resampler as _};
 
 use crate::error::AppError;
 
@@ -10,95 +11,104 @@ pub const TARGET_RATE: usize = 16_000;
 pub const FRAME_SAMPLES: usize = 480;
 const CHUNK: usize = 1024;
 
-pub struct FrameResampler {
-    /// `None` se l'ingresso è già a 16 kHz.
-    resampler: Option<Fft<f32>>,
+/// Ricampiona audio interleaved a `channels` canali da `in_rate` a `out_rate`, senza il ritardo
+/// iniziale del filtro e con la lunghezza esatta in uscita dopo `finish`.
+pub struct Resampler {
+    /// `None` se le frequenze coincidono: i campioni passano invariati.
+    fft: Option<Fft<f32>>,
     in_rate: usize,
+    out_rate: usize,
+    channels: usize,
+    /// Campioni interleaved in attesa di un chunk intero.
     input: Vec<f32>,
-    output: Vec<f32>,
     chunk_out: Vec<f32>,
-    /// Campioni iniziali di ritardo del resampler ancora da scartare.
+    /// Frame iniziali di ritardo del filtro ancora da scartare.
     delay_left: usize,
-    in_total: usize,
-    out_total: usize,
+    in_frames: usize,
+    out_frames: usize,
 }
 
-impl FrameResampler {
-    pub fn new(in_rate: u32) -> Result<Self, AppError> {
-        let in_rate = in_rate as usize;
-        let resampler = if in_rate == TARGET_RATE {
+impl Resampler {
+    pub fn new(in_rate: u32, out_rate: u32, channels: usize) -> Result<Self, AppError> {
+        let (in_rate, out_rate) = (in_rate as usize, out_rate as usize);
+        let fft = if in_rate == out_rate {
             None
         } else {
             Some(
-                Fft::<f32>::new(in_rate, TARGET_RATE, CHUNK, 1, FixedSync::Input)
+                Fft::<f32>::new(in_rate, out_rate, CHUNK, channels, FixedSync::Input)
                     .map_err(|e| AppError::Internal(format!("resampler: {e}")))?,
             )
         };
-        let (chunk_out, delay_left) = resampler.as_ref().map_or((Vec::new(), 0), |r| {
-            (vec![0.0; r.output_frames_max()], r.output_delay())
+        let (chunk_out, delay_left) = fft.as_ref().map_or((Vec::new(), 0), |r| {
+            (
+                vec![0.0; r.output_frames_max() * channels],
+                r.output_delay(),
+            )
         });
         Ok(Self {
-            resampler,
+            fft,
             in_rate,
+            out_rate,
+            channels,
             input: Vec::new(),
-            output: Vec::new(),
             chunk_out,
             delay_left,
-            in_total: 0,
-            out_total: 0,
+            in_frames: 0,
+            out_frames: 0,
         })
     }
 
-    /// Accoda campioni mono e restituisce i frame completi.
-    pub fn push(&mut self, samples: &[f32]) -> Vec<Vec<f32>> {
-        self.in_total += samples.len();
-        match self.resampler {
-            None => self.output.extend_from_slice(samples),
-            Some(_) => {
-                self.input.extend_from_slice(samples);
-                let mut consumed = 0;
-                while self.input.len() - consumed >= self.input_needed() {
-                    let n = self.input_needed();
-                    consumed += self.process(consumed, n, None);
-                }
-                self.input.drain(..consumed);
-            }
+    /// Ricampiona `samples` (interleaved) e accoda in `out` quanto è pronto.
+    pub fn push(&mut self, samples: &[f32], out: &mut Vec<f32>) {
+        self.in_frames += samples.len() / self.channels;
+        if self.fft.is_none() {
+            out.extend_from_slice(samples);
+            return;
         }
-        self.take_frames(false)
-    }
-
-    /// Svuota il resampler; l'ultimo frame è completato con zeri.
-    pub fn finish(&mut self) -> Vec<Vec<f32>> {
-        if self.resampler.is_some() {
-            let expected = (self.in_total * TARGET_RATE).div_ceil(self.in_rate);
-            let rest = self.input.len();
-            self.process(0, rest, Some(rest));
-            self.input.clear();
-            // Il ritardo trattiene campioni: si spinge silenzio finché escono tutti.
-            while self.out_total < expected {
-                self.process(0, 0, Some(0));
+        self.input.extend_from_slice(samples);
+        let mut consumed = 0;
+        loop {
+            let needed = self.frames_needed() * self.channels;
+            if self.input.len() - consumed < needed {
+                break;
             }
-            let excess = self.out_total - expected;
-            self.output
-                .truncate(self.output.len().saturating_sub(excess));
-        } else {
-            self.out_total = self.in_total;
+            self.process(consumed, needed, None, out);
+            consumed += needed;
         }
-        self.take_frames(true)
+        self.input.drain(..consumed);
     }
 
-    fn input_needed(&self) -> usize {
-        self.resampler
-            .as_ref()
-            .map_or(0, Resampler::input_frames_next)
+    /// Svuota il filtro: in `out` arrivano gli ultimi campioni, fino alla durata esatta
+    /// dell'ingresso.
+    pub fn finish(&mut self, out: &mut Vec<f32>) {
+        if self.fft.is_none() {
+            return;
+        }
+        let expected = (self.in_frames * self.out_rate).div_ceil(self.in_rate);
+        let start = out.len();
+        let rest = self.input.len();
+        self.process(0, rest, Some(rest / self.channels), out);
+        self.input.clear();
+        // Il ritardo trattiene campioni: si spinge silenzio finché escono tutti.
+        while self.out_frames < expected {
+            self.process(0, 0, Some(0), out);
+        }
+        let excess = (self.out_frames - expected) * self.channels;
+        out.truncate(out.len().saturating_sub(excess).max(start));
+        self.out_frames = expected;
     }
 
-    /// Ricampiona `len` campioni di `input` da `offset`; restituisce i campioni consumati.
-    fn process(&mut self, offset: usize, len: usize, partial: Option<usize>) -> usize {
-        let Some(resampler) = self.resampler.as_mut() else {
-            return 0;
+    fn frames_needed(&self) -> usize {
+        self.fft.as_ref().map_or(0, |r| r.input_frames_next())
+    }
+
+    /// Ricampiona `len` campioni di `input` da `offset` e li accoda in `out`.
+    fn process(&mut self, offset: usize, len: usize, partial: Option<usize>, out: &mut Vec<f32>) {
+        let Some(fft) = self.fft.as_mut() else {
+            return;
         };
-        let needed = resampler.input_frames_next();
+        let channels = self.channels;
+        let needed = fft.input_frames_next() * channels;
         // Con `partial_len` l'adapter deve comunque coprire un chunk intero.
         let mut padded;
         let chunk: &[f32] = if partial.is_some() {
@@ -108,20 +118,46 @@ impl FrameResampler {
         } else {
             &self.input[offset..offset + len]
         };
-        let out_len = self.chunk_out.len();
-        let input = InterleavedSlice::new(chunk, 1, chunk.len()).expect("buffer mono valido");
-        let mut output =
-            InterleavedSlice::new_mut(&mut self.chunk_out, 1, out_len).expect("buffer mono valido");
+        let out_frames = self.chunk_out.len() / channels;
+        let input = InterleavedSlice::new(chunk, channels, chunk.len() / channels)
+            .expect("buffer interleaved valido");
+        let mut output = InterleavedSlice::new_mut(&mut self.chunk_out, channels, out_frames)
+            .expect("buffer interleaved valido");
         let indexing = partial.map(|p| Indexing::new().partial_len(p));
-        let (_, produced) = resampler
+        let (_, produced) = fft
             .process_into_buffer(&input, &mut output, indexing.as_ref())
             .expect("dimensioni dei buffer coerenti con il resampler");
         let skip = self.delay_left.min(produced);
         self.delay_left -= skip;
-        self.output
-            .extend_from_slice(&self.chunk_out[skip..produced]);
-        self.out_total += produced - skip;
-        len
+        out.extend_from_slice(&self.chunk_out[skip * channels..produced * channels]);
+        self.out_frames += produced - skip;
+    }
+}
+
+/// Audio mono a qualsiasi frequenza → frame da 30 ms a 16 kHz.
+pub struct FrameResampler {
+    resampler: Resampler,
+    output: Vec<f32>,
+}
+
+impl FrameResampler {
+    pub fn new(in_rate: u32) -> Result<Self, AppError> {
+        Ok(Self {
+            resampler: Resampler::new(in_rate, TARGET_RATE as u32, 1)?,
+            output: Vec::new(),
+        })
+    }
+
+    /// Accoda campioni mono e restituisce i frame completi.
+    pub fn push(&mut self, samples: &[f32]) -> Vec<Vec<f32>> {
+        self.resampler.push(samples, &mut self.output);
+        self.take_frames(false)
+    }
+
+    /// Svuota il resampler; l'ultimo frame è completato con zeri.
+    pub fn finish(&mut self) -> Vec<Vec<f32>> {
+        self.resampler.finish(&mut self.output);
+        self.take_frames(true)
     }
 
     fn take_frames(&mut self, pad_last: bool) -> Vec<Vec<f32>> {

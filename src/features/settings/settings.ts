@@ -13,13 +13,18 @@ export const LANGUAGES = [
 
 const language = z.enum(LANGUAGES);
 
+/** I bitrate di una Registrazione, in kbps, come in Rust. */
+export const BITRATES_KBPS = [16, 24, 32, 48, 64, 96, 128, 192, 320];
+/** Le frequenze di una Registrazione, in Hz, come in Rust. */
+export const SAMPLE_RATES = [8000, 16_000, 24_000, 48_000];
+
 /** Un numero tra `values`: il tipo resta `number`, come nei bindings. */
 const oneOf = (values: number[]) =>
   z.number().refine((value) => values.includes(value));
 
 /** Le stesse regole che Rust applica al file impostazioni. */
 export const settingsSchema = z.object({
-  bitrateKbps: oneOf([16, 24, 32, 48, 64, 96, 128, 192, 320]),
+  bitrateKbps: oneOf(BITRATES_KBPS),
   channels: z.enum(["mono", "stereo"]),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
@@ -27,7 +32,7 @@ export const settingsSchema = z.object({
   outputDevice: z.string().nullable(),
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
-  sampleRate: oneOf([8000, 16_000, 24_000, 48_000]),
+  sampleRate: oneOf(SAMPLE_RATES),
   speechLanguage: z.enum(["auto", ...LANGUAGES]),
 }) satisfies z.ZodType<Settings>;
 

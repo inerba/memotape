@@ -19,6 +19,12 @@ pub enum AppError {
     /// Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo.
     #[error("verifica fallita: {0}")]
     VerificationFailed(String),
+    /// Il dispositivo si è scollegato durante la Registrazione, che si è salvata: porta il nome.
+    #[error("dispositivo scollegato: {0}")]
+    DeviceDisconnected(String),
+    /// Nessun microfono, o quello scelto in Impostazioni non è collegato.
+    #[error("microfono assente")]
+    MicrophoneMissing,
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

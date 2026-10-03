@@ -139,6 +139,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 - **M4 (ticket 07)**: storia 12.
   - Con Nemotron il testo della Frase in corso compare come Parziale nell'ultima riga dell'area e si aggiorna mentre il modello ascolta; a fine Frase diventa definitivo e la Frase successiva parte su una riga nuova. Con Whisper e Parakeet ogni Frase compare intera a fine Frase, come prima.
   - Annulla toglie il Parziale della Frase interrotta: restano solo le Frasi concluse, quelle già comparse.
+- **M5 (ticket 08)**: storie 42 (microfono), 43, 45–49, 51–53 e 55–58; della 40 e della 44 c'è il Microfono, della 54 la scelta del microfono, della 61 anche le impostazioni audio e la Cartella predefinita.
+  - "Registra" accanto a Sfoglia registra dal microfono predefinito di sistema o da quello scelto in Impostazioni. Durante la Registrazione compaiono il timer, l'indicatore di livello (in decibel, giallo e rosso vicino alla saturazione), Pausa/Riprendi e Stop; Sfoglia, Trascrivi e la Lingua del parlato sono disabilitati.
+  - Il timer non conta le pause e il file non ha vuoti al loro posto. Un'interruzione dell'audio dal dispositivo diventa silenzio, così il file resta allineato al tempo.
+  - Stop salva `Registrazione AAAA-MM-GG HH-MM-SS.ogg` (OGG/Opus) nella Cartella predefinita, con " 2", " 3"… se il nome c'è già, e il file diventa la Sorgente: Trascrivi è subito disponibile. Il file si scrive mentre si registra.
+  - Se il microfono si scollega (o cambia il microfono predefinito di Windows) la Registrazione si ferma e si salva come con Stop, e la status bar mostra l'errore con il nome del dispositivo. Un microfono scelto ma non collegato dà un errore dedicato invece di registrare da un altro.
+  - Impostazioni ha le sezioni Registrazione e audio (microfono, bitrate tra i nove valori, mono/stereo, 8/16/24/48 kHz; predefiniti 32 kbps, mono, 48 kHz) e Generale (Cartella predefinita, `Documenti\Sbobino` se non scelta, creata se manca). Le scelte valgono dalla Registrazione successiva.
 
 ## Fuori dal perimetro
 

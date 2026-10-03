@@ -25,6 +25,9 @@
   },
   "status": {
     "idle": "Scegli un file audio o video con Sfoglia",
+    "recording": "Registrazione in corso…",
+    "recordingPaused": "Registrazione in pausa",
+    "recorded": "Registrazione salvata in {{path}}",
     "transcribing": "Trascrizione in corso…",
     "transcribingPercent": "Trascrizione in corso… {{percent}}%",
     "progress": "Avanzamento della Trascrizione",
@@ -45,6 +48,8 @@
       "modelInUse": "Il modello è in uso da una Trascrizione o si sta caricando: riprova quando ha finito",
       "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova",
       "verificationFailed": "Il modello scaricato è corrotto ed è stato cancellato: {{detail}}. Riprova il download",
+      "deviceDisconnected": "Il dispositivo {{detail}} si è scollegato: la Registrazione è stata fermata e salvata",
+      "microphoneMissing": "Nessun microfono collegato, o quello scelto in Impostazioni non è disponibile",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"
@@ -67,6 +72,28 @@
     "transcription": {
       "title": "Trascrizione",
       "description": "I modelli trascrivono in locale: si scaricano una volta, poi funzionano senza rete."
+    },
+    "recording": {
+      "title": "Registrazione e audio",
+      "description": "Valgono dalla prossima Registrazione.",
+      "microphone": "Microfono",
+      "defaultMicrophone": "Predefinito di sistema",
+      "defaultMicrophoneNamed": "Predefinito di sistema ({{name}})",
+      "missingMicrophone": "Non collegato",
+      "bitrate": "Bitrate",
+      "kbps": "{{value}} kbps",
+      "channels": "Canali",
+      "mono": "Mono",
+      "stereo": "Stereo",
+      "sampleRate": "Frequenza",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "Generale",
+      "folder": "Cartella predefinita",
+      "folderDescription": "Dove si salvano le Registrazioni. Se non esiste viene creata.",
+      "choose": "Scegli…",
+      "reset": "Usa Documenti\\Sbobino"
     }
   },
   "models": {
@@ -109,5 +136,16 @@
       "de": "Tedesco",
       "pl": "Polacco"
     }
+  },
+  "recording": {
+    "title": "Registrazione",
+    "start": "Registra",
+    "prefix": "Registrazione",
+    "pause": "Pausa",
+    "resume": "Riprendi",
+    "stop": "Stop",
+    "stopping": "Salvataggio…",
+    "elapsed": "Durata registrata",
+    "level": "Livello del microfono"
   }
 }

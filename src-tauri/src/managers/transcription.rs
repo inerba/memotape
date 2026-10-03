@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
+use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::vad::Silero;
 use crate::engine::pipeline::{PipelineEvent, transcribe_file};
@@ -67,8 +68,11 @@ pub async fn transcribe(
     activity: &Activity,
     source: PathBuf,
 ) -> Result<TranscriptionOutcome, AppError> {
-    let guard = activity.begin()?;
-    let cancel = guard.cancel.clone();
+    let cancel = CancelToken::new();
+    let _activity = activity.begin({
+        let cancel = cancel.clone();
+        move || cancel.cancel()
+    })?;
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
     let model = SettingsStore::model_of(&settings);

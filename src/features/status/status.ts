@@ -4,6 +4,8 @@ import type { AppError, commands } from "@/bindings";
 /** Cosa mostra la status bar: la fase dell'Attività, o l'errore. */
 export type Status =
   | { phase: "idle"; source: string | null }
+  | { phase: "recording"; paused: boolean }
+  | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null }
   | { phase: "finished"; txtPath: string; chars: number }
   | { phase: "noSpeech" }
@@ -14,6 +16,12 @@ export function statusText(status: Status, t: TFunction): string {
   switch (status.phase) {
     case "idle":
       return status.source ?? t("status.idle");
+    case "recording":
+      return status.paused
+        ? t("status.recordingPaused")
+        : t("status.recording");
+    case "recorded":
+      return t("status.recorded", { path: status.path });
     case "transcribing":
       return status.percent === null
         ? t("status.transcribing")

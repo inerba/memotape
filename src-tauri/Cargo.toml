@@ -39,6 +39,13 @@ reqwest = { version = "0.13.5", default-features = false, features = ["native-tl
 sha2 = "0.10"
 # Già nel grafo tramite Tauri: `select!` per annullare un download fermo in attesa di dati.
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
+# Registrazione: cattura WASAPI, encoder Opus (libopus 1.6.1 statica, compilata con cmake) e
+# pagine Ogg.
+cpal = "0.18.2"
+opus = "0.4.0"
+ogg = "0.9.2"
+# Già nel grafo tramite Tauri: data e ora locali nel nome delle Registrazioni.
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 
 [features]
 # Usata dalle build di produzione o quando non c'è un dev server: non rimuovere.

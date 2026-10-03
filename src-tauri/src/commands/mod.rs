@@ -6,10 +6,12 @@ use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
+use crate::audio_toolkit::capture::{self, AudioDevice};
 use crate::error::AppError;
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
+use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Settings, SettingsStore};
 
 /// Estensioni accettate da Sfoglia (spec, storia 2).
@@ -139,4 +141,66 @@ pub fn set_settings(
 #[specta::specta]
 pub fn delete_model(app: AppHandle, models: State<'_, Models>, id: String) -> Result<(), AppError> {
     models.delete(&app, &id)
+}
+
+/// I microfoni rilevati, per la scelta in Impostazioni.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_microphones() -> Result<Vec<AudioDevice>, AppError> {
+    // WASAPI usa COM: fuori dal thread principale, che ha già il suo apartment.
+    tauri::async_runtime::spawn_blocking(capture::microphones)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Registra dal microfono finché arriva `stop_recording` o il dispositivo si scollega; poi il file
+/// diventa la Sorgente. Durata e livello arrivano con `recording-tick`. `prefix` è il prefisso
+/// tradotto del nome del file. Rifiuta con `activityInProgress` se un'Attività è già in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn record(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    recorder: State<'_, Recorder>,
+    prefix: String,
+) -> Result<RecordingSaved, AppError> {
+    let reserved = |c: char| c.is_control() || r#"<>:"/\|?*"#.contains(c);
+    if prefix.trim().is_empty() || prefix.contains(reserved) {
+        return Err(AppError::Internal(format!("prefisso non valido: {prefix}")));
+    }
+    managers::recording::record(app, &activity, &recorder, prefix).await
+}
+
+/// Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso.
+#[tauri::command]
+#[specta::specta]
+pub fn pause_recording(recorder: State<'_, Recorder>, paused: bool) -> bool {
+    recorder.set_paused(paused)
+}
+
+/// Ferma e salva la Registrazione: l'esito arriva come risultato di `record`. Restituisce
+/// `false` se non è in corso.
+#[tauri::command]
+#[specta::specta]
+pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
+    recorder.stop()
+}
+
+/// La Cartella predefinita in uso: quella delle impostazioni o `Documenti\Sbobino`.
+#[tauri::command]
+#[specta::specta]
+pub fn recordings_folder(app: AppHandle) -> Result<String, AppError> {
+    managers::recording::recordings_folder(&app).map(|p| p.display().to_string())
+}
+
+/// Apre il dialog di sistema per scegliere una cartella. `null` se l'utente annulla.
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_folder(app: AppHandle) -> Option<String> {
+    let picked =
+        tauri::async_runtime::spawn_blocking(move || app.dialog().file().blocking_pick_folder())
+            .await
+            .inspect_err(|e| log::error!("dialog della cartella: {e}"))
+            .ok()??;
+    picked.into_path().ok().map(|p| p.display().to_string())
 }

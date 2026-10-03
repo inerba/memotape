@@ -3,5 +3,6 @@
 pub mod activity;
 pub mod loaded_model;
 pub mod models;
+pub mod recording;
 pub mod settings;
 pub mod transcription;
