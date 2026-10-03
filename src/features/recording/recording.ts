@@ -24,21 +24,24 @@ export function levelPercent(peak: number | null): number {
   return Math.round(Math.max(0, 1 - db / FLOOR_DB) * 100);
 }
 
-/** Un indicatore di livello: la sorgente e la percentuale. */
+/** Un indicatore di livello: l'ingresso e la percentuale. */
 export interface Meter {
+  input: keyof Levels;
   percent: number;
-  source: keyof Levels;
 }
 
-/** Gli indicatori di `recording-tick`: uno per sorgente registrata, prima il microfono. */
+/** Gli indicatori di `recording-tick`: uno per ingresso registrato, prima il microfono. */
 export function meters(levels: Levels): Meter[] {
-  return (["microphone", "system"] as const).flatMap((source) => {
-    const peak = levels[source];
-    return peak === null ? [] : [{ percent: levelPercent(peak), source }];
+  return (["microphone", "system"] as const).flatMap((input) => {
+    const peak = levels[input];
+    return peak === null ? [] : [{ input, percent: levelPercent(peak) }];
   });
 }
 
-/** I livelli a zero delle sorgenti di `source`, prima del primo `recording-tick`. */
+/**
+ * I livelli a zero degli ingressi di `source` (la sorgente di registrazione delle impostazioni),
+ * prima del primo `recording-tick`.
+ */
 export function silentLevels(source: RecordingSource): Levels {
   return {
     microphone: source === "system" ? null : 0,

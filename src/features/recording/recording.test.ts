@@ -28,27 +28,27 @@ test("il livello va da 0 a 100 su una scala in decibel", () => {
   expect(levelPercent(10 ** (-30 / 20))).toBe(50);
 });
 
-test("c'è un indicatore per ogni sorgente registrata, prima il microfono", () => {
+test("c'è un indicatore per ogni ingresso registrato, prima il microfono", () => {
   expect(meters({ microphone: 1, system: null })).toEqual([
-    { percent: 100, source: "microphone" },
+    { input: "microphone", percent: 100 },
   ]);
   expect(meters({ microphone: null, system: 0 })).toEqual([
-    { percent: 0, source: "system" },
+    { input: "system", percent: 0 },
   ]);
   expect(meters({ microphone: 0, system: 1 })).toEqual([
-    { percent: 0, source: "microphone" },
-    { percent: 100, source: "system" },
+    { input: "microphone", percent: 0 },
+    { input: "system", percent: 100 },
   ]);
 });
 
-test("prima del primo recording-tick gli indicatori seguono la sorgente delle impostazioni", () => {
-  expect(meters(silentLevels("mic")).map((m) => m.source)).toEqual([
+test("prima del primo recording-tick gli indicatori seguono la sorgente di registrazione delle impostazioni", () => {
+  expect(meters(silentLevels("mic")).map((m) => m.input)).toEqual([
     "microphone",
   ]);
-  expect(meters(silentLevels("system")).map((m) => m.source)).toEqual([
+  expect(meters(silentLevels("system")).map((m) => m.input)).toEqual([
     "system",
   ]);
-  expect(meters(silentLevels("both")).map((m) => m.source)).toEqual([
+  expect(meters(silentLevels("both")).map((m) => m.input)).toEqual([
     "microphone",
     "system",
   ]);

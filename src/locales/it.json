@@ -77,8 +77,8 @@
     "recording": {
       "title": "Registrazione e audio",
       "description": "Valgono dalla prossima Registrazione.",
-      "source": "Sorgente",
-      "sources": {
+      "input": "Registra da",
+      "inputs": {
         "mic": "Microfono",
         "system": "Audio di sistema",
         "both": "Entrambi"
@@ -158,6 +158,6 @@
       "microphone": "Microfono",
       "system": "Sistema"
     },
-    "level": "Livello: {{source}}"
+    "level": "Livello: {{input}}"
   }
 }

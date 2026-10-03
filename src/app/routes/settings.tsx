@@ -161,7 +161,7 @@ export function SettingsPage() {
         >
           <div className="grid max-w-xl grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3">
             <label className="text-sm" htmlFor="recording-source">
-              {t("settings.recording.source")}
+              {t("settings.recording.input")}
             </label>
             <select
               className={SELECT}
@@ -171,7 +171,7 @@ export function SettingsPage() {
             >
               {SOURCES.map((value) => (
                 <option key={value} value={value}>
-                  {t(`settings.recording.sources.${value}`)}
+                  {t(`settings.recording.inputs.${value}`)}
                 </option>
               ))}
             </select>

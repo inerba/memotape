@@ -11,8 +11,8 @@ import {
 import { useSettings } from "@/features/settings/settings-context";
 
 /**
- * La Registrazione in corso: timer, un livello per sorgente, Pausa/Riprendi e Stop. L'esito arriva a chi ha
- * chiamato `record`; `onPausedChange` riceve la pausa confermata dal backend.
+ * La Registrazione in corso: timer, un livello per ingresso, Pausa/Riprendi e Stop. L'esito arriva
+ * a chi ha chiamato `record`; `onPausedChange` riceve la pausa confermata dal backend.
  */
 export function RecordingPanel({
   onPausedChange,
@@ -23,7 +23,7 @@ export function RecordingPanel({
 }) {
   const { t } = useTranslation();
   const { settings } = useSettings();
-  // L'ultimo `recording-tick`; prima, gli indicatori della sorgente scelta.
+  // L'ultimo `recording-tick`; prima, gli indicatori degli ingressi scelti.
   const [tick, setTick] = useState<RecordingTick>(() => ({
     elapsedMs: 0,
     levels: silentLevels(settings.recordingSource),
@@ -69,15 +69,15 @@ export function RecordingPanel({
         {elapsedText(tick.elapsedMs)}
       </span>
       <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
-        {meters(tick.levels).map(({ percent, source }) => (
-          <Fragment key={source}>
+        {meters(tick.levels).map(({ input, percent }) => (
+          <Fragment key={input}>
             <span aria-hidden className="text-muted-foreground text-xs">
-              {t(`recording.levels.${source}`)}
+              {t(`recording.levels.${input}`)}
             </span>
             {/* Verde fino a -15 dBFS, poi giallo, rosso vicino alla saturazione. */}
             <meter
               aria-label={t("recording.level", {
-                source: t(`recording.levels.${source}`),
+                input: t(`recording.levels.${input}`),
               })}
               className="h-3 w-full min-w-0"
               high={95}

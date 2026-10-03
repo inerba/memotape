@@ -28,7 +28,7 @@ pub struct AudioDevice {
 /// Un blocco catturato.
 pub struct Block {
     /// L'ingresso che l'ha catturato, come indicato a `Capture::open`.
-    pub source: usize,
+    pub input: usize,
     /// Timestamp di cattura in ns (QPC su WASAPI).
     pub capture_ns: u64,
     /// Campioni interleaved del dispositivo, convertiti in f32.
@@ -66,10 +66,10 @@ fn devices(
         .collect())
 }
 
-/// Il canale dei blocchi di `sources` catture: ha posto per tutti i loro buffer, quindi la
+/// Il canale dei blocchi di `inputs` catture: ha posto per tutti i loro buffer, quindi la
 /// callback non trova mai il canale pieno.
-pub fn channel(sources: usize) -> (SyncSender<Block>, Receiver<Block>) {
-    sync_channel(POOL * sources)
+pub fn channel(inputs: usize) -> (SyncSender<Block>, Receiver<Block>) {
+    sync_channel(POOL * inputs)
 }
 
 /// Quale dispositivo catturare.
@@ -82,7 +82,7 @@ pub enum Kind {
 
 /// Una cattura in corso: si ferma al drop.
 pub struct Capture {
-    _stream: cpal::Stream,
+    stream: cpal::Stream,
     /// Gli errori del dispositivo (scollegato, discontinuità…).
     pub errors: Receiver<cpal::Error>,
     recycle: SyncSender<Vec<f32>>,
@@ -94,12 +94,12 @@ pub struct Capture {
 
 impl Capture {
     /// Apre il dispositivo con l'id dato, o quello predefinito, alla sua frequenza nativa, e manda
-    /// i blocchi in `blocks` con `source`. Senza dispositivi, o se quello scelto non è collegato,
+    /// i blocchi in `blocks` con `input`. Senza dispositivi, o se quello scelto non è collegato,
     /// dà `MicrophoneMissing` o `OutputDeviceMissing`.
     pub fn open(
         kind: Kind,
         id: Option<&str>,
-        source: usize,
+        input: usize,
         blocks: SyncSender<Block>,
     ) -> Result<Self, AppError> {
         let host = cpal::default_host();
@@ -136,9 +136,9 @@ impl Capture {
         let format = config.sample_format();
         let config = config.config();
         let stream = match format {
-            SampleFormat::F32 => build::<f32>(&device, config, source, pool, blocks, errors_tx),
-            SampleFormat::I16 => build::<i16>(&device, config, source, pool, blocks, errors_tx),
-            SampleFormat::I32 => build::<i32>(&device, config, source, pool, blocks, errors_tx),
+            SampleFormat::F32 => build::<f32>(&device, config, input, pool, blocks, errors_tx),
+            SampleFormat::I16 => build::<i16>(&device, config, input, pool, blocks, errors_tx),
+            SampleFormat::I32 => build::<i32>(&device, config, input, pool, blocks, errors_tx),
             other => {
                 return Err(AppError::Internal(format!(
                     "formato audio non supportato da {name}: {other}"
@@ -148,7 +148,7 @@ impl Capture {
         .map_err(cpal_error)?;
         stream.play().map_err(cpal_error)?;
         Ok(Self {
-            _stream: stream,
+            stream,
             errors,
             recycle,
             rate,
@@ -159,7 +159,7 @@ impl Capture {
 
     /// L'istante corrente sullo stesso orologio dei timestamp di cattura (QPC su WASAPI), in ns.
     pub fn now(&self) -> u64 {
-        u64::try_from(self._stream.now().as_nanos()).unwrap_or(0)
+        u64::try_from(self.stream.now().as_nanos()).unwrap_or(0)
     }
 
     /// Restituisce al pool il buffer di un blocco già elaborato.
@@ -172,7 +172,7 @@ impl Capture {
 fn build<T>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
-    source: usize,
+    input: usize,
     pool: Receiver<Vec<f32>>,
     blocks: SyncSender<Block>,
     errors: std::sync::mpsc::Sender<cpal::Error>,
@@ -195,7 +195,7 @@ where
             let capture_ns = u64::try_from(info.timestamp().capture.as_nanos()).unwrap_or(0);
             // Il canale ha posto per tutti i buffer del pool: l'invio non fallisce.
             let _ = blocks.try_send(Block {
-                source,
+                input,
                 capture_ns,
                 samples: buffer,
             });

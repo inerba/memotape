@@ -1,5 +1,6 @@
 //! Registrazione dal microfono, dall'audio di sistema o da entrambi: catture, mixer e writer
-//! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. Il file si scrive mentre si registra e a Stop diventa la Sorgente.
+//! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. Il file si scrive mentre si
+//! registra e a Stop diventa la Sorgente.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -29,7 +30,7 @@ pub struct RecordingTick {
     pub levels: Levels,
 }
 
-/// Il picco, tra 0 e 1, di ogni sorgente; `null` per quella che non si registra.
+/// Il picco, tra 0 e 1, di ogni ingresso; `null` per quello che non si registra.
 #[derive(Debug, Clone, Default, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Levels {
@@ -79,7 +80,7 @@ impl Recorder {
     }
 }
 
-/// Registra dalla sorgente delle impostazioni finché arriva Stop o il dispositivo si scollega,
+/// Registra dagli ingressi delle impostazioni finché arriva Stop o un dispositivo si scollega,
 /// emettendo `recording-tick`. `prefix` è il prefisso tradotto del nome del file.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn record(
@@ -136,12 +137,12 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
     let captures = kinds
         .iter()
         .enumerate()
-        .map(|(source, &kind)| {
+        .map(|(input, &kind)| {
             let id = match kind {
                 Kind::Microphone => settings.microphone.as_deref(),
                 Kind::System => settings.output_device.as_deref(),
             };
-            Capture::open(kind, id, source, blocks_tx.clone())
+            Capture::open(kind, id, input, blocks_tx.clone())
         })
         .collect::<Result<Vec<_>, _>>()?;
     // Restano solo i mittenti delle callback.
@@ -194,8 +195,8 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         mixer.advance(now(), controls.paused.load(Ordering::Relaxed), &mut out);
         match received {
             Ok(block) => {
-                mixer.push(block.source, block.capture_ns, &block.samples, &mut out);
-                captures[block.source].recycle(block.samples);
+                mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
+                captures[block.input].recycle(block.samples);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
@@ -228,10 +229,10 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
             }
         }
     }
-    // Quanto è già arrivato prima di Stop fa parte della Registrazione.
+    // Quanto è stato catturato prima di Stop fa parte della Registrazione.
     let stop = now();
-    while let Ok(block) = blocks.try_recv() {
-        mixer.push(block.source, block.capture_ns, &block.samples, &mut out);
+    for block in blocks.try_iter().filter(|b| b.capture_ns < stop) {
+        mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
     }
     drop(captures);
     mixer.finish(stop, &mut out);

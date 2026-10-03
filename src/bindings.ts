@@ -48,7 +48,7 @@ export const commands = {
 	/**  I dispositivi di uscita rilevati, per la scelta dell'audio di sistema in Impostazioni. */
 	listOutputDevices: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_output_devices")),
 	/**
-	 *  Registra dalla sorgente delle impostazioni (microfono, audio di sistema o entrambi) finché
+	 *  Registra dagli ingressi delle impostazioni (microfono, audio di sistema o entrambi) finché
 	 *  arriva `stop_recording` o un dispositivo si scollega; poi il file diventa la Sorgente. Durata e
 	 *  livelli arrivano con `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta
 	 *  con `activityInProgress` se un'Attività è già in corso.
@@ -103,7 +103,7 @@ export type Channels = "mono" | "stereo";
 /**  Le sei lingue dell'interfaccia. */
 export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 
-/**  Il picco, tra 0 e 1, di ogni sorgente; `null` per quella che non si registra. */
+/**  Il picco, tra 0 e 1, di ogni ingresso; `null` per quello che non si registra. */
 export type Levels = {
 	microphone: number | null,
 	system: number | null,
