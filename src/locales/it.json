@@ -29,7 +29,7 @@
     "transcribingPercent": "Trascrizione in corso… {{percent}}%",
     "progress": "Avanzamento della Trascrizione",
     "finished_one": "Trascrizione finita: {{count, number}} carattere salvato in {{path}}",
-    "finished_many": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
+    "finished_many": "Trascrizione finita: {{count, number}} di caratteri salvati in {{path}}",
     "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
     "noSpeech": "Nessun parlato rilevato",
     "cancelled": "Trascrizione annullata: nessun TXT salvato",
@@ -96,7 +96,7 @@
     },
     "general": {
       "title": "Generale",
-      "description": "La cartella delle Registrazioni e la lingua dell'app.",
+      "description": "La cartella delle Registrazioni e la Lingua dell'interfaccia.",
       "folder": "Cartella predefinita",
       "folderDescription": "Dove si salvano le Registrazioni. Se non esiste viene creata.",
       "choose": "Scegli…",

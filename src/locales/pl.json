@@ -97,7 +97,7 @@
     },
     "general": {
       "title": "Ogólne",
-      "description": "Folder nagrań i język aplikacji.",
+      "description": "Folder nagrań i język interfejsu.",
       "folder": "Folder domyślny",
       "folderDescription": "Tu zapisywane są nagrania. Jeśli folder nie istnieje, zostanie utworzony.",
       "choose": "Wybierz…",

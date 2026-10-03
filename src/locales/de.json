@@ -46,7 +46,7 @@
       "verificationFailed": "Das heruntergeladene Modell war beschädigt und wurde gelöscht: {{detail}}. Lade es erneut herunter",
       "deviceDisconnected": "Das Gerät {{detail}} ist nicht mehr verfügbar (getrennt oder in Windows gewechselt): die Aufnahme wurde beendet und gespeichert",
       "microphoneMissing": "Kein Mikrofon angeschlossen, oder das in den Einstellungen gewählte ist nicht verfügbar",
-      "outputDeviceMissing": "Kein Ausgabegerät für den Systemsound, oder das in den Einstellungen gewählte ist nicht verfügbar",
+      "outputDeviceMissing": "Kein Ausgabegerät für das Systemaudio, oder das in den Einstellungen gewählte ist nicht verfügbar",
       "unreadableSettings": "Die Einstellungen können nicht gelesen werden, die App verwendet die Standardwerte: {{detail}}",
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
@@ -77,7 +77,7 @@
       "input": "Aufnehmen von",
       "inputs": {
         "mic": "Mikrofon",
-        "system": "Systemsound",
+        "system": "Systemaudio",
         "both": "Beides"
       },
       "microphone": "Mikrofon",
@@ -95,7 +95,7 @@
     },
     "general": {
       "title": "Allgemein",
-      "description": "Der Ordner für Aufnahmen und die Sprache der App.",
+      "description": "Der Ordner für Aufnahmen und die Sprache der Oberfläche.",
       "folder": "Standardordner",
       "folderDescription": "Hier werden die Aufnahmen gespeichert. Der Ordner wird angelegt, falls er nicht existiert.",
       "choose": "Auswählen…",
@@ -109,7 +109,7 @@
     "size": "{{mb, number}} MB",
     "mode": {
       "stream": "Text in Echtzeit",
-      "frase": "Text am Ende jedes Satzes"
+      "frase": "Text am Ende jedes Abschnitts"
     },
     "license": "Lizenz {{license}}",
     "progress": "Download von {{name}}",
@@ -170,7 +170,7 @@
     "thirdParty": "Hinweise zu Drittanbietern",
     "roles": {
       "model": "Modell für die Transkription",
-      "vad": "Spracherkennung, die das Audio in Sätze aufteilt",
+      "vad": "Sprachaktivitätserkennung, die das Audio in Abschnitte aufteilt",
       "decoder": "Dekodierung von Audio- und Videodateien",
       "engine": "Ausführung der Transkriptionsmodelle",
       "onnx": "Ausführung von Silero VAD",

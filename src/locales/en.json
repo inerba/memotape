@@ -95,7 +95,7 @@
     },
     "general": {
       "title": "General",
-      "description": "The recordings folder and the app's language.",
+      "description": "The recordings folder and the interface language.",
       "folder": "Default folder",
       "folderDescription": "Where recordings are saved. Created if it doesn't exist.",
       "choose": "Choose…",

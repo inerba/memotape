@@ -17,7 +17,7 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.interfaceLanguage).toBeNull();
 });
 
-test("senza backend la lingua è quella del locale se supportata, altrimenti l'inglese", () => {
+test("senza backend la Lingua dell'interfaccia è quella di sistema se supportata, altrimenti l'inglese", () => {
   expect(languageOf("it-IT")).toBe("it");
   expect(languageOf("PL")).toBe("pl");
   expect(languageOf("es-419")).toBe("es");

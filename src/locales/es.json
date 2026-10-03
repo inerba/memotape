@@ -96,7 +96,7 @@
     },
     "general": {
       "title": "General",
-      "description": "La carpeta de las grabaciones y el idioma de la aplicación.",
+      "description": "La carpeta de las grabaciones y el idioma de la interfaz.",
       "folder": "Carpeta predeterminada",
       "folderDescription": "Donde se guardan las grabaciones. Si no existe, se crea.",
       "choose": "Elegir…",

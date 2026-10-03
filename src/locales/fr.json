@@ -96,7 +96,7 @@
     },
     "general": {
       "title": "Général",
-      "description": "Le dossier des enregistrements et la langue de l'application.",
+      "description": "Le dossier des enregistrements et la langue de l'interface.",
       "folder": "Dossier par défaut",
       "folderDescription": "Où les enregistrements sont sauvegardés. Il est créé s'il n'existe pas.",
       "choose": "Choisir…",

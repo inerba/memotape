@@ -1,7 +1,7 @@
 import catalog from "../../../src-tauri/src/managers/models.json";
 
 /** Un componente di terze parti con la sua licenza, nell'ordine di Informazioni. */
-export interface Component {
+export interface Credit {
   /** Chi l'ha creato, per l'attribuzione. */
   author?: string;
   /** I modelli si scaricano nella versione GGUF di handy-computer. */
@@ -18,12 +18,7 @@ export interface Component {
 }
 
 /** Nome e licenza di un modello vengono dal catalogo. */
-function model(
-  id: string,
-  author: string,
-  file: string,
-  url: string
-): Component {
+function model(id: string, author: string, file: string, url: string): Credit {
   const entry = catalog.modelli.find((m) => m.id === id);
   if (!entry) {
     throw new Error(`modello ${id} non nel catalogo`);
@@ -40,7 +35,7 @@ function model(
 }
 
 // Parakeet per primo: CC BY 4.0 chiede l'attribuzione.
-export const COMPONENTS: Component[] = [
+export const CREDITS: Credit[] = [
   model(
     "parakeet-tdt-0.6b-v3-q5km",
     "NVIDIA",

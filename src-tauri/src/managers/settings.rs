@@ -130,7 +130,8 @@ impl Settings {
     /// blocca. Un modello non più nel catalogo torna al predefinito senza toccare il resto. Un file
     /// che esiste ma non si legge (permessi, una cartella al suo posto) dà `unreadableSettings`.
     pub fn load(path: &Path) -> Result<Self, AppError> {
-        let read = match std::fs::read_to_string(path) {
+        // Byte e non stringa: un file non UTF-8 è corrotto, non illeggibile.
+        let read = match std::fs::read(path) {
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(e) => {
@@ -140,7 +141,7 @@ impl Settings {
                 )));
             }
         };
-        Ok(match serde_json::from_str::<Self>(&read) {
+        Ok(match serde_json::from_slice::<Self>(&read) {
             Ok(mut settings) if settings.is_valid() => {
                 if models::find(&settings.model).is_none() {
                     log::warn!("modello {} non più nel catalogo", settings.model);
@@ -187,8 +188,9 @@ impl Settings {
 pub struct SettingsStore {
     path: PathBuf,
     current: Mutex<Settings>,
-    /// Perché il file non si è letto all'avvio: allora valgono i predefiniti.
-    load_error: Option<AppError>,
+    /// Perché il file non si è letto all'avvio: allora valgono i predefiniti, finché un
+    /// salvataggio non riesce.
+    load_error: Mutex<Option<AppError>>,
 }
 
 impl SettingsStore {
@@ -204,13 +206,18 @@ impl SettingsStore {
         Self {
             path,
             current: Mutex::new(current),
-            load_error,
+            load_error: Mutex::new(load_error),
         }
     }
 
     /// Le impostazioni correnti, o l'errore se all'avvio il file non si è letto.
     pub fn loaded(&self) -> Result<Settings, AppError> {
-        self.load_error.clone().map_or_else(|| Ok(self.get()), Err)
+        let error = self
+            .load_error
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        error.map_or_else(|| Ok(self.get()), Err)
     }
 
     /// Il modello scelto.
@@ -234,6 +241,10 @@ impl SettingsStore {
     pub fn set(&self, settings: Settings) -> Result<Settings, AppError> {
         let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
         settings.save(&self.path)?;
+        *self
+            .load_error
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(std::mem::replace(&mut current, settings))
     }
 }
@@ -288,6 +299,9 @@ mod tests {
             std::fs::write(&path, &content).unwrap();
             assert_eq!(Settings::load(&path), Ok(Settings::default()), "{content}");
         }
+        // Non UTF-8: corrotto, non illeggibile.
+        std::fs::write(&path, b"\xff\xfe{").unwrap();
+        assert_eq!(Settings::load(&path), Ok(Settings::default()));
     }
 
     #[test]
@@ -367,7 +381,23 @@ mod tests {
     }
 
     #[test]
-    fn la_lingua_di_default_e_quella_di_sistema_se_supportata_altrimenti_l_inglese() {
+    fn dopo_un_salvataggio_riuscito_l_errore_di_lettura_non_vale_piu() {
+        let path = temp_file("illeggibile-poi-salvato");
+        std::fs::create_dir(&path).unwrap();
+        let store = SettingsStore::load(path.clone());
+        std::fs::remove_dir(&path).unwrap();
+        let saved = Settings {
+            interface_language: Some(Language::De),
+            ..Settings::default()
+        };
+        store.set(saved.clone()).unwrap();
+        // Un nuovo `get_settings` (la webview ricaricata) riceve le impostazioni salvate.
+        assert_eq!(store.loaded(), Ok(saved));
+    }
+
+    #[test]
+    fn la_lingua_dell_interfaccia_di_default_e_quella_di_sistema_se_supportata_altrimenti_l_inglese()
+     {
         let cases = [
             ("it-IT", Language::It),
             ("it-CH", Language::It),

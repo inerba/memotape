@@ -1,7 +1,7 @@
 import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
-import { COMPONENTS, type Component } from "@/features/about/components";
+import { CREDITS, type Credit } from "@/features/about/credits";
 
 const DIR = "../../../src-tauri/resources/licenses";
 
@@ -23,20 +23,21 @@ export function About() {
 
   return (
     <div className="flex max-w-3xl flex-col gap-3">
-      <p className="text-sm">{t("about.version", { version })}</p>
+      {version ? (
+        <p className="text-sm">{t("about.version", { version })}</p>
+      ) : null}
       <ul className="flex flex-col divide-y rounded-md border">
-        {COMPONENTS.map((component) => (
-          <ComponentRow component={component} key={component.name} />
+        {CREDITS.map((credit) => (
+          <CreditRow credit={credit} key={credit.name} />
         ))}
       </ul>
     </div>
   );
 }
 
-function ComponentRow({ component }: { component: Component }) {
+function CreditRow({ credit }: { credit: Credit }) {
   const { t } = useTranslation();
-  const { author, converted, file, license, name, notices, role, url } =
-    component;
+  const { author, converted, file, license, name, notices, role, url } = credit;
   return (
     <li className="flex flex-col gap-1 p-4">
       <div className="flex flex-wrap items-baseline gap-x-2">
