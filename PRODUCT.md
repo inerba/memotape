@@ -113,6 +113,13 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 ## Stato
 
 - **M1 (tracer bullet)**: storie 1, 2, 9, 11 e 13. Sfoglia sceglie un file audio, Trascrivi mostra le Frasi una per riga mentre arrivano. Il modello è sempre Nemotron e si mette a mano nella cartella dei modelli (`AGENTS.md`) finché non arriva il download (storie 29–39). Il nome della Sorgente compare già, non ancora cliccabile (storia 4).
+- **M2, prima parte (ticket 03)**: storie 3–5, 7, 8, 10, 14–18, 28, 64 e 65.
+  - Il nome della Sorgente si clicca per aprirla con il programma associato; il percorso sta nella status bar.
+  - Si trascrivono anche i video MP4, MOV, M4V e MKV, senza file intermedi.
+  - La status bar mostra la fase, la percentuale (nei MKV, che non dichiarano la durata, un avanzamento senza percentuale), l'esito con caratteri e percorso del TXT, e gli errori dedicati.
+  - Il TXT si salva accanto alla Sorgente. "Copia testo" copia l'area.
+  - La sezione Trascrizione compare con la prima Trascrizione.
+  - Annulla, la conferma di sostituzione e una sola Attività alla volta (storie 19–21, 27) arrivano con il ticket 04. Storia 6: Trascrivi è già l'azione proposta, si abilita appena c'è una Sorgente.
 
 ## Fuori dal perimetro
 

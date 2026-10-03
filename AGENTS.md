@@ -47,7 +47,7 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
   - URL: `https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`;
   - 559 647 200 byte, SHA-256 `86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65`;
   - il nome del file resta `nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`. Senza il file Trascrivi mostra l'errore "modello assente" con il percorso atteso.
-  - Lo smoke test con il modello vero si lancia a mano: `cargo test -- --ignored` in `src-tauri`.
+  - Lo smoke test con il modello vero si lancia a mano: `cargo test -- --ignored` in `src-tauri`. Trascrive sia `parlato-it.wav` sia `parlato-it.mp4`.
 
 ## Architettura
 
@@ -68,13 +68,15 @@ src-tauri/src/
   engine/                trait `TranscriptionEngine`, motore transcribe-cpp, pipeline di un file
 src-tauri/resources/     risorse del bundle (`silero_vad.onnx`)
 src-tauri/runtime-libs/  DLL copiate da `build.rs` e messe accanto all'exe dal bundle (ignorata da git)
-src-tauri/tests/fixtures/ audio per i test (`parlato-it.wav`, sintesi vocale di Windows)
+src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di Windows) e lo stesso parlato in
+                         `parlato-it.mp4` (H.264 + AAC, 30 KB, fatto con `Windows.Media.Editing` di Media Foundation)
 ```
 
 - La pipeline di un file (`engine::pipeline`) è a trazione: il motore legge i frame della Frase da un iteratore, e ogni `next()` decodifica, ricampiona e passa per VAD e segmentatore solo quanto serve. Così con lo streaming (ticket 07) il motore riceverà l'audio mentre la Frase è ancora in corso.
 
 - `audio_toolkit` ed `engine` non dipendono da Tauri: si testano senza `AppHandle`. Le uniche seam finte nei test sono `TranscriptionEngine` e `VoiceDetector`.
-- Il frontend chiama il backend solo tramite `commands` ed `events` di `@/bindings`.
+- Il frontend chiama il backend solo tramite `commands` ed `events` di `@/bindings`. Anche i plugin passano da un comando Rust: `open_source` usa `tauri-plugin-opener` lato Rust, quindi non servono il pacchetto npm né permessi nella capability.
+- La pipeline comunica con un solo sink di `PipelineEvent` (progresso e Frasi). Il manager li traduce in `transcription-progress` e `transcript-phrase`, poi salva il TXT; l'esito (`TranscriptionFinished`) o l'`AppError` tornano come risultato del comando `transcribe`.
 - La logica pura del frontend vive nelle feature, con un `*.test.ts` accanto. Niente test sui componenti.
 - Errori applicativi: un unico enum serializzato con un codice; il frontend mappa ogni codice a un messaggio tradotto.
 
@@ -108,6 +110,12 @@ src-tauri/tests/fixtures/ audio per i test (`parlato-it.wav`, sintesi vocale di 
   - La build statica è ottimizzata per la CPU della macchina di build: per distribuire serve `dynamic-backends` (ticket 12), con le DLL dei backend accanto all'exe.
 - **Loopback WASAPI**: la config del dispositivo di uscita si prende da `default_output_config()`; `default_input_config()` lì dà errore. A riproduzione ferma il loopback non consegna pacchetti: timer e mix di "Entrambi" usano il timestamp di cattura dei buffer (QPC, lo stesso orologio per le due sorgenti), non il conteggio dei campioni.
 - **Cartelle dell'app**: l'identifier Tauri è `it.sbobino.desktop`, non `sbobino`: `%APPDATA%\sbobino` appartiene a una vecchia app con lo stesso nome e va lasciata intatta. Quindi `app_data_dir` è `%APPDATA%\it.sbobino.desktop` (roaming), mentre `app_local_data_dir` è `%LOCALAPPDATA%\it.sbobino.desktop` ed è anche la cartella dati della webview. Tauri sconsiglia un identifier che finisce in `.app`.
+- **Progresso**: la percentuale viene da frame decodificati / `Track::num_frames`. Il demuxer MKV di Symphonia 0.6 non imposta `num_frames`, quindi per i MKV l'avanzamento è sempre indeterminato; idem per i WAV "in streaming" (lunghezze `0xFFFFFFFF`), che finiscono con un `UnexpectedEof` trattato come fine del file.
+
+### Frontend e verifica manuale
+
+- **Numeri in italiano**: con `{{count, number}}` Intl non raggruppa le migliaia sotto 10 000 (`minimumGroupingDigits` 2 nel CLDR italiano): 1234 resta "1234", 12345 diventa "12.345".
+- **Pilotare l'app**: con `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` la WebView2 di `bun tauri dev` si comanda via CDP. Il dialog di Sfoglia è nativo e UI Automation da PowerShell 5.1 vede i suoi controlli solo come `Pane`: si compila con Win32, `WM_SETTEXT` sull'`Edit` dentro il controllo 1148 e `BM_CLICK` sul pulsante 1 del dialog `#32770` "Apri". `SendKeys` non arriva, perché la finestra di Claude tiene il foreground.
 
 ### Da verificare sull'hardware reale
 
