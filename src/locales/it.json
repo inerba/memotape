@@ -6,7 +6,7 @@
     "browse": "Sfoglia",
     "filter": "Audio e video",
     "none": "Nessun file scelto",
-    "open": "Apri {{name}} con il programma associato"
+    "open": "{{path}} (clic per aprire con il programma associato)"
   },
   "transcription": {
     "start": "Trascrivi",
@@ -31,7 +31,7 @@
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
       "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
       "modelMissing": "Il modello non è installato. Mettilo qui: {{detail}}",
-      "internal": "Errore durante la Trascrizione: {{detail}}"
+      "internal": "Errore interno: {{detail}}"
     },
     "app": {
       "title": "Qualcosa è andato storto",

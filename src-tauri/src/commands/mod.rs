@@ -49,7 +49,12 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
         .extension()
         .and_then(|e| e.to_str())
         .is_some_and(|e| SOURCE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
-    if !accepted || !path.is_file() {
+    if !accepted {
+        return Err(AppError::Internal(format!(
+            "estensione non accettata: {source}"
+        )));
+    }
+    if !path.is_file() {
         return Err(AppError::UnreadableFile(source));
     }
     app.opener()

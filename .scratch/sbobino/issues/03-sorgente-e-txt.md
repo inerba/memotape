@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Tracer bullet)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Il nome della Sorgente è cliccabile (`tauri-plugin-opener`) e il percorso compare nella status bar
 - [x] I video MP4, MOV, M4V e MKV con audio supportato si trascrivono senza file intermedi
@@ -20,6 +20,7 @@
 ## Note
 
 - Implementato in 9eb0d17 e verificato in `bun tauri dev` (MP4 7→100 %, TXT 1/2/3, Copia testo, errori AC-3 e file mancante, apertura con VLC).
-- Resta `ready-for-agent`: la code review (Standards e Spec) era ancora in corso alla consegna; vanno lette e applicate le correzioni fondate.
+- Code review applicata: `transcribe` non resta "in corso" se l'IPC lancia, TXT scritto con `create_new` (niente sovrascritture in caso di gara), errori di apertura e degli appunti gestiti, percorso completo della Sorgente anche nel tooltip del nome.
+- Un `.mpeg` MPEG-PS vero non è stato provato: con `mp1`/`mp2` attivi Symphonia potrebbe agganciarsi ai frame audio dei PES invece di dare errore. Una Trascrizione senza Frasi salva comunque un TXT vuoto.
 - `transcription-finished` è il valore di ritorno di `transcribe`, non un evento; gli errori tornano nel `Result`, non in `activity-failed`.
 - MOV, M4V e MKV non sono provati con file veri: MOV/M4V passano dallo stesso demuxer dell'MP4, i MKV non dichiarano la durata (avanzamento indeterminato).

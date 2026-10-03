@@ -1,6 +1,7 @@
 //! Trascrizione di una Sorgente: carica motore e VAD, esegue la pipeline, la traduce in eventi
 //! e salva il TXT accanto alla Sorgente.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use tauri::path::BaseDirectory;
@@ -81,13 +82,25 @@ pub async fn transcribe(
 
 /// Scrive `text` nel primo `<stem> trascrizione <N>.txt` libero accanto alla Sorgente.
 pub fn save_txt(source: &Path, text: &str) -> Result<TranscriptionFinished, AppError> {
-    let path = txt_path(source, |p| p.exists());
-    std::fs::write(&path, text)
-        .map_err(|e| AppError::UnwritableFolder(format!("{}: {e}", path.display())))?;
+    let (path, mut file) = loop {
+        let path = txt_path(source, |p| p.exists());
+        // `create_new`: un file comparso dopo il controllo non si sovrascrive, si passa al prossimo N.
+        match std::fs::File::create_new(&path) {
+            Ok(file) => break (path, file),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(unwritable(&path, &e)),
+        }
+    };
+    file.write_all(text.as_bytes())
+        .map_err(|e| unwritable(&path, &e))?;
     Ok(TranscriptionFinished {
         txt_path: path.display().to_string(),
         chars: u32::try_from(text.chars().count()).unwrap_or(u32::MAX),
     })
+}
+
+fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
+    AppError::UnwritableFolder(format!("{}: {e}", path.display()))
 }
 
 /// `<stem della Sorgente> trascrizione <N>.txt` accanto alla Sorgente, con N il primo libero da 1.

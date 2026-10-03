@@ -67,17 +67,32 @@ export function HomePage() {
     }
     setText("");
     setStatus({ percent: null, phase: "transcribing" });
-    const result = await commands.transcribe(source);
-    setStatus(
-      result.status === "ok"
-        ? { phase: "finished", ...result.data }
-        : { error: result.error, phase: "failed" }
-    );
+    try {
+      const result = await commands.transcribe(source);
+      setStatus(
+        result.status === "ok"
+          ? { phase: "finished", ...result.data }
+          : { error: result.error, phase: "failed" }
+      );
+    } catch (e) {
+      // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
+      setStatus({
+        error: { code: "internal", detail: String(e) },
+        phase: "failed",
+      });
+    }
   }, [source]);
 
   const copy = useCallback(async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch (e) {
+      setStatus({
+        error: { code: "internal", detail: String(e) },
+        phase: "failed",
+      });
+    }
   }, [text]);
 
   const edit = useCallback(
@@ -85,8 +100,9 @@ export function HomePage() {
     []
   );
 
-  // La sezione Trascrizione compare con la prima Trascrizione e resta finché c'è del testo.
-  const showTranscription = status.phase !== "idle" || text !== "";
+  // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, o se c'è testo.
+  const showTranscription =
+    running || status.phase === "finished" || text !== "";
   const message = statusText(status, t);
 
   return (
@@ -101,7 +117,7 @@ export function HomePage() {
               <button
                 className="block max-w-full cursor-pointer truncate rounded-sm text-left text-sm underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={open}
-                title={t("source.open", { name: fileName(source) })}
+                title={t("source.open", { path: source })}
                 type="button"
               >
                 {fileName(source)}
