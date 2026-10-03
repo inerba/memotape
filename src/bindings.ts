@@ -23,8 +23,8 @@ export const commands = {
 	 *  `cancel_transcription`.
 	 */
 	transcribe: (source: string) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source })),
-	/**  Annulla la Trascrizione in corso; senza Trascrizione non fa nulla. */
-	cancelTranscription: () => __TAURI_INVOKE<void>("cancel_transcription"),
+	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
+	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
 };
 
 /** Events */

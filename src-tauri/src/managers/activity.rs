@@ -28,11 +28,13 @@ impl Activity {
         })
     }
 
-    /// Annulla l'Attività in corso; senza Attività non fa nulla.
-    pub fn cancel(&self) {
-        if let Some(cancel) = &*self.current() {
+    /// Annulla l'Attività in corso. Restituisce `false` se non ce n'era una.
+    pub fn cancel(&self) -> bool {
+        let current = self.current();
+        if let Some(cancel) = &*current {
             cancel.cancel();
         }
+        current.is_some()
     }
 
     fn current(&self) -> MutexGuard<'_, Option<CancelToken>> {
@@ -74,10 +76,10 @@ mod tests {
     fn annulla_preme_il_token_dell_attivita_in_corso() {
         let activity = Activity::default();
         // Senza Attività Annulla non fa nulla e non tocca quella successiva.
-        activity.cancel();
+        assert!(!activity.cancel());
         let guard = activity.begin().unwrap();
         assert!(!guard.cancel.is_cancelled());
-        activity.cancel();
+        assert!(activity.cancel());
         assert!(guard.cancel.is_cancelled());
         drop(guard);
         assert!(!activity.begin().unwrap().cancel.is_cancelled());

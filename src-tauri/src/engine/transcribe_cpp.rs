@@ -52,5 +52,8 @@ impl TranscriptionEngine for TranscribeCpp {
 fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T, AppError> {
     catch_unwind(AssertUnwindSafe(call))
         .map_err(|_| AppError::Internal("panic in transcribe-cpp".into()))?
-        .map_err(|e| AppError::Internal(format!("transcribe-cpp: {e}")))
+        .map_err(|e| match e {
+            transcribe_cpp::Error::Aborted { .. } => AppError::Cancelled,
+            e => AppError::Internal(format!("transcribe-cpp: {e}")),
+        })
 }

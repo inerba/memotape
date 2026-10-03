@@ -76,9 +76,9 @@ pub async fn transcribe(
     managers::transcription::transcribe(app, &activity, PathBuf::from(source)).await
 }
 
-/// Annulla la Trascrizione in corso; senza Trascrizione non fa nulla.
+/// Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita.
 #[tauri::command]
 #[specta::specta]
-pub fn cancel_transcription(activity: State<'_, Activity>) {
-    activity.cancel();
+pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
+    activity.cancel()
 }

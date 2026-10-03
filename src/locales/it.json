@@ -19,7 +19,7 @@
     "replace": {
       "title": "Sostituire il testo?",
       "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I TXT già salvati restano.",
-      "keep": "Annulla",
+      "keep": "Mantieni il testo",
       "confirm": "Sostituisci"
     }
   },

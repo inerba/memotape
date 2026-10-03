@@ -89,6 +89,10 @@ pub async fn transcribe(
                 log::warn!("evento della Trascrizione non emesso: {e}");
             }
         })?;
+        // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
         save_transcript(&source, &phrases)
     })
     .await

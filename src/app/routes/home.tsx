@@ -103,7 +103,12 @@ export function HomePage() {
 
   const cancel = useCallback(async () => {
     setCancelling(true);
-    await commands.cancelTranscription();
+    try {
+      // `false`: il backend non ha ancora avviato l'Attività, Annulla va ripremuto.
+      setCancelling(await commands.cancelTranscription());
+    } catch {
+      setCancelling(false);
+    }
   }, []);
 
   const copy = useCallback(async () => {
