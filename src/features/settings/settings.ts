@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Language, Settings } from "@/bindings";
+import type { Language, Settings, SpeechLanguage } from "@/bindings";
 
 /** Le sei lingue dell'app, nell'ordine dei selettori. */
 export const LANGUAGES = [
@@ -28,23 +28,34 @@ export const settingsSchema = z.object({
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf([8000, 16_000, 24_000, 48_000]),
-  speechLanguage: language.nullable(),
+  speechLanguage: z.enum(["auto", ...LANGUAGES]),
 }) satisfies z.ZodType<Settings>;
 
+/** Cosa mostra il selettore della Lingua del parlato, oltre ad Automatica. */
+export interface SpeechLanguageChoice {
+  options: Language[];
+  value: SpeechLanguage;
+}
+
 /**
- * Le Lingue del parlato da offrire oltre ad Automatica: quelle dell'app che il modello accetta,
- * come codice (`it`) o come locale (`it-IT`). `modelLanguages` è `null` finché il modello non è
- * stato caricato: allora si offre solo la scelta salvata, per non perderla.
+ * Le Lingue del parlato da offrire: quelle dell'app che il modello accetta, come codice (`it`) o
+ * come locale (`it-IT`). `modelLanguages` è `null` finché il modello non è stato caricato: allora
+ * si offre solo la scelta salvata, per non perderla. Una scelta salvata che il modello non accetta
+ * vale Automatica, come per il backend.
  */
-export function languageOptions(
+export function speechLanguageChoice(
   modelLanguages: string[] | null,
-  current: Language | null
-): Language[] {
+  current: SpeechLanguage
+): SpeechLanguageChoice {
+  let options: Language[];
   if (modelLanguages === null) {
-    return current ? [current] : [];
+    options = current === "auto" ? [] : [current];
+  } else {
+    const codes = new Set(
+      modelLanguages.map((l) => l.split("-")[0]?.toLowerCase())
+    );
+    options = LANGUAGES.filter((l) => codes.has(l));
   }
-  const codes = new Set(
-    modelLanguages.map((l) => l.split("-")[0]?.toLowerCase())
-  );
-  return LANGUAGES.filter((l) => codes.has(l));
+  const value = options.find((l) => l === current) ?? "auto";
+  return { options, value };
 }

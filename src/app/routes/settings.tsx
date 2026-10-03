@@ -26,13 +26,20 @@ export function SettingsPage() {
     name: "model",
   });
   const { onChange } = model;
-  const { handleSubmit } = form;
+  const { handleSubmit, reset } = form;
   const selectModel = useCallback(
     (id: string) => {
       onChange(id);
-      handleSubmit(async (values) => setError(await save(values)))();
+      handleSubmit(async (values) => {
+        const failed = await save(values);
+        setError(failed);
+        if (failed) {
+          // La scelta non è salvata: il form torna alle impostazioni correnti.
+          reset(settings);
+        }
+      })();
     },
-    [onChange, handleSubmit, save]
+    [onChange, handleSubmit, reset, save, settings]
   );
 
   return (

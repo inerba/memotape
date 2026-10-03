@@ -14,7 +14,7 @@ use crate::engine::pipeline::{PipelineEvent, transcribe_file};
 use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::models::Models;
-use crate::managers::settings::{Language, SettingsStore};
+use crate::managers::settings::SettingsStore;
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -69,7 +69,7 @@ pub async fn transcribe(
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
         let mut engine = models.take(&app, || model.id.as_str())?;
-        engine.prepare(&cancel, settings.speech_language.map(Language::code));
+        engine.prepare(&cancel, settings.speech_language.code());
         let transcribed = Silero::new(&silero).and_then(|mut detector| {
             let mut phrases = Vec::new();
             transcribe_file(

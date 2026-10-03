@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import type { Settings } from "@/bindings";
-import { languageOptions, settingsSchema } from "@/features/settings/settings";
+import {
+  settingsSchema,
+  speechLanguageChoice,
+} from "@/features/settings/settings";
 
 const defaults: Settings = {
   bitrateKbps: 32,
@@ -12,7 +15,7 @@ const defaults: Settings = {
   recordingSource: "mic",
   recordingsFolder: null,
   sampleRate: 48_000,
-  speechLanguage: null,
+  speechLanguage: "auto",
 };
 
 test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
@@ -37,7 +40,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, bitrateKbps: 33 },
     { ...defaults, sampleRate: 44_100 },
     { ...defaults, speechLanguage: "ja" },
-    { ...defaults, speechLanguage: "auto" },
+    { ...defaults, speechLanguage: null },
     { ...defaults, recordingSource: "line-in" },
     { ...defaults, model: "" },
     { model: defaults.model },
@@ -49,21 +52,33 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
 
 test("il selettore offre le lingue dell'app che il modello accetta, anche come locale", () => {
   // Nemotron: locale.
-  expect(languageOptions(["en-US", "it-IT", "de-DE", "ja-JP"], null)).toEqual([
-    "it",
-    "en",
-    "de",
-  ]);
+  expect(
+    speechLanguageChoice(["en-US", "it-IT", "de-DE", "ja-JP"], "it")
+  ).toEqual({ options: ["it", "en", "de"], value: "it" });
   // Whisper e Parakeet: codici.
   expect(
-    languageOptions(["pl", "es", "fr", "de", "en", "it", "ja"], null)
+    speechLanguageChoice(["pl", "es", "fr", "de", "en", "it", "ja"], "auto")
+      .options
   ).toEqual(["it", "en", "fr", "es", "de", "pl"]);
   // Un prefisso che non è il codice non vale; un modello senza lingue offre solo Automatica.
-  expect(languageOptions(["ita", "eng"], null)).toEqual([]);
-  expect(languageOptions([], "it")).toEqual([]);
+  expect(speechLanguageChoice(["ita", "eng"], "auto").options).toEqual([]);
+  expect(speechLanguageChoice([], "auto").options).toEqual([]);
+});
+
+test("una lingua salvata che il modello non accetta vale Automatica", () => {
+  expect(speechLanguageChoice(["en-US", "it-IT"], "pl")).toEqual({
+    options: ["it", "en"],
+    value: "auto",
+  });
 });
 
 test("finché le lingue del modello non sono note resta offerta solo la scelta salvata", () => {
-  expect(languageOptions(null, null)).toEqual([]);
-  expect(languageOptions(null, "fr")).toEqual(["fr"]);
+  expect(speechLanguageChoice(null, "auto")).toEqual({
+    options: [],
+    value: "auto",
+  });
+  expect(speechLanguageChoice(null, "fr")).toEqual({
+    options: ["fr"],
+    value: "fr",
+  });
 });

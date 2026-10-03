@@ -21,8 +21,7 @@ pub struct Settings {
     pub output_device: Option<String>,
     /// L'id del modello nel catalogo.
     pub model: String,
-    /// `null`: Automatica.
-    pub speech_language: Option<Language>,
+    pub speech_language: SpeechLanguage,
     pub bitrate_kbps: u32,
     pub channels: Channels,
     /// Hz.
@@ -48,7 +47,7 @@ pub enum Channels {
     Stereo,
 }
 
-/// Le sei lingue dell'app, per il parlato e per l'interfaccia.
+/// Le sei lingue dell'interfaccia.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Language {
@@ -60,15 +59,30 @@ pub enum Language {
     Pl,
 }
 
-impl Language {
-    pub fn code(self) -> &'static str {
+/// La Lingua del parlato: Automatica o una delle sei lingue dell'app.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum SpeechLanguage {
+    Auto,
+    It,
+    En,
+    Fr,
+    Es,
+    De,
+    Pl,
+}
+
+impl SpeechLanguage {
+    /// Il codice da indicare al modello; `None` per il riconoscimento automatico.
+    pub fn code(self) -> Option<&'static str> {
         match self {
-            Self::It => "it",
-            Self::En => "en",
-            Self::Fr => "fr",
-            Self::Es => "es",
-            Self::De => "de",
-            Self::Pl => "pl",
+            Self::Auto => None,
+            Self::It => Some("it"),
+            Self::En => Some("en"),
+            Self::Fr => Some("fr"),
+            Self::Es => Some("es"),
+            Self::De => Some("de"),
+            Self::Pl => Some("pl"),
         }
     }
 }
@@ -80,7 +94,7 @@ impl Default for Settings {
             microphone: None,
             output_device: None,
             model: models::default_model().id.clone(),
-            speech_language: None,
+            speech_language: SpeechLanguage::Auto,
             bitrate_kbps: 32,
             channels: Channels::Mono,
             sample_rate: 48_000,
@@ -92,7 +106,7 @@ impl Default for Settings {
 
 impl Settings {
     /// Legge `path`. Se manca, è corrotto o non è valido restituisce i predefiniti: l'avvio non si
-    /// blocca.
+    /// blocca. Un modello non più nel catalogo torna al predefinito senza toccare il resto.
     pub fn load(path: &Path) -> Self {
         let read = match std::fs::read_to_string(path) {
             Ok(content) => content,
@@ -103,7 +117,13 @@ impl Settings {
             }
         };
         match serde_json::from_str::<Self>(&read) {
-            Ok(settings) if settings.is_valid() => settings,
+            Ok(mut settings) if settings.is_valid() => {
+                if models::find(&settings.model).is_none() {
+                    log::warn!("modello {} non più nel catalogo", settings.model);
+                    settings.model = Self::default().model;
+                }
+                settings
+            }
             Ok(_) => {
                 log::warn!("impostazioni non valide in {}", path.display());
                 Self::default()
@@ -117,7 +137,7 @@ impl Settings {
 
     /// Scrive `path` passando da un file temporaneo, così un'interruzione non lo lascia a metà.
     pub fn save(&self, path: &Path) -> Result<(), AppError> {
-        if !self.is_valid() {
+        if !self.is_valid() || models::find(&self.model).is_none() {
             return Err(AppError::Internal(format!(
                 "impostazioni non valide: {self:?}"
             )));
@@ -135,9 +155,7 @@ impl Settings {
     }
 
     fn is_valid(&self) -> bool {
-        BITRATES_KBPS.contains(&self.bitrate_kbps)
-            && SAMPLE_RATES.contains(&self.sample_rate)
-            && models::find(&self.model).is_some()
+        BITRATES_KBPS.contains(&self.bitrate_kbps) && SAMPLE_RATES.contains(&self.sample_rate)
     }
 }
 
@@ -197,7 +215,7 @@ mod tests {
         let settings = Settings::load(&temp_file("assente"));
         assert_eq!(settings, Settings::default());
         assert_eq!(settings.model, "nemotron-3.5-streaming-0.6b-q5km");
-        assert_eq!(settings.speech_language, None);
+        assert_eq!(settings.speech_language, SpeechLanguage::Auto);
         assert_eq!(settings.recording_source, RecordingSource::Mic);
         assert_eq!(
             (
@@ -223,12 +241,35 @@ mod tests {
             with(&valid, "bitrateKbps", 33.into()),
             with(&valid, "sampleRate", 44_100.into()),
             with(&valid, "speechLanguage", "ja".into()),
-            with(&valid, "model", "inesistente".into()),
+            with(&valid, "speechLanguage", serde_json::Value::Null),
         ];
         for content in invalid {
             std::fs::write(&path, &content).unwrap();
             assert_eq!(Settings::load(&path), Settings::default(), "{content}");
         }
+    }
+
+    #[test]
+    fn un_modello_tolto_dal_catalogo_torna_al_predefinito_senza_perdere_il_resto() {
+        let path = temp_file("modello-sconosciuto");
+        let saved = Settings {
+            model: "whisper-large-v3-turbo-q5km".into(),
+            speech_language: SpeechLanguage::De,
+            bitrate_kbps: 64,
+            ..Settings::default()
+        };
+        saved.save(&path).unwrap();
+        let content = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("whisper-large-v3-turbo-q5km", "modello-ritirato");
+        std::fs::write(&path, content).unwrap();
+        assert_eq!(
+            Settings::load(&path),
+            Settings {
+                model: Settings::default().model,
+                ..saved
+            }
+        );
     }
 
     fn with(value: &serde_json::Value, key: &str, field: serde_json::Value) -> String {
@@ -245,7 +286,7 @@ mod tests {
             microphone: Some("Microfono USB".into()),
             output_device: Some("Cuffie".into()),
             model: "whisper-large-v3-turbo-q5km".into(),
-            speech_language: Some(Language::It),
+            speech_language: SpeechLanguage::It,
             bitrate_kbps: 128,
             channels: Channels::Stereo,
             sample_rate: 24_000,
@@ -256,7 +297,7 @@ mod tests {
         assert_eq!(Settings::load(&path), settings);
         // Un secondo salvataggio sostituisce il primo.
         let again = Settings {
-            speech_language: None,
+            speech_language: SpeechLanguage::Auto,
             ..settings
         };
         again.save(&path).unwrap();

@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useModels } from "@/features/models/use-models";
-import { languageOptions } from "@/features/settings/settings";
+import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { fileName } from "@/features/source/file-name";
 import {
@@ -44,12 +44,10 @@ export function HomePage() {
   const models = useModels();
   const modelLanguages =
     models.find((m) => m.id === settings.model)?.languages ?? null;
-  const languages = languageOptions(modelLanguages, settings.speechLanguage);
-  // Una lingua salvata che il modello scelto non accetta vale Automatica, come per il backend.
-  const language =
-    settings.speechLanguage && languages.includes(settings.speechLanguage)
-      ? settings.speechLanguage
-      : "auto";
+  const { options: languages, value: language } = speechLanguageChoice(
+    modelLanguages,
+    settings.speechLanguage
+  );
 
   useEffect(() => {
     // Una Frase per riga, nell'ordine in cui arrivano.
@@ -143,7 +141,7 @@ export function HomePage() {
   const chooseLanguage = useCallback(
     async (e: ChangeEvent<HTMLSelectElement>) => {
       const { value } = e.target;
-      const speechLanguage = languages.find((l) => l === value) ?? null;
+      const speechLanguage = languages.find((l) => l === value) ?? "auto";
       const error = await save({ ...settings, speechLanguage });
       if (error) {
         setStatus({ error, phase: "failed" });

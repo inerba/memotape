@@ -62,7 +62,7 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 
 export type Channels = "mono" | "stereo";
 
-/**  Le sei lingue dell'app, per il parlato e per l'interfaccia. */
+/**  Le sei lingue dell'interfaccia. */
 export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
@@ -120,8 +120,7 @@ export type Settings = {
 	outputDevice: string | null,
 	/**  L'id del modello nel catalogo. */
 	model: string,
-	/**  `null`: Automatica. */
-	speechLanguage: Language | null,
+	speechLanguage: SpeechLanguage,
 	bitrateKbps: number,
 	channels: Channels,
 	/**  Hz. */
@@ -131,6 +130,9 @@ export type Settings = {
 	/**  `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese. */
 	interfaceLanguage: Language | null,
 };
+
+/**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
+export type SpeechLanguage = "auto" | "it" | "en" | "fr" | "es" | "de" | "pl";
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */
 export type TranscriptPhrase = {
