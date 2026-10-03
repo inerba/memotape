@@ -67,8 +67,11 @@ export const commands = {
 	 *  backend usa i predefiniti.
 	 */
 	getSettings: () => typedError<Settings, AppError>(__TAURI_INVOKE("get_settings")),
-	/**  Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background. */
-	setSettings: (settings: Settings) => typedError<null, AppError>(__TAURI_INVOKE("set_settings", { settings })),
+	/**
+	 *  Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
+	 *  sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background.
+	 */
+	setSettings: (settings: Settings) => typedError<Settings, AppError>(__TAURI_INVOKE("set_settings", { settings })),
 	/**
 	 *  La lingua di Windows se è tra le sei, altrimenti l'inglese: la Lingua dell'interfaccia quando
 	 *  le impostazioni non ne scelgono una.

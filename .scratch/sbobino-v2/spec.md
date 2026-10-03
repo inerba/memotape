@@ -237,6 +237,6 @@ Dipendenze:
   - lo smaltimento della coda dopo Stop può durare molto con Whisper su CPU.
 - **Pendenze del giro precedente, fuori da questa spec**:
   - ticket 11, che aspetta repo GitHub ed editore;
-  - impostazioni perse se `settings.json` è bloccato solo per un momento all'avvio;
+  - ~~impostazioni perse se `settings.json` è bloccato solo per un momento all'avvio~~ (risolto: lettura riprovata e file non letto mai sovrascritto);
   - verifica dell'installer su un PC pulito.
 - **Riferimenti**: ADR-0004, 0005 e 0006; `docs/research/diarizzazione.md` (§ Sortformer e §8 Nemotron-3); `CONTEXT.md` (Trascrizione dal vivo, Ingressi separati, Bino, Diarizzazione, Parlante).

@@ -34,7 +34,8 @@ export function SettingsProvider({
     if (result.status === "error") {
       return result.error;
     }
-    setSettings(next);
+    // Non sempre `next`: se all'avvio il file non si è letto, è il file con sopra la modifica.
+    setSettings(result.data);
     return null;
   }, []);
   const value = useMemo(

@@ -194,19 +194,21 @@ pub fn system_language() -> Language {
     Language::system()
 }
 
-/// Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background.
+/// Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
+/// sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background.
 #[tauri::command]
 #[specta::specta]
 pub fn set_settings(
     app: AppHandle,
     store: State<'_, SettingsStore>,
     settings: Settings,
-) -> Result<(), AppError> {
-    let model = settings.model.clone();
-    if store.set(settings)?.model != model {
+) -> Result<Settings, AppError> {
+    let previous = store.set(settings)?;
+    let saved = store.get();
+    if previous.model != saved.model {
         managers::transcription::preload(&app);
     }
-    Ok(())
+    Ok(saved)
 }
 
 /// Elimina il modello scaricato. Rifiuta con `modelInUse` se si sta caricando o lo usa una

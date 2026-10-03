@@ -220,7 +220,7 @@ impl Settings {
     /// che esiste ma non si legge (permessi, una cartella al suo posto) dà `unreadableSettings`.
     pub fn load(path: &Path) -> Result<Self, AppError> {
         // Byte e non stringa: un file non UTF-8 è corrotto, non illeggibile.
-        let read = match std::fs::read(path) {
+        let read = match read_retrying(path) {
             Ok(content) => content,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(e) => {
@@ -271,6 +271,20 @@ impl Settings {
     fn is_valid(&self) -> bool {
         BITRATES_KBPS.contains(&self.bitrate_kbps) && SAMPLE_RATES.contains(&self.sample_rate)
     }
+}
+
+/// Legge `path`, riprovando per circa un secondo se un altro processo lo tiene aperto in esclusiva
+/// (antivirus, OneDrive, un editor): `ERROR_SHARING_VIOLATION` e `ERROR_LOCK_VIOLATION`.
+fn read_retrying(path: &Path) -> std::io::Result<Vec<u8>> {
+    for _ in 0..10 {
+        match std::fs::read(path) {
+            Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            read => return read,
+        }
+    }
+    std::fs::read(path)
 }
 
 /// Le impostazioni correnti e il file in cui si salvano. In `tauri::State`.
@@ -326,16 +340,41 @@ impl SettingsStore {
             .clone()
     }
 
-    /// Salva `settings` e le rende correnti; restituisce le precedenti.
+    /// Salva `settings` e le rende correnti; restituisce le precedenti. Se all'avvio il file non si è
+    /// letto, non lo sovrascrive con i predefiniti: lo rilegge e applica sopra solo i campi che
+    /// `settings` cambia rispetto alle correnti, o risponde con l'errore se ancora non si legge.
     pub fn set(&self, settings: Settings) -> Result<Settings, AppError> {
         let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
-        settings.save(&self.path)?;
-        *self
+        let mut load_error = self
             .load_error
             .lock()
-            .unwrap_or_else(PoisonError::into_inner) = None;
+            .unwrap_or_else(PoisonError::into_inner);
+        let settings = if load_error.is_some() {
+            let file = Settings::load(&self.path).inspect_err(|e| *load_error = Some(e.clone()))?;
+            changes_onto(&current, &settings, file)?
+        } else {
+            settings
+        };
+        settings.save(&self.path)?;
+        *load_error = None;
         Ok(std::mem::replace(&mut current, settings))
     }
+}
+
+/// `onto` con i campi che `next` cambia rispetto a `base`.
+fn changes_onto(base: &Settings, next: &Settings, onto: Settings) -> Result<Settings, AppError> {
+    let internal = |e: serde_json::Error| AppError::Internal(e.to_string());
+    let base = serde_json::to_value(base).map_err(internal)?;
+    let next = serde_json::to_value(next).map_err(internal)?;
+    let mut merged = serde_json::to_value(onto).map_err(internal)?;
+    if let (Some(next), Some(merged)) = (next.as_object(), merged.as_object_mut()) {
+        for (key, value) in next {
+            if base.get(key) != Some(value) {
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    serde_json::from_value(merged).map_err(internal)
 }
 
 #[cfg(test)]
@@ -578,6 +617,69 @@ mod tests {
             SettingsStore::load(temp_file("mancante-nello-store")).loaded(),
             Ok(Settings::default())
         );
+    }
+
+    /// Apre `path` in esclusiva, come un antivirus o OneDrive: finché il file resta aperto nessuno
+    /// lo legge.
+    fn lock(path: &Path) -> std::fs::File {
+        use std::os::windows::fs::OpenOptionsExt;
+        std::fs::File::options()
+            .read(true)
+            .share_mode(0)
+            .open(path)
+            .unwrap()
+    }
+
+    #[test]
+    fn un_file_bloccato_per_un_attimo_si_legge_lo_stesso() {
+        let path = temp_file("bloccato-un-attimo");
+        let saved = Settings {
+            bitrate_kbps: 64,
+            ..Settings::default()
+        };
+        saved.save(&path).unwrap();
+        let locked = lock(&path);
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            drop(locked);
+        });
+        assert_eq!(Settings::load(&path), Ok(saved));
+        release.join().unwrap();
+    }
+
+    #[test]
+    fn un_file_non_letto_all_avvio_non_si_sovrascrive_con_i_predefiniti() {
+        let path = temp_file("bloccato-all-avvio");
+        let saved = Settings {
+            bitrate_kbps: 64,
+            interface_language: Some(Language::De),
+            ..Settings::default()
+        };
+        saved.save(&path).unwrap();
+        let locked = lock(&path);
+        let store = SettingsStore::load(path.clone());
+        assert_eq!(store.get(), Settings::default());
+        // L'utente cambia un'impostazione partendo dai predefiniti.
+        let changed = Settings {
+            copia_come: CopiaCome::Markdown,
+            ..Settings::default()
+        };
+        // Finché il file non si legge, non si salva.
+        assert!(matches!(
+            store.set(changed.clone()),
+            Err(AppError::UnreadableSettings(_))
+        ));
+        drop(locked);
+        assert_eq!(Settings::load(&path), Ok(saved.clone()));
+        // Quando si legge, la modifica va sopra il file, non sopra i predefiniti.
+        let merged = Settings {
+            copia_come: CopiaCome::Markdown,
+            ..saved
+        };
+        store.set(changed).unwrap();
+        assert_eq!(store.get(), merged);
+        assert_eq!(store.loaded(), Ok(merged.clone()));
+        assert_eq!(Settings::load(&path), Ok(merged));
     }
 
     #[test]
