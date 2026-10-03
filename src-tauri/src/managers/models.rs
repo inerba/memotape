@@ -14,7 +14,9 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use tokio::sync::Notify;
 
+use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
+use crate::managers::loaded_model::{Lease, LoadedModel};
 
 /// Un modello del catalogo.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -304,6 +306,11 @@ pub struct ModelInfo {
     pub state: ModelState,
     /// L'errore dell'ultimo download, finché non se ne avvia un altro.
     pub error: Option<AppError>,
+    /// Le lingue che il modello accetta come indicazione (`it`, `it-IT`…), lette dal modello
+    /// caricato. `null` finché non è stato caricato almeno una volta.
+    pub languages: Option<Vec<String>>,
+    /// Il modello si sta caricando o lo usa una Trascrizione: non si elimina.
+    pub in_use: bool,
 }
 
 /// Avanzamento del download di un modello, al massimo 10 volte al secondo.
@@ -331,11 +338,15 @@ enum Entry {
     Failed(AppError),
 }
 
-/// I download in corso e gli errori dell'ultimo download, per modello. In `tauri::State`.
+/// I download in corso e gli errori dell'ultimo download, per modello, e il modello tenuto
+/// caricato tra una Trascrizione e l'altra. In `tauri::State`.
 pub struct Models {
     dir: PathBuf,
     client: reqwest::Client,
     entries: Mutex<HashMap<&'static str, Entry>>,
+    loaded: LoadedModel<TranscribeCpp>,
+    /// Le lingue dei modelli caricati almeno una volta.
+    languages: Mutex<HashMap<&'static str, Vec<String>>>,
 }
 
 impl Models {
@@ -352,14 +363,14 @@ impl Models {
             dir,
             client,
             entries: Mutex::default(),
+            loaded: LoadedModel::default(),
+            languages: Mutex::default(),
         })
     }
 
-    pub fn dir(&self) -> &Path {
-        &self.dir
-    }
-
     pub fn list(&self) -> Vec<ModelInfo> {
+        let in_use = self.loaded.in_use();
+        let languages = lock(&self.languages);
         catalog()
             .iter()
             .map(|model| {
@@ -373,9 +384,52 @@ impl Models {
                     recommended: model.id == CATALOG.default,
                     state,
                     error,
+                    languages: languages.get(model.id.as_str()).cloned(),
+                    in_use: in_use == Some(model.id.as_str()),
                 }
             })
             .collect()
+    }
+
+    /// Prende in prestito il motore del modello `id()`, caricandolo se non è quello tenuto.
+    /// Se il modello non è scaricato restituisce `AppError::ModelMissing` con il suo nome.
+    /// Il modello risulta in uso fino a `release`.
+    pub fn take(
+        &self,
+        app: &AppHandle,
+        id: impl FnOnce() -> &'static str,
+    ) -> Result<Lease<'_, TranscribeCpp>, AppError> {
+        let lease = self.loaded.take(id, |id| {
+            let model = known(id)?;
+            if disk_state(model, &self.dir) != ModelState::Downloaded {
+                return Err(AppError::ModelMissing(model.name.clone()));
+            }
+            // Durante il caricamento Elimina è già disabilitato.
+            self.emit_state(app, model);
+            let started = Instant::now();
+            let loaded = TranscribeCpp::load(&model.path(&self.dir));
+            log::info!("{id} caricato in {:?}", started.elapsed());
+            let engine = loaded.inspect_err(|_| self.emit_state(app, model))?;
+            lock(&self.languages).insert(id, engine.languages().to_vec());
+            Ok(engine)
+        });
+        if let Ok(lease) = &lease {
+            self.emit_state(app, known(lease.id())?);
+        }
+        lease
+    }
+
+    /// Restituisce il motore, che resta caricato, oppure lo scarta (`keep` falso) dopo un guasto.
+    pub fn release(&self, app: &AppHandle, lease: Lease<'_, TranscribeCpp>, keep: bool) {
+        let id = lease.id();
+        if keep {
+            drop(lease);
+        } else {
+            lease.discard();
+        }
+        if let Some(model) = find(id) {
+            self.emit_state(app, model);
+        }
     }
 
     /// Avvia il download in background; se è già in corso o il modello è scaricato non fa nulla.
@@ -409,6 +463,7 @@ impl Models {
                 models.on_state(&app, model, state);
             })
             .await;
+            let downloaded = result.is_ok();
             {
                 let mut entries = models.entries();
                 match result {
@@ -420,6 +475,10 @@ impl Models {
                 };
             }
             models.emit_state(&app, model);
+            if downloaded {
+                // Se è il modello scelto si carica subito, e le sue lingue diventano note.
+                crate::managers::transcription::preload(&app);
+            }
         });
         Ok(())
     }
@@ -446,6 +505,8 @@ impl Models {
                 cancel.notify_one();
                 return Ok(());
             }
+            // Il file di un modello caricato resta aperto: prima si scarica il motore.
+            self.loaded.evict(id)?;
             let deleted = delete(model, &self.dir);
             match &deleted {
                 Ok(()) => entries.remove(id),
@@ -500,9 +561,13 @@ impl Models {
     }
 
     fn entries(&self) -> MutexGuard<'_, HashMap<&'static str, Entry>> {
-        // Le voci restano coerenti anche se un panic altrove avvelena il lock.
-        self.entries.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.entries)
     }
+}
+
+/// Le mappe restano coerenti anche se un panic altrove avvelena il lock.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn known(id: &str) -> Result<&'static Model, AppError> {

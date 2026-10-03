@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { commands, events, type ModelInfo } from "@/bindings";
+import { commands, type ModelInfo } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,33 +12,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  mebibytes,
-  stateText,
-  withDownloadProgress,
-} from "@/features/models/models";
+import { mebibytes, stateText } from "@/features/models/models";
+import { useModels } from "@/features/models/use-models";
 import { errorText } from "@/features/status/status";
 
-/** I modelli del catalogo con download, Annulla ed Elimina. Il download prosegue anche fuori da qui. */
-export function ModelList() {
+/**
+ * I modelli del catalogo: la scelta del modello (`selected`), download, Annulla ed Elimina.
+ * Il download prosegue anche fuori da qui.
+ */
+export function ModelList({
+  onSelect,
+  selected,
+}: {
+  onSelect: (id: string) => void;
+  selected: string;
+}) {
   const { t } = useTranslation();
-  const [models, setModels] = useState<ModelInfo[]>([]);
+  const models = useModels();
   const [toDelete, setToDelete] = useState<ModelInfo | null>(null);
-
-  useEffect(() => {
-    // Ogni cambio di stato rilegge la lista: un evento arrivato prima della prima lettura non
-    // può restare indietro. L'avanzamento, frequente, si applica alla riga.
-    const refresh = () => commands.listModels().then(setModels);
-    const changed = events.modelStateChanged.listen(refresh);
-    const progress = events.modelDownloadProgress.listen(({ payload }) => {
-      setModels((current) => withDownloadProgress(current, payload));
-    });
-    Promise.all([changed, progress]).then(refresh);
-    return () => {
-      changed.then((stop) => stop());
-      progress.then((stop) => stop());
-    };
-  }, []);
 
   // Esito ed errori arrivano con `model-state-changed`.
   const download = useCallback((id: string) => commands.downloadModel(id), []);
@@ -57,7 +48,10 @@ export function ModelList() {
 
   return (
     <>
-      <ul className="flex flex-col divide-y rounded-md border">
+      <ul
+        aria-label={t("models.choose")}
+        className="flex flex-col divide-y rounded-md border"
+      >
         {models.map((model) => (
           <ModelRow
             key={model.id}
@@ -65,6 +59,8 @@ export function ModelList() {
             onCancel={commands.cancelModelDownload}
             onDelete={setToDelete}
             onDownload={download}
+            onSelect={onSelect}
+            selected={model.id === selected}
           />
         ))}
       </ul>
@@ -95,11 +91,15 @@ function ModelRow({
   onCancel,
   onDelete,
   onDownload,
+  onSelect,
+  selected,
 }: {
   model: ModelInfo;
   onCancel: (id: string) => void;
   onDelete: (model: ModelInfo) => void;
   onDownload: (id: string) => void;
+  onSelect: (id: string) => void;
+  selected: boolean;
 }) {
   const { t } = useTranslation();
   const { state } = model.state;
@@ -109,13 +109,26 @@ function ModelRow({
     () => onDownload(model.id),
     [onDownload, model.id]
   );
+  const select = useCallback(() => onSelect(model.id), [onSelect, model.id]);
+  const radio = `model-${model.id}`;
 
   return (
     <li className="flex flex-col gap-2 p-4">
       <div className="flex items-center gap-3">
+        <input
+          checked={selected}
+          className="size-4 shrink-0 accent-primary"
+          id={radio}
+          name="model"
+          onChange={select}
+          type="radio"
+          value={model.id}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="font-medium">{model.name}</span>
+            <label className="font-medium" htmlFor={radio}>
+              {model.name}
+            </label>
             {model.recommended ? (
               <span className="rounded-sm bg-primary px-1.5 py-0.5 font-medium text-primary-foreground text-xs">
                 {t("models.recommended")}
@@ -146,7 +159,12 @@ function ModelRow({
           </Button>
         ) : null}
         {state === "interrupted" || state === "downloaded" ? (
-          <Button onClick={remove} size="sm" variant="outline">
+          <Button
+            disabled={model.inUse}
+            onClick={remove}
+            size="sm"
+            variant="outline"
+          >
             {t("models.delete.action")}
           </Button>
         ) : null}
@@ -157,7 +175,9 @@ function ModelRow({
             state === "downloaded" ? "text-foreground" : "text-muted-foreground"
           }
         >
-          {stateText(model.state, t)}
+          {model.inUse
+            ? `${stateText(model.state, t)} · ${t("models.inUse")}`
+            : stateText(model.state, t)}
         </span>
         {model.state.state === "downloading" ? (
           <progress

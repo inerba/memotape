@@ -13,6 +13,8 @@ const t = i18n.t.bind(i18n);
 const nemotron: ModelInfo = {
   error: null,
   id: "nemotron",
+  inUse: false,
+  languages: null,
   license: "OpenMDW-1.1",
   mode: "stream",
   name: "Nemotron",

@@ -1,5 +1,6 @@
-//! Trascrizione di una Sorgente: carica motore e VAD, esegue la pipeline, la traduce in eventi
-//! e salva il TXT accanto alla Sorgente.
+//! Trascrizione di una Sorgente: prende il motore del modello scelto (caricato una volta e tenuto
+//! tra una Trascrizione e l'altra), esegue la pipeline, la traduce in eventi e salva il TXT
+//! accanto alla Sorgente.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -10,10 +11,10 @@ use tauri_specta::Event;
 
 use crate::audio_toolkit::vad::Silero;
 use crate::engine::pipeline::{PipelineEvent, transcribe_file};
-use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
-use crate::managers::models::{Models, default_model};
+use crate::managers::models::Models;
+use crate::managers::settings::{Language, SettingsStore};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -59,33 +60,52 @@ pub async fn transcribe(
     let guard = activity.begin()?;
     let cancel = guard.cancel.clone();
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
-    // ponytail: sempre il modello predefinito; la scelta del modello arriva con il ticket 06.
-    let model = default_model().path(app.state::<Models>().dir());
+    let settings = app.state::<SettingsStore>().get();
+    let model = SettingsStore::model_of(&settings);
     let silero = app
         .path()
         .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
         .map_err(internal)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let mut engine = TranscribeCpp::load(&model, &cancel)?;
-        let mut detector = Silero::new(&silero)?;
-        let mut phrases = Vec::new();
-        transcribe_file(&source, &mut engine, &mut detector, &cancel, &mut |event| {
-            let emitted = match event {
-                PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(&app),
-                PipelineEvent::Phrase { id, text } => {
-                    let emitted = TranscriptPhrase {
-                        phrase_id: id,
-                        text: text.clone(),
+        let models = app.state::<Models>();
+        let mut engine = models.take(&app, || model.id.as_str())?;
+        engine.prepare(&cancel, settings.speech_language.map(Language::code));
+        let transcribed = Silero::new(&silero).and_then(|mut detector| {
+            let mut phrases = Vec::new();
+            transcribe_file(
+                &source,
+                &mut *engine,
+                &mut detector,
+                &cancel,
+                &mut |event| {
+                    let emitted = match event {
+                        PipelineEvent::Progress(percent) => {
+                            TranscriptionProgress { percent }.emit(&app)
+                        }
+                        PipelineEvent::Phrase { id, text } => {
+                            let emitted = TranscriptPhrase {
+                                phrase_id: id,
+                                text: text.clone(),
+                            }
+                            .emit(&app);
+                            phrases.push(text);
+                            emitted
+                        }
+                    };
+                    if let Err(e) = emitted {
+                        log::warn!("evento della Trascrizione non emesso: {e}");
                     }
-                    .emit(&app);
-                    phrases.push(text);
-                    emitted
-                }
-            };
-            if let Err(e) = emitted {
-                log::warn!("evento della Trascrizione non emesso: {e}");
-            }
-        })?;
+                },
+            )
+            .map(|()| phrases)
+        });
+        // Dopo un guasto interno il motore si scarta e alla prossima Trascrizione si ricarica.
+        models.release(
+            &app,
+            engine,
+            !matches!(transcribed, Err(AppError::Internal(_))),
+        );
+        let phrases = transcribed?;
         // Annulla premuto dopo l'ultima Frase: il TXT non si salva lo stesso.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
@@ -94,6 +114,24 @@ pub async fn transcribe(
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Carica in background il modello scelto, se non è già quello tenuto, così la prossima
+/// Trascrizione parte subito e le sue lingue sono note. Chiamata all'avvio, quando cambia il
+/// modello scelto e quando finisce un download.
+pub fn preload(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let models = app.state::<Models>();
+        // Il modello si legge quando il motore è libero: vince l'ultima scelta.
+        let settings = app.state::<SettingsStore>();
+        match models.take(&app, || settings.model().id.as_str()) {
+            Ok(engine) => models.release(&app, engine, true),
+            // Un modello non scaricato non è un errore: lo dirà Trascrivi.
+            Err(AppError::ModelMissing(_)) => {}
+            Err(e) => log::warn!("caricamento del modello scelto: {e}"),
+        }
+    });
 }
 
 /// Salva le Frasi, una per riga, nel TXT accanto alla Sorgente; senza Frasi non crea il file.

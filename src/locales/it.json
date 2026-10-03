@@ -32,7 +32,8 @@
     "finished_many": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
     "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
     "noSpeech": "Nessun parlato rilevato",
-    "cancelled": "Trascrizione annullata: nessun TXT salvato"
+    "cancelled": "Trascrizione annullata: nessun TXT salvato",
+    "openModels": "Apri Impostazioni → Trascrizione"
   },
   "errors": {
     "label": "Errore",
@@ -40,7 +41,8 @@
       "unreadableFile": "Il file non esiste più o non è leggibile: {{detail}}",
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
       "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
-      "modelMissing": "Il modello non è scaricato: scaricalo in Impostazioni → Trascrizione. Percorso atteso: {{detail}}",
+      "modelMissing": "Il modello scelto, {{detail}}, non è scaricato",
+      "modelInUse": "Il modello è in uso da una Trascrizione o si sta caricando: riprova quando ha finito",
       "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova",
       "verificationFailed": "Il modello scaricato è corrotto ed è stato cancellato: {{detail}}. Riprova il download",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
@@ -92,6 +94,20 @@
       "description": "Il file del modello viene cancellato dal disco. Per usarlo di nuovo andrà riscaricato.",
       "keep": "Mantieni",
       "confirm": "Elimina"
+    },
+    "choose": "Modello per la Trascrizione",
+    "inUse": "In uso"
+  },
+  "speechLanguage": {
+    "label": "Lingua del parlato",
+    "auto": "Automatica",
+    "languages": {
+      "it": "Italiano",
+      "en": "Inglese",
+      "fr": "Francese",
+      "es": "Spagnolo",
+      "de": "Tedesco",
+      "pl": "Polacco"
     }
   }
 }

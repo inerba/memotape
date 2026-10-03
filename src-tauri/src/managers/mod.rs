@@ -1,5 +1,7 @@
 //! Stato dell'app registrato in `tauri::State`: traducono la pipeline in eventi.
 
 pub mod activity;
+pub mod loaded_model;
 pub mod models;
+pub mod settings;
 pub mod transcription;

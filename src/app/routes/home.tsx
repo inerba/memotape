@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useModels } from "@/features/models/use-models";
+import { languageOptions } from "@/features/settings/settings";
+import { useSettings } from "@/features/settings/settings-context";
 import { fileName } from "@/features/source/file-name";
 import {
   afterTranscription,
@@ -36,7 +39,17 @@ export function HomePage() {
   const [confirmReplace, setConfirmReplace] = useState(false);
   const running = status.phase === "transcribing";
   // Impostazioni, aperta sopra questa finestra.
-  const settings = useOutlet();
+  const settingsPage = useOutlet();
+  const { save, settings } = useSettings();
+  const models = useModels();
+  const modelLanguages =
+    models.find((m) => m.id === settings.model)?.languages ?? null;
+  const languages = languageOptions(modelLanguages, settings.speechLanguage);
+  // Una lingua salvata che il modello scelto non accetta vale Automatica, come per il backend.
+  const language =
+    settings.speechLanguage && languages.includes(settings.speechLanguage)
+      ? settings.speechLanguage
+      : "auto";
 
   useEffect(() => {
     // Una Frase per riga, nell'ordine in cui arrivano.
@@ -127,6 +140,18 @@ export function HomePage() {
     }
   }, [text]);
 
+  const chooseLanguage = useCallback(
+    async (e: ChangeEvent<HTMLSelectElement>) => {
+      const { value } = e.target;
+      const speechLanguage = languages.find((l) => l === value) ?? null;
+      const error = await save({ ...settings, speechLanguage });
+      if (error) {
+        setStatus({ error, phase: "failed" });
+      }
+    },
+    [languages, save, settings]
+  );
+
   const edit = useCallback(
     (e: ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value),
     []
@@ -139,7 +164,7 @@ export function HomePage() {
 
   return (
     <>
-      <div className="flex h-screen flex-col" inert={settings !== null}>
+      <div className="flex h-screen flex-col" inert={settingsPage !== null}>
         <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
           <section className="flex items-center gap-3">
             <Button disabled={running} onClick={browse} variant="outline">
@@ -161,6 +186,21 @@ export function HomePage() {
                 {t("source.none")}
               </span>
             )}
+            <select
+              aria-label={t("speechLanguage.label")}
+              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              disabled={running}
+              onChange={chooseLanguage}
+              title={t("speechLanguage.label")}
+              value={language}
+            >
+              <option value="auto">{t("speechLanguage.auto")}</option>
+              {languages.map((l) => (
+                <option key={l} value={l}>
+                  {t(`speechLanguage.languages.${l}`)}
+                </option>
+              ))}
+            </select>
             <Button
               disabled={!source || running}
               onClick={requestTranscription}
@@ -241,6 +281,14 @@ export function HomePage() {
           >
             {message}
           </span>
+          {status.phase === "failed" && status.error.code === "modelMissing" ? (
+            <Link
+              className="shrink-0 text-foreground underline underline-offset-4"
+              to="/settings"
+            >
+              {t("status.openModels")}
+            </Link>
+          ) : null}
           {status.phase === "transcribing" ? (
             <progress
               aria-label={t("status.progress")}
@@ -251,7 +299,7 @@ export function HomePage() {
           ) : null}
         </footer>
       </div>
-      {settings}
+      {settingsPage}
     </>
   );
 }

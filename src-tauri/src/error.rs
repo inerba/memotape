@@ -11,6 +11,9 @@ pub enum AppError {
     UnwritableFolder(String),
     #[error("modello assente: {0}")]
     ModelMissing(String),
+    /// Il modello si sta caricando o lo usa una Trascrizione: non si elimina.
+    #[error("modello in uso: {0}")]
+    ModelInUse(String),
     #[error("download fallito: {0}")]
     DownloadFailed(String),
     /// Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo.

@@ -1,0 +1,50 @@
+import { z } from "zod";
+import type { Language, Settings } from "@/bindings";
+
+/** Le sei lingue dell'app, nell'ordine dei selettori. */
+export const LANGUAGES = [
+  "it",
+  "en",
+  "fr",
+  "es",
+  "de",
+  "pl",
+] as const satisfies Language[];
+
+const language = z.enum(LANGUAGES);
+
+/** Un numero tra `values`: il tipo resta `number`, come nei bindings. */
+const oneOf = (values: number[]) =>
+  z.number().refine((value) => values.includes(value));
+
+/** Le stesse regole che Rust applica al file impostazioni. */
+export const settingsSchema = z.object({
+  bitrateKbps: oneOf([16, 24, 32, 48, 64, 96, 128, 192, 320]),
+  channels: z.enum(["mono", "stereo"]),
+  interfaceLanguage: language.nullable(),
+  microphone: z.string().nullable(),
+  model: z.string().min(1),
+  outputDevice: z.string().nullable(),
+  recordingSource: z.enum(["mic", "system", "both"]),
+  recordingsFolder: z.string().nullable(),
+  sampleRate: oneOf([8000, 16_000, 24_000, 48_000]),
+  speechLanguage: language.nullable(),
+}) satisfies z.ZodType<Settings>;
+
+/**
+ * Le Lingue del parlato da offrire oltre ad Automatica: quelle dell'app che il modello accetta,
+ * come codice (`it`) o come locale (`it-IT`). `modelLanguages` è `null` finché il modello non è
+ * stato caricato: allora si offre solo la scelta salvata, per non perderla.
+ */
+export function languageOptions(
+  modelLanguages: string[] | null,
+  current: Language | null
+): Language[] {
+  if (modelLanguages === null) {
+    return current ? [current] : [];
+  }
+  const codes = new Set(
+    modelLanguages.map((l) => l.split("-")[0]?.toLowerCase())
+  );
+  return LANGUAGES.filter((l) => codes.has(l));
+}

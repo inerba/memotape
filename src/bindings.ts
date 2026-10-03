@@ -34,8 +34,15 @@ export const commands = {
 	downloadModel: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("download_model", { id })),
 	/**  Annulla il download e cancella il parziale. Restituisce `false` se non c'era un download. */
 	cancelModelDownload: (id: string) => __TAURI_INVOKE<boolean>("cancel_model_download", { id }),
-	/**  Elimina il modello scaricato. */
+	/**
+	 *  Elimina il modello scaricato. Rifiuta con `modelInUse` se si sta caricando o lo usa una
+	 *  Trascrizione.
+	 */
 	deleteModel: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_model", { id })),
+	/**  Le impostazioni correnti, lette all'avvio. */
+	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
+	/**  Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background. */
+	setSettings: (settings: Settings) => typedError<null, AppError>(__TAURI_INVOKE("set_settings", { settings })),
 };
 
 /** Events */
@@ -47,9 +54,16 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "downloadFailed"; detail: string } | 
+export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+/**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
+{ code: "modelInUse"; detail: string } | { code: "downloadFailed"; detail: string } | 
 /**  Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo. */
 { code: "verificationFailed"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+
+export type Channels = "mono" | "stereo";
+
+/**  Le sei lingue dell'app, per il parlato e per l'interfaccia. */
+export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
 export type Mode = "stream" | "frase";
@@ -73,6 +87,13 @@ export type ModelInfo = {
 	state: ModelState,
 	/**  L'errore dell'ultimo download, finché non se ne avvia un altro. */
 	error: AppError | null,
+	/**
+	 *  Le lingue che il modello accetta come indicazione (`it`, `it-IT`…), lette dal modello
+	 *  caricato. `null` finché non è stato caricato almeno una volta.
+	 */
+	languages: string[] | null,
+	/**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
+	inUse: boolean,
 };
 
 /**  Lo stato di un modello per l'interfaccia. */
@@ -87,6 +108,28 @@ export type ModelStateChanged = {
 	modelId: string,
 	state: ModelState,
 	error: AppError | null,
+};
+
+export type RecordingSource = "mic" | "system" | "both";
+
+export type Settings = {
+	recordingSource: RecordingSource,
+	/**  `null`: il microfono predefinito di sistema. */
+	microphone: string | null,
+	/**  `null`: il dispositivo di uscita predefinito, per l'audio di sistema. */
+	outputDevice: string | null,
+	/**  L'id del modello nel catalogo. */
+	model: string,
+	/**  `null`: Automatica. */
+	speechLanguage: Language | null,
+	bitrateKbps: number,
+	channels: Channels,
+	/**  Hz. */
+	sampleRate: number,
+	/**  `null`: `Documenti\Sbobino`. */
+	recordingsFolder: string | null,
+	/**  `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese. */
+	interfaceLanguage: Language | null,
 };
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */

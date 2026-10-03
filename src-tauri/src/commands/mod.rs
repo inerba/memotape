@@ -10,6 +10,7 @@ use crate::error::AppError;
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
+use crate::managers::settings::{Settings, SettingsStore};
 
 /// Estensioni accettate da Sfoglia (spec, storia 2).
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -110,7 +111,30 @@ pub fn cancel_model_download(models: State<'_, Models>, id: String) -> bool {
     models.cancel(&id)
 }
 
-/// Elimina il modello scaricato.
+/// Le impostazioni correnti, lette all'avvio.
+#[tauri::command]
+#[specta::specta]
+pub fn get_settings(settings: State<'_, SettingsStore>) -> Settings {
+    settings.get()
+}
+
+/// Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background.
+#[tauri::command]
+#[specta::specta]
+pub fn set_settings(
+    app: AppHandle,
+    store: State<'_, SettingsStore>,
+    settings: Settings,
+) -> Result<(), AppError> {
+    let model = settings.model.clone();
+    if store.set(settings)?.model != model {
+        managers::transcription::preload(&app);
+    }
+    Ok(())
+}
+
+/// Elimina il modello scaricato. Rifiuta con `modelInUse` se si sta caricando o lo usa una
+/// Trascrizione.
 #[tauri::command]
 #[specta::specta]
 pub fn delete_model(app: AppHandle, models: State<'_, Models>, id: String) -> Result<(), AppError> {

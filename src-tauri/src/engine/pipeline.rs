@@ -472,47 +472,46 @@ mod tests {
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
 
-    /// Smoke test con Silero e Nemotron veri: richiede il modello in `%APPDATA%\it.sbobino.desktop\models`.
+    /// Smoke test con Silero e i tre modelli veri, in `%APPDATA%\it.sbobino.desktop\models`.
     #[test]
-    #[ignore = "richiede Nemotron scaricato (Impostazioni → Trascrizione)"]
-    fn nemotron_trascrive_il_parlato_italiano() {
+    #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
+    fn i_tre_modelli_trascrivono_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let model = crate::managers::models::default_model().path(
-            &PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.sbobino.desktop/models"),
-        );
-        let mut engine =
-            super::super::transcribe_cpp::TranscribeCpp::load(&model, &CancelToken::new()).unwrap();
+        let dir =
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.sbobino.desktop/models");
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
-        // Lo stesso parlato in WAV e nel video MP4/AAC.
-        for name in ["parlato-it.wav", "parlato-it.mp4"] {
-            let mut phrases = Vec::new();
-            let cancel = CancelToken::new();
-            transcribe_file(
-                &fixture(name),
-                &mut engine,
-                &mut detector,
-                &cancel,
-                &mut |event| {
-                    if let PipelineEvent::Phrase { text, .. } = event {
-                        phrases.push(text);
-                    }
-                },
-            )
-            .unwrap();
-            let text = phrases
-                .join(
-                    "
-",
+        for model in crate::managers::models::catalog() {
+            let mut engine =
+                super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
+            println!("{}: lingue {:?}", model.id, engine.languages());
+            // Lo stesso parlato in WAV e nel video MP4/AAC, una volta con la lingua indicata.
+            for (name, language) in [("parlato-it.wav", Some("it")), ("parlato-it.mp4", None)] {
+                let cancel = CancelToken::new();
+                engine.prepare(&cancel, language);
+                let mut phrases = Vec::new();
+                transcribe_file(
+                    &fixture(name),
+                    &mut engine,
+                    &mut detector,
+                    &cancel,
+                    &mut |event| {
+                        if let PipelineEvent::Phrase { text, .. } = event {
+                            phrases.push(text);
+                        }
+                    },
                 )
-                .to_lowercase();
-            println!("{name}: {text}");
-            assert_eq!(phrases.len(), 2, "{name}: {phrases:?}");
-            assert!(
-                text.contains("trascrizione") && text.contains("testo"),
-                "{name}: {text}"
-            );
+                .unwrap();
+                let text = phrases.join(" ").to_lowercase();
+                println!("{} {name}: {text}", model.id);
+                assert_eq!(phrases.len(), 2, "{} {name}: {phrases:?}", model.id);
+                assert!(
+                    text.contains("trascrizione") && text.contains("testo"),
+                    "{} {name}: {text}",
+                    model.id
+                );
+            }
         }
     }
 }

@@ -8,28 +8,46 @@ use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session};
 use super::TranscriptionEngine;
 use crate::error::AppError;
 
+/// Un modello caricato, riusabile tra una Trascrizione e l'altra.
 pub struct TranscribeCpp {
     session: Session,
+    /// Le lingue di `capabilities().languages` (codici o locale, es. `it-IT`).
+    languages: Vec<String>,
+    run: RunOptions,
 }
 
 impl TranscribeCpp {
-    /// Carica il modello e ci installa `cancel`: se il modello supporta la cancellazione, Annulla
-    /// interrompe anche la Frase in corso; altrimenti la pipeline si ferma alla fine della Frase.
-    pub fn load(path: &Path, cancel: &CancelToken) -> Result<Self, AppError> {
+    pub fn load(path: &Path) -> Result<Self, AppError> {
         if !path.is_file() {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
-        let mut session = catch_native(|| {
+        let (session, languages) = catch_native(|| {
             let model = Model::load(path)?;
             if !model.supports(Feature::Cancellation) {
                 log::info!(
                     "il modello non supporta la cancellazione: Annulla aspetta la fine della Frase"
                 );
             }
-            model.session()
+            Ok((model.session()?, model.capabilities().languages))
         })?;
-        session.set_cancel_token(cancel);
-        Ok(Self { session })
+        Ok(Self {
+            session,
+            languages,
+            run: RunOptions::default(),
+        })
+    }
+
+    /// Le lingue che il modello accetta come indicazione, lette dal modello.
+    pub fn languages(&self) -> &[String] {
+        &self.languages
+    }
+
+    /// Prepara la prossima Trascrizione. `cancel` interrompe anche la Frase in corso se il modello
+    /// supporta la cancellazione, altrimenti la pipeline si ferma alla fine della Frase.
+    /// `language` è un codice tra quelli dell'app (`it`…), `None` per il riconoscimento automatico.
+    pub fn prepare(&mut self, cancel: &CancelToken, language: Option<&str>) {
+        self.session.set_cancel_token(cancel);
+        self.run.language = language.and_then(|l| super::resolve_language(l, &self.languages));
     }
 }
 
@@ -39,8 +57,8 @@ impl TranscriptionEngine for TranscribeCpp {
         frames: &mut dyn Iterator<Item = Vec<f32>>,
     ) -> Result<String, AppError> {
         let pcm: Vec<f32> = frames.flatten().collect();
-        let session = &mut self.session;
-        let transcript = catch_native(|| session.run(&pcm, &RunOptions::default()))?;
+        let (session, run) = (&mut self.session, &self.run);
+        let transcript = catch_native(|| session.run(&pcm, run))?;
         Ok(transcript.text.trim().to_string())
     }
 }

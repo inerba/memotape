@@ -24,6 +24,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::download_model,
             commands::cancel_model_download,
             commands::delete_model,
+            commands::get_settings,
+            commands::set_settings,
         ])
         .events(collect_events![
             managers::transcription::TranscriptPhrase,
@@ -49,8 +51,12 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
-            let models = app.path().app_data_dir()?.join("models");
-            app.manage(managers::models::Models::new(models)?);
+            let data = app.path().app_data_dir()?;
+            app.manage(managers::settings::SettingsStore::load(
+                data.join("settings.json"),
+            ));
+            app.manage(managers::models::Models::new(data.join("models"))?);
+            managers::transcription::preload(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
