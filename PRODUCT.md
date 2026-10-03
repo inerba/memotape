@@ -136,6 +136,9 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Le impostazioni stanno in `settings.json` nella cartella dati dell'app. Un file mancante, corrotto o non valido riporta ai predefiniti senza bloccare l'avvio.
   - Il modello scelto si carica in background all'avvio e quando cambia la scelta, e resta caricato tra una Trascrizione e l'altra: dalla seconda in poi la Trascrizione parte subito. Si ricarica solo se cambia la scelta o se il modello viene eliminato.
   - Elimina è disabilitato ("In uso") per il modello che una Trascrizione sta usando o che si sta caricando.
+- **M4 (ticket 07)**: storia 12.
+  - Con Nemotron il testo della Frase in corso compare come Parziale nell'ultima riga dell'area e si aggiorna mentre il modello ascolta; a fine Frase diventa definitivo e la Frase successiva parte su una riga nuova. Con Whisper e Parakeet ogni Frase compare intera a fine Frase, come prima.
+  - Annulla toglie il Parziale della Frase interrotta: restano solo le Frasi concluse, quelle già comparse.
 
 ## Fuori dal perimetro
 
