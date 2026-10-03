@@ -3,7 +3,7 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
-use transcribe_cpp::{Model, RunOptions, Session};
+use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session};
 
 use super::TranscriptionEngine;
 use crate::error::AppError;
@@ -16,11 +16,22 @@ pub struct TranscribeCpp {
 }
 
 impl TranscribeCpp {
-    pub fn load(path: &Path) -> Result<Self, AppError> {
+    /// Carica il modello e ci installa `cancel`: se il modello supporta la cancellazione, Annulla
+    /// interrompe anche la Frase in corso; altrimenti la pipeline si ferma alla fine della Frase.
+    pub fn load(path: &Path, cancel: &CancelToken) -> Result<Self, AppError> {
         if !path.is_file() {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
-        let session = catch_native(|| Model::load(path)?.session())?;
+        let mut session = catch_native(|| {
+            let model = Model::load(path)?;
+            if !model.supports(Feature::Cancellation) {
+                log::info!(
+                    "il modello non supporta la cancellazione: Annulla aspetta la fine della Frase"
+                );
+            }
+            model.session()
+        })?;
+        session.set_cancel_token(cancel);
         Ok(Self { session })
     }
 }

@@ -12,6 +12,7 @@ use crate::audio_toolkit::vad::Silero;
 use crate::engine::pipeline::{PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::{NEMOTRON_FILE, TranscribeCpp};
 use crate::error::AppError;
+use crate::managers::activity::Activity;
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
@@ -29,7 +30,7 @@ pub struct TranscriptionProgress {
     pub percent: Option<u8>,
 }
 
-/// Esito di una Trascrizione completa: dove è il TXT e quanti caratteri contiene.
+/// Dove è il TXT salvato e quanti caratteri contiene.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptionFinished {
@@ -37,11 +38,25 @@ pub struct TranscriptionFinished {
     pub chars: u32,
 }
 
+/// Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(tag = "outcome", rename_all = "camelCase")]
+pub enum TranscriptionOutcome {
+    /// Il testo è salvato nel TXT.
+    Saved(TranscriptionFinished),
+    /// Nessuna Frase: il TXT non si crea.
+    NoSpeech,
+}
+
 /// Trascrive `source` emettendo `transcription-progress` e `transcript-phrase`, poi salva il TXT.
+/// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
+    activity: &Activity,
     source: PathBuf,
-) -> Result<TranscriptionFinished, AppError> {
+) -> Result<TranscriptionOutcome, AppError> {
+    let guard = activity.begin()?;
+    let cancel = guard.cancel.clone();
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let model = app
         .path()
@@ -54,10 +69,10 @@ pub async fn transcribe(
         .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
         .map_err(internal)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let mut engine = TranscribeCpp::load(&model)?;
+        let mut engine = TranscribeCpp::load(&model, &cancel)?;
         let mut detector = Silero::new(&silero)?;
         let mut phrases = Vec::new();
-        transcribe_file(&source, &mut engine, &mut detector, &mut |event| {
+        transcribe_file(&source, &mut engine, &mut detector, &cancel, &mut |event| {
             let emitted = match event {
                 PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(&app),
                 PipelineEvent::Phrase { id, text } => {
@@ -74,10 +89,21 @@ pub async fn transcribe(
                 log::warn!("evento della Trascrizione non emesso: {e}");
             }
         })?;
-        save_txt(&source, &phrases.join("\n"))
+        save_transcript(&source, &phrases)
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Salva le Frasi, una per riga, nel TXT accanto alla Sorgente; senza Frasi non crea il file.
+pub fn save_transcript(
+    source: &Path,
+    phrases: &[String],
+) -> Result<TranscriptionOutcome, AppError> {
+    if phrases.is_empty() {
+        return Ok(TranscriptionOutcome::NoSpeech);
+    }
+    save_txt(source, &phrases.join("\n")).map(TranscriptionOutcome::Saved)
 }
 
 /// Scrive `text` nel primo `<stem> trascrizione <N>.txt` libero accanto alla Sorgente.
@@ -178,6 +204,28 @@ mod tests {
         assert_eq!(
             std::fs::read_to_string(&first.txt_path).unwrap(),
             "Perché sì.\nVa bene."
+        );
+    }
+
+    #[test]
+    fn senza_frasi_non_si_salva_nessun_txt() {
+        let dir = std::env::temp_dir().join("sbobino-test-nessun-parlato");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let source = dir.join("Silenzio.wav");
+        assert_eq!(
+            save_transcript(&source, &[]).unwrap(),
+            TranscriptionOutcome::NoSpeech
+        );
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        let saved = save_transcript(&source, &["Uno.".into(), "Due.".into()]).unwrap();
+        let TranscriptionOutcome::Saved(finished) = saved else {
+            panic!("{saved:?}");
+        };
+        assert_eq!(
+            std::fs::read_to_string(finished.txt_path).unwrap(),
+            "Uno.
+Due."
         );
     }
 

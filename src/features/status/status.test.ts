@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
 import {
+  afterTranscription,
   type Status,
   statusText,
   withProgress,
@@ -70,4 +71,44 @@ test("il progresso aggiorna solo una Trascrizione in corso", () => {
   // Un evento in ritardo non riporta indietro una Trascrizione già finita.
   const finished: Status = { chars: 3, phase: "finished", txtPath: "a.txt" };
   expect(withProgress(finished, 100)).toBe(finished);
+});
+
+test("una Trascrizione senza Frasi dice che non c'è parlato, senza TXT", () => {
+  const status = afterTranscription({
+    data: { outcome: "noSpeech" },
+    status: "ok",
+  });
+  expect(status).toEqual({ phase: "noSpeech" });
+  expect(statusText(status, t)).toBe("Nessun parlato rilevato");
+});
+
+test("una Trascrizione salvata porta caratteri e percorso del TXT", () => {
+  expect(
+    afterTranscription({
+      data: { chars: 3, outcome: "saved", txtPath: "a.txt" },
+      status: "ok",
+    })
+  ).toEqual({ chars: 3, phase: "finished", txtPath: "a.txt" });
+});
+
+test("Annulla non è un errore: la status bar dice che il TXT non c'è", () => {
+  const status = afterTranscription({
+    error: { code: "cancelled" },
+    status: "error",
+  });
+  expect(status).toEqual({ phase: "cancelled" });
+  expect(statusText(status, t)).toBe(
+    "Trascrizione annullata: nessun TXT salvato"
+  );
+});
+
+test("una seconda Attività è rifiutata con un messaggio dedicato", () => {
+  const status = afterTranscription({
+    error: { code: "activityInProgress" },
+    status: "error",
+  });
+  expect(status.phase).toBe("failed");
+  expect(statusText(status, t)).toBe(
+    "Un'altra Attività è in corso: aspetta che finisca o annullala"
+  );
 });

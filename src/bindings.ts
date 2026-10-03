@@ -17,8 +17,14 @@ export const commands = {
 	 *  non diventa un modo per lanciare eseguibili.
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
-	/**  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT. */
-	transcribe: (source: string) => typedError<TranscriptionFinished, AppError>(__TAURI_INVOKE("transcribe", { source })),
+	/**
+	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT.
+	 *  Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
+	 *  `cancel_transcription`.
+	 */
+	transcribe: (source: string) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source })),
+	/**  Annulla la Trascrizione in corso; senza Trascrizione non fa nulla. */
+	cancelTranscription: () => __TAURI_INVOKE<void>("cancel_transcription"),
 };
 
 /** Events */
@@ -28,7 +34,7 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "internal"; detail: string };
+export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */
 export type TranscriptPhrase = {
@@ -36,11 +42,20 @@ export type TranscriptPhrase = {
 	text: string,
 };
 
-/**  Esito di una Trascrizione completa: dove è il TXT e quanti caratteri contiene. */
+/**  Dove è il TXT salvato e quanti caratteri contiene. */
 export type TranscriptionFinished = {
 	txtPath: string,
 	chars: number,
 };
+
+/**  Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`. */
+export type TranscriptionOutcome = 
+/**  Il testo è salvato nel TXT. */
+{
+	outcome: "saved",
+} & TranscriptionFinished | 
+/**  Nessuna Frase: il TXT non si crea. */
+{ outcome: "noSpeech" };
 
 /**  Avanzamento della Trascrizione: `percent` è `null` se la durata della Sorgente non è nota. */
 export type TranscriptionProgress = {

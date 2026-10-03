@@ -18,6 +18,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::pick_source,
             commands::open_source,
             commands::transcribe,
+            commands::cancel_transcription,
         ])
         .events(collect_events![
             managers::transcription::TranscriptPhrase,
@@ -37,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(managers::activity::Activity::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

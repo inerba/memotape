@@ -11,6 +11,11 @@ pub enum AppError {
     UnwritableFolder(String),
     #[error("modello assente: {0}")]
     ModelMissing(String),
+    #[error("Attività in corso")]
+    ActivityInProgress,
+    // L'utente ha premuto Annulla: non è un guasto, la status bar lo dice senza allarme.
+    #[error("Trascrizione annullata")]
+    Cancelled,
     #[error("errore interno: {0}")]
     Internal(String),
 }

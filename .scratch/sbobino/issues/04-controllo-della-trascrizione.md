@@ -10,5 +10,6 @@
 - [ ] L'annullamento usa il `CancelToken` di `transcribe-cpp` (se il modello supporta la cancellazione) e il controllo tra una Frase e l'altra
 - [ ] Se l'area contiene testo, Trascrivi chiede conferma prima di sostituirlo
 - [ ] Il backend ha una sola Attività alla volta: avviarne una seconda restituisce l'errore "Attività in corso". La UI disabilita Sfoglia e Trascrivi (e in seguito Registra) durante un'Attività
+- [ ] Una Trascrizione che non trova Frasi non salva il TXT e la status bar mostra "Nessun parlato rilevato"
 - [ ] Test: Annulla ferma la pipeline senza emettere la fine, e il guard rifiuta una seconda Attività
 - [ ] `AGENTS.md` / `PRODUCT.md` aggiornati, controlli verdi

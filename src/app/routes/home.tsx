@@ -1,10 +1,21 @@
 import { type ChangeEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands, events } from "@/bindings";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { fileName } from "@/features/source/file-name";
 import {
+  afterTranscription,
   type Status,
   statusText,
   withProgress,
@@ -19,6 +30,8 @@ export function HomePage() {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<Status>({ phase: "idle", source: null });
   const [copied, setCopied] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmReplace, setConfirmReplace] = useState(false);
   const running = status.phase === "transcribing";
 
   useEffect(() => {
@@ -66,14 +79,10 @@ export function HomePage() {
       return;
     }
     setText("");
+    setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
-      const result = await commands.transcribe(source);
-      setStatus(
-        result.status === "ok"
-          ? { phase: "finished", ...result.data }
-          : { error: result.error, phase: "failed" }
-      );
+      setStatus(afterTranscription(await commands.transcribe(source)));
     } catch (e) {
       // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
       setStatus({
@@ -82,6 +91,20 @@ export function HomePage() {
       });
     }
   }, [source]);
+
+  // Il testo nell'area, anche se modificato a mano, si sostituisce solo dopo conferma.
+  const requestTranscription = useCallback(() => {
+    if (text.trim()) {
+      setConfirmReplace(true);
+    } else {
+      transcribe();
+    }
+  }, [text, transcribe]);
+
+  const cancel = useCallback(async () => {
+    setCancelling(true);
+    await commands.cancelTranscription();
+  }, []);
 
   const copy = useCallback(async () => {
     try {
@@ -128,10 +151,37 @@ export function HomePage() {
               {t("source.none")}
             </span>
           )}
-          <Button disabled={!source || running} onClick={transcribe}>
+          <Button disabled={!source || running} onClick={requestTranscription}>
             {running ? t("transcription.running") : t("transcription.start")}
           </Button>
+          {running ? (
+            <Button disabled={cancelling} onClick={cancel} variant="outline">
+              {cancelling
+                ? t("transcription.cancelling")
+                : t("transcription.cancel")}
+            </Button>
+          ) : null}
         </section>
+        <AlertDialog onOpenChange={setConfirmReplace} open={confirmReplace}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t("transcription.replace.title")}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("transcription.replace.description")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>
+                {t("transcription.replace.keep")}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={transcribe}>
+                {t("transcription.replace.confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {showTranscription ? (
           <section className="flex min-h-0 flex-1 flex-col gap-2">
             <Textarea

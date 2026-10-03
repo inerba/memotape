@@ -4,6 +4,8 @@
 use std::collections::VecDeque;
 use std::path::Path;
 
+use transcribe_cpp::CancelToken;
+
 use super::TranscriptionEngine;
 use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::resample::FrameResampler;
@@ -22,10 +24,13 @@ pub enum PipelineEvent {
 }
 
 /// Trascrive `source` chiamando `on_event` per il progresso e per ogni Frase non vuota, in ordine.
+/// Con `cancel` premuto si ferma al prossimo blocco decodificato o alla fine della Frase in corso,
+/// senza emettere quella Frase, e restituisce `AppError::Cancelled`.
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
+    cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<(), AppError> {
     detector.reset();
@@ -37,6 +42,7 @@ pub fn transcribe_file(
         resampler: None,
         detector,
         segmenter: Segmenter::new(Params::default()),
+        cancel,
         queue: VecDeque::new(),
         decoded_all: false,
         error: None,
@@ -56,6 +62,9 @@ pub fn transcribe_file(
         let text = engine.transcribe(&mut audio);
         // Il motore può fermarsi prima della fine della Frase: il resto si scarta.
         audio.for_each(drop);
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
         if let Some(error) = events.error.take() {
             return Err(error);
         }
@@ -77,6 +86,7 @@ struct SegmentedSource<'a> {
     resampler: Option<FrameResampler>,
     detector: &'a mut dyn VoiceDetector,
     segmenter: Segmenter,
+    cancel: &'a CancelToken,
     queue: VecDeque<Event>,
     decoded_all: bool,
     /// Errore incontrato mentre il motore leggeva l'audio della Frase.
@@ -89,6 +99,9 @@ struct SegmentedSource<'a> {
 impl SegmentedSource<'_> {
     fn next(&mut self) -> Result<Option<Event>, AppError> {
         loop {
+            if self.cancel.is_cancelled() {
+                return Err(AppError::Cancelled);
+            }
             if let Some(event) = self.queue.pop_front() {
                 return Ok(Some(event));
             }
@@ -170,9 +183,11 @@ mod tests {
     }
 
     /// Motore finto: restituisce "frase N" e ricorda quanti campioni ha ricevuto ogni Frase.
+    /// Con `cancel_at` preme Annulla mentre trascrive la Frase N (da 1).
     #[derive(Default)]
     struct FakeEngine {
         samples: Vec<usize>,
+        cancel_at: Option<(usize, CancelToken)>,
     }
 
     impl TranscriptionEngine for FakeEngine {
@@ -181,6 +196,11 @@ mod tests {
             frames: &mut dyn Iterator<Item = Vec<f32>>,
         ) -> Result<String, AppError> {
             self.samples.push(frames.map(|f| f.len()).sum());
+            if let Some((n, cancel)) = &self.cancel_at
+                && *n == self.samples.len()
+            {
+                cancel.cancel();
+            }
             Ok(format!("frase {}", self.samples.len()))
         }
     }
@@ -239,8 +259,12 @@ mod tests {
 
     /// Gli eventi della pipeline: Frasi e progresso, nell'ordine di emissione.
     fn events(path: &Path, engine: &mut FakeEngine) -> Result<Vec<PipelineEvent>, AppError> {
+        let cancel = engine
+            .cancel_at
+            .as_ref()
+            .map_or_else(CancelToken::new, |(_, cancel)| cancel.clone());
         let mut events = Vec::new();
-        transcribe_file(path, engine, &mut EnergyDetector, &mut |event| {
+        transcribe_file(path, engine, &mut EnergyDetector, &cancel, &mut |event| {
             events.push(event);
         })?;
         Ok(events)
@@ -307,6 +331,73 @@ mod tests {
         assert_eq!(engine.samples[..2], [18 * 16_000, 18 * 16_000]);
         // 40 s = 1333,3 frame: l'ultimo è completato con zeri.
         assert_eq!(engine.samples.iter().sum::<usize>(), 1334 * FRAME_SAMPLES);
+    }
+
+    /// Tre tratti di parlato separati da silenzio.
+    fn tre_frasi(name: &str) -> PathBuf {
+        wav(
+            name,
+            16_000,
+            1,
+            &[
+                (1.0, true),
+                (1.5, false),
+                (1.0, true),
+                (1.5, false),
+                (1.0, true),
+                (0.5, false),
+            ],
+        )
+    }
+
+    #[test]
+    fn annulla_ferma_la_pipeline_tra_una_frase_e_l_altra() {
+        let path = tre_frasi("annulla");
+        let cancel = CancelToken::new();
+        let mut engine = FakeEngine {
+            cancel_at: Some((2, cancel.clone())),
+            ..FakeEngine::default()
+        };
+        let mut phrases = Vec::new();
+        let error = transcribe_file(
+            &path,
+            &mut engine,
+            &mut EnergyDetector,
+            &cancel,
+            &mut |event| {
+                if let PipelineEvent::Phrase { id, .. } = event {
+                    phrases.push(id);
+                }
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(error, AppError::Cancelled), "{error:?}");
+        // Resta solo la Frase già comparsa: quella annullata non si emette e la terza non parte.
+        assert_eq!(phrases, vec![0]);
+        assert_eq!(engine.samples.len(), 2);
+    }
+
+    #[test]
+    fn annullata_prima_di_partire_non_trascrive_nulla() {
+        let path = tre_frasi("annulla-subito");
+        let cancel = CancelToken::new();
+        cancel.cancel();
+        let mut engine = FakeEngine::default();
+        let mut emitted = 0;
+        let error = transcribe_file(
+            &path,
+            &mut engine,
+            &mut EnergyDetector,
+            &cancel,
+            &mut |_| {
+                emitted += 1;
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(error, AppError::Cancelled), "{error:?}");
+        assert!(engine.samples.is_empty());
+        // Solo il progresso iniziale.
+        assert_eq!(emitted, 1);
     }
 
     #[test]
@@ -389,18 +480,26 @@ mod tests {
         let model = PathBuf::from(std::env::var("APPDATA").unwrap())
             .join("it.sbobino.desktop/models")
             .join(super::super::transcribe_cpp::NEMOTRON_FILE);
-        let mut engine = super::super::transcribe_cpp::TranscribeCpp::load(&model).unwrap();
+        let mut engine =
+            super::super::transcribe_cpp::TranscribeCpp::load(&model, &CancelToken::new()).unwrap();
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
         // Lo stesso parlato in WAV e nel video MP4/AAC.
         for name in ["parlato-it.wav", "parlato-it.mp4"] {
             let mut phrases = Vec::new();
-            transcribe_file(&fixture(name), &mut engine, &mut detector, &mut |event| {
-                if let PipelineEvent::Phrase { text, .. } = event {
-                    phrases.push(text);
-                }
-            })
+            let cancel = CancelToken::new();
+            transcribe_file(
+                &fixture(name),
+                &mut engine,
+                &mut detector,
+                &cancel,
+                &mut |event| {
+                    if let PipelineEvent::Phrase { text, .. } = event {
+                        phrases.push(text);
+                    }
+                },
+            )
             .unwrap();
             let text = phrases
                 .join(

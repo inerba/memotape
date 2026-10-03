@@ -13,7 +13,15 @@
     "running": "Trascrizione in corso…",
     "text": "Testo trascritto",
     "copy": "Copia testo",
-    "copied": "Copiato"
+    "copied": "Copiato",
+    "cancel": "Annulla",
+    "cancelling": "Annullamento…",
+    "replace": {
+      "title": "Sostituire il testo?",
+      "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I TXT già salvati restano.",
+      "keep": "Annulla",
+      "confirm": "Sostituisci"
+    }
   },
   "status": {
     "idle": "Scegli un file audio o video con Sfoglia",
@@ -22,7 +30,9 @@
     "progress": "Avanzamento della Trascrizione",
     "finished_one": "Trascrizione finita: {{count, number}} carattere salvato in {{path}}",
     "finished_many": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
-    "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}"
+    "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
+    "noSpeech": "Nessun parlato rilevato",
+    "cancelled": "Trascrizione annullata: nessun TXT salvato"
   },
   "errors": {
     "label": "Errore",
@@ -31,6 +41,8 @@
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
       "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
       "modelMissing": "Il modello non è installato. Mettilo qui: {{detail}}",
+      "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
+      "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"
     },
     "app": {

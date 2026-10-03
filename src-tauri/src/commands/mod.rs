@@ -2,12 +2,13 @@
 
 use std::path::PathBuf;
 
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::error::AppError;
 use crate::managers;
+use crate::managers::activity::Activity;
 
 /// Estensioni accettate da Sfoglia (spec, storia 2).
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -63,11 +64,21 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
 }
 
 /// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel TXT.
+/// Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
+/// `cancel_transcription`.
 #[tauri::command]
 #[specta::specta]
 pub async fn transcribe(
     app: AppHandle,
+    activity: State<'_, Activity>,
     source: String,
-) -> Result<managers::transcription::TranscriptionFinished, AppError> {
-    managers::transcription::transcribe(app, PathBuf::from(source)).await
+) -> Result<managers::transcription::TranscriptionOutcome, AppError> {
+    managers::transcription::transcribe(app, &activity, PathBuf::from(source)).await
+}
+
+/// Annulla la Trascrizione in corso; senza Trascrizione non fa nulla.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_transcription(activity: State<'_, Activity>) {
+    activity.cancel();
 }
