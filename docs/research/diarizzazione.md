@@ -422,3 +422,309 @@ vivo è fuori portata finché vale l'ADR 0003.
   etichette.
 - Se un `onnxruntime.dll` più recente (1.28) funziona con `ort` rc.12 / API 24. Serve solo per
   l'opzione C, ed è un'inferenza: l'API C di ORT è retrocompatibile, ma non è verificato.
+
+---
+
+## 8. Nemotron-3-Diarization (aggiornamento del 2026-10-03)
+
+Questa sezione aggiorna le §5-6 alla luce di un modello uscito dopo la prima ricerca. Le sezioni
+precedenti restano valide per Sortformer 4spk v2.1.
+
+### 8.0 Fonti
+
+| Fonte | Riferimento |
+| --- | --- |
+| Model card | `nvidia/Nemotron-3-Diarization`, revisione `f667ed73aee57d40cc39428eb768b4fd87a0a29e` (lastModified 2026-09-24): `README.md`, `config.json`, `processor_config.json`, `ASR_INTEGRATION_GUIDE.md`, API HF `?blobs=true` e `/tree/main` (stessi file, dimensioni e SHA; `main` = `f667ed7` al 2026-10-03) |
+| Blog NVIDIA | `https://huggingface.co/blog/nvidia/nemotron-diarization` (2026-09-23) |
+| Licenza | `https://openmdw.ai/license/1-1/` |
+| transcribe.cpp | HEAD `main` = tag `v0.3.0` = `077110e`. Issue #170 "Add Nemotron 3 Diarization" (2026-09-24). **PR #175 "nemotron3 diarization port"**, branch `nemotron3-diar`, head `e6672a8` (2026-09-26), **aperta, non mergiata** |
+| NeMo-Speech.cpp | `NVIDIA/NeMo-Speech.cpp`, release `v0.2.0` (2026-10-02), Apache-2.0, `include/nemo_speech/diar.h`, `docs/sdk.md` |
+| Conversioni di terzi | API HF: `Glimpse-Dictation/Nemotron-3-Diarization-gguf` @ `273ebb0`, `onnx-community/Nemotron-3-Diarization-ONNX` @ `353b6f8` (header GGUF e grafo ONNX letti direttamente) |
+| sherpa-onnx | issue #3497 (Sortformer) e #4006 (Nemotron-3-Diarization), entrambe aperte |
+| Baseten | `baseten.co/blog/nvidia-nemotron-3-diarization/`: solo servizio cloud, non rilevante per l'uso locale |
+| ctx7 | `/handy-computer/transcribe.cpp` (API `Stream::snapshot`) |
+
+Path abbreviati: `tc175/…` = file sul branch `nemotron3-diar` della PR #175.
+
+### 8.1 Il modello (model card) **[V]**
+- **Data.** "Release Date: September 23, 2026" (il repo HF esiste dal 2026-09-01).
+- **Architettura.** È della famiglia Sortformer, ma non è la stessa rete. NeMo lo carica con
+  `SortformerEncLabelModel`, ordina i parlanti per arrivo e usa la stessa speaker cache AOSC e
+  la stessa coda FIFO dello Streaming Sortformer. Cambiano però l'encoder (Transformer di 31
+  strati con RoPE, d=512, 8 teste, invece di FastConformer più Transformer), l'uscita (10 ms
+  invece di 80 ms, grazie a un upsampler Conv1D) e il silenzio in cache, che qui è un embedding
+  appreso. 100M parametri. NeMo-Speech.cpp lo chiama preset "v3"
+  (`diar.h`), Glimpse "Streaming Sortformer v3".
+- **Parlanti.** Al massimo **8**, numerati per ordine di comparsa. L'uscita è un tensore
+  `[T, 8]` di probabilità per frame da 10 ms.
+- **Streaming e offline.** Lo stesso checkpoint lavora con quattro configurazioni consigliate,
+  cioè latenze del buffer d'ingresso, senza il tempo di calcolo: 30,4 s (offline), 1,04 s,
+  0,64 s e 0,32 s. Si può scendere fino a 80 ms, ma 0,32 s è il minimo consigliato. "With
+  chunked inference, the maximum audio duration is not limited."
+- **Audio.** 16 kHz, mono. Mel a 128 bande, hop 10 ms (`processor_config.json`).
+- **Lingue di training.** Circa 10.000 ore di conversazioni reali più 82.611 ore di miscele
+  simulate. Inglese e mandarino dominano. Ci sono poi DISPLACE (hindi, kannada, telugu,
+  bengali), VoxConverse, DIHARD e CALLHOME (multilingue), **YODAS-v2** (5.000 ore
+  pseudo-etichettate, multilingue) e "David AI [D12] … 21 languages" (19.216 ore di miscele
+  multilingue). **Non c'è nessun dato o benchmark esplicito sull'italiano.**
+  **[I]** YODAS e i 21 linguaggi di David AI contengono probabilmente anche italiano. Rispetto a
+  v2.1, che era "primarily English", la base multilingue è molto più ampia.
+- **Benchmark** (DER %, protocollo della card; tra parentesi v2.1 alla stessa latenza):
+
+  | Dataset | 30,4 s | 1,04 s | 0,32 s |
+  | --- | --- | --- | --- |
+  | DIHARD III, 1-4 parlanti | 9,13 (13,98) | 9,47 (14,33) | 9,69 (14,37) |
+  | DIHARD III, 5-9 parlanti | 27,58 (40,21) | 28,65 (41,39) | 29,49 (42,71) |
+  | CALLHOME, 2 parlanti | 5,98 (5,68) | 6,98 (6,83) | 7,75 (7,92) |
+  | CALLHOME, 3 parlanti | 9,26 (10,41) | 10,90 (11,26) | 11,84 (12,54) |
+  | AMI test MHM | 9,25 (15,81) | 9,48 (16,36) | 10,05 (17,77) |
+  | NOTSOFAR1 MHM, 3-4 parlanti | 5,25 (11,14) | 5,85 (12,03) | 6,57 (12,94) |
+
+  Con 2 parlanti al telefono il guadagno è nullo: CALLHOME a 2 parlanti è leggermente peggiore.
+  Il guadagno cresce con le riunioni e con 3 o più parlanti. La velocità è misurata solo su GPU
+  (RTX PRO 5000, BF16, PyTorch). A batch 1, 1,04 s, eager, fa 38× realtime contro i 16× di v2.1.
+- **Licenza.** OpenMDW-1.1. Uso commerciale consentito, modifica e ridistribuzione consentite.
+  Chi ridistribuisce deve conservare "a copy of this agreement" e le note di copyright e di
+  origine. Non ci sono restrizioni d'uso sugli output. C'è una clausola difensiva sui brevetti:
+  la licenza termina se si avvia una causa. È meno onerosa della NVIDIA Open Model License di
+  v2.1: non c'è la nota di attribuzione obbligatoria né la clausola sui guardrail.
+- **File nel repo NVIDIA** (revisione `f667ed7`):
+
+  | File | Byte | SHA-256 |
+  | --- | ---: | --- |
+  | `Nemotron-3-Diarization.nemo` (BF16) | 198.676.480 | `867c53f552998f772e5b5e5c082962ae85ee7ca5669c2bc17d7f615133d4e96d` |
+  | `model.safetensors` (F32, per HF Transformers) | 396.954.592 | `c074d86335b3b794f8fa5edc25594558f128bdb3914d27806a3a5a2e44963cb6` |
+  | `Nemotron-3-Diarization.q8_0.gguf` | 107.012.128 | `08456d9e22cd9a323c0364d98375f3746d6e68507ebb705cd46438c534c7a3a1` |
+
+  Il GGUF di NVIDIA ha `general.architecture = sortformer` (metadati GGUF dell'API HF) ed è fatto
+  per **NeMo-Speech.cpp**. transcribe.cpp non lo usa: "It is not consumed here"
+  (`tc175/docs/porting/families/nemotron3_diar.md`, Notes). NVIDIA non pubblica un ONNX ufficiale.
+- **Verifica della fonte secondaria (unite.ai).** Questi dati sono confermati: 100M, encoder
+  Transformer, 8 parlanti, streaming e offline, latenze 0,32/0,64/1,04 s, OpenMDW-1.1, formato
+  NeMo. Mancano due cose: c'è anche la modalità offline a 30,4 s, e oltre al `.nemo` NVIDIA
+  pubblica safetensors (HF Transformers) e un GGUF Q8_0.
+
+### 8.2 Supporto in transcribe.cpp / `transcribe-cpp`
+- **[V] Né la 0.2.4 né la 0.3.0 lo supportano.** HEAD `main` coincide con `v0.3.0`. `git grep`
+  non trova `nemotron3_diar` né "Nemotron-3-Diarization", e in `docs/models/` ci sono solo
+  `diar_streaming_sortformer_4spk-v2.1.md` e `moss-transcribe-diarize.md`. L'architettura
+  `sortformer` esistente non lo carica: "NEW FAMILY, NOT A SORTFORMER VARIANT … src/arch/sortformer
+  hardcodes max_speakers=4 and an 80 ms output grid" (`tc175/reports/porting/nemotron3_diar/…/intake.json`,
+  known_risks).
+- **[V] Il port c'è, ma solo nella PR #175** (CJ Pais, maintainer, 59 file, +8.282 righe).
+  L'issue #170 ha la risposta "will come in #175". La PR aggiunge la famiglia
+  `src/arch/nemotron3_diar/` (`model.cpp`, `stream.cpp`), l'header
+  `include/transcribe/nemotron3_diar.h` e i wrapper in tutti i binding, Rust compreso.
+- **[V] Stato del port** (`tc175/docs/porting/families/nemotron3_diar.md`): "Stage 4 complete
+  pending tolerance review". Il DER coincide con quello di NeMo: AMI 9,212% offline e 9,530% a
+  1,04 s, uguali al riferimento. Restano aperte tre cose:
+  - la sezione Benchmarks è "TODO";
+  - le GPU (Vulkan compreso) sono demandate allo "Stage 6";
+  - "License (`openmdw-1.1`) still to be interpreted before ship".
+- **[V] Diarizzazione dal vivo prevista e testata.** Il modello si usa in due modi:
+  `transcribe_run` sul file intero, oppure `transcribe_stream_begin/feed/finalize`. Nel secondo
+  caso: "After every feed the speaker segments cover all audio processed so far: a finished turn
+  is final, a turn still in progress is reported open-ended … Finalize flushes the tail; the
+  final segments equal a transcribe_run over the same audio at the same preset"
+  (`tc175/include/transcribe/nemotron3_diar.h:12-28`). Tutti e cinque i preset sono permessi nello
+  slot STREAM. Il test di capacità "Push-audio live diarization" è MUST PASS e risulta PASS:
+  output bit-identico al `run` a tutti i preset.
+- **[V] Post-processing grezzo come in v2.1.** I segmenti nascono da una soglia 0,5 su frame da
+  10 ms, senza durata minima né unione dei buchi (`tc175/src/arch/nemotron3_diar/nemotron3_diar.h:133`).
+- **[V] Memoria e lunghezza.** Non c'è un limite di durata (`max_audio_ms = 0`). Il calcolo e
+  la memoria del grafo per passo sono costanti: al massimo 541 frame encoder a 1,04 s e 684 a
+  30,4 s. Con l'audio crescono solo il mel conservato (nel percorso `run`) e le probabilità a
+  10 ms, "~11.5 MB per hour" (`tc175/docs/input-limits.md`). Nel push-audio il mel viene
+  consumato man mano (`mel_tm`: "Mel frames not yet consumed").
+- **[V] CPU.** Su CPU il loader converte in F32 i pesi BF16/F16, con "+~400 MB RAM". I pesi
+  quantizzati girano invece con i kernel nativi, senza conversione (`tc175/src/arch/nemotron3_diar/model.cpp:660-684`).
+  Throughput su M4 Max a 12 thread: "30.4 s preset RTF ~0.02; 1.04 s preset RTF ~0.40", perché
+  ogni chunk da 0,72 s ricalcola circa 540 frame su 31 strati. Non ci sono misure su x64.
+- **[V] GGUF per la PR.** Nell'org `handy-computer` su HF **non c'è** un GGUF di questo modello
+  (ci sono solo `moss-transcribe-diarize-gguf` e `diar_streaming_sortformer_4spk-v2.1-gguf`).
+  La PR lo converte in locale: `scripts/convert-nemotron3_diar.py` produce
+  `Nemotron-3-Diarization-BF16.gguf` (arch `nemotron3_diar`, chiavi `stt.nemotron3_diar.*`). La
+  policy di quantizzazione ha già una regola per `diar.sil_emb`, ma il DER è stato validato
+  solo sul BF16.
+- **[V] I GGUF di terzi non sono compatibili con la PR.**
+  `Glimpse-Dictation/Nemotron-3-Diarization-gguf` @ `273ebb0e65377f74576768257cd11f00c248c39d`
+  (Q8_0 105.936.416 B, SHA-256 `877ff9e77e829e30158528cfaabf56188fca11d05349e09821b3033a97d31688`)
+  usa la stessa stringa arch `nemotron3_diar`, ma viene dal fork `LegendarySpy/transcribe.cpp`
+  (branch `glimpse-diarization`) e ha chiavi diverse. Per esempio la PR legge
+  `stt.nemotron3_diar.aosc.*` e `encoder.rope_base`, il file ha `stream.pred_score_threshold` e
+  `encoder.rope_theta` (header GGUF letto contro le chiavi di `tc175/src/arch/nemotron3_diar/*.cpp`).
+  **[I]** Con la PR il caricamento fallirebbe. `dawsonvosburg/…-gguf` ha lo stesso SHA ed è una
+  copia. Il README di Glimpse dichiara che il Q8_0 equivale all'F32 su AMI (DER 9,23% contro
+  9,22%): lo dice l'autore, non è verificato.
+
+### 8.3 API Rust (dalla PR #175) **[V]**
+- Nuovi tipi `Nemotron3DiarPreset::{Default, VeryHighLatency, LowLatency, VeryLowLatency,
+  UltraLowLatency}` e `Nemotron3DiarOptions { preset }`. Si usano come
+  `RunExtension::Nemotron3Diar(..)` e come **`StreamExtension::Nemotron3Diar(..)`**
+  (`tc175/bindings/rust/transcribe-cpp/src/family.rs`). Il test Rust
+  `nemotron3_diar_run_and_stream_extensions` fa `session.stream(&RunOptions::default(),
+  &StreamOptions { family: Some(StreamExtension::Nemotron3Diar(opts)), .. })`, poi `feed` a pezzi
+  e infine `finalize` (`tc175/bindings/rust/transcribe-cpp/tests/extensions.rs`).
+- I segmenti incrementali si leggono con `Stream::snapshot()`. Chiama `materialize_run`, che
+  riempie `Transcript.speaker_segments` da `transcribe_n_speaker_segments`
+  (`tc175/bindings/rust/transcribe-cpp/src/session.rs:296-316`). `Stream` non ha un accessor
+  dedicato ai parlanti. Il test Rust non controlla i segmenti durante il feed; lo fa il test C
+  `nemotron3_diar_stream_unit` ("rows during feed, open turns extend").
+- Vale sempre il vincolo di un solo stream attivo per `Model` ("a stream is already active on
+  this model", `compute_lock` in `session.rs` di `v0.3.0`). Due Ingressi diarizzati dal vivo
+  richiedono quindi due `Model` caricati, come per la trascrizione dal vivo dell'ADR-0004.
+
+### 8.4 Da 0.2.4 a 0.3.0: cambiamenti incompatibili **[V]**
+Il diff `v0.2.4..v0.3.0` contiene 8 commit: repetition guard, tekken, generic prompting,
+"remove unk", fix di canary e serde.
+- **C ABI.** `transcribe_run_params` cambia layout: `spec_k_drafts` si sposta e arrivano
+  `vocabulary`, `n_vocabulary`, `prompt` e `prefix`. Cambiano anche `TRANSCRIBE_VERSION_*` e
+  l'abihash. Il binding e la `transcribe.dll` vanno quindi aggiornati insieme.
+- **Rust.**
+  - `RunOptions` ha tre campi pubblici nuovi (`vocabulary`, `prompt`, `prefix`) e non è
+    `#[non_exhaustive]`: un letterale senza `..Default::default()` non compila più.
+  - `Error` ha la variante nuova `OutputRepetition { message, partial }`. L'enum è
+    `#[non_exhaustive]`, quindi i match con un ramo di default restano validi.
+  - Nuova feature opzionale `serde`.
+- **Comportamento.** `OUTPUT_REPETITION` lo emettono solo canary, funasr_nano, granite,
+  moonshine_streaming e voxtral, non i tre modelli di Sbobino. "remove unk" tocca anche
+  `parakeet/model.cpp`, cioè il token `<unk>` in uscita da Nemotron 3.5 e Parakeet.
+- **Per Sbobino** (`sb/src-tauri/src/engine/transcribe_cpp.rs:65-67`, `:118-122`): usa
+  `..RunOptions::default()` e un match su `Error` con ramo `e => …`. **[I]** L'aggiornamento
+  a 0.3.0 dovrebbe compilare senza modifiche al codice. Resta da verificare con una build.
+
+### 8.5 Alternative se non si aspetta la PR
+1. **NeMo-Speech.cpp (NVIDIA, Apache-2.0)** **[V]**. È il runtime ufficiale indicato dalla model
+   card. La v0.2.0 (2026-10-02) aggiunge Nemotron 3 Diarization e "Live diarized
+   transcription". Ci sono archivi Windows x86_64 per CPU, CUDA e Vulkan. L'API C stabile di
+   `diar.h` offre:
+   - `nemo_speech_diar_stream_open` / `_push_f32` / `_finish` per lo streaming dal vivo, con
+     risultati "valid on a live stream at any point";
+   - `nemo_speech_diar_offline_f32`;
+   - `nemo_speech_diar_segments`, con post-processing configurabile (onset/offset, pad,
+     min_gap, min_duration, cioè la semantica NeMo che transcribe.cpp non ha);
+   - la gestione dei flussi lunghi: oltre circa 20 minuti compatta le probabilità vecchie in
+     segmenti finali.
+
+   Usa il Q8_0 di NVIDIA (106 MB) senza conversioni. Lo svantaggio: non c'è un crate Rust, quindi
+   servono FFI con bindgen e il packaging delle DLL accanto all'exe.
+   **[I]** NeMo-Speech.cpp porta con sé un proprio ggml (llama.cpp b11151) e transcribe.cpp il
+   suo. Due copie di `ggml*.dll` con lo stesso nome nello stesso processo sono un rischio
+   concreto, da verificare prima di tutto (stesso problema di `onnxruntime.dll` per sherpa-onnx).
+2. **ONNX + `ort` (già nel progetto)** **[V]**. `onnx-community/Nemotron-3-Diarization-ONNX`
+   @ `353b6f8ad2cac3580e982d7fbdf0a010786b0406`, licenza openmdw-1.1, opset 21 più
+   `com.microsoft`. Il grafo calcola **un solo passo**: ingressi `input_features [B, T, 128]`,
+   `cached_embeds [B, N, 512]` e `attention_mask`; uscite `logits [B, T, 8]`, `chunk_embeds` e
+   `silence_embeds`. In Rust bisognerebbe scrivere il mel NeMo, la FIFO e soprattutto la
+   compressione AOSC. Il port di transcribe.cpp mostra che è delicata: top-k con pareggi a 1e-7,
+   da replicare "bit-for-bit" per non scambiare le etichette (546 righe in `stream.cpp`). Le
+   varianti, per `.onnx_data`:
+
+   | Variante | Byte | SHA-256 |
+   | --- | ---: | --- |
+   | fp32 | 398.184.448 | `c293d9b5930eb9f6172f095ced052c0d1bbdbeb2594a115497583ca209b1dbd6` |
+   | fp16 | 199.287.808 | `affecf841c462d78c86b56a6eee6216b119809285bcbdb4d5c4d541810e9d317` |
+   | int8 (`quantized`) | 120.479.872 | `002d7483e1c865c35c82220fdb378f185ff213c6d35922b38ae421c8ec72c338` |
+   | q4 | 82.768.000 | `4513ed877d7cb83944bcb27c747221a7180e03f790d1c703e50af01792b7b8f4` |
+
+   **[I]** Funziona con ORT 1.24 (opset 21 supportato), ma è il lavoro più grande e più
+   rischioso. Ha senso solo se transcribe.cpp non mergia la PR.
+3. **sherpa-onnx** **[V]**: oggi non supporta né Sortformer né Nemotron-3-Diarization (feature
+   request #3497 e #4006 aperte). Restano anche i problemi di runtime della §3.2.
+4. **Fork Glimpse** (`LegendarySpy/transcribe.cpp@glimpse-diarization` più il crate
+   `glimpse-speech`) **[V esistenza, I idoneità]**: è un port indipendente con GGUF Q8_0
+   pubblicati, ma è un fork di terzi con un formato diverso da quello che arriverà upstream.
+   Sconsigliato come dipendenza.
+
+### 8.6 Conseguenze per Sbobino
+
+**Diarizzazione dal vivo durante la Registrazione**
+- **[V]** Con `transcribe-cpp` 0.2.4 o 0.3.0 non si può: il modello non è supportato.
+- **[V]** Con la PR #175 mergiata si può: uno `Stream` di diarizzazione per ogni flusso audio e
+  `snapshot().speaker_segments` dopo ogni `feed`. I turni chiusi sono definitivi, quello aperto
+  si allunga. Con la trascrizione dal vivo dell'ADR-0004 ogni Frase (con `inizio_ms`/`fine_ms`)
+  riceve il Parlante quando la diarizzazione ha coperto il suo intervallo. Si usa la regola di
+  massima sovrapposizione della §4.3.
+- **[I] Il costo decide il preset.**
+  - A **1,04 s** il modello lavora a RTF ~0,40 su un M4 Max con 12 thread. Su un portatile x64
+    medio, insieme all'ASR dal vivo e magari a due Ingressi, rischia di non stare al passo.
+  - A **30,4 s** in stream (`VeryHighLatency` nello slot STREAM, permesso e bit-identico al run)
+    costa RTF ~0,02, quasi nulla. I Parlanti arrivano però con circa 30 s di ritardo, e l'output
+    finale è quello offline, il più accurato. Questo ritardo si sposa bene con l'ADR-0004: le
+    Frasi sono già in coda e il Bino riceve i Parlanti definitivi a Stop.
+  - **Proposta:** usare `VeryHighLatency` come default della modalità dal vivo e `LowLatency`
+    solo come opzione per PC potenti.
+- **Ingressi separati, due istanze.** Si può fare, ma per l'Ingresso microfono serve a poco: di
+  solito c'è una sola voce, "Io". **[I] Proposta:** diarizzare dal vivo solo l'audio di sistema,
+  oppure il mix quando non ci sono Ingressi separati. Così basta un'istanza e il microfono resta
+  "Io" (§4.5). Con due istanze raddoppiano RAM e CPU, per il vincolo di un solo stream per `Model`.
+
+**Costi**
+
+| Voce | Valore | Stato |
+| --- | --- | --- |
+| Disco | Q8_0 ~106 MB (NVIDIA o Glimpse); BF16 della PR ~200 MB (stima dal `.nemo` BF16) | V / I |
+| RAM pesi su CPU | Q8_0: circa la dimensione del file, senza conversione. BF16: convertito in F32, "+~400 MB" | V |
+| RAM che cresce con la durata | push-audio: probabilità 11,5 MB/ora più i segmenti. `run`: in più il mel intero (128 × f32 ogni 10 ms ≈ 184 MB/ora) e il PCM se lo tiene il chiamante | V (11,5 MB) / I (calcolo del mel) |
+| Grafo per passo | costante: al massimo 541-684 frame × d=512 × 31 strati, ordine delle decine di MB | I |
+| CPU | 30,4 s: RTF ~0,02. 1,04 s: RTF ~0,40 (M4 Max, 12 thread) | V su M4, I su x64 |
+| VRAM (Vulkan) | non misurata: GPU allo Stage 6. Su GPU i pesi restano BF16 (~200 MB) | V (stato) / I (valore) |
+
+**Conviene rispetto a Sortformer 4spk v2.1?**
+- **[V]**
+  - Qualità: DER più basso dal 30% al 50% su riunioni e 3+ parlanti, conteggio dei parlanti
+    molto migliore, a parità o quasi su 2 parlanti al telefono.
+  - Parlanti: 8 invece di 4.
+  - Streaming vero nell'API (nella PR).
+  - Licenza più semplice.
+  - File più piccolo (106 MB contro 139 MB in Q8_0) e base di training più multilingue.
+- **[V] Svantaggi.** Il supporto non è rilasciato: PR aperta, senza GGUF ufficiale `handy-computer`
+  né benchmark x64/Vulkan. A 1,04 s costa molto più di 30,4 s.
+- **[I]** Per Sbobino è la scelta migliore appena la PR entra in una release di `transcribe-cpp`.
+  L'integrazione è quasi identica a quella prevista per Sortformer, perché `speaker_segments`,
+  `RunExtension` e la gestione del modello accessorio sono gli stessi. Conviene quindi non
+  investire in Sortformer v2.1 adesso.
+
+### 8.7 Tabella comparativa aggiornata
+
+| Opzione | Dipendenze | Modello | Parlanti | Offline / dal vivo | Italiano | Stato / rischi |
+| --- | --- | --- | --- | --- | --- | --- |
+| **A'. Nemotron-3-Diarization via `transcribe-cpp`** (PR #175) | nessuna nuova (aggiornamento del crate quando esce) | GGUF da convertire (BF16 ~200 MB) o Q8_0 se pubblicato. OpenMDW-1.1 | auto, max 8 | `run` e `Session::stream` (segmenti incrementali) | non misurato; training multilingue (YODAS, 21 lingue) | PR aperta; nessun GGUF ufficiale; GPU e benchmark non fatti; licenza "da interpretare" per il maintainer |
+| A. Sortformer v2.1 via `transcribe-cpp` | nessuna (0.2.4) | Q8_0 139 MB, NVIDIA OML | auto, max 4 | solo `run` | non misurato; "primarily English" | disponibile oggi; qualità inferiore (DER AMI 15,8% contro 9,3%) |
+| G. NeMo-Speech.cpp (C API) | DLL native più FFI scritta a mano | Q8_0 NVIDIA 107 MB (`08456d9e…`) | auto, max 8 | offline e stream push, post-processing NeMo | come A' | possibile conflitto tra due ggml nello stesso processo; packaging; niente crate |
+| H. ONNX + `ort` | nessuna nuova | ONNX int8 120 MB / fp16 199 MB | auto, max 8 | quello che si implementa | come A' | mel, FIFO e AOSC da scrivere in Rust; rischio di scambio delle etichette |
+| B. `speakrs` | §5 | §5 | soglia | solo offline | community-1 multilingue | §5 |
+| C/D. sherpa-onnx / pyannote-rs | §5 | §5 | §5 | solo offline (sherpa: nessun Sortformer, #3497/#4006) | — | §5 |
+| E. Ingressi separati (Io / Altri) | nessuna | nessuno | 2 | dal vivo | indipendente | §5; si combina con A' sull'audio di sistema |
+
+### 8.8 Raccomandazione aggiornata (proposta, decide l'utente)
+
+**Puntare su Nemotron-3-Diarization via `transcribe-cpp` (A') invece che su Sortformer v2.1, e
+aspettare il merge della PR #175 in una release prima di scrivere codice di diarizzazione.**
+
+1. Il port upstream è del maintainer, ha la parità di DER con NeMo ed espone già in Rust sia
+   `run` sia lo streaming. Rispetto al piano della §6 cambia solo il nome dell'estensione, quindi
+   il lavoro di §4.2-4.7 resta valido.
+2. A posteriori: `run` con `VeryHighLatency`, come previsto in §4.2.
+3. Dal vivo, solo con la Trascrizione dal vivo attiva: uno `Stream` a `VeryHighLatency` (RTF
+   ~0,02, Parlanti in ritardo di circa 30 s) sul mix o solo sull'audio di sistema, con "Io" per il
+   microfono. `LowLatency` (1,04 s) va offerto solo se una misura su x64 mostra margine. Va
+   aggiornata l'ADR-0004, che oggi dice "Diarizzazione solo a posteriori".
+4. Il passaggio a 0.3.0 si può fare subito e separatamente: per Sbobino non ci sono
+   incompatibilità di sorgente (§8.4). Così il salto alla release con Nemotron sarà piccolo.
+
+Cose da fare prima di decidere **[I]**:
+- seguire la PR #175 e verificare se `handy-computer` pubblicherà un GGUF (ed eventualmente un
+  Q8_0) con URL e SHA fissabili in `models.json`;
+- nel frattempo fare la prova di qualità sull'italiano della §6 con il CLI di NeMo-Speech.cpp
+  v0.2.0 per Windows (`nemo-speech diarize file.wav`, Q8_0 di NVIDIA), fuori dall'app. Si può
+  provare anche `--live` per sentire la latenza reale su x64;
+- se la PR resta ferma a lungo, il ripiego è G (NeMo-Speech.cpp via FFI), dopo aver verificato
+  la convivenza delle due copie di ggml. H (ONNX) solo come ultima risorsa.
+
+### 8.9 Punti aperti
+- Data di merge della PR #175 e pubblicazione del GGUF ufficiale.
+- Accuratezza del Q8_0 nel formato upstream: la PR ha validato solo il BF16.
+- RTF reale su CPU x64 a 30,4 s e a 1,04 s, e su Vulkan.
+- Qualità sull'italiano: nessuna fonte primaria.
+- Convivenza di NeMo-Speech.cpp e transcribe.cpp (due ggml) nello stesso processo, solo per G.
