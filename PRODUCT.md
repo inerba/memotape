@@ -145,6 +145,11 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Stop salva `Registrazione AAAA-MM-GG HH-MM-SS.ogg` (OGG/Opus) nella Cartella predefinita, con " 2", " 3"… se il nome c'è già, e il file diventa la Sorgente: Trascrivi è subito disponibile. Il file si scrive mentre si registra.
   - Se il microfono si scollega (o cambia il microfono predefinito di Windows) la Registrazione si ferma e si salva come con Stop, e la status bar mostra l'errore con il nome del dispositivo. Un microfono scelto ma non collegato dà un errore dedicato invece di registrare da un altro.
   - Impostazioni ha le sezioni Registrazione e audio (microfono, bitrate tra i nove valori, mono/stereo, 8/16/24/48 kHz; predefiniti 32 kbps, mono, 48 kHz) e Generale (Cartella predefinita, `Documenti\Sbobino` se non scelta, creata se manca). Le scelte valgono dalla Registrazione successiva.
+- **M6 (ticket 09)**: storie 40, 41, 44 e 50; della 42 e della 54 anche il dispositivo di uscita e la sorgente di registrazione.
+  - In Impostazioni → Registrazione e audio, "Registra da" sceglie Microfono, Audio di sistema o Entrambi (predefinito Microfono), e "Dispositivo di uscita" sceglie da quale uscita prendere l'audio di sistema (predefinito di sistema). Registra usa la scelta salvata.
+  - Con Entrambi microfono e audio di sistema finiscono mixati in un solo file, allineati nel tempo. Durante la Registrazione c'è un indicatore di livello per ciascuno.
+  - Quando il PC è in silenzio la Registrazione dell'audio di sistema continua: il file si riempie di silenzio e resta lungo quanto il timer. Con solo l'Audio di sistema il timer può restare indietro di mezzo secondo durante il silenzio e poi recuperare.
+  - Un'uscita scelta ma non collegata dà un errore dedicato; se si scollega durante la Registrazione questa si ferma e si salva come per il microfono.
 
 ## Fuori dal perimetro
 

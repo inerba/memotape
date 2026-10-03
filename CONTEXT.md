@@ -22,6 +22,10 @@ _Avoid_: recording, cattura
 L'Attività che trasforma in testo il parlato della Sorgente.
 _Avoid_: sbobinatura, riconoscimento
 
+**Ingresso**:
+Il microfono o l'audio di sistema (loopback del dispositivo di uscita) catturati da una Registrazione; la sorgente di registrazione nelle impostazioni dice quali (Microfono, Audio di sistema, Entrambi).
+_Avoid_: sorgente (è la Sorgente), input
+
 **Cartella predefinita**:
 La cartella in cui si salvano le Registrazioni.
 _Avoid_: cartella di output, destinazione
