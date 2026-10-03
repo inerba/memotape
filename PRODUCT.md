@@ -130,7 +130,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Ogni modello mostra la dimensione in MB (binari, come Esplora file), la modalità del testo (in streaming o a fine frase), la licenza e lo stato: non scaricato, download in corso con percentuale, interrotto con percentuale, verifica, scaricato.
   - Scarica, Annulla (cancella il file incompleto, anche durante la verifica), Riprendi (da dove si era fermato, anche dopo la chiusura dell'app) ed Elimina, con conferma; Elimina toglie anche un file incompleto e, durante un download, vale come Annulla. Si possono scaricare più modelli insieme.
   - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, file incompleto cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
-  - Mancano, nel ticket 06: la scelta del modello (oggi si trascrive sempre con Nemotron), il link alle Impostazioni nell'errore "modello assente" ed Elimina disabilitato durante la Trascrizione con quel modello (storie 26, 37 e 39).
+- **M3, seconda parte (ticket 06)**: storie 22–26, 30, 37, 39 e 62; della 61 restano salvati modello e Lingua del parlato, gli altri campi esistono già nel file e diventano scelte con i ticket 08 e 10.
+  - In Impostazioni → Trascrizione si sceglie il modello, Nemotron di default. Si può scegliere anche un modello non scaricato: Trascrivi mostra "modello assente" con il link a Impostazioni → Trascrizione.
+  - Il selettore della Lingua del parlato sta accanto a Trascrivi: "Automatica" e le lingue tra le sei che il modello scelto accetta. Finché il modello non è caricato offre solo la scelta salvata.
+  - Le impostazioni stanno in `settings.json` nella cartella dati dell'app. Un file mancante, corrotto o non valido riporta ai predefiniti senza bloccare l'avvio.
+  - Il modello scelto si carica in background all'avvio e quando cambia la scelta, e resta caricato tra una Trascrizione e l'altra: dalla seconda in poi la Trascrizione parte subito. Si ricarica solo se cambia la scelta o se il modello viene eliminato.
+  - Elimina è disabilitato ("In uso") per il modello che una Trascrizione sta usando o che si sta caricando.
 
 ## Fuori dal perimetro
 
