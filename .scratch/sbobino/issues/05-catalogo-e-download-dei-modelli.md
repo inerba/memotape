@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Tracer bullet)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `models.json` incluso in compilazione, con URL fissati alla revision HF, SHA-256, dimensione, modalità e licenza (valori in `docs/research/transcribe-cpp-e-handy.md` §8)
 - [x] Download in `app_data_dir/models`:
