@@ -1,9 +1,10 @@
 {
   "source": {
     "browse": "Durchsuchen",
-    "filter": "Audio und Video",
+    "filter": "Audio, Video und Bino",
     "none": "Keine Datei ausgewählt",
-    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)"
+    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)",
+    "reveal": "{{path}} (klicken, um es im Ordner anzuzeigen)"
   },
   "transcription": {
     "start": "Transkribieren",
@@ -16,6 +17,8 @@
     "replace": {
       "title": "Text ersetzen?",
       "description": "Der Text im Feld wird einschließlich deiner Änderungen durch die neue Transkription ersetzt. Bereits gespeicherte Markdown-Dateien bleiben erhalten.",
+      "descriptionBino": "Der Text im Feld wird samt deinen Änderungen durch die neue Transkription ersetzt, auch im Bino. Bereits gespeicherte Markdown-Dateien bleiben erhalten.",
+      "descriptionOpen": "Der Text im Feld wird samt deinen Änderungen durch den Text des Bino ersetzt.",
       "keep": "Text behalten",
       "confirm": "Ersetzen"
     }
@@ -51,6 +54,7 @@
       "outputDeviceMissing": "Kein Ausgabegerät für das Systemaudio, oder das in den Einstellungen gewählte ist nicht verfügbar",
       "unreadableSettings": "Die Einstellungen können nicht gelesen werden, die App verwendet die Standardwerte: {{detail}}",
       "liveTranscriptionUnavailable": "Live-Transkription nicht verfügbar: Das Modell {{detail}} ist nicht heruntergeladen oder lässt sich nicht laden (die Aufnahme wird trotzdem gespeichert)",
+      "unsupportedBino": "Dieses Bino stammt aus einer neueren Version von Sbobino: Aktualisiere die App, um es zu öffnen",
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
       "internal": "Interner Fehler: {{detail}}"

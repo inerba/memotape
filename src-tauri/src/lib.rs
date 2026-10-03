@@ -1,4 +1,5 @@
 mod audio_toolkit;
+mod bino;
 mod commands;
 mod engine;
 mod error;
@@ -22,6 +23,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::transcribe,
             commands::cancel_transcription,
             commands::transcript_text,
+            commands::open_bino,
             commands::list_models,
             commands::download_model,
             commands::cancel_model_download,

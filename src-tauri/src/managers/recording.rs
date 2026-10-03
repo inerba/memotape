@@ -1,6 +1,7 @@
 //! Registrazione dal microfono, dall'audio di sistema o da entrambi: catture, mixer e writer
-//! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. Il file si scrive mentre si
-//! registra e a Stop diventa la Sorgente.
+//! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. L'Ogg si scrive mentre si
+//! registra, in una cartella nascosta dentro la Cartella predefinita; a Stop, finita la
+//! Trascrizione dal vivo, diventa un Bino con il testo, che è la Sorgente.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -8,7 +9,7 @@ use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Local, NaiveDateTime};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
@@ -16,6 +17,7 @@ use transcribe_cpp::CancelToken;
 use crate::audio_toolkit::capture::{self, Capture, Kind};
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
+use crate::bino;
 use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::managers::activity::Activity;
@@ -24,6 +26,9 @@ use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgr
 
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
+/// La cartella nascosta degli Ogg delle Registrazioni in corso, dentro la Cartella predefinita.
+/// Dopo un crash l'audio è lì.
+const TEMP_FOLDER: &str = ".sbobino";
 
 /// Durata registrata (pause escluse) e livelli dall'evento precedente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
@@ -45,9 +50,10 @@ pub struct Levels {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingSaved {
+    /// Il Bino; se non si è potuto scrivere, l'Ogg nella cartella nascosta.
     pub path: String,
-    /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`);
-    /// `null` dopo Stop.
+    /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`) o
+    /// perché il Bino non si è scritto; `null` dopo Stop.
     pub error: Option<AppError>,
     /// L'esito della Trascrizione dal vivo; `null` se era spenta.
     pub transcription: Option<LiveTranscription>,
@@ -107,6 +113,7 @@ pub async fn record(
     })?;
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
+    let folder = recordings_folder(&app)?;
     // Con la Trascrizione dal vivo, la pipeline gira in un suo thread e legge l'uscita del mixer.
     let (feed, live) = if settings.trascrizione_dal_vivo {
         let (feed, frames) = live::channel(settings.sample_rate, channel_count(settings.channels))?;
@@ -121,40 +128,155 @@ pub async fn record(
     };
     *recorder.current() = Some(Arc::clone(&controls));
     let recorded = tauri::async_runtime::spawn_blocking({
-        let (app, controls) = (app.clone(), Arc::clone(&controls));
-        move || run(&app, &prefix, &controls, &settings, feed)
+        let (app, controls, settings) = (app.clone(), Arc::clone(&controls), settings.clone());
+        let (folder, prefix) = (folder.clone(), prefix.clone());
+        move || run(&app, &folder, &prefix, &controls, &settings, feed)
     })
     .await
     .map_err(internal)
     .and_then(|recorded| recorded);
     *recorder.current() = None;
-    let Some(live) = live else {
-        return recorded;
-    };
-    let mut saved = match recorded {
-        Ok(saved) => saved,
+    let recorded = match recorded {
+        Ok(recorded) => recorded,
         Err(e) => {
             // La Registrazione non è partita: la pipeline si ferma da sola, senza aspettarla.
             cancel.cancel();
             return Err(e);
         }
     };
-    // Dopo Stop la status bar passa subito al completamento, anche col motore a metà Frase.
-    if let Err(e) = (TranscriptionProgress { percent: None }).emit(&app) {
-        log::warn!("transcription-progress non emesso: {e}");
+    let live = match live {
+        Some(live) => {
+            // Dopo Stop la status bar passa subito al completamento, anche col motore a metà Frase.
+            if let Err(e) = (TranscriptionProgress { percent: None }).emit(&app) {
+                log::warn!("transcription-progress non emesso: {e}");
+            }
+            // L'Attività finisce quando la coda è smaltita.
+            Some(match live.await {
+                Ok((transcript, transcribed)) => (Some(transcript), transcribed),
+                Err(e) => (None, Err(internal(e))),
+            })
+        }
+        None => None,
+    };
+    // Il Bino ha le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata.
+    let phrases = live
+        .as_ref()
+        .and_then(|(transcript, _)| transcript.as_ref())
+        .map_or(&[][..], |transcript| &transcript.phrases);
+    let document = bino::Document::of_mix(
+        bino::creato(recorded.start),
+        recorded.durata_ms,
+        live.is_some()
+            .then(|| SettingsStore::model_of(&settings).id.clone()),
+        settings.speech_language,
+        completa(
+            live.as_ref().map(|(_, transcribed)| transcribed),
+            cancel.is_cancelled(),
+        ),
+        phrases,
+    );
+    let mut error = recorded.error.clone();
+    let path = save_bino(&folder, &prefix, &recorded, &document).unwrap_or_else(|e| {
+        error.get_or_insert(e);
+        keep_ogg(&folder, &prefix, &recorded)
+    });
+    let transcription = live.map(|(transcript, transcribed)| match transcript {
+        Some(transcript) => {
+            transcription::finish_live(&app, &path, transcript, transcribed, &cancel)
+        }
+        None => LiveTranscription::Failed {
+            error: transcribed.err().unwrap_or(AppError::Cancelled),
+        },
+    });
+    Ok(RecordingSaved {
+        path: path.display().to_string(),
+        error,
+        transcription,
+    })
+}
+
+/// Se il testo del Bino è completo: la Trascrizione dal vivo c'era (`transcribed`), è arrivata alla
+/// fine e non è stata annullata, nemmeno dopo l'ultima Frase.
+fn completa(transcribed: Option<&Result<(), AppError>>, cancelled: bool) -> bool {
+    matches!(transcribed, Some(Ok(()))) && !cancelled
+}
+
+/// Senza Bino, l'Ogg temporaneo esce dalla cartella nascosta e va nella Cartella predefinita come
+/// `<prefisso> <data ora>.ogg`: è la Sorgente, con il Markdown accanto. Se nemmeno questo riesce
+/// resta dov'è.
+fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
+    let path = recording_path(
+        folder,
+        prefix,
+        recorded.start.naive_local(),
+        "ogg",
+        Path::exists,
+    );
+    match std::fs::rename(&recorded.ogg, &path) {
+        Ok(()) => {
+            log::warn!("Bino non scritto, la Registrazione è in {}", path.display());
+            let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
+            path
+        }
+        Err(e) => {
+            log::warn!(
+                "Bino non scritto, la Registrazione resta in {}: {e}",
+                recorded.ogg.display()
+            );
+            recorded.ogg.clone()
+        }
     }
-    // L'Attività finisce quando la coda è smaltita.
-    let transcript = live
-        .await
-        .map_err(internal)
-        .and_then(|transcript| transcript);
-    saved.transcription = Some(transcription::finish_live(
-        &app,
-        Path::new(&saved.path),
-        transcript,
-        &cancel,
-    ));
-    Ok(saved)
+}
+
+/// La Registrazione finita, ancora nell'Ogg temporaneo.
+struct Recorded {
+    ogg: PathBuf,
+    start: DateTime<Local>,
+    durata_ms: u32,
+    /// Perché si è fermata da sola, se non è stato Stop.
+    error: Option<AppError>,
+}
+
+/// Scrive il Bino `<prefisso> <data ora>.bino` nella Cartella predefinita e cancella l'Ogg
+/// temporaneo, e con lui la cartella nascosta se resta vuota.
+fn save_bino(
+    folder: &Path,
+    prefix: &str,
+    recorded: &Recorded,
+    document: &bino::Document,
+) -> Result<PathBuf, AppError> {
+    let path = recording_path(
+        folder,
+        prefix,
+        recorded.start.naive_local(),
+        "bino",
+        Path::exists,
+    );
+    bino::write(&path, &recorded.ogg, document)?;
+    if let Err(e) = std::fs::remove_file(&recorded.ogg) {
+        log::warn!("{} non cancellato: {e}", recorded.ogg.display());
+    }
+    // Fallisce se ci sono altri Ogg (una Registrazione interrotta da un crash): restano lì.
+    let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
+    Ok(path)
+}
+
+/// La cartella nascosta degli Ogg temporanei, creata se manca.
+fn temp_folder(folder: &Path) -> Result<PathBuf, AppError> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW};
+    let temp = folder.join(TEMP_FOLDER);
+    std::fs::create_dir_all(&temp).map_err(|e| unwritable(&temp, &e))?;
+    let wide: Vec<u16> = temp.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: `wide` è un percorso terminato da zero che vive per tutta la chiamata.
+    if unsafe { SetFileAttributesW(wide.as_ptr(), FILE_ATTRIBUTE_HIDDEN) } == 0 {
+        log::warn!(
+            "{} non nascosta: {}",
+            temp.display(),
+            std::io::Error::last_os_error()
+        );
+    }
+    Ok(temp)
 }
 
 fn channel_count(channels: Channels) -> usize {
@@ -180,14 +302,16 @@ pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Registra fino a Stop. Con `feed` l'audio salvato va anche alla Trascrizione dal vivo.
+/// Registra fino a Stop nell'Ogg temporaneo dentro `folder`. Con `feed` l'audio salvato va anche
+/// alla Trascrizione dal vivo.
 fn run(
     app: &AppHandle,
+    folder: &Path,
     prefix: &str,
     controls: &Controls,
     settings: &Settings,
     mut feed: Option<LiveFeed>,
-) -> Result<RecordingSaved, AppError> {
+) -> Result<Recorded, AppError> {
     let channels = channel_count(settings.channels);
     let kinds: &[Kind] = match settings.recording_source {
         RecordingSource::Mic => &[Kind::Microphone],
@@ -212,11 +336,10 @@ fn run(
     let now = || captures[0].now();
     let formats: Vec<_> = captures.iter().map(|c| (c.rate, c.channels)).collect();
     let mut mixer = Mixer::new(now(), &formats, (settings.sample_rate, channels))?;
-    let folder = recordings_folder(app)?;
-    std::fs::create_dir_all(&folder).map_err(|e| unwritable(&folder, &e))?;
-    let start = chrono::Local::now().naive_local();
+    let temp = temp_folder(folder)?;
+    let start = Local::now();
     let (path, file) = loop {
-        let path = recording_path(&folder, prefix, start, Path::exists);
+        let path = recording_path(&temp, prefix, start.naive_local(), "ogg", Path::exists);
         // `create_new`: un file comparso dopo il controllo non si sovrascrive.
         match std::fs::File::create_new(&path) {
             Ok(file) => break (path, file),
@@ -310,10 +433,11 @@ fn run(
         feed.push(&out, false);
         feed.finish();
     }
-    Ok(RecordingSaved {
-        path: path.display().to_string(),
+    Ok(Recorded {
+        ogg: path,
+        start,
+        durata_ms: mixer.elapsed_ms(),
         error,
-        transcription: None,
     })
 }
 
@@ -338,17 +462,17 @@ fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
     AppError::UnwritableFolder(format!("{}: {e}", path.display()))
 }
 
-/// `<prefisso> AAAA-MM-GG HH-MM-SS.ogg` nella Cartella predefinita, con " 2", " 3"… se il nome
-/// esiste già.
+/// `<prefisso> AAAA-MM-GG HH-MM-SS.<extension>` in `folder`, con " 2", " 3"… se il nome esiste già.
 pub fn recording_path(
     folder: &Path,
     prefix: &str,
     start: NaiveDateTime,
+    extension: &str,
     exists: impl Fn(&Path) -> bool,
 ) -> PathBuf {
     let base = format!("{prefix} {}", start.format("%Y-%m-%d %H-%M-%S"));
-    std::iter::once(folder.join(format!("{base}.ogg")))
-        .chain((2..).map(|n| folder.join(format!("{base} {n}.ogg"))))
+    std::iter::once(folder.join(format!("{base}.{extension}")))
+        .chain((2..).map(|n| folder.join(format!("{base} {n}.{extension}"))))
         .find(|path| !exists(path))
         .expect("i numeri non finiscono")
 }
@@ -362,20 +486,32 @@ mod tests {
     }
 
     #[test]
+    fn il_testo_del_bino_e_completo_solo_se_la_trascrizione_dal_vivo_e_finita() {
+        let guasta = Err(AppError::Internal("x".into()));
+        assert!(completa(Some(&Ok(())), false));
+        assert!(!completa(Some(&Ok(())), true));
+        assert!(!completa(Some(&guasta), false));
+        assert!(!completa(Some(&Err(AppError::Cancelled)), true));
+        // Senza Trascrizione dal vivo non c'è testo.
+        assert!(!completa(None, false));
+    }
+
+    #[test]
     fn il_nome_ha_prefisso_data_e_ora_e_non_sovrascrive_mai() {
         let folder = Path::new(r"C:\Users\me\Documents\Sbobino");
         let start = at("2026-03-07 09:05:01");
         let taken =
             |names: &'static [&str]| move |p: &Path| names.iter().any(|n| p == folder.join(n));
         assert_eq!(
-            recording_path(folder, "Registrazione", start, taken(&[])),
-            folder.join("Registrazione 2026-03-07 09-05-01.ogg")
+            recording_path(folder, "Registrazione", start, "bino", taken(&[])),
+            folder.join("Registrazione 2026-03-07 09-05-01.bino")
         );
         assert_eq!(
             recording_path(
                 folder,
                 "Recording",
                 start,
+                "ogg",
                 taken(&[
                     "Recording 2026-03-07 09-05-01.ogg",
                     "Recording 2026-03-07 09-05-01 2.ogg"

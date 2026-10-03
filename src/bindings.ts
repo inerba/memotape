@@ -13,8 +13,8 @@ export const commands = {
 	 */
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
 	/**
-	 *  Apre la Sorgente con il programma associato. Accetta solo le estensioni di Sfoglia, così
-	 *  non diventa un modo per lanciare eseguibili.
+	 *  Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
+	 *  estensioni di Sfoglia, così non diventa un modo per lanciare eseguibili.
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
@@ -31,6 +31,11 @@ export const commands = {
 	 *  `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 	 */
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
+	/**
+	 *  Apre un Bino scelto come Sorgente: restituisce il suo testo, una Frase per riga, che diventa
+	 *  l'ultima Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+	 */
+	openBino: (source: string) => typedError<string, AppError>(__TAURI_INVOKE("open_bino", { source })),
 	/**  I modelli del catalogo con il loro stato. */
 	listModels: () => __TAURI_INVOKE<ModelInfo[]>("list_models"),
 	/**
@@ -110,7 +115,9 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
  *  Il modello scelto, di cui porta il nome, non è scaricato o non si carica: la Registrazione
  *  continua senza Trascrizione dal vivo.
  */
-{ code: "liveTranscriptionUnavailable"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "liveTranscriptionUnavailable"; detail: string } | 
+/**  Il Bino è stato scritto da una versione più nuova dell'app, con uno schema che non conosce. */
+{ code: "unsupportedBino" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -204,10 +211,11 @@ export type ModelStateChanged = {
 
 /**  La Registrazione salvata, che diventa la Sorgente. */
 export type RecordingSaved = {
+	/**  Il Bino; se non si è potuto scrivere, l'Ogg nella cartella nascosta. */
 	path: string,
 	/**
-	 *  Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`);
-	 *  `null` dopo Stop.
+	 *  Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`) o
+	 *  perché il Bino non si è scritto; `null` dopo Stop.
 	 */
 	error: AppError | null,
 	/**  L'esito della Trascrizione dal vivo; `null` se era spenta. */

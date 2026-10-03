@@ -163,13 +163,20 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - La casella "Trascrivi dal vivo" accanto a Registra, spenta per default e salvata tra un avvio e l'altro, fa comparire il testo mentre si registra: con Nemotron i Parziali, con Whisper e Parakeet ogni Frase a fine Frase. Durante la Registrazione la casella è bloccata.
   - La Registrazione non rallenta mai: se il motore resta indietro le Frasi vanno in coda. Dopo Stop la status bar mostra "Completamento della trascrizione…" con l'avanzamento e Annulla finché la coda non è vuota; annullando, la Registrazione resta salvata e il testo no.
   - Pausa chiude la Frase in corso, Riprendi continua nella stessa sessione; il testo non contiene l'audio in pausa.
-  - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.md` accanto all'Ogg e la status bar lo dice.
+  - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.md` accanto alla Registrazione (dalla V2 il Bino) e la status bar lo dice.
   - Con testo nell'area, Registra con la casella attiva chiede conferma prima di sostituirlo.
   - Se il modello scelto non è scaricato o non si carica la Registrazione parte comunque, con un avviso e il link alle Impostazioni.
 - **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è già nel renderer e arriva con i ticket v2/06 e v2/07.
   - Il risultato di una Trascrizione, anche dal vivo, è `<nome Sorgente> trascrizione <N>.md` invece del TXT, con la stessa regola del primo N libero. Ha come titolo il nome della Sorgente e un'intestazione con data e ora, durata, modello e Lingua del parlato, nella Lingua dell'interfaccia.
   - Le Frasi si uniscono in paragrafi, e se ne apre uno nuovo dopo oltre 2 s di silenzio.
   - In Impostazioni → Generale, "Copia testo come" sceglie testo semplice (predefinito) o Markdown. Copia testo copia l'ultima Trascrizione, anche annullata o in corso, nel formato scelto; se il testo nell'area è stato modificato a mano lo copia com'è.
+- **V2, Bino (ticket v2/04)**: storie 18–20 e 22–25 della spec v2; la 21 (doppio clic in Esplora file) arriva con il ticket v2/05. Sostituisce la storia 47 e il punto di M5 sul file `.ogg`.
+  - Stop salva un solo `Registrazione <data ora>.bino` nella Cartella predefinita, con " 2", " 3"… se il nome c'è già, che diventa la Sorgente. Contiene l'audio del mix e il testo con i suoi metadati; con la Trascrizione dal vivo accanto c'è anche il Markdown, che prende il nome dal Bino.
+  - Durante la Registrazione l'audio si scrive in un Ogg nella cartella nascosta `.sbobino` dentro la Cartella predefinita: dopo un crash è lì. A Stop, finita la coda della Trascrizione dal vivo, diventa il Bino e la cartella sparisce se resta vuota. Se il Bino non si può scrivere, la Registrazione resta come `Registrazione <data ora>.ogg` nella Cartella predefinita e diventa la Sorgente, con l'errore nella status bar.
+  - Annullando il completamento della trascrizione dopo Stop il Bino si salva lo stesso, con le Frasi già pronte e segnato come incompleto, mentre il Markdown no. Senza Trascrizione dal vivo il Bino non ha testo.
+  - Sfoglia accetta anche i `.bino`: un Bino si apre con il suo testo nell'area, senza ritrascrivere, e Copia testo lo rende con la sua intestazione. Se l'area contiene già testo chiede conferma. Un Bino di una versione più nuova dell'app dà un errore che chiede di aggiornare.
+  - Trascrivi su un Bino ne decodifica l'audio e, dopo la conferma (chiesta sempre, anche con l'area vuota, e che avvisa che cambia anche il Bino), sostituisce il testo dentro il Bino e salva un nuovo Markdown accanto. Annullando, il Bino non cambia.
+  - Il clic sul nome di un Bino lo mostra in Esplora file invece di aprirlo. Le vecchie Registrazioni `.ogg` si aprono ancora come Sorgente.
 
 ## Fuori dal perimetro
 

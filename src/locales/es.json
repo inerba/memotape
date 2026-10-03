@@ -1,9 +1,10 @@
 {
   "source": {
     "browse": "Examinar",
-    "filter": "Audio y vídeo",
+    "filter": "Audio, vídeo y Bino",
     "none": "Ningún archivo seleccionado",
-    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)"
+    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)",
+    "reveal": "{{path}} (clic para mostrarlo en su carpeta)"
   },
   "transcription": {
     "start": "Transcribir",
@@ -16,6 +17,8 @@
     "replace": {
       "title": "¿Reemplazar el texto?",
       "description": "El texto del área, incluidos tus cambios, se reemplazará por la nueva transcripción. Los archivos Markdown ya guardados se conservan.",
+      "descriptionBino": "El texto del área, incluidas tus modificaciones, se sustituirá por la nueva transcripción, también dentro del Bino. Los archivos Markdown ya guardados se conservan.",
+      "descriptionOpen": "El texto del área, incluidas tus modificaciones, se sustituirá por el del Bino.",
       "keep": "Conservar el texto",
       "confirm": "Reemplazar"
     }
@@ -52,6 +55,7 @@
       "outputDeviceMissing": "No hay ningún dispositivo de salida para el audio del sistema, o el elegido en Configuración no está disponible",
       "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
       "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
+      "unsupportedBino": "Este Bino viene de una versión más reciente de Sbobino: actualiza la aplicación para abrirlo",
       "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
       "cancelled": "Transcripción cancelada",
       "internal": "Error interno: {{detail}}"

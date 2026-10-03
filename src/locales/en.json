@@ -1,9 +1,10 @@
 {
   "source": {
     "browse": "Browse",
-    "filter": "Audio and video",
+    "filter": "Audio, video and Bino",
     "none": "No file selected",
-    "open": "{{path}} (click to open with the default app)"
+    "open": "{{path}} (click to open with the default app)",
+    "reveal": "{{path}} (click to show it in its folder)"
   },
   "transcription": {
     "start": "Transcribe",
@@ -16,6 +17,8 @@
     "replace": {
       "title": "Replace the text?",
       "description": "The text in the box, including your edits, will be replaced by the new transcription. Markdown files already saved are kept.",
+      "descriptionBino": "The text in the area, including your edits, will be replaced by the new transcription, also inside the Bino. Markdown files already saved are kept.",
+      "descriptionOpen": "The text in the area, including your edits, will be replaced by the one in the Bino.",
       "keep": "Keep the text",
       "confirm": "Replace"
     }
@@ -51,6 +54,7 @@
       "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
+      "unsupportedBino": "This Bino comes from a newer version of Sbobino: update the app to open it",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}"

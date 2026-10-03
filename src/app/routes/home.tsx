@@ -26,7 +26,7 @@ import { afterRecording } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
 import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
-import { fileName } from "@/features/source/file-name";
+import { fileName, isBino } from "@/features/source/file-name";
 import {
   afterTranscription,
   needsSettings,
@@ -40,6 +40,11 @@ import {
   appendPhrase,
   withPartial,
 } from "@/features/transcription/phrases";
+import {
+  type ReplaceAction,
+  replaceDescription,
+  transcribeNeedsConfirm,
+} from "@/features/transcription/replace";
 
 const COPIED_MS = 2000;
 
@@ -62,10 +67,12 @@ export function HomePage() {
   );
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  // L'Attività che aspetta la conferma prima di sostituire il testo nell'area.
-  const [confirmReplace, setConfirmReplace] = useState<
-    "transcribe" | "record" | null
-  >(null);
+  // Cosa aspetta la conferma prima di sostituire il testo nell'area: un'Attività o l'apertura di
+  // un Bino.
+  const [confirmReplace, setConfirmReplace] = useState<{
+    action: ReplaceAction;
+    path?: string;
+  } | null>(null);
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
   // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
@@ -121,13 +128,34 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [copied]);
 
+  // Un Bino si apre con il testo che contiene, senza ritrascrivere.
+  const openBino = useCallback(async (path: string) => {
+    const result = await commands.openBino(path);
+    if (result.status === "error") {
+      setStatus({ error: result.error, phase: "failed" });
+      return;
+    }
+    setSource(path);
+    setText(result.data);
+    setPartial(null);
+    edited.current = false;
+    setStatus({ phase: "idle", source: path });
+  }, []);
+
   const browse = useCallback(async () => {
     const picked = await commands.pickSource(t("source.filter"));
-    if (picked) {
+    if (!picked) {
+      return;
+    }
+    if (!isBino(picked)) {
       setSource(picked);
       setStatus({ phase: "idle", source: picked });
+    } else if (text.trim()) {
+      setConfirmReplace({ action: "open", path: picked });
+    } else {
+      openBino(picked);
     }
-  }, [t]);
+  }, [openBino, t, text]);
 
   const open = useCallback(async () => {
     if (!source) {
@@ -198,19 +226,20 @@ export function HomePage() {
     );
   }, []);
 
-  // Il testo nell'area, anche se modificato a mano, si sostituisce solo dopo conferma.
+  // Il testo nell'area, anche se modificato a mano, e quello dentro un Bino si sostituiscono solo
+  // dopo conferma.
   const requestTranscription = useCallback(() => {
-    if (text.trim()) {
-      setConfirmReplace("transcribe");
+    if (transcribeNeedsConfirm(text, source)) {
+      setConfirmReplace({ action: "transcribe" });
     } else {
       transcribe();
     }
-  }, [text, transcribe]);
+  }, [source, text, transcribe]);
 
   // Con Trascrivi dal vivo la Registrazione sostituisce il testo: anche lei chiede conferma.
   const requestRecording = useCallback(() => {
     if (live && text.trim()) {
-      setConfirmReplace("record");
+      setConfirmReplace({ action: "record" });
     } else {
       record();
     }
@@ -223,12 +252,14 @@ export function HomePage() {
   }, []);
 
   const replace = useCallback(() => {
-    if (confirmReplace === "record") {
+    if (confirmReplace?.action === "record") {
       record();
+    } else if (confirmReplace?.action === "open" && confirmReplace.path) {
+      openBino(confirmReplace.path);
     } else {
       transcribe();
     }
-  }, [confirmReplace, record, transcribe]);
+  }, [confirmReplace, openBino, record, transcribe]);
 
   const toggleLive = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
@@ -321,7 +352,11 @@ export function HomePage() {
                 <button
                   className="block max-w-full cursor-pointer truncate rounded-sm text-left text-sm underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={open}
-                  title={t("source.open", { path: source })}
+                  title={
+                    isBino(source)
+                      ? t("source.reveal", { path: source })
+                      : t("source.open", { path: source })
+                  }
                   type="button"
                 >
                   {fileName(source)}
@@ -380,7 +415,7 @@ export function HomePage() {
                   {t("transcription.replace.title")}
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t("transcription.replace.description")}
+                  {t(replaceDescription(confirmReplace?.action, source))}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

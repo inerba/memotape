@@ -8,9 +8,10 @@ use symphonia::core::codecs::registry::CodecRegistry;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
-use symphonia::core::io::MediaSourceStream;
+use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
 
+use crate::bino;
 use crate::error::AppError;
 
 static CODECS: LazyLock<CodecRegistry> = LazyLock::new(|| {
@@ -35,15 +36,21 @@ impl Decoder {
         let unreadable = |e: &dyn std::fmt::Display| {
             AppError::UnreadableFile(format!("{}: {e}", path.display()))
         };
-        let file = std::fs::File::open(path).map_err(|e| unreadable(&e))?;
         let mut hint = Hint::new();
-        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-            hint.with_extension(ext);
-        }
+        // Di un Bino si decodifica il mix.
+        let source: Box<dyn MediaSource> = if bino::is_bino(path) {
+            hint.with_extension("ogg");
+            Box::new(bino::Mix::open(path)?)
+        } else {
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                hint.with_extension(ext);
+            }
+            Box::new(std::fs::File::open(path).map_err(|e| unreadable(&e))?)
+        };
         let format = symphonia::default::get_probe()
             .probe(
                 &hint,
-                MediaSourceStream::new(Box::new(file), Default::default()),
+                MediaSourceStream::new(source, Default::default()),
                 FormatOptions::default(),
                 MetadataOptions::default(),
             )
@@ -119,5 +126,15 @@ impl Decoder {
             self.decoded_frames += mono.len() as u64;
             return Ok(Some((mono, rate)));
         }
+    }
+}
+
+impl MediaSource for bino::Mix {
+    fn is_seekable(&self) -> bool {
+        true
+    }
+
+    fn byte_len(&self) -> Option<u64> {
+        Some(self.len())
     }
 }

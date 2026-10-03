@@ -1,9 +1,10 @@
 {
   "source": {
     "browse": "Sfoglia",
-    "filter": "Audio e video",
+    "filter": "Audio, video e Bino",
     "none": "Nessun file scelto",
-    "open": "{{path}} (clic per aprire con il programma associato)"
+    "open": "{{path}} (clic per aprire con il programma associato)",
+    "reveal": "{{path}} (clic per mostrarlo nella cartella)"
   },
   "transcription": {
     "start": "Trascrivi",
@@ -16,6 +17,8 @@
     "replace": {
       "title": "Sostituire il testo?",
       "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I file Markdown già salvati restano.",
+      "descriptionBino": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione, anche dentro il Bino. I file Markdown già salvati restano.",
+      "descriptionOpen": "Il testo nell'area, comprese le tue modifiche, sarà sostituito da quello del Bino.",
       "keep": "Mantieni il testo",
       "confirm": "Sostituisci"
     }
@@ -52,6 +55,7 @@
       "outputDeviceMissing": "Nessun dispositivo di uscita per l'audio di sistema, o quello scelto in Impostazioni non è disponibile",
       "unreadableSettings": "Impossibile leggere le impostazioni, l'app usa i valori predefiniti: {{detail}}",
       "liveTranscriptionUnavailable": "Trascrizione dal vivo non disponibile: il modello {{detail}} non è scaricato o non si carica (la Registrazione si salva comunque)",
+      "unsupportedBino": "Questo Bino viene da una versione più recente di Sbobino: aggiorna l'app per aprirlo",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"

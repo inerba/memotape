@@ -1,7 +1,7 @@
 //! Trascrizione di una Sorgente, o dal vivo di una Registrazione: prende il motore del modello
 //! scelto (caricato una volta e tenuto tra una Trascrizione e l'altra), esegue la pipeline, la
-//! traduce in eventi e salva il Markdown accanto alla Sorgente. Tiene l'ultima Trascrizione per
-//! Copia testo.
+//! traduce in eventi e salva il Markdown accanto alla Sorgente; di un Bino riscrive anche il testo
+//! dentro il Bino. Tiene l'ultima Trascrizione per Copia testo.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -13,6 +13,7 @@ use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
+use crate::bino;
 use crate::engine::TranscriptionEngine;
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_file};
@@ -20,7 +21,7 @@ use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::loaded_model::Lease;
-use crate::managers::models::Models;
+use crate::managers::models::{self, Models};
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
 use crate::transcript::{self, Labels, Phrase, Transcript};
 
@@ -176,16 +177,20 @@ pub async fn transcribe(
     let settings = app.state::<SettingsStore>().get();
     let model = SettingsStore::model_of(&settings);
     let silero = silero_path(&app)?;
-    let transcript = begin_transcript(&app, title_of(&source), &settings);
+    // Un Bino illeggibile o di una versione più nuova si rifiuta prima di caricare il modello.
+    let bino = bino::is_bino(&source)
+        .then(|| bino::read(&source))
+        .transpose()?;
+    let mut transcript = begin_transcript(&app, title_of(&source), &settings);
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
         let engine = models.take(&app, || model.id.as_str())?;
-        let transcript = run_pipeline(
+        run_pipeline(
             &app,
             engine,
             &silero,
             &cancel,
-            transcript,
+            &mut transcript,
             |engine, detector, on_event| {
                 transcribe_file(
                     &source,
@@ -197,9 +202,20 @@ pub async fn transcribe(
                 )
             },
         )?;
-        // Annulla premuto dopo l'ultima Frase: il Markdown non si salva lo stesso.
+        // Annulla premuto dopo l'ultima Frase: né il Bino né il Markdown cambiano.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
+        }
+        if let Some(old) = bino {
+            let document = bino::Document::of_mix(
+                old.creato,
+                old.durata_ms,
+                Some(model.id.clone()),
+                settings.speech_language,
+                true,
+                &transcript.phrases,
+            );
+            bino::rewrite(&source, &document)?;
         }
         save_transcript(&source, &transcript, &labels(&settings))
     })
@@ -209,7 +225,8 @@ pub async fn transcribe(
 
 /// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive `frames`
 /// man mano che arrivano, fino alla fine della Registrazione e della coda, con gli eventi di
-/// `transcribe`. Restituisce il documento, intitolato `title` finché non si sa il nome del file.
+/// `transcribe`. Restituisce il documento, intitolato `title` finché non si sa il nome del file, con
+/// le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata, e com'è finita.
 /// Se il modello non si carica (`liveTranscriptionUnavailable`) o la pipeline si guasta emette
 /// `live-transcription-failed`: la Registrazione continua.
 pub fn transcribe_live(
@@ -218,9 +235,9 @@ pub fn transcribe_live(
     settings: &Settings,
     title: &str,
     cancel: &CancelToken,
-) -> Result<Transcript, AppError> {
+) -> (Transcript, Result<(), AppError>) {
     let model = SettingsStore::model_of(settings);
-    let transcript = begin_transcript(app, title.to_string(), settings);
+    let mut transcript = begin_transcript(app, title.to_string(), settings);
     let transcribed = silero_path(app).and_then(|silero| {
         let models = app.state::<Models>();
         let engine = models.take(app, || model.id.as_str()).map_err(|e| {
@@ -232,7 +249,7 @@ pub fn transcribe_live(
             engine,
             &silero,
             cancel,
-            transcript,
+            &mut transcript,
             |engine, detector, on_event| {
                 pipeline::transcribe(
                     &mut frames,
@@ -256,16 +273,17 @@ pub fn transcribe_live(
             log::warn!("live-transcription-failed non emesso: {e}");
         }
     }
-    transcribed
+    (transcript, transcribed)
 }
 
 /// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: il documento
-/// prende il nome del file e si salva nel Markdown accanto, a meno che la Trascrizione non sia
-/// stata annullata o guasta.
+/// prende il nome del file e si salva nel Markdown accanto, a meno che la Trascrizione
+/// (`transcribed`) non sia stata annullata o guasta.
 pub fn finish_live(
     app: &AppHandle,
     recording: &Path,
-    transcript: Result<Transcript, AppError>,
+    transcript: Transcript,
+    transcribed: Result<(), AppError>,
     cancel: &CancelToken,
 ) -> LiveTranscription {
     let title = title_of(recording);
@@ -274,10 +292,11 @@ pub fn finish_live(
     let settings = app.state::<SettingsStore>().get();
     save_live(
         recording,
-        transcript.map(|transcript| Transcript {
+        &Transcript {
             title,
             ..transcript
-        }),
+        },
+        transcribed,
         cancel,
         &labels(&settings),
     )
@@ -286,21 +305,62 @@ pub fn finish_live(
 /// Salva il documento della Trascrizione dal vivo, se non è stata annullata o guasta.
 fn save_live(
     recording: &Path,
-    transcript: Result<Transcript, AppError>,
+    transcript: &Transcript,
+    transcribed: Result<(), AppError>,
     cancel: &CancelToken,
     labels: &Labels,
 ) -> LiveTranscription {
-    let saved = transcript.and_then(|transcript| {
+    let saved = transcribed.and_then(|()| {
         // Annulla premuto dopo l'ultima Frase: il Markdown non si salva lo stesso.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        save_transcript(recording, &transcript, labels)
+        save_transcript(recording, transcript, labels)
     });
     match saved {
         Ok(TranscriptionOutcome::Saved(finished)) => LiveTranscription::Saved(finished),
         Ok(TranscriptionOutcome::NoSpeech) => LiveTranscription::NoSpeech,
         Err(error) => LiveTranscription::Failed { error },
+    }
+}
+
+/// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione, senza
+/// ritrascrivere. Restituisce il testo dell'area, una Frase per riga.
+pub fn open_bino(app: &AppHandle, source: &Path) -> Result<String, AppError> {
+    let transcript = bino_transcript(title_of(source), bino::read(source)?);
+    let text = transcript
+        .phrases
+        .iter()
+        .map(|p| p.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    app.state::<LastTranscript>().set(transcript);
+    Ok(text)
+}
+
+/// Il documento di un Bino come Trascrizione, con il nome del modello dal catalogo.
+fn bino_transcript(title: String, document: bino::Document) -> Transcript {
+    Transcript {
+        title,
+        date: document.date(),
+        durata_ms: Some(document.durata_ms),
+        model: document
+            .modello
+            .map(|id| models::find(&id).map_or(id, |m| m.name.clone()))
+            .unwrap_or_default(),
+        speech_language: document.lingua_parlato,
+        // ponytail: Ingresso e Parlante arrivano con gli Ingressi separati e la Diarizzazione.
+        phrases: document
+            .frasi
+            .into_iter()
+            .map(|frase| Phrase {
+                inizio_ms: frase.inizio_ms,
+                fine_ms: frase.fine_ms,
+                text: frase.testo,
+                ingresso: None,
+                parlante: None,
+            })
+            .collect(),
     }
 }
 
@@ -312,21 +372,21 @@ fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
 
 /// Esegue `run` con `engine` e Silero, traduce gli eventi della pipeline in
 /// `transcription-progress`, `transcript-partial` e `transcript-phrase` e aggiunge le Frasi a
-/// `transcript`, che restituisce con la durata. Aggiorna anche `LastTranscript` a
-/// ogni Frase. Poi rende il motore: dopo un guasto interno si scarta e alla volta successiva si
+/// `transcript`, e alla fine la durata. Aggiorna anche `LastTranscript` a ogni Frase. Poi rende
+/// il motore: dopo un guasto interno si scarta e alla volta successiva si
 /// ricarica.
 fn run_pipeline(
     app: &AppHandle,
     mut engine: Lease<'_, TranscribeCpp>,
     silero: &Path,
     cancel: &CancelToken,
-    mut transcript: Transcript,
+    transcript: &mut Transcript,
     run: impl FnOnce(
         &mut dyn TranscriptionEngine,
         &mut dyn VoiceDetector,
         &mut dyn FnMut(PipelineEvent),
     ) -> Result<u32, AppError>,
-) -> Result<Transcript, AppError> {
+) -> Result<(), AppError> {
     engine.set_cancel_token(cancel);
     let last = app.state::<LastTranscript>();
     let transcribed = Silero::new(silero).and_then(|mut detector| {
@@ -376,10 +436,7 @@ fn run_pipeline(
         })
         .map(|durata_ms| {
             last.update(|last| last.durata_ms = Some(durata_ms));
-            Transcript {
-                durata_ms: Some(durata_ms),
-                ..transcript
-            }
+            transcript.durata_ms = Some(durata_ms);
         })
     });
     app.state::<Models>().release(
@@ -572,11 +629,12 @@ mod tests {
         let dir = std::env::temp_dir().join("sbobino-test-dal-vivo");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let recording = dir.join("Registrazione.ogg");
-        let document = || Ok(transcript(&["Uno."]));
+        let recording = dir.join("Registrazione.bino");
+        let document = transcript(&["Uno."]);
         let cancel = CancelToken::new();
         let guasta = save_live(
             &recording,
+            &document,
             Err(AppError::Internal("x".into())),
             &cancel,
             &labels(),
@@ -588,12 +646,12 @@ mod tests {
             }
         ));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        let saved = save_live(&recording, document(), &cancel, &labels());
+        let saved = save_live(&recording, &document, Ok(()), &cancel, &labels());
         assert!(matches!(saved, LiveTranscription::Saved(_)), "{saved:?}");
         // Annulla dopo l'ultima Frase: niente secondo Markdown.
         cancel.cancel();
         assert_eq!(
-            save_live(&recording, document(), &cancel, &labels()),
+            save_live(&recording, &document, Ok(()), &cancel, &labels()),
             LiveTranscription::Failed {
                 error: AppError::Cancelled
             }
@@ -616,6 +674,38 @@ mod tests {
         settings.copia_come = CopiaCome::Markdown;
         let text = transcript_text(&last, &settings).unwrap();
         assert!(text.starts_with("# Lezione\n\n- **Data:** "), "{text}");
+    }
+
+    #[test]
+    fn il_testo_di_un_bino_diventa_la_trascrizione_con_il_nome_del_modello() {
+        let phrases = transcript(&["Uno.", "Due."]).phrases;
+        let document = bino::Document::of_mix(
+            "2026-10-03T17:05:42+02:00".into(),
+            4000,
+            Some(models::default_model().id.clone()),
+            SpeechLanguage::It,
+            false,
+            &phrases,
+        );
+        assert_eq!(
+            bino_transcript("Registrazione".into(), document.clone()),
+            Transcript {
+                title: "Registrazione".into(),
+                date: "2026-10-03 17:05".into(),
+                durata_ms: Some(4000),
+                model: models::default_model().name.clone(),
+                speech_language: SpeechLanguage::It,
+                phrases,
+            }
+        );
+        // Senza Trascrizione dal vivo il modello non c'è; un id sconosciuto resta com'è.
+        for (modello, model) in [(None, ""), (Some("futuro"), "futuro")] {
+            let document = bino::Document {
+                modello: modello.map(Into::into),
+                ..document.clone()
+            };
+            assert_eq!(bino_transcript(String::new(), document).model, model);
+        }
     }
 
     #[test]

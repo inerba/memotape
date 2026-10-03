@@ -1,12 +1,13 @@
 //! Comandi Tauri: validano gli argomenti e delegano ai manager.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::audio_toolkit::capture::{self, AudioDevice};
+use crate::bino;
 use crate::error::AppError;
 use crate::managers;
 use crate::managers::activity::Activity;
@@ -14,10 +15,10 @@ use crate::managers::models::{ModelInfo, Models};
 use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 
-/// Estensioni accettate da Sfoglia (spec, storia 2).
+/// Estensioni accettate da Sfoglia (spec, storia 2), Bino compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
     "mp3", "wav", "m4a", "flac", "ogg", "opus", "webm", "mpga", "mpeg", "aiff", "mp4", "mkv",
-    "mov", "m4v",
+    "mov", "m4v", "bino",
 ];
 
 /// Versione dell'app, dal `Cargo.toml`.
@@ -44,8 +45,8 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
-/// Apre la Sorgente con il programma associato. Accetta solo le estensioni di Sfoglia, così
-/// non diventa un modo per lanciare eseguibili.
+/// Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
+/// estensioni di Sfoglia, così non diventa un modo per lanciare eseguibili.
 #[tauri::command]
 #[specta::specta]
 pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
@@ -62,9 +63,24 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     if !path.is_file() {
         return Err(AppError::UnreadableFile(source));
     }
-    app.opener()
-        .open_path(source, None::<&str>)
-        .map_err(|e| AppError::Internal(e.to_string()))
+    let opened = if bino::is_bino(&path) {
+        app.opener().reveal_item_in_dir(path)
+    } else {
+        app.opener().open_path(source, None::<&str>)
+    };
+    opened.map_err(|e| AppError::Internal(e.to_string()))
+}
+
+/// Apre un Bino scelto come Sorgente: restituisce il suo testo, una Frase per riga, che diventa
+/// l'ultima Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+#[tauri::command]
+#[specta::specta]
+pub fn open_bino(app: AppHandle, source: String) -> Result<String, AppError> {
+    let path = Path::new(&source);
+    if !bino::is_bino(path) {
+        return Err(AppError::Internal(format!("non è un Bino: {source}")));
+    }
+    managers::transcription::open_bino(&app, path)
 }
 
 /// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel

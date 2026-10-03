@@ -35,6 +35,9 @@ pub enum AppError {
     /// continua senza Trascrizione dal vivo.
     #[error("Trascrizione dal vivo non disponibile: {0}")]
     LiveTranscriptionUnavailable(String),
+    /// Il Bino è stato scritto da una versione più nuova dell'app, con uno schema che non conosce.
+    #[error("Bino di una versione più nuova")]
+    UnsupportedBino,
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.
