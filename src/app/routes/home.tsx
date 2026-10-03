@@ -1,27 +1,17 @@
-import env from "@/config/env";
-import BuiltWith from "@/features/built-with";
-import GithubStarButton from "@/features/github-star-button";
+import { use } from "react";
+import { useTranslation } from "react-i18next";
+import { commands } from "@/bindings";
+
+const versionPromise = commands.appVersion();
 
 export function HomePage() {
+  const { t } = useTranslation();
+  const version = use(versionPromise);
+
   return (
-    <div className="flex h-screen">
-      <div className="m-auto space-y-3 text-center">
-        <div className="space-y-3">
-          <BuiltWith />
-          <h1 className="items-center text-3xl">
-            Welcome to Tauri React template!
-          </h1>
-          <p>
-            This template is a starting point for building Tauri apps with Vite,
-            React, and Tailwind CSS.
-          </p>
-          <p>Env variable: {env.API_URL}</p>
-        </div>
-        <GithubStarButton />
-      </div>
-    </div>
+    <main className="flex h-screen flex-col items-center justify-center gap-2">
+      <h1 className="font-semibold text-3xl">Sbobino</h1>
+      <p className="text-muted-foreground">{t("home.version", { version })}</p>
+    </main>
   );
 }
-
-// Necessary for react router to lazy load.
-export const Component = HomePage;

@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,27 +10,18 @@ import {
 } from "@/features/errors/error-base";
 
 export default function NotFoundErrorPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
+  const goBack = useCallback(() => navigate(-1), [navigate]);
   return (
     <ErrorView>
-      <ErrorHeader>Page not found</ErrorHeader>
-      <ErrorDescription>
-        Sorry, we couldn’t find the page you’re looking for.
-      </ErrorDescription>
+      <ErrorHeader>{t("errors.notFound.title")}</ErrorHeader>
+      <ErrorDescription>{t("errors.notFound.description")}</ErrorDescription>
       <ErrorActions>
-        <Button onClick={() => navigate(-1)} size="lg">
-          Go back
-        </Button>
-        <Button size="lg" variant="ghost">
-          Contact support{" "}
-          <span aria-hidden="true" className="ml-1">
-            &rarr;
-          </span>
+        <Button onClick={goBack} size="lg">
+          {t("errors.notFound.action")}
         </Button>
       </ErrorActions>
     </ErrorView>
   );
 }
-
-// Necessary for react router to lazy load.
-export const Component = NotFoundErrorPage;

@@ -1,0 +1,18 @@
+{
+  "home": {
+    "version": "Versione {{version}}"
+  },
+  "errors": {
+    "label": "Errore",
+    "app": {
+      "title": "Qualcosa è andato storto",
+      "description": "L'app ha incontrato un errore e va ricaricata.",
+      "action": "Ricarica"
+    },
+    "notFound": {
+      "title": "Pagina non trovata",
+      "description": "La pagina richiesta non esiste.",
+      "action": "Torna indietro"
+    }
+  }
+}

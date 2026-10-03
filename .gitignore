@@ -23,3 +23,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Config locale di Cargo (percorsi della macchina, vedi AGENTS.md)
+/src-tauri/.cargo/config.toml
+*.tsbuildinfo

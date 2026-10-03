@@ -1,22 +1,28 @@
 [package]
-name = "create-tauri-react"
+name = "sbobino"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-edition = "2021"
+description = "Trascrizione locale di audio e video"
+edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+# Nome diverso dal binario: su Windows lib e bin con lo stesso nome collidono sui .pdb.
+name = "sbobino_lib"
 
 [build-dependencies]
-tauri-build = { version = "2.0.3", features = [] }
+tauri-build = { version = "2.7.1", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.2", features = [] }
+tauri = { version = "2.12.1", features = [] }
+tauri-plugin-dialog = "2.8.1"
+tauri-plugin-log = "2.10.0"
+tauri-plugin-opener = "2.7.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-shell = "2"
-tauri-plugin-process = "2.3.1"
+# specta è in rc: pin esatto con `=`, come chiede tauri-specta.
+specta = "=2.0.0-rc.25"
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
 [features]
-# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+# Usata dalle build di produzione o quando non c'è un dev server: non rimuovere.
 custom-protocol = ["tauri/custom-protocol"]

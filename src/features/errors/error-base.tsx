@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export function ErrorView({
@@ -8,6 +9,7 @@ export function ErrorView({
   children: ReactNode;
   className?: string;
 }) {
+  const { t } = useTranslation();
   return (
     <main
       className={cn(
@@ -16,7 +18,9 @@ export function ErrorView({
       )}
     >
       <div className="text-center">
-        <p className="font-semibold text-base text-red-600">Error</p>
+        <p className="font-semibold text-base text-red-600">
+          {t("errors.label")}
+        </p>
         {children}
       </div>
     </main>

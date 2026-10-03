@@ -1,6 +1,2 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+// biome-ignore lint/performance/noBarrelFile: è il `lib/utils` che shadcn genera da quando adotta il pacchetto `cn`.
+export { cn } from "cn";

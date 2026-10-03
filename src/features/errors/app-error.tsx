@@ -1,4 +1,4 @@
-import { relaunch } from "@tauri-apps/plugin-process";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   ErrorActions,
@@ -7,18 +7,19 @@ import {
   ErrorView,
 } from "@/features/errors/error-base";
 
+function reload() {
+  window.location.reload();
+}
+
 export default function AppErrorPage() {
+  const { t } = useTranslation();
   return (
     <ErrorView>
-      <ErrorHeader>We&apos;re fixing it</ErrorHeader>
-      <ErrorDescription>
-        The app encountered an error and needs to be restarted.
-        <br />
-        We know about it and we&apos;re working to fix it.
-      </ErrorDescription>
+      <ErrorHeader>{t("errors.app.title")}</ErrorHeader>
+      <ErrorDescription>{t("errors.app.description")}</ErrorDescription>
       <ErrorActions>
-        <Button onClick={relaunch} size="lg">
-          Relaunch app
+        <Button onClick={reload} size="lg">
+          {t("errors.app.action")}
         </Button>
       </ErrorActions>
     </ErrorView>
