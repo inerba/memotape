@@ -19,7 +19,7 @@ pub fn transcribe_file(
     on_phrase: &mut dyn FnMut(u32, String),
 ) -> Result<(), AppError> {
     detector.reset();
-    let mut events = Events {
+    let mut events = SegmentedSource {
         decoder: Decoder::open(source)?,
         resampler: None,
         detector,
@@ -54,7 +54,7 @@ pub fn transcribe_file(
 }
 
 /// Gli eventi del segmentatore, prodotti decodificando il file solo quando servono.
-struct Events<'a> {
+struct SegmentedSource<'a> {
     decoder: Decoder,
     resampler: Option<FrameResampler>,
     detector: &'a mut dyn VoiceDetector,
@@ -65,7 +65,7 @@ struct Events<'a> {
     error: Option<AppError>,
 }
 
-impl Events<'_> {
+impl SegmentedSource<'_> {
     fn next(&mut self) -> Result<Option<Event>, AppError> {
         loop {
             if let Some(event) = self.queue.pop_front() {
@@ -104,7 +104,7 @@ impl Events<'_> {
 
 /// L'audio di una Frase, frame per frame, fino alla sua fine.
 struct PhraseAudio<'e, 'a> {
-    events: &'e mut Events<'a>,
+    events: &'e mut SegmentedSource<'a>,
     ended: bool,
 }
 
@@ -275,7 +275,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let model = PathBuf::from(std::env::var("APPDATA").unwrap())
             .join("sbobino/models")
-            .join(crate::managers::transcription::NEMOTRON_FILE);
+            .join(super::super::transcribe_cpp::NEMOTRON_FILE);
         let mut engine = super::super::transcribe_cpp::TranscribeCpp::load(&model).unwrap();
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))

@@ -8,15 +8,14 @@ use tauri_specta::Event;
 
 use crate::audio_toolkit::vad::Silero;
 use crate::engine::pipeline::transcribe_file;
-use crate::engine::transcribe_cpp::TranscribeCpp;
+use crate::engine::transcribe_cpp::{NEMOTRON_FILE, TranscribeCpp};
 use crate::error::AppError;
 
-// ponytail: modello fisso messo a mano in `app_data_dir/models`; il catalogo arriva con il ticket 05.
-pub const NEMOTRON_FILE: &str = "nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf";
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
 /// Una Frase conclusa, una per riga nell'area di testo.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
 pub struct TranscriptPhrase {
     pub phrase_id: u32,
     pub text: String,

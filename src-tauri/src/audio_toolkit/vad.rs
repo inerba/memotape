@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use super::resample::TARGET_RATE;
 use crate::error::AppError;
 
 /// Probabilità di parlato di un frame da 480 campioni (30 ms a 16 kHz).
@@ -14,7 +15,7 @@ pub struct Silero(vad_rs::Vad);
 
 impl Silero {
     pub fn new(model: &Path) -> Result<Self, AppError> {
-        vad_rs::Vad::new(model, 16_000)
+        vad_rs::Vad::new(model, TARGET_RATE)
             .map(Self)
             .map_err(|e| AppError::Internal(format!("Silero ({}): {e}", model.display())))
     }

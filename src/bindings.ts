@@ -26,7 +26,7 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 
 /**  Una Frase conclusa, una per riga nell'area di testo. */
 export type TranscriptPhrase = {
-	phrase_id: number,
+	phraseId: number,
 	text: string,
 };
 

@@ -3,12 +3,8 @@ import { useTranslation } from "react-i18next";
 import { type AppError, commands, events } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-
-const PATH_SEPARATOR = /[\\/]/;
-
-function fileName(path: string) {
-  return path.split(PATH_SEPARATOR).pop() ?? path;
-}
+import { fileName } from "@/features/source/file-name";
+import { appendPhrase } from "@/features/transcription/phrases";
 
 export function HomePage() {
   const { t } = useTranslation();
@@ -20,9 +16,7 @@ export function HomePage() {
   useEffect(() => {
     // Una Frase per riga, nell'ordine in cui arrivano.
     const unlisten = events.transcriptPhrase.listen(({ payload }) => {
-      setText((current) =>
-        current ? `${current}\n${payload.text}` : payload.text
-      );
+      setText((current) => appendPhrase(current, payload.text));
     });
     return () => {
       unlisten.then((stop) => stop());
@@ -44,10 +38,13 @@ export function HomePage() {
     setText("");
     setError(null);
     setRunning(true);
-    const result = await commands.transcribe(source);
-    setRunning(false);
-    if (result.status === "error") {
-      setError(result.error);
+    try {
+      const result = await commands.transcribe(source);
+      if (result.status === "error") {
+        setError(result.error);
+      }
+    } finally {
+      setRunning(false);
     }
   }, [source]);
 

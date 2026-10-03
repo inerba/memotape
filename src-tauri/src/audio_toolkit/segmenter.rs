@@ -50,17 +50,25 @@ pub struct Segmenter {
 }
 
 /// Millisecondi in frame, per eccesso.
-fn frames(ms: u32) -> usize {
+fn ms_to_frames(ms: u32) -> usize {
     ms.div_ceil(FRAME_MS) as usize
 }
 
 impl Segmenter {
     pub fn new(params: Params) -> Self {
+        let (prefill, onset) = (
+            ms_to_frames(params.prefill_ms),
+            ms_to_frames(params.onset_ms).max(1),
+        );
+        assert!(
+            prefill + onset < ms_to_frames(params.max_phrase_ms),
+            "prefill e onset devono stare sotto la durata massima della Frase"
+        );
         Self {
-            prefill: frames(params.prefill_ms),
-            onset: frames(params.onset_ms).max(1),
-            hangover: frames(params.hangover_ms),
-            max_frames: frames(params.max_phrase_ms),
+            prefill,
+            onset,
+            hangover: ms_to_frames(params.hangover_ms),
+            max_frames: ms_to_frames(params.max_phrase_ms),
             threshold: params.threshold,
             pending: VecDeque::new(),
             onset_count: 0,

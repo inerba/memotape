@@ -33,6 +33,7 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
             .blocking_pick_file()
     })
     .await
+    .inspect_err(|e| log::error!("dialog di Sfoglia: {e}"))
     .ok()??;
     picked.into_path().ok().map(|p| p.display().to_string())
 }
