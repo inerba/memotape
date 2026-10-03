@@ -181,7 +181,7 @@ I `commands/` restano sottili: validano gli argomenti e delegano ai manager regi
 - **Eventi tauri-specta**:
   - `transcript-partial { phrase_id, text }` e `transcript-phrase { phrase_id, text }`: l'evento del brief `transcript-segment` è rinominato secondo il glossario;
   - `transcription-progress { percent?: number }`;
-  - `transcription-finished { txt_path, chars }`;
+  - la fine della Trascrizione (`txt_path`, `chars`) è il risultato del comando `transcribe`, non un evento;
   - `activity-failed { error }`;
   - `model-download-progress { model_id, percent }`, limitato a 10 al secondo, e `model-state-changed`;
   - `recording-tick { elapsed_ms, levels }`.
