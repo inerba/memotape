@@ -1,0 +1,182 @@
+{
+  "source": {
+    "browse": "Przeglądaj",
+    "filter": "Audio i wideo",
+    "none": "Nie wybrano pliku",
+    "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)"
+  },
+  "transcription": {
+    "start": "Transkrybuj",
+    "running": "Trwa transkrypcja…",
+    "text": "Transkrybowany tekst",
+    "copy": "Kopiuj tekst",
+    "copied": "Skopiowano",
+    "cancel": "Anuluj",
+    "cancelling": "Anulowanie…",
+    "replace": {
+      "title": "Zastąpić tekst?",
+      "description": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony nową transkrypcją. Zapisane już pliki TXT pozostaną.",
+      "keep": "Zachowaj tekst",
+      "confirm": "Zastąp"
+    }
+  },
+  "status": {
+    "idle": "Wybierz plik audio lub wideo przyciskiem Przeglądaj",
+    "recording": "Trwa nagrywanie…",
+    "recordingPaused": "Nagrywanie wstrzymane",
+    "recorded": "Nagranie zapisano w {{path}}",
+    "transcribing": "Trwa transkrypcja…",
+    "transcribingPercent": "Trwa transkrypcja… {{percent}}%",
+    "progress": "Postęp transkrypcji",
+    "finished_one": "Transkrypcja zakończona: zapisano {{count, number}} znak w pliku {{path}}",
+    "finished_few": "Transkrypcja zakończona: zapisano {{count, number}} znaki w pliku {{path}}",
+    "finished_many": "Transkrypcja zakończona: zapisano {{count, number}} znaków w pliku {{path}}",
+    "finished_other": "Transkrypcja zakończona: zapisano {{count, number}} znaku w pliku {{path}}",
+    "noSpeech": "Nie wykryto mowy",
+    "cancelled": "Transkrypcja anulowana: nie zapisano pliku TXT",
+    "openModels": "Otwórz Ustawienia → Transkrypcja"
+  },
+  "errors": {
+    "label": "Błąd",
+    "codes": {
+      "unreadableFile": "Plik już nie istnieje lub nie można go odczytać: {{detail}}",
+      "unsupportedCodec": "Format audio pliku nie jest obsługiwany: {{detail}}",
+      "unwritableFolder": "Nie można zapisać w folderze: {{detail}}",
+      "modelMissing": "Wybrany model, {{detail}}, nie jest pobrany",
+      "modelInUse": "Model jest używany przez transkrypcję lub właśnie się wczytuje: spróbuj ponownie, gdy skończy",
+      "downloadFailed": "Nie udało się pobrać modelu: {{detail}}. Spróbuj ponownie",
+      "verificationFailed": "Pobrany model był uszkodzony i został usunięty: {{detail}}. Pobierz go ponownie",
+      "deviceDisconnected": "Urządzenie {{detail}} nie jest już dostępne (odłączone lub zmienione w systemie Windows): nagrywanie zostało zatrzymane i zapisane",
+      "microphoneMissing": "Nie podłączono mikrofonu albo mikrofon wybrany w Ustawieniach jest niedostępny",
+      "outputDeviceMissing": "Brak urządzenia wyjściowego dla dźwięku systemowego albo urządzenie wybrane w Ustawieniach jest niedostępne",
+      "unreadableSettings": "Nie można odczytać ustawień, aplikacja używa wartości domyślnych: {{detail}}",
+      "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
+      "cancelled": "Transkrypcja anulowana",
+      "internal": "Błąd wewnętrzny: {{detail}}"
+    },
+    "app": {
+      "title": "Coś poszło nie tak",
+      "description": "W aplikacji wystąpił błąd i trzeba ją przeładować.",
+      "action": "Przeładuj"
+    },
+    "notFound": {
+      "title": "Nie znaleziono strony",
+      "description": "Żądana strona nie istnieje.",
+      "action": "Wróć"
+    }
+  },
+  "settings": {
+    "open": "Ustawienia",
+    "title": "Ustawienia",
+    "back": "Wstecz",
+    "transcription": {
+      "title": "Transkrypcja",
+      "description": "Modele transkrybują na Twoim komputerze: pobierasz je raz, a potem działają bez internetu."
+    },
+    "recording": {
+      "title": "Nagrywanie i dźwięk",
+      "description": "Obowiązują od następnego nagrania.",
+      "input": "Nagrywaj z",
+      "inputs": {
+        "mic": "Mikrofon",
+        "system": "Dźwięk systemowy",
+        "both": "Oba"
+      },
+      "microphone": "Mikrofon",
+      "outputDevice": "Urządzenie wyjściowe",
+      "defaultDevice": "Domyślne systemowe",
+      "defaultDeviceNamed": "Domyślne systemowe ({{name}})",
+      "missingDevice": "Niepodłączone",
+      "bitrate": "Przepływność",
+      "kbps": "{{value}} kb/s",
+      "channels": "Kanały",
+      "mono": "Mono",
+      "stereo": "Stereo",
+      "sampleRate": "Częstotliwość próbkowania",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "Ogólne",
+      "description": "Folder nagrań i język aplikacji.",
+      "folder": "Folder domyślny",
+      "folderDescription": "Tu zapisywane są nagrania. Jeśli folder nie istnieje, zostanie utworzony.",
+      "choose": "Wybierz…",
+      "reset": "Użyj Dokumenty\\Sbobino",
+      "language": "Język interfejsu",
+      "languageRestart": "Nowy język zostanie zastosowany przy następnym uruchomieniu Sbobino."
+    }
+  },
+  "models": {
+    "recommended": "Zalecany",
+    "size": "{{mb, number}} MB",
+    "mode": {
+      "stream": "Tekst na bieżąco",
+      "frase": "Tekst na końcu każdej frazy"
+    },
+    "license": "Licencja {{license}}",
+    "progress": "Pobieranie {{name}}",
+    "state": {
+      "notDownloaded": "Nie pobrano",
+      "interrupted": "Pobieranie przerwane przy {{percent}}%",
+      "downloading": "Trwa pobieranie… {{percent}}%",
+      "verifying": "Sprawdzanie integralności…",
+      "downloaded": "Pobrano"
+    },
+    "download": "Pobierz",
+    "resume": "Wznów",
+    "cancel": "Anuluj",
+    "delete": {
+      "action": "Usuń",
+      "title": "Usunąć {{name}}?",
+      "description": "Plik modelu zostanie usunięty z dysku. Aby znów go używać, trzeba będzie pobrać go ponownie.",
+      "keep": "Zachowaj",
+      "confirm": "Usuń"
+    },
+    "choose": "Model do transkrypcji",
+    "inUse": "W użyciu"
+  },
+  "speechLanguage": {
+    "label": "Język mowy",
+    "auto": "Automatycznie",
+    "languages": {
+      "it": "Włoski",
+      "en": "Angielski",
+      "fr": "Francuski",
+      "es": "Hiszpański",
+      "de": "Niemiecki",
+      "pl": "Polski"
+    }
+  },
+  "recording": {
+    "title": "Nagrywanie",
+    "start": "Nagrywaj",
+    "prefix": "Nagranie",
+    "pause": "Wstrzymaj",
+    "resume": "Wznów",
+    "stop": "Zatrzymaj",
+    "stopping": "Zapisywanie…",
+    "elapsed": "Czas nagrania",
+    "levels": {
+      "microphone": "Mikrofon",
+      "system": "System"
+    },
+    "level": "Poziom: {{input}}"
+  },
+  "about": {
+    "title": "Informacje",
+    "description": "Wersja aplikacji i licencje używanych przez nią komponentów.",
+    "version": "Wersja {{version}}",
+    "source": "Źródło: {{url}}",
+    "converted": "Sbobino pobiera wersję przekonwertowaną do formatu GGUF i skwantyzowaną (Q5_K_M) przez handy-computer.",
+    "licenseText": "Tekst licencji",
+    "thirdParty": "Informacje o komponentach innych firm",
+    "roles": {
+      "model": "Model do transkrypcji",
+      "vad": "Wykrywanie mowy, które dzieli dźwięk na frazy",
+      "decoder": "Dekodowanie plików audio i wideo",
+      "engine": "Uruchamianie modeli transkrypcji",
+      "onnx": "Uruchamianie Silero VAD",
+      "vadRs": "Łącznik między Silero VAD a Rustem"
+    }
+  }
+}

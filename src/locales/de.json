@@ -1,0 +1,180 @@
+{
+  "source": {
+    "browse": "Durchsuchen",
+    "filter": "Audio und Video",
+    "none": "Keine Datei ausgewählt",
+    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)"
+  },
+  "transcription": {
+    "start": "Transkribieren",
+    "running": "Transkription läuft…",
+    "text": "Transkribierter Text",
+    "copy": "Text kopieren",
+    "copied": "Kopiert",
+    "cancel": "Abbrechen",
+    "cancelling": "Wird abgebrochen…",
+    "replace": {
+      "title": "Text ersetzen?",
+      "description": "Der Text im Feld wird einschließlich deiner Änderungen durch die neue Transkription ersetzt. Bereits gespeicherte TXT-Dateien bleiben erhalten.",
+      "keep": "Text behalten",
+      "confirm": "Ersetzen"
+    }
+  },
+  "status": {
+    "idle": "Wähle mit „Durchsuchen“ eine Audio- oder Videodatei",
+    "recording": "Aufnahme läuft…",
+    "recordingPaused": "Aufnahme pausiert",
+    "recorded": "Aufnahme gespeichert unter {{path}}",
+    "transcribing": "Transkription läuft…",
+    "transcribingPercent": "Transkription läuft… {{percent}} %",
+    "progress": "Fortschritt der Transkription",
+    "finished_one": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
+    "finished_other": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
+    "noSpeech": "Keine Sprache erkannt",
+    "cancelled": "Transkription abgebrochen: keine TXT-Datei gespeichert",
+    "openModels": "Einstellungen → Transkription öffnen"
+  },
+  "errors": {
+    "label": "Fehler",
+    "codes": {
+      "unreadableFile": "Die Datei existiert nicht mehr oder kann nicht gelesen werden: {{detail}}",
+      "unsupportedCodec": "Das Audioformat der Datei wird nicht unterstützt: {{detail}}",
+      "unwritableFolder": "Speichern im Ordner nicht möglich: {{detail}}",
+      "modelMissing": "Das gewählte Modell {{detail}} ist nicht heruntergeladen",
+      "modelInUse": "Das Modell wird von einer Transkription verwendet oder gerade geladen: versuche es erneut, wenn es fertig ist",
+      "downloadFailed": "Download des Modells fehlgeschlagen: {{detail}}. Versuche es erneut",
+      "verificationFailed": "Das heruntergeladene Modell war beschädigt und wurde gelöscht: {{detail}}. Lade es erneut herunter",
+      "deviceDisconnected": "Das Gerät {{detail}} ist nicht mehr verfügbar (getrennt oder in Windows gewechselt): die Aufnahme wurde beendet und gespeichert",
+      "microphoneMissing": "Kein Mikrofon angeschlossen, oder das in den Einstellungen gewählte ist nicht verfügbar",
+      "outputDeviceMissing": "Kein Ausgabegerät für den Systemsound, oder das in den Einstellungen gewählte ist nicht verfügbar",
+      "unreadableSettings": "Die Einstellungen können nicht gelesen werden, die App verwendet die Standardwerte: {{detail}}",
+      "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
+      "cancelled": "Transkription abgebrochen",
+      "internal": "Interner Fehler: {{detail}}"
+    },
+    "app": {
+      "title": "Etwas ist schiefgelaufen",
+      "description": "In der App ist ein Fehler aufgetreten, sie muss neu geladen werden.",
+      "action": "Neu laden"
+    },
+    "notFound": {
+      "title": "Seite nicht gefunden",
+      "description": "Die angeforderte Seite existiert nicht.",
+      "action": "Zurück"
+    }
+  },
+  "settings": {
+    "open": "Einstellungen",
+    "title": "Einstellungen",
+    "back": "Zurück",
+    "transcription": {
+      "title": "Transkription",
+      "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline."
+    },
+    "recording": {
+      "title": "Aufnahme und Audio",
+      "description": "Gilt ab der nächsten Aufnahme.",
+      "input": "Aufnehmen von",
+      "inputs": {
+        "mic": "Mikrofon",
+        "system": "Systemsound",
+        "both": "Beides"
+      },
+      "microphone": "Mikrofon",
+      "outputDevice": "Ausgabegerät",
+      "defaultDevice": "Systemstandard",
+      "defaultDeviceNamed": "Systemstandard ({{name}})",
+      "missingDevice": "Nicht angeschlossen",
+      "bitrate": "Bitrate",
+      "kbps": "{{value}} kbit/s",
+      "channels": "Kanäle",
+      "mono": "Mono",
+      "stereo": "Stereo",
+      "sampleRate": "Abtastrate",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "Allgemein",
+      "description": "Der Ordner für Aufnahmen und die Sprache der App.",
+      "folder": "Standardordner",
+      "folderDescription": "Hier werden die Aufnahmen gespeichert. Der Ordner wird angelegt, falls er nicht existiert.",
+      "choose": "Auswählen…",
+      "reset": "Dokumente\\Sbobino verwenden",
+      "language": "Sprache der Oberfläche",
+      "languageRestart": "Die neue Sprache gilt ab dem nächsten Start von Sbobino."
+    }
+  },
+  "models": {
+    "recommended": "Empfohlen",
+    "size": "{{mb, number}} MB",
+    "mode": {
+      "stream": "Text in Echtzeit",
+      "frase": "Text am Ende jedes Satzes"
+    },
+    "license": "Lizenz {{license}}",
+    "progress": "Download von {{name}}",
+    "state": {
+      "notDownloaded": "Nicht heruntergeladen",
+      "interrupted": "Download bei {{percent}} % unterbrochen",
+      "downloading": "Download läuft… {{percent}} %",
+      "verifying": "Integrität wird geprüft…",
+      "downloaded": "Heruntergeladen"
+    },
+    "download": "Herunterladen",
+    "resume": "Fortsetzen",
+    "cancel": "Abbrechen",
+    "delete": {
+      "action": "Löschen",
+      "title": "{{name}} löschen?",
+      "description": "Die Modelldatei wird von der Festplatte gelöscht. Um sie wieder zu verwenden, musst du sie erneut herunterladen.",
+      "keep": "Behalten",
+      "confirm": "Löschen"
+    },
+    "choose": "Modell für die Transkription",
+    "inUse": "In Verwendung"
+  },
+  "speechLanguage": {
+    "label": "Gesprochene Sprache",
+    "auto": "Automatisch",
+    "languages": {
+      "it": "Italienisch",
+      "en": "Englisch",
+      "fr": "Französisch",
+      "es": "Spanisch",
+      "de": "Deutsch",
+      "pl": "Polnisch"
+    }
+  },
+  "recording": {
+    "title": "Aufnahme",
+    "start": "Aufnehmen",
+    "prefix": "Aufnahme",
+    "pause": "Pause",
+    "resume": "Fortsetzen",
+    "stop": "Stopp",
+    "stopping": "Wird gespeichert…",
+    "elapsed": "Aufgenommene Zeit",
+    "levels": {
+      "microphone": "Mikrofon",
+      "system": "System"
+    },
+    "level": "Pegel: {{input}}"
+  },
+  "about": {
+    "title": "Info",
+    "description": "Die Version der App und die Lizenzen der verwendeten Komponenten.",
+    "version": "Version {{version}}",
+    "source": "Quelle: {{url}}",
+    "converted": "Sbobino lädt die von handy-computer in GGUF konvertierte und quantisierte Version (Q5_K_M) herunter.",
+    "licenseText": "Lizenztext",
+    "thirdParty": "Hinweise zu Drittanbietern",
+    "roles": {
+      "model": "Modell für die Transkription",
+      "vad": "Spracherkennung, die das Audio in Sätze aufteilt",
+      "decoder": "Dekodierung von Audio- und Videodateien",
+      "engine": "Ausführung der Transkriptionsmodelle",
+      "onnx": "Ausführung von Silero VAD",
+      "vadRs": "Verbindung zwischen Silero VAD und Rust"
+    }
+  }
+}

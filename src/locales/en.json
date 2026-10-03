@@ -1,0 +1,180 @@
+{
+  "source": {
+    "browse": "Browse",
+    "filter": "Audio and video",
+    "none": "No file selected",
+    "open": "{{path}} (click to open with the default app)"
+  },
+  "transcription": {
+    "start": "Transcribe",
+    "running": "Transcribing…",
+    "text": "Transcribed text",
+    "copy": "Copy text",
+    "copied": "Copied",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling…",
+    "replace": {
+      "title": "Replace the text?",
+      "description": "The text in the box, including your edits, will be replaced by the new transcription. TXT files already saved are kept.",
+      "keep": "Keep the text",
+      "confirm": "Replace"
+    }
+  },
+  "status": {
+    "idle": "Choose an audio or video file with Browse",
+    "recording": "Recording…",
+    "recordingPaused": "Recording paused",
+    "recorded": "Recording saved to {{path}}",
+    "transcribing": "Transcribing…",
+    "transcribingPercent": "Transcribing… {{percent}}%",
+    "progress": "Transcription progress",
+    "finished_one": "Transcription finished: {{count, number}} character saved to {{path}}",
+    "finished_other": "Transcription finished: {{count, number}} characters saved to {{path}}",
+    "noSpeech": "No speech detected",
+    "cancelled": "Transcription cancelled: no TXT saved",
+    "openModels": "Open Settings → Transcription"
+  },
+  "errors": {
+    "label": "Error",
+    "codes": {
+      "unreadableFile": "The file no longer exists or cannot be read: {{detail}}",
+      "unsupportedCodec": "The file's audio format is not supported: {{detail}}",
+      "unwritableFolder": "Cannot save to the folder: {{detail}}",
+      "modelMissing": "The selected model, {{detail}}, is not downloaded",
+      "modelInUse": "The model is being used by a transcription or is loading: try again when it's done",
+      "downloadFailed": "Model download failed: {{detail}}. Try again",
+      "verificationFailed": "The downloaded model was corrupted and has been deleted: {{detail}}. Download it again",
+      "deviceDisconnected": "The device {{detail}} is no longer available (unplugged or changed in Windows): the recording was stopped and saved",
+      "microphoneMissing": "No microphone connected, or the one chosen in Settings is not available",
+      "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
+      "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
+      "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
+      "cancelled": "Transcription cancelled",
+      "internal": "Internal error: {{detail}}"
+    },
+    "app": {
+      "title": "Something went wrong",
+      "description": "The app ran into an error and needs to be reloaded.",
+      "action": "Reload"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "description": "The requested page does not exist.",
+      "action": "Go back"
+    }
+  },
+  "settings": {
+    "open": "Settings",
+    "title": "Settings",
+    "back": "Back",
+    "transcription": {
+      "title": "Transcription",
+      "description": "Models transcribe on your computer: download them once, then they work offline."
+    },
+    "recording": {
+      "title": "Recording and audio",
+      "description": "Applied from the next recording.",
+      "input": "Record from",
+      "inputs": {
+        "mic": "Microphone",
+        "system": "System audio",
+        "both": "Both"
+      },
+      "microphone": "Microphone",
+      "outputDevice": "Output device",
+      "defaultDevice": "System default",
+      "defaultDeviceNamed": "System default ({{name}})",
+      "missingDevice": "Not connected",
+      "bitrate": "Bitrate",
+      "kbps": "{{value}} kbps",
+      "channels": "Channels",
+      "mono": "Mono",
+      "stereo": "Stereo",
+      "sampleRate": "Sample rate",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "General",
+      "description": "The recordings folder and the app's language.",
+      "folder": "Default folder",
+      "folderDescription": "Where recordings are saved. Created if it doesn't exist.",
+      "choose": "Choose…",
+      "reset": "Use Documents\\Sbobino",
+      "language": "Interface language",
+      "languageRestart": "The new language takes effect the next time Sbobino starts."
+    }
+  },
+  "models": {
+    "recommended": "Recommended",
+    "size": "{{mb, number}} MB",
+    "mode": {
+      "stream": "Streaming text",
+      "frase": "Text at the end of each phrase"
+    },
+    "license": "{{license}} license",
+    "progress": "Downloading {{name}}",
+    "state": {
+      "notDownloaded": "Not downloaded",
+      "interrupted": "Download interrupted at {{percent}}%",
+      "downloading": "Downloading… {{percent}}%",
+      "verifying": "Checking integrity…",
+      "downloaded": "Downloaded"
+    },
+    "download": "Download",
+    "resume": "Resume",
+    "cancel": "Cancel",
+    "delete": {
+      "action": "Delete",
+      "title": "Delete {{name}}?",
+      "description": "The model file will be deleted from disk. To use it again you'll need to download it again.",
+      "keep": "Keep",
+      "confirm": "Delete"
+    },
+    "choose": "Transcription model",
+    "inUse": "In use"
+  },
+  "speechLanguage": {
+    "label": "Speech language",
+    "auto": "Automatic",
+    "languages": {
+      "it": "Italian",
+      "en": "English",
+      "fr": "French",
+      "es": "Spanish",
+      "de": "German",
+      "pl": "Polish"
+    }
+  },
+  "recording": {
+    "title": "Recording",
+    "start": "Record",
+    "prefix": "Recording",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "stopping": "Saving…",
+    "elapsed": "Recorded time",
+    "levels": {
+      "microphone": "Microphone",
+      "system": "System"
+    },
+    "level": "Level: {{input}}"
+  },
+  "about": {
+    "title": "About",
+    "description": "The app version and the licenses of the components it uses.",
+    "version": "Version {{version}}",
+    "source": "Source: {{url}}",
+    "converted": "Sbobino downloads the version converted to GGUF and quantized (Q5_K_M) by handy-computer.",
+    "licenseText": "License text",
+    "thirdParty": "Third-party notices",
+    "roles": {
+      "model": "Transcription model",
+      "vad": "Speech detection, which splits the audio into phrases",
+      "decoder": "Decoding of audio and video files",
+      "engine": "Runs the transcription models",
+      "onnx": "Runs Silero VAD",
+      "vadRs": "Bridge between Silero VAD and Rust"
+    }
+  }
+}

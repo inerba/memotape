@@ -59,6 +59,27 @@ pub enum Language {
     Pl,
 }
 
+impl Language {
+    /// La lingua dell'app per un locale BCP 47 (`it-IT`, `es-419`): quella con lo stesso codice,
+    /// altrimenti l'inglese.
+    pub fn from_locale(locale: &str) -> Self {
+        let code = locale.split(['-', '_']).next().unwrap_or_default();
+        match code.to_ascii_lowercase().as_str() {
+            "it" => Self::It,
+            "fr" => Self::Fr,
+            "es" => Self::Es,
+            "de" => Self::De,
+            "pl" => Self::Pl,
+            _ => Self::En,
+        }
+    }
+
+    /// La lingua di visualizzazione di Windows, se è tra le sei, altrimenti l'inglese.
+    pub fn system() -> Self {
+        sys_locale::get_locale().map_or(Self::En, |locale| Self::from_locale(&locale))
+    }
+}
+
 /// La Lingua del parlato: Automatica o una delle sei lingue dell'app.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -106,17 +127,20 @@ impl Default for Settings {
 
 impl Settings {
     /// Legge `path`. Se manca, è corrotto o non è valido restituisce i predefiniti: l'avvio non si
-    /// blocca. Un modello non più nel catalogo torna al predefinito senza toccare il resto.
-    pub fn load(path: &Path) -> Self {
+    /// blocca. Un modello non più nel catalogo torna al predefinito senza toccare il resto. Un file
+    /// che esiste ma non si legge (permessi, una cartella al suo posto) dà `unreadableSettings`.
+    pub fn load(path: &Path) -> Result<Self, AppError> {
         let read = match std::fs::read_to_string(path) {
             Ok(content) => content,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Self::default(),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Self::default()),
             Err(e) => {
-                log::warn!("impostazioni illeggibili ({}): {e}", path.display());
-                return Self::default();
+                return Err(AppError::UnreadableSettings(format!(
+                    "{}: {e}",
+                    path.display()
+                )));
             }
         };
-        match serde_json::from_str::<Self>(&read) {
+        Ok(match serde_json::from_str::<Self>(&read) {
             Ok(mut settings) if settings.is_valid() => {
                 if models::find(&settings.model).is_none() {
                     log::warn!("modello {} non più nel catalogo", settings.model);
@@ -132,7 +156,7 @@ impl Settings {
                 log::warn!("impostazioni corrotte in {}: {e}", path.display());
                 Self::default()
             }
-        }
+        })
     }
 
     /// Scrive `path` passando da un file temporaneo, così un'interruzione non lo lascia a metà.
@@ -163,13 +187,30 @@ impl Settings {
 pub struct SettingsStore {
     path: PathBuf,
     current: Mutex<Settings>,
+    /// Perché il file non si è letto all'avvio: allora valgono i predefiniti.
+    load_error: Option<AppError>,
 }
 
 impl SettingsStore {
-    /// Legge `path` all'avvio.
+    /// Legge `path` all'avvio. Se non si legge valgono i predefiniti, e l'errore resta per `loaded`.
     pub fn load(path: PathBuf) -> Self {
-        let current = Mutex::new(Settings::load(&path));
-        Self { path, current }
+        let (current, load_error) = match Settings::load(&path) {
+            Ok(settings) => (settings, None),
+            Err(e) => {
+                log::warn!("{e}");
+                (Settings::default(), Some(e))
+            }
+        };
+        Self {
+            path,
+            current: Mutex::new(current),
+            load_error,
+        }
+    }
+
+    /// Le impostazioni correnti, o l'errore se all'avvio il file non si è letto.
+    pub fn loaded(&self) -> Result<Settings, AppError> {
+        self.load_error.clone().map_or_else(|| Ok(self.get()), Err)
     }
 
     /// Il modello scelto.
@@ -212,7 +253,7 @@ mod tests {
 
     #[test]
     fn senza_file_valgono_i_predefiniti() {
-        let settings = Settings::load(&temp_file("assente"));
+        let settings = Settings::load(&temp_file("assente")).unwrap();
         assert_eq!(settings, Settings::default());
         assert_eq!(settings.model, "nemotron-3.5-streaming-0.6b-q5km");
         assert_eq!(settings.speech_language, SpeechLanguage::Auto);
@@ -245,7 +286,7 @@ mod tests {
         ];
         for content in invalid {
             std::fs::write(&path, &content).unwrap();
-            assert_eq!(Settings::load(&path), Settings::default(), "{content}");
+            assert_eq!(Settings::load(&path), Ok(Settings::default()), "{content}");
         }
     }
 
@@ -265,10 +306,10 @@ mod tests {
         std::fs::write(&path, content).unwrap();
         assert_eq!(
             Settings::load(&path),
-            Settings {
+            Ok(Settings {
                 model: Settings::default().model,
                 ..saved
-            }
+            })
         );
     }
 
@@ -294,14 +335,57 @@ mod tests {
             interface_language: Some(Language::Pl),
         };
         settings.save(&path).unwrap();
-        assert_eq!(Settings::load(&path), settings);
+        assert_eq!(Settings::load(&path), Ok(settings.clone()));
         // Un secondo salvataggio sostituisce il primo.
         let again = Settings {
             speech_language: SpeechLanguage::Auto,
             ..settings
         };
         again.save(&path).unwrap();
-        assert_eq!(Settings::load(&path), again);
+        assert_eq!(Settings::load(&path), Ok(again));
+    }
+
+    #[test]
+    fn un_file_illeggibile_da_i_predefiniti_e_l_errore() {
+        // Una cartella al posto del file: esiste ma non si legge.
+        let path = temp_file("illeggibile");
+        std::fs::create_dir(&path).unwrap();
+        let store = SettingsStore::load(path);
+        assert_eq!(store.get(), Settings::default());
+        assert!(matches!(
+            store.loaded(),
+            Err(AppError::UnreadableSettings(detail)) if detail.contains("settings.json")
+        ));
+        // Mancante o corrotto non è un errore: valgono i predefiniti e basta.
+        let path = temp_file("corrotto-nello-store");
+        std::fs::write(&path, "{ non è json").unwrap();
+        assert_eq!(SettingsStore::load(path).loaded(), Ok(Settings::default()));
+        assert_eq!(
+            SettingsStore::load(temp_file("mancante-nello-store")).loaded(),
+            Ok(Settings::default())
+        );
+    }
+
+    #[test]
+    fn la_lingua_di_default_e_quella_di_sistema_se_supportata_altrimenti_l_inglese() {
+        let cases = [
+            ("it-IT", Language::It),
+            ("it-CH", Language::It),
+            ("en-US", Language::En),
+            ("fr-CA", Language::Fr),
+            ("es-419", Language::Es),
+            ("de_AT", Language::De),
+            ("pl", Language::Pl),
+            ("PL-pl", Language::Pl),
+            ("pt-BR", Language::En),
+            ("ja-JP", Language::En),
+            // Un prefisso che non è il codice della lingua non vale.
+            ("ita", Language::En),
+            ("", Language::En),
+        ];
+        for (locale, expected) in cases {
+            assert_eq!(Language::from_locale(locale), expected, "{locale}");
+        }
     }
 
     #[test]

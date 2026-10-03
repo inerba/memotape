@@ -3,6 +3,7 @@
   "bundle": {
     "resources": {
       "resources/silero_vad.onnx": "resources/silero_vad.onnx",
+      "resources/licenses/": "licenses/",
       "runtime-libs/": "."
     }
   }

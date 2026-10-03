@@ -9,6 +9,8 @@ import {
 import { type AppError, commands, type Settings } from "@/bindings";
 
 interface SettingsContextValue {
+  /** Perché all'avvio le impostazioni non si sono lette: allora valgono i predefiniti. */
+  loadError: AppError | null;
   /** Salva le impostazioni; restituisce l'errore se Rust le rifiuta o non riesce a scriverle. */
   save: (next: Settings) => Promise<AppError | null>;
   settings: Settings;
@@ -20,9 +22,11 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 export function SettingsProvider({
   children,
   initial,
+  loadError,
 }: {
   children: ReactNode;
   initial: Settings;
+  loadError: AppError | null;
 }) {
   const [settings, setSettings] = useState(initial);
   const save = useCallback(async (next: Settings) => {
@@ -33,7 +37,10 @@ export function SettingsProvider({
     setSettings(next);
     return null;
   }, []);
-  const value = useMemo(() => ({ save, settings }), [save, settings]);
+  const value = useMemo(
+    () => ({ loadError, save, settings }),
+    [loadError, save, settings]
+  );
   return (
     <SettingsContext.Provider value={value}>
       {children}

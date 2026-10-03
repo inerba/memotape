@@ -49,7 +49,13 @@ export function HomePage() {
   const [partial, setPartial] = useState<TranscriptPartial | null>(null);
   // Gli eventi possono arrivare dopo la risposta di `transcribe`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
-  const [status, setStatus] = useState<Status>({ phase: "idle", source: null });
+  const { loadError, save, settings } = useSettings();
+  // Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro da mostrare.
+  const [status, setStatus] = useState<Status>(() =>
+    loadError
+      ? { error: loadError, phase: "failed" }
+      : { phase: "idle", source: null }
+  );
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [confirmReplace, setConfirmReplace] = useState(false);
@@ -60,7 +66,6 @@ export function HomePage() {
   const busy = running || recording;
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
-  const { save, settings } = useSettings();
   const models = useModels();
   const modelLanguages =
     models.find((m) => m.id === settings.model)?.languages ?? null;

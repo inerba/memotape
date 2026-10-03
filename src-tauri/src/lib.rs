@@ -26,6 +26,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::delete_model,
             commands::get_settings,
             commands::set_settings,
+            commands::system_language,
             commands::list_microphones,
             commands::list_output_devices,
             commands::record,

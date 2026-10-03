@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Language, Settings, SpeechLanguage } from "@/bindings";
+import catalog from "../../../src-tauri/src/managers/models.json";
 
 /** Le sei lingue dell'app, nell'ordine dei selettori. */
 export const LANGUAGES = [
@@ -13,10 +14,45 @@ export const LANGUAGES = [
 
 const language = z.enum(LANGUAGES);
 
+/** Il nome di ogni lingua nella lingua stessa, per il selettore della Lingua dell'interfaccia. */
+export const LANGUAGE_NAMES: Record<Language, string> = {
+  de: "Deutsch",
+  en: "English",
+  es: "Español",
+  fr: "Français",
+  it: "Italiano",
+  pl: "Polski",
+};
+
+const LOCALE_SEPARATOR = /[-_]/;
+
+/**
+ * La lingua dell'app per un locale BCP 47 (`it-IT`), altrimenti l'inglese, come
+ * `Language::from_locale` in Rust. Serve solo se il backend non risponde all'avvio.
+ */
+export function languageOf(locale: string): Language {
+  const code = locale.split(LOCALE_SEPARATOR)[0]?.toLowerCase();
+  return LANGUAGES.find((l) => l === code) ?? "en";
+}
+
 /** I bitrate di una Registrazione, in kbps, come in Rust. */
 export const BITRATES_KBPS = [16, 24, 32, 48, 64, 96, 128, 192, 320];
 /** Le frequenze di una Registrazione, in Hz, come in Rust. */
 export const SAMPLE_RATES = [8000, 16_000, 24_000, 48_000];
+
+/** I predefiniti, come `Settings::default` in Rust: valgono se all'avvio non si leggono. */
+export const DEFAULT_SETTINGS: Settings = {
+  bitrateKbps: 32,
+  channels: "mono",
+  interfaceLanguage: null,
+  microphone: null,
+  model: catalog.predefinito,
+  outputDevice: null,
+  recordingSource: "mic",
+  recordingsFolder: null,
+  sampleRate: 48_000,
+  speechLanguage: "auto",
+};
 
 /** Un numero tra `values`: il tipo resta `number`, come nei bindings. */
 const oneOf = (values: number[]) =>

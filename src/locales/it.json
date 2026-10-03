@@ -1,7 +1,4 @@
 {
-  "home": {
-    "version": "Versione {{version}}"
-  },
   "source": {
     "browse": "Sfoglia",
     "filter": "Audio e video",
@@ -51,6 +48,7 @@
       "deviceDisconnected": "Il dispositivo {{detail}} non è più disponibile (scollegato o cambiato in Windows): la Registrazione è stata fermata e salvata",
       "microphoneMissing": "Nessun microfono collegato, o quello scelto in Impostazioni non è disponibile",
       "outputDeviceMissing": "Nessun dispositivo di uscita per l'audio di sistema, o quello scelto in Impostazioni non è disponibile",
+      "unreadableSettings": "Impossibile leggere le impostazioni, l'app usa i valori predefiniti: {{detail}}",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}"
@@ -98,10 +96,13 @@
     },
     "general": {
       "title": "Generale",
+      "description": "La cartella delle Registrazioni e la lingua dell'app.",
       "folder": "Cartella predefinita",
       "folderDescription": "Dove si salvano le Registrazioni. Se non esiste viene creata.",
       "choose": "Scegli…",
-      "reset": "Usa Documenti\\Sbobino"
+      "reset": "Usa Documenti\\Sbobino",
+      "language": "Lingua dell'interfaccia",
+      "languageRestart": "La nuova lingua si applica al prossimo avvio di Sbobino."
     }
   },
   "models": {
@@ -159,5 +160,22 @@
       "system": "Sistema"
     },
     "level": "Livello: {{input}}"
+  },
+  "about": {
+    "title": "Informazioni",
+    "description": "La versione dell'app e le licenze dei componenti che usa.",
+    "version": "Versione {{version}}",
+    "source": "Fonte: {{url}}",
+    "converted": "Sbobino scarica la versione convertita in GGUF e quantizzata (Q5_K_M) da handy-computer.",
+    "licenseText": "Testo della licenza",
+    "thirdParty": "Avvisi di terze parti",
+    "roles": {
+      "model": "Modello per la Trascrizione",
+      "vad": "Rilevamento del parlato, che divide l'audio in Frasi",
+      "decoder": "Decodifica dei file audio e video",
+      "engine": "Esecuzione dei modelli per la Trascrizione",
+      "onnx": "Esecuzione di Silero VAD",
+      "vadRs": "Collegamento tra Silero VAD e Rust"
+    }
   }
 }

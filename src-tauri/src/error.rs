@@ -28,6 +28,9 @@ pub enum AppError {
     /// Nessun dispositivo di uscita per l'audio di sistema, o quello scelto non è collegato.
     #[error("dispositivo di uscita assente")]
     OutputDeviceMissing,
+    /// `settings.json` esiste ma non si legge: valgono i predefiniti.
+    #[error("impostazioni illeggibili: {0}")]
+    UnreadableSettings(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

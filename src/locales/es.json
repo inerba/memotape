@@ -1,0 +1,181 @@
+{
+  "source": {
+    "browse": "Examinar",
+    "filter": "Audio y vídeo",
+    "none": "Ningún archivo seleccionado",
+    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)"
+  },
+  "transcription": {
+    "start": "Transcribir",
+    "running": "Transcribiendo…",
+    "text": "Texto transcrito",
+    "copy": "Copiar texto",
+    "copied": "Copiado",
+    "cancel": "Cancelar",
+    "cancelling": "Cancelando…",
+    "replace": {
+      "title": "¿Reemplazar el texto?",
+      "description": "El texto del área, incluidos tus cambios, se reemplazará por la nueva transcripción. Los TXT ya guardados se conservan.",
+      "keep": "Conservar el texto",
+      "confirm": "Reemplazar"
+    }
+  },
+  "status": {
+    "idle": "Elige un archivo de audio o vídeo con Examinar",
+    "recording": "Grabando…",
+    "recordingPaused": "Grabación en pausa",
+    "recorded": "Grabación guardada en {{path}}",
+    "transcribing": "Transcribiendo…",
+    "transcribingPercent": "Transcribiendo… {{percent}} %",
+    "progress": "Progreso de la transcripción",
+    "finished_one": "Transcripción terminada: {{count, number}} carácter guardado en {{path}}",
+    "finished_many": "Transcripción terminada: {{count, number}} de caracteres guardados en {{path}}",
+    "finished_other": "Transcripción terminada: {{count, number}} caracteres guardados en {{path}}",
+    "noSpeech": "No se ha detectado voz",
+    "cancelled": "Transcripción cancelada: no se ha guardado ningún TXT",
+    "openModels": "Abrir Configuración → Transcripción"
+  },
+  "errors": {
+    "label": "Error",
+    "codes": {
+      "unreadableFile": "El archivo ya no existe o no se puede leer: {{detail}}",
+      "unsupportedCodec": "El formato de audio del archivo no es compatible: {{detail}}",
+      "unwritableFolder": "No se puede guardar en la carpeta: {{detail}}",
+      "modelMissing": "El modelo elegido, {{detail}}, no está descargado",
+      "modelInUse": "El modelo lo está usando una transcripción o se está cargando: vuelve a intentarlo cuando termine",
+      "downloadFailed": "No se ha podido descargar el modelo: {{detail}}. Vuelve a intentarlo",
+      "verificationFailed": "El modelo descargado estaba dañado y se ha eliminado: {{detail}}. Vuelve a descargarlo",
+      "deviceDisconnected": "El dispositivo {{detail}} ya no está disponible (desconectado o cambiado en Windows): la grabación se ha detenido y guardado",
+      "microphoneMissing": "No hay ningún micrófono conectado, o el elegido en Configuración no está disponible",
+      "outputDeviceMissing": "No hay ningún dispositivo de salida para el audio del sistema, o el elegido en Configuración no está disponible",
+      "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
+      "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
+      "cancelled": "Transcripción cancelada",
+      "internal": "Error interno: {{detail}}"
+    },
+    "app": {
+      "title": "Algo ha salido mal",
+      "description": "La aplicación ha encontrado un error y hay que recargarla.",
+      "action": "Recargar"
+    },
+    "notFound": {
+      "title": "Página no encontrada",
+      "description": "La página solicitada no existe.",
+      "action": "Volver"
+    }
+  },
+  "settings": {
+    "open": "Configuración",
+    "title": "Configuración",
+    "back": "Volver",
+    "transcription": {
+      "title": "Transcripción",
+      "description": "Los modelos transcriben en tu equipo: se descargan una vez y luego funcionan sin conexión."
+    },
+    "recording": {
+      "title": "Grabación y audio",
+      "description": "Se aplican a partir de la próxima grabación.",
+      "input": "Grabar desde",
+      "inputs": {
+        "mic": "Micrófono",
+        "system": "Audio del sistema",
+        "both": "Ambos"
+      },
+      "microphone": "Micrófono",
+      "outputDevice": "Dispositivo de salida",
+      "defaultDevice": "Predeterminado del sistema",
+      "defaultDeviceNamed": "Predeterminado del sistema ({{name}})",
+      "missingDevice": "No conectado",
+      "bitrate": "Tasa de bits",
+      "kbps": "{{value}} kbps",
+      "channels": "Canales",
+      "mono": "Mono",
+      "stereo": "Estéreo",
+      "sampleRate": "Frecuencia de muestreo",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "General",
+      "description": "La carpeta de las grabaciones y el idioma de la aplicación.",
+      "folder": "Carpeta predeterminada",
+      "folderDescription": "Donde se guardan las grabaciones. Si no existe, se crea.",
+      "choose": "Elegir…",
+      "reset": "Usar Documentos\\Sbobino",
+      "language": "Idioma de la interfaz",
+      "languageRestart": "El nuevo idioma se aplica la próxima vez que se inicie Sbobino."
+    }
+  },
+  "models": {
+    "recommended": "Recomendado",
+    "size": "{{mb, number}} MB",
+    "mode": {
+      "stream": "Texto en tiempo real",
+      "frase": "Texto al final de cada frase"
+    },
+    "license": "Licencia {{license}}",
+    "progress": "Descarga de {{name}}",
+    "state": {
+      "notDownloaded": "No descargado",
+      "interrupted": "Descarga interrumpida al {{percent}} %",
+      "downloading": "Descargando… {{percent}} %",
+      "verifying": "Comprobando la integridad…",
+      "downloaded": "Descargado"
+    },
+    "download": "Descargar",
+    "resume": "Reanudar",
+    "cancel": "Cancelar",
+    "delete": {
+      "action": "Eliminar",
+      "title": "¿Eliminar {{name}}?",
+      "description": "El archivo del modelo se borrará del disco. Para volver a usarlo habrá que descargarlo de nuevo.",
+      "keep": "Conservar",
+      "confirm": "Eliminar"
+    },
+    "choose": "Modelo de transcripción",
+    "inUse": "En uso"
+  },
+  "speechLanguage": {
+    "label": "Idioma hablado",
+    "auto": "Automático",
+    "languages": {
+      "it": "Italiano",
+      "en": "Inglés",
+      "fr": "Francés",
+      "es": "Español",
+      "de": "Alemán",
+      "pl": "Polaco"
+    }
+  },
+  "recording": {
+    "title": "Grabación",
+    "start": "Grabar",
+    "prefix": "Grabación",
+    "pause": "Pausa",
+    "resume": "Reanudar",
+    "stop": "Detener",
+    "stopping": "Guardando…",
+    "elapsed": "Tiempo grabado",
+    "levels": {
+      "microphone": "Micrófono",
+      "system": "Sistema"
+    },
+    "level": "Nivel: {{input}}"
+  },
+  "about": {
+    "title": "Información",
+    "description": "La versión de la aplicación y las licencias de los componentes que usa.",
+    "version": "Versión {{version}}",
+    "source": "Fuente: {{url}}",
+    "converted": "Sbobino descarga la versión convertida a GGUF y cuantizada (Q5_K_M) por handy-computer.",
+    "licenseText": "Texto de la licencia",
+    "thirdParty": "Avisos de terceros",
+    "roles": {
+      "model": "Modelo de transcripción",
+      "vad": "Detección de voz, que divide el audio en frases",
+      "decoder": "Decodificación de archivos de audio y vídeo",
+      "engine": "Ejecución de los modelos de transcripción",
+      "onnx": "Ejecución de Silero VAD",
+      "vadRs": "Enlace entre Silero VAD y Rust"
+    }
+  }
+}

@@ -39,10 +39,18 @@ export const commands = {
 	 *  Trascrizione.
 	 */
 	deleteModel: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_model", { id })),
-	/**  Le impostazioni correnti, lette all'avvio. */
-	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
+	/**
+	 *  Le impostazioni lette all'avvio. `unreadableSettings` se il file non si è letto: allora il
+	 *  backend usa i predefiniti.
+	 */
+	getSettings: () => typedError<Settings, AppError>(__TAURI_INVOKE("get_settings")),
 	/**  Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background. */
 	setSettings: (settings: Settings) => typedError<null, AppError>(__TAURI_INVOKE("set_settings", { settings })),
+	/**
+	 *  La lingua di Windows se è tra le sei, altrimenti l'inglese: la Lingua dell'interfaccia quando
+	 *  le impostazioni non ne scelgono una.
+	 */
+	systemLanguage: () => __TAURI_INVOKE<Language>("system_language"),
 	/**  I microfoni rilevati, per la scelta in Impostazioni. */
 	listMicrophones: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_microphones")),
 	/**  I dispositivi di uscita rilevati, per la scelta dell'audio di sistema in Impostazioni. */
@@ -88,7 +96,9 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 /**  Nessun microfono, o quello scelto in Impostazioni non è collegato. */
 { code: "microphoneMissing" } | 
 /**  Nessun dispositivo di uscita per l'audio di sistema, o quello scelto non è collegato. */
-{ code: "outputDeviceMissing" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "outputDeviceMissing" } | 
+/**  `settings.json` esiste ma non si legge: valgono i predefiniti. */
+{ code: "unreadableSettings"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {

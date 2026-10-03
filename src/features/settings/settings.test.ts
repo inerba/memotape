@@ -1,22 +1,30 @@
 import { expect, test } from "bun:test";
 import type { Settings } from "@/bindings";
 import {
+  DEFAULT_SETTINGS as defaults,
+  languageOf,
   settingsSchema,
   speechLanguageChoice,
 } from "@/features/settings/settings";
 
-const defaults: Settings = {
-  bitrateKbps: 32,
-  channels: "mono",
-  interfaceLanguage: null,
-  microphone: null,
-  model: "nemotron-3.5-streaming-0.6b-q5km",
-  outputDevice: null,
-  recordingSource: "mic",
-  recordingsFolder: null,
-  sampleRate: 48_000,
-  speechLanguage: "auto",
-};
+test("i predefiniti sono quelli di Rust", () => {
+  expect(defaults.model).toBe("nemotron-3.5-streaming-0.6b-q5km");
+  expect([
+    defaults.bitrateKbps,
+    defaults.channels,
+    defaults.sampleRate,
+  ]).toEqual([32, "mono", 48_000]);
+  expect(defaults.interfaceLanguage).toBeNull();
+});
+
+test("senza backend la lingua è quella del locale se supportata, altrimenti l'inglese", () => {
+  expect(languageOf("it-IT")).toBe("it");
+  expect(languageOf("PL")).toBe("pl");
+  expect(languageOf("es-419")).toBe("es");
+  expect(languageOf("pt-BR")).toBe("en");
+  expect(languageOf("ita")).toBe("en");
+  expect(languageOf("")).toBe("en");
+});
 
 test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
   expect(settingsSchema.parse(defaults)).toEqual(defaults);

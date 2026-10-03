@@ -1,0 +1,181 @@
+{
+  "source": {
+    "browse": "Parcourir",
+    "filter": "Audio et vidéo",
+    "none": "Aucun fichier choisi",
+    "open": "{{path}} (cliquez pour l'ouvrir avec l'application associée)"
+  },
+  "transcription": {
+    "start": "Transcrire",
+    "running": "Transcription en cours…",
+    "text": "Texte transcrit",
+    "copy": "Copier le texte",
+    "copied": "Copié",
+    "cancel": "Annuler",
+    "cancelling": "Annulation…",
+    "replace": {
+      "title": "Remplacer le texte ?",
+      "description": "Le texte de la zone, y compris vos modifications, sera remplacé par la nouvelle transcription. Les TXT déjà enregistrés sont conservés.",
+      "keep": "Garder le texte",
+      "confirm": "Remplacer"
+    }
+  },
+  "status": {
+    "idle": "Choisissez un fichier audio ou vidéo avec Parcourir",
+    "recording": "Enregistrement en cours…",
+    "recordingPaused": "Enregistrement en pause",
+    "recorded": "Enregistrement sauvegardé dans {{path}}",
+    "transcribing": "Transcription en cours…",
+    "transcribingPercent": "Transcription en cours… {{percent}} %",
+    "progress": "Progression de la transcription",
+    "finished_one": "Transcription terminée : {{count, number}} caractère enregistré dans {{path}}",
+    "finished_many": "Transcription terminée : {{count, number}} de caractères enregistrés dans {{path}}",
+    "finished_other": "Transcription terminée : {{count, number}} caractères enregistrés dans {{path}}",
+    "noSpeech": "Aucune parole détectée",
+    "cancelled": "Transcription annulée : aucun TXT enregistré",
+    "openModels": "Ouvrir Paramètres → Transcription"
+  },
+  "errors": {
+    "label": "Erreur",
+    "codes": {
+      "unreadableFile": "Le fichier n'existe plus ou ne peut pas être lu : {{detail}}",
+      "unsupportedCodec": "Le format audio du fichier n'est pas pris en charge : {{detail}}",
+      "unwritableFolder": "Impossible d'enregistrer dans le dossier : {{detail}}",
+      "modelMissing": "Le modèle choisi, {{detail}}, n'est pas téléchargé",
+      "modelInUse": "Le modèle est utilisé par une transcription ou en cours de chargement : réessayez quand il aura terminé",
+      "downloadFailed": "Échec du téléchargement du modèle : {{detail}}. Réessayez",
+      "verificationFailed": "Le modèle téléchargé était corrompu et a été supprimé : {{detail}}. Relancez le téléchargement",
+      "deviceDisconnected": "Le périphérique {{detail}} n'est plus disponible (débranché ou changé dans Windows) : l'enregistrement a été arrêté et sauvegardé",
+      "microphoneMissing": "Aucun microphone branché, ou celui choisi dans Paramètres n'est pas disponible",
+      "outputDeviceMissing": "Aucun périphérique de sortie pour l'audio système, ou celui choisi dans Paramètres n'est pas disponible",
+      "unreadableSettings": "Impossible de lire les paramètres, l'application utilise les valeurs par défaut : {{detail}}",
+      "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
+      "cancelled": "Transcription annulée",
+      "internal": "Erreur interne : {{detail}}"
+    },
+    "app": {
+      "title": "Un problème est survenu",
+      "description": "L'application a rencontré une erreur et doit être rechargée.",
+      "action": "Recharger"
+    },
+    "notFound": {
+      "title": "Page introuvable",
+      "description": "La page demandée n'existe pas.",
+      "action": "Retour"
+    }
+  },
+  "settings": {
+    "open": "Paramètres",
+    "title": "Paramètres",
+    "back": "Retour",
+    "transcription": {
+      "title": "Transcription",
+      "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau."
+    },
+    "recording": {
+      "title": "Enregistrement et audio",
+      "description": "S'appliquent à partir du prochain enregistrement.",
+      "input": "Enregistrer depuis",
+      "inputs": {
+        "mic": "Microphone",
+        "system": "Audio système",
+        "both": "Les deux"
+      },
+      "microphone": "Microphone",
+      "outputDevice": "Périphérique de sortie",
+      "defaultDevice": "Par défaut du système",
+      "defaultDeviceNamed": "Par défaut du système ({{name}})",
+      "missingDevice": "Non branché",
+      "bitrate": "Débit",
+      "kbps": "{{value}} kbit/s",
+      "channels": "Canaux",
+      "mono": "Mono",
+      "stereo": "Stéréo",
+      "sampleRate": "Fréquence d'échantillonnage",
+      "hz": "{{value, number}} Hz"
+    },
+    "general": {
+      "title": "Général",
+      "description": "Le dossier des enregistrements et la langue de l'application.",
+      "folder": "Dossier par défaut",
+      "folderDescription": "Où les enregistrements sont sauvegardés. Il est créé s'il n'existe pas.",
+      "choose": "Choisir…",
+      "reset": "Utiliser Documents\\Sbobino",
+      "language": "Langue de l'interface",
+      "languageRestart": "La nouvelle langue s'applique au prochain démarrage de Sbobino."
+    }
+  },
+  "models": {
+    "recommended": "Recommandé",
+    "size": "{{mb, number}} Mo",
+    "mode": {
+      "stream": "Texte en continu",
+      "frase": "Texte en fin de phrase"
+    },
+    "license": "Licence {{license}}",
+    "progress": "Téléchargement de {{name}}",
+    "state": {
+      "notDownloaded": "Non téléchargé",
+      "interrupted": "Téléchargement interrompu à {{percent}} %",
+      "downloading": "Téléchargement en cours… {{percent}} %",
+      "verifying": "Vérification de l'intégrité…",
+      "downloaded": "Téléchargé"
+    },
+    "download": "Télécharger",
+    "resume": "Reprendre",
+    "cancel": "Annuler",
+    "delete": {
+      "action": "Supprimer",
+      "title": "Supprimer {{name}} ?",
+      "description": "Le fichier du modèle sera supprimé du disque. Pour l'utiliser à nouveau, il faudra le retélécharger.",
+      "keep": "Conserver",
+      "confirm": "Supprimer"
+    },
+    "choose": "Modèle de transcription",
+    "inUse": "En cours d'utilisation"
+  },
+  "speechLanguage": {
+    "label": "Langue parlée",
+    "auto": "Automatique",
+    "languages": {
+      "it": "Italien",
+      "en": "Anglais",
+      "fr": "Français",
+      "es": "Espagnol",
+      "de": "Allemand",
+      "pl": "Polonais"
+    }
+  },
+  "recording": {
+    "title": "Enregistrement",
+    "start": "Enregistrer",
+    "prefix": "Enregistrement",
+    "pause": "Pause",
+    "resume": "Reprendre",
+    "stop": "Arrêter",
+    "stopping": "Sauvegarde…",
+    "elapsed": "Durée enregistrée",
+    "levels": {
+      "microphone": "Microphone",
+      "system": "Système"
+    },
+    "level": "Niveau : {{input}}"
+  },
+  "about": {
+    "title": "À propos",
+    "description": "La version de l'application et les licences des composants qu'elle utilise.",
+    "version": "Version {{version}}",
+    "source": "Source : {{url}}",
+    "converted": "Sbobino télécharge la version convertie en GGUF et quantifiée (Q5_K_M) par handy-computer.",
+    "licenseText": "Texte de la licence",
+    "thirdParty": "Mentions de tiers",
+    "roles": {
+      "model": "Modèle de transcription",
+      "vad": "Détection de la parole, qui découpe l'audio en phrases",
+      "decoder": "Décodage des fichiers audio et vidéo",
+      "engine": "Exécution des modèles de transcription",
+      "onnx": "Exécution de Silero VAD",
+      "vadRs": "Liaison entre Silero VAD et Rust"
+    }
+  }
+}

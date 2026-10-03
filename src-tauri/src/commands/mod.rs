@@ -12,7 +12,7 @@ use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
 use crate::managers::recording::{Recorder, RecordingSaved};
-use crate::managers::settings::{Settings, SettingsStore};
+use crate::managers::settings::{Language, Settings, SettingsStore};
 
 /// Estensioni accettate da Sfoglia (spec, storia 2).
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -113,11 +113,20 @@ pub fn cancel_model_download(models: State<'_, Models>, id: String) -> bool {
     models.cancel(&id)
 }
 
-/// Le impostazioni correnti, lette all'avvio.
+/// Le impostazioni lette all'avvio. `unreadableSettings` se il file non si è letto: allora il
+/// backend usa i predefiniti.
 #[tauri::command]
 #[specta::specta]
-pub fn get_settings(settings: State<'_, SettingsStore>) -> Settings {
-    settings.get()
+pub fn get_settings(settings: State<'_, SettingsStore>) -> Result<Settings, AppError> {
+    settings.loaded()
+}
+
+/// La lingua di Windows se è tra le sei, altrimenti l'inglese: la Lingua dell'interfaccia quando
+/// le impostazioni non ne scelgono una.
+#[tauri::command]
+#[specta::specta]
+pub fn system_language() -> Language {
+    Language::system()
 }
 
 /// Valida e salva le impostazioni. Se cambia il modello scelto, lo carica in background.

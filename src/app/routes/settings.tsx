@@ -18,9 +18,12 @@ import {
   type Settings,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
+import { About } from "@/features/about/about";
 import { ModelList } from "@/features/models/model-list";
 import {
   BITRATES_KBPS,
+  LANGUAGE_NAMES,
+  LANGUAGES,
   SAMPLE_RATES,
   settingsSchema,
 } from "@/features/settings/settings";
@@ -32,9 +35,8 @@ const SELECT =
 
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
 
-// ponytail: manca la sezione Informazioni e la Lingua dell'interfaccia (ticket 10).
 export function SettingsPage() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const { save, settings } = useSettings();
   const [error, setError] = useState<AppError | null>(null);
   // `null` finché `list_microphones` e `list_output_devices` non rispondono.
@@ -97,6 +99,16 @@ export function SettingsPage() {
   const selectModel = useCallback(
     (model: string) => choose({ model }),
     [choose]
+  );
+  // Si applica al riavvio: l'interfaccia resta nella lingua con cui è partita.
+  const chooseLanguage = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        interfaceLanguage:
+          LANGUAGES.find((l) => l === e.target.value) ??
+          settings.interfaceLanguage,
+      }),
+    [choose, settings.interfaceLanguage]
   );
   const resetFolder = useCallback(
     () => choose({ recordingsFolder: null }),
@@ -247,12 +259,15 @@ export function SettingsPage() {
           <ModelList onSelect={selectModel} selected={settings.model} />
         </Section>
         <Section
-          description={t("settings.general.folderDescription")}
+          description={t("settings.general.description")}
           id="settings-general"
           title={t("settings.general.title")}
         >
           <div className="flex max-w-xl flex-col gap-2">
             <span className="text-sm">{t("settings.general.folder")}</span>
+            <p className="text-muted-foreground text-sm">
+              {t("settings.general.folderDescription")}
+            </p>
             <div className="flex items-center gap-2">
               <span
                 className="min-w-0 flex-1 truncate rounded-md border px-3 py-2 text-sm"
@@ -275,6 +290,37 @@ export function SettingsPage() {
               </Button>
             )}
           </div>
+          <div className="flex max-w-xl flex-col gap-2">
+            <label className="text-sm" htmlFor="interface-language">
+              {t("settings.general.language")}
+            </label>
+            <select
+              aria-describedby="interface-language-restart"
+              className={`${SELECT} self-start`}
+              id="interface-language"
+              onChange={chooseLanguage}
+              value={settings.interfaceLanguage ?? i18n.language}
+            >
+              {LANGUAGES.map((value) => (
+                <option key={value} lang={value} value={value}>
+                  {LANGUAGE_NAMES[value]}
+                </option>
+              ))}
+            </select>
+            <p
+              className="text-muted-foreground text-sm"
+              id="interface-language-restart"
+            >
+              {t("settings.general.languageRestart")}
+            </p>
+          </div>
+        </Section>
+        <Section
+          description={t("about.description")}
+          id="settings-about"
+          title={t("about.title")}
+        >
+          <About />
         </Section>
       </main>
     </div>
