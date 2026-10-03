@@ -150,6 +150,11 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Con Entrambi microfono e audio di sistema finiscono mixati in un solo file, allineati nel tempo. Durante la Registrazione c'è un indicatore di livello per ciascuno.
   - Quando il PC è in silenzio la Registrazione dell'audio di sistema continua: il file si riempie di silenzio e resta lungo quanto il timer. Con solo l'Audio di sistema il timer può restare indietro di mezzo secondo durante il silenzio e poi recuperare.
   - Un'uscita scelta ma non collegata dà un errore dedicato; se si scollega durante la Registrazione questa si ferma e si salva come per il microfono.
+- **M7 (ticket 10)**: storie 59, 60, 63 e 68; con la Lingua dell'interfaccia anche la 61 è completa, e la 62 copre anche un file illeggibile.
+  - L'interfaccia è in italiano, inglese, francese, spagnolo, tedesco e polacco, con le forme plurali di ogni lingua. In Impostazioni → Generale si sceglie la Lingua dell'interfaccia, con l'avviso che vale dal prossimo avvio. Finché non la si sceglie vale la lingua di Windows se è tra le sei, altrimenti l'inglese. Anche il prefisso delle Registrazioni segue la Lingua dell'interfaccia.
+  - Il tema chiaro o scuro segue quello di Windows, compresi i controlli nativi come i selettori.
+  - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: Parakeet (CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer), Nemotron (OpenMDW-1.1), Whisper (MIT di OpenAI), Silero VAD, Symphonia (MPL-2.0), transcribe.cpp (con ggml e miniz), ONNX Runtime (con gli avvisi di terze parti) e vad-rs. I testi sono anche file del bundle, nella cartella `licenses`.
+  - Se il file impostazioni esiste ma non si legge (per esempio bloccato da un altro programma), l'app parte con i valori predefiniti e la lingua di Windows, e la status bar mostra l'errore. Il primo salvataggio riuscito lo sostituisce.
 
 ## Fuori dal perimetro
 

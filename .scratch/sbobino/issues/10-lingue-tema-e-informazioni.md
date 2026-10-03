@@ -4,11 +4,12 @@
 
 **Blocked by:** 06 (Impostazioni persistenti, scelta del modello e Lingua del parlato)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] File di traduzione per en, fr, es, de e pl completi rispetto all'italiano di riferimento, con le forme plurali giuste (`_many` per it/fr/es, forme del polacco)
-- [ ] Lingua dell'interfaccia nelle impostazioni, con l'avviso "si applica al riavvio". Al primo avvio la lingua di sistema se supportata, altrimenti en
-- [ ] Il tema chiaro/scuro segue `prefers-color-scheme` con i token shadcn
-- [ ] Impostazioni → Informazioni: versione e licenze. Parakeet CC-BY-4.0 con attribuzione, poi Nemotron OpenMDW-1.1, Whisper MIT, Silero MIT, Symphonia MPL-2.0, transcribe-cpp MIT, ONNX Runtime MIT, vad-rs. I testi delle licenze sono inclusi come risorse
-- [ ] Test: tutte le chiavi presenti in ogni lingua (`bun test`) e lingua di default da quella di sistema (Rust)
-- [ ] `AGENTS.md` / `PRODUCT.md` aggiornati, controlli verdi
+- [x] File di traduzione per en, fr, es, de e pl completi rispetto all'italiano di riferimento, con le forme plurali giuste (`_many` per it/fr/es, forme del polacco)
+- [x] Lingua dell'interfaccia nelle impostazioni, con l'avviso "si applica al riavvio". Al primo avvio la lingua di sistema se supportata, altrimenti en
+- [x] Il tema chiaro/scuro segue `prefers-color-scheme` con i token shadcn
+- [x] Impostazioni → Informazioni: versione e licenze. Parakeet CC-BY-4.0 con attribuzione, poi Nemotron OpenMDW-1.1, Whisper MIT, Silero MIT, Symphonia MPL-2.0, transcribe-cpp MIT, ONNX Runtime MIT, vad-rs. I testi delle licenze sono inclusi come risorse
+- [x] Se `get_settings` fallisce all'avvio (per esempio `settings.json` illeggibile) l'app parte comunque, con i valori predefiniti e la lingua di sistema, e mostra l'errore nella status bar
+- [x] Test: tutte le chiavi presenti in ogni lingua (`bun test`) e lingua di default da quella di sistema (Rust)
+- [x] `AGENTS.md` / `PRODUCT.md` aggiornati, controlli verdi
