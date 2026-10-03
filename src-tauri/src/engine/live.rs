@@ -306,6 +306,7 @@ mod tests {
             model: String::new(),
             speech_language: SpeechLanguage::Auto,
             phrases: Vec::new(),
+            parlanti: std::collections::BTreeMap::new(),
         });
         let progress = std::sync::Mutex::new(Vec::new());
         std::thread::scope(|scope| {

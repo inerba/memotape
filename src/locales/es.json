@@ -23,7 +23,11 @@
       "confirm": "Reemplazar"
     },
     "parlanti": "Reconocer hablantes",
-    "parlantiNote": "Como máximo 4 hablantes"
+    "parlantiNote": "Como máximo 4 hablantes",
+    "parlantiList": "Hablantes:",
+    "rename": "Haz clic para renombrar: Intro confirma, Esc cancela",
+    "renameName": "Nuevo nombre para {{label}}",
+    "renameTaken": "Otro hablante ya tiene este nombre"
   },
   "status": {
     "idle": "Elige un archivo de audio o vídeo con Examinar",

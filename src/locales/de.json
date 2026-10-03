@@ -23,7 +23,11 @@
       "confirm": "Ersetzen"
     },
     "parlanti": "Sprecher erkennen",
-    "parlantiNote": "Höchstens 4 Sprecher"
+    "parlantiNote": "Höchstens 4 Sprecher",
+    "parlantiList": "Sprecher:",
+    "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
+    "renameName": "Neuer Name für {{label}}",
+    "renameTaken": "Ein anderer Sprecher hat diesen Namen schon"
   },
   "status": {
     "idle": "Wähle mit „Durchsuchen“ eine Audio- oder Videodatei",

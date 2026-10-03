@@ -192,6 +192,11 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Impostazioni → Registrazione ha "Riconosci i parlanti": una casella "Sul mix", oppure, con Ingressi separati e "Registra da" su Entrambi, una per Microfono e una per Audio di sistema. Valgono con "Trascrivi dal vivo" attiva; spente per default.
   - Dopo Stop, finito il completamento della trascrizione, la status bar dice "Riconoscimento dei parlanti…" (con Annulla) e la Diarizzazione gira sull'audio scelto. Le Frasi già comparse prendono le etichette "Parlante N" o, con gli Ingressi separati, "Audio di sistema · Parlante N", numerate per Ingresso; lo stesso nel Markdown, in Copia testo e nel Bino, che riaperto le mostra.
   - Senza Sortformer scaricato la Registrazione parte lo stesso: la status bar avvisa che il modello per Riconosci i parlanti non è scaricato, con il link alle Impostazioni, e il testo resta senza Parlanti. Annullando durante il Riconoscimento dei parlanti il Bino si salva con le Frasi senza Parlanti e il Markdown no.
+- **V6, Rinomina dei Parlanti (ticket v2/09)**: storia 39 della spec v2.
+  - A Trascrizione finita, sotto l'area, "Parlanti:" elenca i Parlanti del testo in ordine di comparsa. Un clic su uno, o sulla riga della sua etichetta nell'area, apre sul posto un campo con il nome: Invio conferma, Esc o un clic altrove annulla; un nome vuoto, o già di un altro Parlante dello stesso Ingresso, non si conferma.
+  - Il nome sostituisce "Parlante N" solo per quel Parlante di quell'Ingresso ("Audio di sistema · Mario"), in tutte le sue Frasi: nell'area, in Copia testo, nel Bino (se la Sorgente è un Bino, in `parlanti`) e nell'ultimo Markdown prodotto per quella Sorgente, che si riscrive da capo invece di crearne uno nuovo (le modifiche fatte a mano nel Markdown si perdono). Di un Bino riaperto vale il suo Markdown modificato per ultimo; un Markdown cancellato non si ricrea.
+  - Se il testo nell'area è stato modificato a mano, la rinomina cambia solo le righe delle etichette e lascia il resto com'è.
+  - Un Bino riaperto mostra i nomi. Ritrascrivere un Bino li toglie, perché i Parlanti si rinumerano.
 
 ## Fuori dal perimetro
 

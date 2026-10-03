@@ -23,7 +23,11 @@
       "confirm": "Replace"
     },
     "parlanti": "Recognize speakers",
-    "parlantiNote": "At most 4 speakers"
+    "parlantiNote": "At most 4 speakers",
+    "parlantiList": "Speakers:",
+    "rename": "Click to rename: Enter confirms, Esc cancels",
+    "renameName": "New name for {{label}}",
+    "renameTaken": "Another speaker already has this name"
   },
   "status": {
     "idle": "Choose an audio or video file with Browse",

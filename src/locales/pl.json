@@ -23,7 +23,11 @@
       "confirm": "Zastąp"
     },
     "parlanti": "Rozpoznaj mówców",
-    "parlantiNote": "Najwyżej 4 mówców"
+    "parlantiNote": "Najwyżej 4 mówców",
+    "parlantiList": "Mówcy:",
+    "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
+    "renameName": "Nowa nazwa dla {{label}}",
+    "renameTaken": "Inny mówca ma już tę nazwę"
   },
   "status": {
     "idle": "Wybierz plik audio lub wideo przyciskiem Przeglądaj",

@@ -33,9 +33,16 @@ export const commands = {
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**
 	 *  Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
-	 *  Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+	 *  Trascrizione, e i nomi dei Parlanti. `unsupportedBino` se viene da una versione più nuova
+	 *  dell'app.
 	 */
-	openBino: (source: string) => typedError<TranscriptPhrase[], AppError>(__TAURI_INVOKE("open_bino", { source })),
+	openBino: (source: string) => typedError<OpenedBino, AppError>(__TAURI_INVOKE("open_bino", { source })),
+	/**
+	 *  Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione, nel Bino che la contiene
+	 *  e nel Markdown che ha prodotto. Rifiuta un nome vuoto, e con `activityInProgress` durante
+	 *  un'Attività.
+	 */
+	renameParlante: (ingresso: Ingresso, parlante: number, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { ingresso, parlante, nome })),
 	/**
 	 *  Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
 	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
@@ -250,6 +257,13 @@ export type ModelStateChanged = {
 	modelId: string,
 	state: ModelState,
 	error: AppError | null,
+};
+
+/**  Un Bino aperto come Sorgente: le Frasi per l'area e i nomi dei Parlanti. */
+export type OpenedBino = {
+	phrases: TranscriptPhrase[],
+	/**  Per chiave `<ingresso>:<n>`, come nel Bino. */
+	parlanti: { [key in string]: string },
 };
 
 /**  La Registrazione salvata, che diventa la Sorgente. */

@@ -2,8 +2,9 @@
 //! ogni Ingresso con una sua pipeline): prende il motore del modello scelto (caricato una volta e
 //! tenuto tra una Trascrizione e l'altra), esegue la pipeline, la traduce in eventi e salva il
 //! Markdown accanto alla Sorgente; di un Bino riscrive anche il testo dentro il Bino. Tiene l'ultima
-//! Trascrizione per Copia testo.
+//! Trascrizione per Copia testo e per la rinomina dei Parlanti.
 
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -119,34 +120,116 @@ pub enum LiveTranscription {
     Failed { error: AppError },
 }
 
-/// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende. Si
-/// riempie man mano che arrivano le Frasi. In `tauri::State`.
+/// Un Bino aperto come Sorgente: le Frasi per l'area e i nomi dei Parlanti.
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+pub struct OpenedBino {
+    pub phrases: Vec<TranscriptPhrase>,
+    /// Per chiave `<ingresso>:<n>`, come nel Bino.
+    pub parlanti: BTreeMap<String, String>,
+}
+
+/// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende e i
+/// cui Parlanti si rinominano. Si riempie man mano che arrivano le Frasi. In `tauri::State`.
 #[derive(Default)]
-pub struct LastTranscript(Mutex<Option<Transcript>>);
+pub struct LastTranscript(Mutex<Last>);
+
+#[derive(Default)]
+struct Last {
+    transcript: Option<Transcript>,
+    /// Il Markdown prodotto con queste Frasi, che la rinomina riscrive.
+    md: Option<PathBuf>,
+    /// Il Bino che contiene queste Frasi, dove la rinomina salva i nomi.
+    bino: Option<PathBuf>,
+}
 
 impl LastTranscript {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Last> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Modifica la Trascrizione tenuta, se c'è.
     fn update(&self, change: impl FnOnce(&mut Transcript)) {
-        if let Some(transcript) = self
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .as_mut()
-        {
+        if let Some(transcript) = self.lock().transcript.as_mut() {
             change(transcript);
         }
     }
 
+    /// Una Trascrizione nuova, ancora senza Markdown né Bino.
     fn set(&self, transcript: Transcript) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(transcript);
+        *self.lock() = Last {
+            transcript: Some(transcript),
+            ..Last::default()
+        };
+    }
+
+    /// Dove sono finite le Frasi della Trascrizione tenuta: il Markdown e il Bino, se ci sono.
+    fn saved_in(&self, md: Option<PathBuf>, bino: Option<PathBuf>) {
+        let mut last = self.lock();
+        last.md = md;
+        last.bino = bino;
     }
 
     fn get(&self) -> Option<Transcript> {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
+        self.lock().transcript.clone()
     }
+}
+
+/// Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione: il nome (senza spazi in
+/// testa e in coda, non vuoto) vale per tutte le sue Frasi, si salva nel Bino che le contiene e
+/// riscrive il Markdown che hanno prodotto, se c'è ancora.
+pub fn rename_parlante(
+    last: &LastTranscript,
+    ingresso: Ingresso,
+    parlante: u32,
+    nome: &str,
+    labels: &Labels,
+) -> Result<(), AppError> {
+    let nome = nome.trim();
+    if nome.is_empty() {
+        return Err(AppError::Internal("nome del Parlante vuoto".into()));
+    }
+    let mut last = last.lock();
+    let Last {
+        transcript: Some(transcript),
+        md,
+        bino,
+    } = &mut *last
+    else {
+        return Err(AppError::Internal(
+            "nessuna Trascrizione da rinominare".into(),
+        ));
+    };
+    let key = ingresso.parlante_key(parlante);
+    let mut renamed = transcript.clone();
+    renamed.parlanti.insert(key.clone(), nome.to_string());
+    if let Some(bino) = bino {
+        let mut document = bino::read(bino)?;
+        document.parlanti.insert(key, nome.to_string());
+        bino::rewrite(bino, &document)?;
+    }
+    // Il nome è salvato dove si rilegge: anche se il Markdown non si scrive, vale.
+    *transcript = renamed;
+    // Un Markdown cancellato nel frattempo non si ricrea.
+    match md {
+        Some(md) if md.exists() => replace_file(
+            md,
+            &transcript::render(transcript, labels, CopiaCome::Markdown),
+        ),
+        _ => Ok(()),
+    }
+}
+
+/// Sostituisce `path` con `text` scrivendo `<nome>.tmp` e rinominandolo sopra: a metà, il file
+/// resta com'era.
+fn replace_file(path: &Path, text: &str) -> Result<(), AppError> {
+    let mut temp = path.as_os_str().to_owned();
+    temp.push(".tmp");
+    let temp = PathBuf::from(temp);
+    let written = std::fs::write(&temp, text).and_then(|()| std::fs::rename(&temp, path));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written.map_err(|e| unwritable(path, &e))
 }
 
 /// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o in Markdown, come dicono le
@@ -157,7 +240,7 @@ pub fn transcript_text(last: &LastTranscript, settings: &Settings) -> Option<Str
 }
 
 /// I testi del documento nella Lingua dell'interfaccia.
-fn labels(settings: &Settings) -> Labels {
+pub fn labels(settings: &Settings) -> Labels {
     Labels::of(settings.interface_language.unwrap_or_else(Language::system))
 }
 
@@ -172,6 +255,7 @@ fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Tran
         model: SettingsStore::model_of(settings).name.clone(),
         speech_language: settings.speech_language,
         phrases: Vec::new(),
+        parlanti: BTreeMap::new(),
     };
     app.state::<LastTranscript>().set(transcript.clone());
     transcript
@@ -257,6 +341,7 @@ pub async fn transcribe(
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
+        let rewritten = bino.is_some();
         if let Some(old) = bino {
             let document = bino::Document::new(
                 old.creato,
@@ -269,7 +354,10 @@ pub async fn transcribe(
             );
             bino::rewrite(&source, &document)?;
         }
-        save_transcript(&source, &transcript, &labels(&settings))
+        let outcome = save_transcript(&source, &transcript, &labels(&settings))?;
+        app.state::<LastTranscript>()
+            .saved_in(md_of(&outcome), rewritten.then_some(source));
+        Ok(outcome)
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
@@ -517,7 +605,7 @@ pub fn finish_live(
     app.state::<LastTranscript>()
         .update(|last| last.title.clone_from(&title));
     let settings = app.state::<SettingsStore>().get();
-    save_live(
+    let live = save_live(
         recording,
         &Transcript {
             title,
@@ -526,7 +614,17 @@ pub fn finish_live(
         transcribed,
         cancel,
         &labels(&settings),
-    )
+    );
+    let md = match &live {
+        LiveTranscription::Saved(finished) => Some(PathBuf::from(&finished.md_path)),
+        _ => None,
+    };
+    // Il Bino ha le Frasi anche se la Trascrizione è annullata o guasta.
+    app.state::<LastTranscript>().saved_in(
+        md,
+        bino::is_bino(recording).then(|| recording.to_path_buf()),
+    );
+    live
 }
 
 /// Salva il documento della Trascrizione dal vivo, se non è stata annullata o guasta.
@@ -552,9 +650,11 @@ fn save_live(
 }
 
 /// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione, senza
-/// ritrascrivere. Restituisce le Frasi per l'area, come se arrivassero da una Trascrizione.
-pub fn open_bino(app: &AppHandle, source: &Path) -> Result<Vec<TranscriptPhrase>, AppError> {
+/// ritrascrivere, e la rinomina dei Parlanti riscrive il Bino e il suo Markdown più recente.
+/// Restituisce le Frasi per l'area, come se arrivassero da una Trascrizione, e i nomi dei Parlanti.
+pub fn open_bino(app: &AppHandle, source: &Path) -> Result<OpenedBino, AppError> {
     let document = bino::read(source)?;
+    let parlanti = document.parlanti.clone();
     let phrases = document
         .frasi
         .iter()
@@ -567,9 +667,28 @@ pub fn open_bino(app: &AppHandle, source: &Path) -> Result<Vec<TranscriptPhrase>
             parlante: frase.parlante,
         })
         .collect();
-    app.state::<LastTranscript>()
-        .set(bino_transcript(title_of(source), document));
-    Ok(phrases)
+    let last = app.state::<LastTranscript>();
+    last.set(bino_transcript(title_of(source), document));
+    last.saved_in(latest_md(source), Some(source.to_path_buf()));
+    Ok(OpenedBino { phrases, parlanti })
+}
+
+/// Il `<stem> trascrizione <N>.md` accanto alla Sorgente modificato per ultimo, se ce n'è uno.
+fn latest_md(source: &Path) -> Option<PathBuf> {
+    let prefix = format!("{} trascrizione ", title_of(source));
+    std::fs::read_dir(source.parent()?)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .and_then(|name| name.strip_prefix(&prefix)?.strip_suffix(".md"))
+                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        })
+        .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
+        .max_by_key(|(modified, _)| *modified)
+        .map(|(_, path)| path)
 }
 
 /// Il documento di un Bino come Trascrizione, con il nome del modello dal catalogo.
@@ -594,6 +713,7 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
                 parlante: frase.parlante,
             })
             .collect(),
+        parlanti: document.parlanti,
     }
 }
 
@@ -703,6 +823,14 @@ pub fn preload(app: &AppHandle) {
     });
 }
 
+/// Il Markdown salvato, se c'è.
+fn md_of(outcome: &TranscriptionOutcome) -> Option<PathBuf> {
+    match outcome {
+        TranscriptionOutcome::Saved(finished) => Some(PathBuf::from(&finished.md_path)),
+        TranscriptionOutcome::NoSpeech => None,
+    }
+}
+
 /// Salva il documento in Markdown accanto alla Sorgente; senza Frasi non crea il file.
 fn save_transcript(
     source: &Path,
@@ -770,6 +898,7 @@ mod tests {
                     parlante: None,
                 })
                 .collect(),
+            parlanti: BTreeMap::new(),
         }
     }
 
@@ -917,7 +1046,7 @@ mod tests {
     #[test]
     fn il_testo_di_un_bino_diventa_la_trascrizione_con_il_nome_del_modello() {
         let phrases = transcript(&["Uno.", "Due."]).phrases;
-        let document = bino::Document::new(
+        let mut document = bino::Document::new(
             "2026-10-03T17:05:42+02:00".into(),
             4000,
             bino::Modalita::Mix,
@@ -926,6 +1055,7 @@ mod tests {
             false,
             &phrases,
         );
+        document.parlanti.insert("mix:1".into(), "Mario".into());
         assert_eq!(
             bino_transcript("Registrazione".into(), document.clone()),
             Transcript {
@@ -935,6 +1065,7 @@ mod tests {
                 model: models::default_model().name.clone(),
                 speech_language: SpeechLanguage::It,
                 phrases,
+                parlanti: document.parlanti.clone(),
             }
         );
         // Senza Trascrizione dal vivo il modello non c'è; un id sconosciuto resta com'è.
@@ -952,6 +1083,100 @@ mod tests {
         let source = std::env::temp_dir().join("sbobino-test-non-esiste/Audio.wav");
         let error = save_md(&source, "testo").unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
+    }
+
+    /// Una cartella vuota per un test.
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn la_rinomina_vale_per_copia_testo_il_bino_e_il_markdown() {
+        let dir = temp_dir("sbobino-test-rinomina");
+        let ogg = dir.join("mix.ogg");
+        std::fs::write(&ogg, b"audio").unwrap();
+        let mut document = transcript(&["Ciao.", "Salve."]);
+        document.phrases[0].parlante = Some(1);
+        document.phrases[1].parlante = Some(2);
+        let path = dir.join("Riunione.bino");
+        let bino_document = bino::Document::new(
+            "2026-10-03T17:05:42+02:00".into(),
+            4000,
+            bino::Modalita::Mix,
+            None,
+            SpeechLanguage::Auto,
+            true,
+            &document.phrases,
+        );
+        bino::write(&path, &[(Ingresso::Mix, &ogg)], &bino_document).unwrap();
+        let TranscriptionOutcome::Saved(saved) =
+            save_transcript(&path, &document, &labels()).unwrap()
+        else {
+            panic!("senza Markdown");
+        };
+        let last = LastTranscript::default();
+        // Senza Trascrizione non c'è niente da rinominare.
+        assert!(rename_parlante(&last, Ingresso::Mix, 1, "Mario", &labels()).is_err());
+        last.set(document);
+        last.saved_in(Some(PathBuf::from(&saved.md_path)), Some(path.clone()));
+        rename_parlante(&last, Ingresso::Mix, 1, "  Mario ", &labels()).unwrap();
+        // Un nome vuoto si rifiuta e non cambia nulla.
+        assert!(rename_parlante(&last, Ingresso::Mix, 2, "  ", &labels()).is_err());
+        let settings = Settings {
+            interface_language: Some(Language::It),
+            ..Settings::default()
+        };
+        let text = transcript_text(&last, &settings).unwrap();
+        assert!(
+            text.ends_with("\nMario: Ciao.\n\nParlante 2: Salve.\n"),
+            "{text}"
+        );
+        let md = std::fs::read_to_string(&saved.md_path).unwrap();
+        assert!(
+            md.ends_with("\n**Mario:** Ciao.\n\n**Parlante 2:** Salve.\n"),
+            "{md}"
+        );
+        let reread = bino::read(&path).unwrap();
+        assert_eq!(
+            reread.parlanti,
+            BTreeMap::from([("mix:1".to_string(), "Mario".to_string())])
+        );
+        assert_eq!(reread.frasi, bino_document.frasi);
+        // Un Markdown cancellato non si ricrea.
+        std::fs::remove_file(&saved.md_path).unwrap();
+        rename_parlante(&last, Ingresso::Mix, 2, "Lucia", &labels()).unwrap();
+        assert!(!Path::new(&saved.md_path).exists());
+        assert_eq!(bino::read(&path).unwrap().parlanti.len(), 2);
+    }
+
+    #[test]
+    fn il_markdown_di_un_bino_e_quello_modificato_per_ultimo() {
+        let dir = temp_dir("sbobino-test-ultimo-md");
+        let source = dir.join("Riunione.bino");
+        assert_eq!(latest_md(&source), None);
+        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        for name in [
+            "Riunione trascrizione 2.md",
+            "Riunione trascrizione 1.md",
+            "Riunione trascrizione 3.txt",
+            "Riunione trascrizione x.md",
+            "Altro trascrizione 4.md",
+        ] {
+            std::fs::write(dir.join(name), "").unwrap();
+        }
+        std::fs::File::options()
+            .write(true)
+            .open(dir.join("Riunione trascrizione 2.md"))
+            .unwrap()
+            .set_modified(older)
+            .unwrap();
+        assert_eq!(
+            latest_md(&source),
+            Some(dir.join("Riunione trascrizione 1.md"))
+        );
     }
 
     #[test]

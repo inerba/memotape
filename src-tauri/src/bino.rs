@@ -308,7 +308,7 @@ mod tests {
             modello: Some("nemotron".into()),
             lingua_parlato: SpeechLanguage::It,
             completa: true,
-            parlanti: BTreeMap::new(),
+            parlanti: BTreeMap::from([("mix:1".into(), "Mario".into())]),
             frasi: frasi
                 .iter()
                 .zip(0..)
@@ -318,7 +318,7 @@ mod tests {
                     fine_ms: id * 600 + 500,
                     testo: (*testo).into(),
                     ingresso: Ingresso::Mix,
-                    parlante: None,
+                    parlante: Some(1),
                 })
                 .collect(),
         }
@@ -354,6 +354,9 @@ mod tests {
         let written = document(&["Buongiorno.", "Iniziamo."]);
         write(&path, &[(Ingresso::Mix, &mix)], &written).unwrap();
         assert_eq!(read(&path).unwrap(), written);
+        let json = serde_json::to_value(&written).unwrap();
+        assert_eq!(json["parlanti"]["mix:1"], "Mario");
+        assert_eq!(json["frasi"][0]["parlante"], 1);
         let mut audio = Vec::new();
         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
         assert_eq!(audio, std::fs::read(&mix).unwrap());

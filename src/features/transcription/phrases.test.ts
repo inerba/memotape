@@ -5,6 +5,11 @@ import {
   type Conversation,
   conversationText,
   EMPTY_CONVERSATION,
+  nomeTaken,
+  parlanteAt,
+  parlantiOf,
+  relabeled,
+  withNome,
   withoutPartials,
   withParlanti,
   withPartial,
@@ -32,7 +37,7 @@ const phrase = (
   text,
 });
 
-const render = (c: Conversation) => conversationText(c.phrases, c.partials, t);
+const render = (c: Conversation) => conversationText(c, t);
 
 test("le Frasi del mix finiscono una per riga, senza etichette", () => {
   const c = [
@@ -40,7 +45,7 @@ test("le Frasi del mix finiscono una per riga, senza etichette", () => {
     phrase(1, 1500, "Oggi parliamo di trascrizione."),
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   expect(render(c)).toBe("Buongiorno a tutti.\nOggi parliamo di trascrizione.");
-  expect(conversationText([], [], t)).toBe("");
+  expect(conversationText(EMPTY_CONVERSATION, t)).toBe("");
 });
 
 test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa", () => {
@@ -111,7 +116,11 @@ test("a fine Trascrizione i Parziali spariscono e le Frasi restano", () => {
     withPhrase(EMPTY_CONVERSATION, phrase(0, 0, "Mi senti?", "microfono")),
     phrase(0, 1000, "Sì", "sistema")
   );
-  expect(withoutPartials(c)).toEqual({ partials: [], phrases: c.phrases });
+  expect(withoutPartials(c)).toEqual({
+    parlanti: {},
+    partials: [],
+    phrases: c.phrases,
+  });
 });
 
 test("dopo la Diarizzazione ogni turno di un Parlante comincia con la sua etichetta", () => {
@@ -147,4 +156,102 @@ test("con gli Ingressi separati l'etichetta unisce Ingresso e Parlante", () => {
   expect(render(c)).toBe(
     "Microfono:\nMi senti?\n\nAudio di sistema · Parlante 1:\nSì.\n\nAudio di sistema · Parlante 2:\nAnch'io."
   );
+});
+
+const diarized = () =>
+  withParlanti(
+    [
+      phrase(0, 0, "Mi senti?", "microfono"),
+      phrase(0, 1000, "Sì.", "sistema"),
+      phrase(1, 2000, "Anch'io.", "sistema"),
+      phrase(1, 3000, "Bene.", "microfono"),
+    ].reduce(withPhrase, EMPTY_CONVERSATION),
+    [
+      { ingresso: "microfono", parlante: 1, phraseId: 0 },
+      { ingresso: "sistema", parlante: 1, phraseId: 0 },
+      { ingresso: "sistema", parlante: 2, phraseId: 1 },
+      { ingresso: "microfono", parlante: 1, phraseId: 1 },
+    ]
+  );
+
+test("un Parlante rinominato ha il suo nome nell'etichetta, solo nel suo Ingresso", () => {
+  const c = withNome(diarized(), "sistema", 1, "Mario");
+  expect(c.parlanti).toEqual({ "sistema:1": "Mario" });
+  expect(render(c)).toBe(
+    "Microfono · Parlante 1:\nMi senti?\n\nAudio di sistema · Mario:\nSì.\n\nAudio di sistema · Parlante 2:\nAnch'io.\n\nMicrofono · Parlante 1:\nBene."
+  );
+  // Le Frasi e i Parziali che arrivano dopo non tolgono i nomi.
+  expect(withPhrase(c, phrase(2, 4000, "Ok.")).parlanti).toEqual(c.parlanti);
+  expect(withPartial(c, phrase(2, 4000, "O")).parlanti).toEqual(c.parlanti);
+  expect(withoutPartials(c).parlanti).toEqual(c.parlanti);
+});
+
+test("i Parlanti sono in ordine di comparsa, una volta sola, con etichetta e nome", () => {
+  const c = withNome(diarized(), "sistema", 2, "Lucia");
+  expect(parlantiOf(c, t)).toEqual([
+    {
+      ingresso: "microfono",
+      label: "Microfono · Parlante 1",
+      nome: "Parlante 1",
+      parlante: 1,
+    },
+    {
+      ingresso: "sistema",
+      label: "Audio di sistema · Parlante 1",
+      nome: "Parlante 1",
+      parlante: 1,
+    },
+    {
+      ingresso: "sistema",
+      label: "Audio di sistema · Lucia",
+      nome: "Lucia",
+      parlante: 2,
+    },
+  ]);
+  expect(parlantiOf(EMPTY_CONVERSATION, t)).toEqual([]);
+});
+
+test("il clic su una riga di etichetta trova il suo Parlante, altrove nessuno", () => {
+  const c = diarized();
+  const text = render(c);
+  const list = parlantiOf(c, t);
+  const at = (line: string) => parlanteAt(text, text.indexOf(line) + 2, list);
+  expect(at("Audio di sistema · Parlante 2:")).toEqual(list[2]);
+  expect(parlanteAt(text, 0, list)).toEqual(list[0]);
+  expect(at("Anch'io.")).toBeNull();
+  // Fine dell'etichetta: il cursore dopo i due punti è ancora sulla sua riga.
+  const end = text.indexOf("Audio di sistema · Parlante 1:") + 30;
+  expect(parlanteAt(text, end, list)).toEqual(list[1]);
+});
+
+test("nel testo modificato a mano la rinomina cambia solo le righe dell'etichetta", () => {
+  const voce = (label: string, nome: string) => ({
+    ingresso: "sistema" as const,
+    label,
+    nome,
+    parlante: 1,
+  });
+  const text =
+    "Parlante 1:\nCiao Parlante 1:\n\nParlante 10:\nNo.\n\nParlante 1:\nSì.";
+  expect(relabeled(text, voce("Parlante 1", "Parlante 1"), "Mario")).toBe(
+    "Mario:\nCiao Parlante 1:\n\nParlante 10:\nNo.\n\nMario:\nSì."
+  );
+  // Con l'Ingresso nell'etichetta cambia solo il nome.
+  expect(
+    relabeled(
+      "Audio di sistema · Mario:\nSì.",
+      voce("Audio di sistema · Mario", "Mario"),
+      "Lucia"
+    )
+  ).toBe("Audio di sistema · Lucia:\nSì.");
+});
+
+test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", () => {
+  const list = parlantiOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
+  const [microfono1, sistema1] = list;
+  expect(nomeTaken(list, sistema1, "Lucia")).toBe(true);
+  expect(nomeTaken(list, sistema1, "Parlante 2")).toBe(false);
+  // Il suo stesso nome, o quello di un Parlante di un altro Ingresso, sì.
+  expect(nomeTaken(list, sistema1, "Parlante 1")).toBe(false);
+  expect(nomeTaken(list, microfono1, "Lucia")).toBe(false);
 });

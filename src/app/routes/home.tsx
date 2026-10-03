@@ -2,8 +2,10 @@ import type { TFunction } from "i18next";
 import { Circle, Settings } from "lucide-react";
 import {
   type ChangeEvent,
+  type MouseEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -37,10 +39,16 @@ import {
   withLiveError,
   withProgress,
 } from "@/features/status/status";
+import { ParlantiBar } from "@/features/transcription/parlanti-bar";
 import {
   type Conversation,
   conversationText,
   EMPTY_CONVERSATION,
+  type Parlante,
+  parlanteAt,
+  parlantiOf,
+  relabeled,
+  withNome,
   withoutPartials,
   withParlanti,
   withPartial,
@@ -83,6 +91,8 @@ export function HomePage() {
   } | null>(null);
   // Il Bino del doppio clic in Esplora file, finché non si può aprire.
   const [pendingBino, setPendingBino] = useState<string | null>(null);
+  // Il Parlante di cui si sta scrivendo il nome nuovo.
+  const [renaming, setRenaming] = useState<Parlante | null>(null);
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
   // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
@@ -148,10 +158,14 @@ export function HomePage() {
   }, []);
 
   // Il testo dell'area segue le Frasi che arrivano, una per riga (con gli Ingressi separati come
-  // conversazione); dopo si può modificare.
+  // conversazione), e i nomi dei Parlanti; dopo si può modificare, e un testo modificato a mano non
+  // si rigenera.
+  const { parlanti, phrases } = conversation;
   useEffect(() => {
-    setText(conversationText(conversation.phrases, [], t));
-  }, [conversation.phrases, t]);
+    if (!edited.current) {
+      setText(conversationText({ parlanti, partials: [], phrases }, t));
+    }
+  }, [parlanti, phrases, t]);
 
   useEffect(() => {
     if (!copied) {
@@ -169,8 +183,8 @@ export function HomePage() {
       return;
     }
     setSource(path);
-    setConversation({ partials: [], phrases: result.data });
     edited.current = false;
+    setConversation({ ...EMPTY_CONVERSATION, ...result.data });
     setStatus({ phase: "idle", source: path });
   }, []);
 
@@ -358,6 +372,48 @@ export function HomePage() {
     setText(e.target.value);
   }, []);
 
+  // I Parlanti si rinominano a Trascrizione finita.
+  const parlantiList = useMemo(
+    () => (busy ? [] : parlantiOf(conversation, t)),
+    [busy, conversation, t]
+  );
+
+  // Il clic sull'etichetta di un Parlante nell'area apre la sua rinomina.
+  const clickText = useCallback(
+    (e: MouseEvent<HTMLTextAreaElement>) => {
+      const { selectionEnd, selectionStart, value } = e.currentTarget;
+      const voce =
+        selectionStart === selectionEnd
+          ? parlanteAt(value, selectionStart, parlantiList)
+          : null;
+      if (voce) {
+        setRenaming(voce);
+      }
+    },
+    [parlantiList]
+  );
+
+  // Il nome vale per l'area, Copia testo, il Bino e il Markdown; nel testo modificato a mano cambiano
+  // solo le righe delle sue etichette.
+  const rename = useCallback(async (voce: Parlante, nome: string) => {
+    setRenaming(null);
+    const result = await commands.renameParlante(
+      voce.ingresso,
+      voce.parlante,
+      nome
+    );
+    if (result.status === "error") {
+      setStatus({ error: result.error, phase: "failed" });
+      return;
+    }
+    if (edited.current) {
+      setText((current) => relabeled(current, voce, nome));
+    }
+    setConversation((current) =>
+      withNome(current, voce.ingresso, voce.parlante, nome)
+    );
+  }, []);
+
   // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
   // o se c'è testo.
   const showTranscription =
@@ -479,11 +535,19 @@ export function HomePage() {
                 aria-label={t("transcription.text")}
                 className="flex-1 resize-none"
                 onChange={edit}
+                onClick={clickText}
                 readOnly={writing}
                 value={shownText(writing, conversation, text, t)}
               />
-              <div className="flex justify-end">
+              <div className="flex items-start justify-between gap-3">
+                <ParlantiBar
+                  editing={renaming}
+                  list={parlantiList}
+                  onEdit={setRenaming}
+                  onRename={rename}
+                />
                 <Button
+                  className="ml-auto shrink-0"
                   disabled={!text}
                   onClick={copy}
                   size="sm"
@@ -550,9 +614,7 @@ function shownText(
   text: string,
   t: TFunction
 ) {
-  return writing
-    ? conversationText(conversation.phrases, conversation.partials, t)
-    : text;
+  return writing ? conversationText(conversation, t) : text;
 }
 
 /** La status bar: il messaggio, il link alle Impostazioni quando serve e l'avanzamento. */

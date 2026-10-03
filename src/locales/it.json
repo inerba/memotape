@@ -23,7 +23,11 @@
       "confirm": "Sostituisci"
     },
     "parlanti": "Riconosci i parlanti",
-    "parlantiNote": "Al massimo 4 Parlanti"
+    "parlantiNote": "Al massimo 4 Parlanti",
+    "parlantiList": "Parlanti:",
+    "rename": "Clic per rinominare: Invio conferma, Esc annulla",
+    "renameName": "Nuovo nome per {{label}}",
+    "renameTaken": "Un altro Parlante ha già questo nome"
   },
   "status": {
     "idle": "Scegli un file audio o video con Sfoglia",

@@ -15,6 +15,7 @@ use crate::managers::models::{ModelInfo, Models};
 use crate::managers::pending_bino::PendingBino;
 use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
+use crate::transcript::Ingresso;
 
 /// Estensioni accettate da Sfoglia (spec, storia 2), Bino compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -73,13 +74,14 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
 }
 
 /// Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
-/// Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
+/// Trascrizione, e i nomi dei Parlanti. `unsupportedBino` se viene da una versione più nuova
+/// dell'app.
 #[tauri::command]
 #[specta::specta]
 pub fn open_bino(
     app: AppHandle,
     source: String,
-) -> Result<Vec<managers::transcription::TranscriptPhrase>, AppError> {
+) -> Result<managers::transcription::OpenedBino, AppError> {
     let path = Path::new(&source);
     if !bino::is_bino(path) {
         return Err(AppError::Internal(format!("non è un Bino: {source}")));
@@ -125,6 +127,29 @@ pub fn transcript_text(
     settings: State<'_, SettingsStore>,
 ) -> Option<String> {
     managers::transcription::transcript_text(&last, &settings.get())
+}
+
+/// Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione, nel Bino che la contiene
+/// e nel Markdown che ha prodotto. Rifiuta un nome vuoto, e con `activityInProgress` durante
+/// un'Attività.
+#[tauri::command]
+#[specta::specta]
+pub fn rename_parlante(
+    activity: State<'_, Activity>,
+    last: State<'_, managers::transcription::LastTranscript>,
+    settings: State<'_, SettingsStore>,
+    ingresso: Ingresso,
+    parlante: u32,
+    nome: String,
+) -> Result<(), AppError> {
+    let _activity = activity.begin(|| {})?;
+    managers::transcription::rename_parlante(
+        &last,
+        ingresso,
+        parlante,
+        &nome,
+        &managers::transcription::labels(&settings.get()),
+    )
 }
 
 /// I modelli del catalogo con il loro stato.

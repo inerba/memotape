@@ -1,6 +1,7 @@
 //! Il documento di una Trascrizione (metadati e Frasi con i tempi) e il suo rendering in Markdown o
 //! testo semplice: il `.md` accanto alla Sorgente e Copia testo. Senza Tauri.
 
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use crate::audio_toolkit::segmenter::Params;
@@ -22,6 +23,8 @@ pub struct Transcript {
     pub speech_language: SpeechLanguage,
     /// In ordine di inizio.
     pub phrases: Vec<Phrase>,
+    /// I nomi dati ai Parlanti, per chiave `<ingresso>:<n>` (`Ingresso::parlante_key`).
+    pub parlanti: BTreeMap<String, String>,
 }
 
 impl Transcript {
@@ -55,19 +58,35 @@ pub enum Ingresso {
     Sistema,
 }
 
+impl Ingresso {
+    /// La chiave del Parlante `n` di questo Ingresso tra i nomi dei Parlanti: `sistema:2`.
+    pub fn parlante_key(self, n: u32) -> String {
+        let ingresso = match self {
+            Self::Mix => "mix",
+            Self::Microfono => "microfono",
+            Self::Sistema => "sistema",
+        };
+        format!("{ingresso}:{n}")
+    }
+}
+
 impl Phrase {
-    /// `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta (il mix).
-    fn label(&self, labels: &Labels) -> Option<String> {
+    /// `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta (il mix). Un Parlante
+    /// rinominato ha il suo nome al posto di `Parlante 2`.
+    fn label(&self, labels: &Labels, parlanti: &BTreeMap<String, String>) -> Option<String> {
         let ingresso = match self.ingresso {
             Ingresso::Mix => None,
             Ingresso::Microfono => Some(labels.get("/settings/recording/inputs/mic")),
             Ingresso::Sistema => Some(labels.get("/settings/recording/inputs/system")),
         };
-        let parlante = self.parlante.map(|n| {
-            labels
-                .get("/transcript/parlante")
-                .replace("{{n}}", &n.to_string())
-        });
+        let parlante = self
+            .parlante
+            .map(|n| match parlanti.get(&self.ingresso.parlante_key(n)) {
+                Some(nome) => nome.clone(),
+                None => labels
+                    .get("/transcript/parlante")
+                    .replace("{{n}}", &n.to_string()),
+            });
         match (ingresso, parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
             (Some(ingresso), None) => Some(ingresso.to_string()),
@@ -137,7 +156,7 @@ pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> St
             writeln!(out, "{label}: {value}")
         };
     }
-    for (label, text) in paragraphs(&transcript.phrases, labels) {
+    for (label, text) in paragraphs(transcript, labels) {
         let _ = match label {
             Some(label) if markdown => writeln!(out, "\n**{label}:** {text}"),
             Some(label) => writeln!(out, "\n{label}: {text}"),
@@ -163,15 +182,16 @@ fn escape_block_start(text: &str) -> String {
 
 /// Le Frasi unite in paragrafi. Con le etichette, un paragrafo per turno: le Frasi consecutive
 /// della stessa voce si uniscono. Senza, un paragrafo nuovo dopo una pausa lunga.
-fn paragraphs(phrases: &[Phrase], labels: &Labels) -> Vec<(Option<String>, String)> {
-    let turns = phrases.iter().any(|p| p.label(labels).is_some());
+fn paragraphs(transcript: &Transcript, labels: &Labels) -> Vec<(Option<String>, String)> {
+    let label_of = |phrase: &Phrase| phrase.label(labels, &transcript.parlanti);
+    let turns = transcript.phrases.iter().any(|p| label_of(p).is_some());
     let mut out: Vec<(Option<String>, String)> = Vec::new();
     let mut previous: Option<&Phrase> = None;
-    for phrase in phrases {
-        let label = phrase.label(labels);
+    for phrase in &transcript.phrases {
+        let label = label_of(phrase);
         let same = previous.is_some_and(|previous| {
             if turns {
-                previous.label(labels) == label
+                label_of(previous) == label
             } else {
                 silence_ms(previous, phrase) <= PARAGRAPH_PAUSE_MS
             }
@@ -242,6 +262,7 @@ mod tests {
             model: "Nemotron".into(),
             speech_language: SpeechLanguage::It,
             phrases,
+            parlanti: BTreeMap::new(),
         }
     }
 
@@ -310,6 +331,28 @@ mod tests {
             ),
             "{text}"
         );
+    }
+
+    #[test]
+    fn i_nomi_dei_parlanti_sostituiscono_parlante_n_solo_nel_loro_ingresso() {
+        let mut document = transcript(vec![
+            voice(Ingresso::Sistema, Some(1), "Ciao."),
+            voice(Ingresso::Microfono, Some(1), "Salve."),
+            voice(Ingresso::Sistema, Some(2), "Eccomi."),
+        ]);
+        document
+            .parlanti
+            .insert(Ingresso::Sistema.parlante_key(1), "Mario".into());
+        let text = markdown(&document);
+        assert!(
+            text.ends_with(
+                "\n**Audio di sistema · Mario:** Ciao.\n\
+                 \n**Microfono · Parlante 1:** Salve.\n\
+                 \n**Audio di sistema · Parlante 2:** Eccomi.\n"
+            ),
+            "{text}"
+        );
+        assert_eq!(Ingresso::Mix.parlante_key(3), "mix:3");
     }
 
     #[test]

@@ -4,13 +4,13 @@
 
 **Blocked by:** 08
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Clic su un'etichetta: modifica inline del nome, con Invio per confermare ed Esc per annullare; nomi vuoti non ammessi
-- [ ] La rinomina vale per il Parlante di quell'Ingresso (`<ingresso>:<n>`), si salva in `parlanti` nel Bino se la Sorgente è un Bino, e riscrive l'ultimo `.md` prodotto per quella Sorgente
-- [ ] Un Bino riaperto mostra i nomi
-- [ ] Test: renderer con i nomi, scrittura e lettura di `parlanti` nel Bino, logica pura della rinomina nel frontend
-- [ ] Verifica in `bun tauri dev`
+- [x] Clic su un'etichetta: modifica inline del nome, con Invio per confermare ed Esc per annullare; nomi vuoti non ammessi
+- [x] La rinomina vale per il Parlante di quell'Ingresso (`<ingresso>:<n>`), si salva in `parlanti` nel Bino se la Sorgente è un Bino, e riscrive l'ultimo `.md` prodotto per quella Sorgente
+- [x] Un Bino riaperto mostra i nomi
+- [x] Test: renderer con i nomi, scrittura e lettura di `parlanti` nel Bino, logica pura della rinomina nel frontend
+- [x] Verifica in `bun tauri dev`
 
 ## Note per chi lo implementa
 - Leggi prima `AGENTS.md` (comandi, prerequisiti, Insidie), `CONTEXT.md` (usa i suoi termini), gli ADR in `docs/adr/` e la spec `.scratch/sbobino-v2/spec.md`.

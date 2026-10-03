@@ -24,6 +24,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_transcription,
             commands::transcript_text,
             commands::open_bino,
+            commands::rename_parlante,
             commands::take_pending_bino,
             commands::list_models,
             commands::download_model,

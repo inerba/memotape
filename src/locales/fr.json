@@ -23,7 +23,11 @@
       "confirm": "Remplacer"
     },
     "parlanti": "Reconnaître les intervenants",
-    "parlantiNote": "4 intervenants au maximum"
+    "parlantiNote": "4 intervenants au maximum",
+    "parlantiList": "Intervenants :",
+    "rename": "Cliquez pour renommer : Entrée valide, Échap annule",
+    "renameName": "Nouveau nom pour {{label}}",
+    "renameTaken": "Un autre intervenant porte déjà ce nom"
   },
   "status": {
     "idle": "Choisissez un fichier audio ou vidéo avec Parcourir",
