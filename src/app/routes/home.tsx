@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useOutlet } from "react-router";
+import { Link, useNavigate, useOutlet } from "react-router";
 import { commands, events, type TranscriptPartial } from "@/bindings";
 import {
   AlertDialog,
@@ -73,6 +73,8 @@ export function HomePage() {
     action: ReplaceAction;
     path?: string;
   } | null>(null);
+  // Il Bino del doppio clic in Esplora file, finché non si può aprire.
+  const [pendingBino, setPendingBino] = useState<string | null>(null);
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
   // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
@@ -85,6 +87,7 @@ export function HomePage() {
   const writing = running || completing || (recording && live);
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
+  const navigate = useNavigate();
   const models = useModels();
   const modelLanguages =
     models.find((m) => m.id === settings.model)?.languages ?? null;
@@ -112,11 +115,18 @@ export function HomePage() {
       setPartial(null);
       setStatus((current) => withLiveError(current, payload.error));
     });
+    // Il Bino dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
+    // il listener, così uno arrivato nel frattempo non si perde.
+    const takeBino = () =>
+      commands.takePendingBino().then((path) => path && setPendingBino(path));
+    const binoRequested = events.binoRequested.listen(takeBino);
+    binoRequested.then(takeBino);
     return () => {
       phrases.then((stop) => stop());
       partials.then((stop) => stop());
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
+      binoRequested.then((stop) => stop());
     };
   }, []);
 
@@ -142,20 +152,38 @@ export function HomePage() {
     setStatus({ phase: "idle", source: path });
   }, []);
 
+  // Una Sorgente scelta con Sfoglia o con il doppio clic su un Bino in Esplora file.
+  const openPath = useCallback(
+    (path: string) => {
+      if (!isBino(path)) {
+        setSource(path);
+        setStatus({ phase: "idle", source: path });
+      } else if (text.trim()) {
+        setConfirmReplace({ action: "open", path });
+      } else {
+        openBino(path);
+      }
+    },
+    [openBino, text]
+  );
+
   const browse = useCallback(async () => {
     const picked = await commands.pickSource(t("source.filter"));
-    if (!picked) {
-      return;
+    if (picked) {
+      openPath(picked);
     }
-    if (!isBino(picked)) {
-      setSource(picked);
-      setStatus({ phase: "idle", source: picked });
-    } else if (text.trim()) {
-      setConfirmReplace({ action: "open", path: picked });
-    } else {
-      openBino(picked);
+  }, [openPath, t]);
+
+  // Un Bino arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Sfoglia
+  // intanto è disabilitata) e che si chiuda una conferma aperta, che altrimenti cambierebbe azione.
+  // Si apre sulla finestra principale, anche se c'era Impostazioni sopra.
+  useEffect(() => {
+    if (pendingBino && !busy && !confirmReplace) {
+      setPendingBino(null);
+      navigate("/");
+      openPath(pendingBino);
     }
-  }, [openBino, t, text]);
+  }, [busy, confirmReplace, navigate, openPath, pendingBino]);
 
   const open = useCallback(async () => {
     if (!source) {

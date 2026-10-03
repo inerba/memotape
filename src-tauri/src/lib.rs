@@ -24,6 +24,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_transcription,
             commands::transcript_text,
             commands::open_bino,
+            commands::take_pending_bino,
             commands::list_models,
             commands::download_model,
             commands::cancel_model_download,
@@ -44,6 +45,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::transcription::TranscriptPhrase,
             managers::transcription::TranscriptionProgress,
             managers::transcription::LiveTranscriptionFailed,
+            managers::pending_bino::BinoRequested,
             managers::models::ModelDownloadProgress,
             managers::models::ModelStateChanged,
             managers::recording::RecordingTick,
@@ -53,20 +55,27 @@ fn specta_builder() -> Builder<tauri::Wry> {
 pub fn run() {
     let builder = specta_builder();
 
-    #[cfg(debug_assertions)]
-    builder
-        .export(specta_typescript::Typescript::default(), BINDINGS_PATH)
-        .expect("export di src/bindings.ts fallito");
-
     tauri::Builder::default()
+        // Per primo, come chiede il plugin: un secondo avvio esce prima di inizializzare il resto.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            focus_main(app);
+            managers::pending_bino::request(app, args, std::path::Path::new(&cwd));
+        }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(managers::activity::Activity::default())
         .manage(managers::recording::Recorder::default())
         .manage(managers::transcription::LastTranscript::default())
+        .manage(managers::pending_bino::PendingBino::default())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            // Qui e non prima: un secondo avvio esce prima del setup, e riscrivere il file farebbe
+            // ricaricare la pagina da Vite all'istanza aperta.
+            #[cfg(debug_assertions)]
+            builder
+                .export(specta_typescript::Typescript::default(), BINDINGS_PATH)
+                .expect("export di src/bindings.ts fallito");
             builder.mount_events(app);
             let data = app.path().app_data_dir()?;
             app.manage(managers::settings::SettingsStore::load(
@@ -74,10 +83,23 @@ pub fn run() {
             ));
             app.manage(managers::models::Models::new(data.join("models"))?);
             managers::transcription::preload(app.handle());
+            managers::pending_bino::request(
+                app.handle(),
+                std::env::args(),
+                &std::env::current_dir().unwrap_or_default(),
+            );
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("errore all'avvio dell'applicazione");
+}
+
+/// Porta in primo piano la finestra principale, anche se ridotta a icona.
+fn focus_main(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 #[cfg(test)]

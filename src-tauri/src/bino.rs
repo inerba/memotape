@@ -249,6 +249,16 @@ pub fn is_bino(path: &Path) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("bino"))
 }
 
+/// Il Bino da aprire tra gli argomenti di un avvio (il doppio clic in Esplora file passa il
+/// percorso): il primo `.bino` dopo l'eseguibile, rispetto alla cartella di lavoro `cwd`.
+pub fn from_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Option<PathBuf> {
+    args.into_iter()
+        .skip(1)
+        .map(PathBuf::from)
+        .find(|path| is_bino(path))
+        .map(|path| cwd.join(path))
+}
+
 fn open(path: &Path) -> Result<ZipArchive<File>, AppError> {
     let file = File::open(path).map_err(|e| unreadable(path, &e))?;
     ZipArchive::new(file).map_err(|e| unreadable(path, &e))
@@ -428,5 +438,25 @@ mod tests {
         drop(lock);
         assert_eq!(std::fs::read(&path).unwrap(), before);
         assert!(!dir.join("Registrazione.bino.tmp").exists());
+    }
+
+    #[test]
+    fn dagli_argomenti_di_avvio_il_primo_bino_rispetto_alla_cartella_di_lavoro() {
+        let args = |a: &[&str]| a.iter().map(ToString::to_string).collect::<Vec<_>>();
+        let cwd = Path::new(r"C:\Lavoro");
+        assert_eq!(
+            from_args(
+                args(&[r"C:\Sbobino\sbobino.exe", r"D:\Note\Lezione.BINO"]),
+                cwd
+            ),
+            Some(PathBuf::from(r"D:\Note\Lezione.BINO"))
+        );
+        assert_eq!(
+            from_args(args(&["sbobino.exe", "--flag", "Lezione.bino"]), cwd),
+            Some(PathBuf::from(r"C:\Lavoro\Lezione.bino"))
+        );
+        // L'eseguibile non conta, nemmeno se si chiamasse `.bino`.
+        assert_eq!(from_args(args(&["x.bino"]), cwd), None);
+        assert_eq!(from_args(args(&["sbobino.exe", "audio.mp3"]), cwd), None);
     }
 }

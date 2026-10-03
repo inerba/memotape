@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
+use crate::managers::pending_bino::PendingBino;
 use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 
@@ -81,6 +82,14 @@ pub fn open_bino(app: AppHandle, source: String) -> Result<String, AppError> {
         return Err(AppError::Internal(format!("non è un Bino: {source}")));
     }
     managers::transcription::open_bino(&app, path)
+}
+
+/// Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
+/// la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
+#[tauri::command]
+#[specta::specta]
+pub fn take_pending_bino(pending: State<'_, PendingBino>) -> Option<String> {
+    pending.take()
 }
 
 /// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel

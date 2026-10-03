@@ -36,6 +36,11 @@ export const commands = {
 	 *  l'ultima Trascrizione. `unsupportedBino` se viene da una versione più nuova dell'app.
 	 */
 	openBino: (source: string) => typedError<string, AppError>(__TAURI_INVOKE("open_bino", { source })),
+	/**
+	 *  Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
+	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
+	 */
+	takePendingBino: () => __TAURI_INVOKE<string | null>("take_pending_bino"),
 	/**  I modelli del catalogo con il loro stato. */
 	listModels: () => __TAURI_INVOKE<ModelInfo[]>("list_models"),
 	/**
@@ -88,6 +93,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	binoRequested: makeEvent<BinoRequested>("bino-requested"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
@@ -126,6 +132,9 @@ export type AudioDevice = {
 	name: string,
 	isDefault: boolean,
 };
+
+/**  È arrivato un Bino da aprire: la finestra lo prende con `take_pending_bino`. */
+export type BinoRequested = null;
 
 export type Channels = "mono" | "stereo";
 

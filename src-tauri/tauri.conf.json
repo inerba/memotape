@@ -12,6 +12,14 @@
     "active": true,
     "targets": ["nsis"],
     "publisher": "EDITORE DA DEFINIRE",
+    "fileAssociations": [
+      {
+        "ext": ["bino"],
+        "name": "Sbobino.Bino",
+        "description": "Bino (Sbobino)",
+        "role": "Editor"
+      }
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
