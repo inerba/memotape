@@ -41,7 +41,7 @@
       "unsupportedCodec": "Il formato audio del file non è supportato: {{detail}}",
       "unwritableFolder": "Impossibile salvare nella cartella: {{detail}}",
       "modelMissing": "Il modello non è scaricato: scaricalo in Impostazioni → Trascrizione. Percorso atteso: {{detail}}",
-      "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova: riprende da dove si era fermato",
+      "downloadFailed": "Download del modello non riuscito: {{detail}}. Riprova",
       "verificationFailed": "Il modello scaricato è corrotto ed è stato cancellato: {{detail}}. Riprova il download",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",

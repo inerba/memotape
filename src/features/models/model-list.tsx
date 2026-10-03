@@ -16,7 +16,6 @@ import {
   mebibytes,
   stateText,
   withDownloadProgress,
-  withState,
 } from "@/features/models/models";
 import { errorText } from "@/features/status/status";
 
@@ -27,44 +26,28 @@ export function ModelList() {
   const [toDelete, setToDelete] = useState<ModelInfo | null>(null);
 
   useEffect(() => {
-    // In ascolto prima di leggere la lista: un cambio di stato arrivato nel mezzo non si perde.
-    const changed = events.modelStateChanged.listen(({ payload }) => {
-      setModels((current) => withState(current, payload));
-    });
+    // Ogni cambio di stato rilegge la lista: un evento arrivato prima della prima lettura non
+    // può restare indietro. L'avanzamento, frequente, si applica alla riga.
+    const refresh = () => commands.listModels().then(setModels);
+    const changed = events.modelStateChanged.listen(refresh);
     const progress = events.modelDownloadProgress.listen(({ payload }) => {
       setModels((current) => withDownloadProgress(current, payload));
     });
-    Promise.all([changed, progress])
-      .then(() => commands.listModels())
-      .then(setModels);
+    Promise.all([changed, progress]).then(refresh);
     return () => {
       changed.then((stop) => stop());
       progress.then((stop) => stop());
     };
   }, []);
 
-  // Un errore del comando (modello sconosciuto) si mostra sulla riga, come quelli del download.
-  const showError = useCallback(
-    (id: string, result: Awaited<ReturnType<typeof commands.deleteModel>>) => {
-      if (result.status === "error") {
-        setModels((current) =>
-          current.map((m) => (m.id === id ? { ...m, error: result.error } : m))
-        );
-      }
-    },
-    []
-  );
+  // Esito ed errori arrivano con `model-state-changed`.
+  const download = useCallback((id: string) => commands.downloadModel(id), []);
 
-  const download = useCallback(
-    async (id: string) => showError(id, await commands.downloadModel(id)),
-    [showError]
-  );
-
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = useCallback(() => {
     if (toDelete) {
-      showError(toDelete.id, await commands.deleteModel(toDelete.id));
+      commands.deleteModel(toDelete.id);
     }
-  }, [toDelete, showError]);
+  }, [toDelete]);
 
   const closeDelete = useCallback((open: boolean) => {
     if (!open) {

@@ -88,7 +88,7 @@ pub fn find(id: &str) -> Option<&'static Model> {
 #[serde(tag = "state", rename_all = "camelCase")]
 pub enum ModelState {
     NotDownloaded,
-    /// Un download interrotto: il parziale resta e il prossimo download riprende da lì.
+    /// Un download interrotto: il `.partial` resta e il prossimo download riprende da lì.
     Interrupted {
         percent: u8,
     },
@@ -100,13 +100,14 @@ pub enum ModelState {
     Downloaded,
 }
 
-/// Scarica `model` in `dir`: scrive in `<file>.partial`, riprende con `Range` da un parziale
+/// Scarica `model` in `dir`: scrive in `<file>.partial`, riprende con `Range` da un `.partial`
 /// esistente, verifica dimensione e SHA-256 e infine rinomina il file. `on_state` riceve
 /// `Downloading` (al massimo 10 volte al secondo) e `Verifying`.
 ///
-/// - `cancel` notificato: cancella il parziale e restituisce `Cancelled`;
-/// - rete interrotta: conserva il parziale e restituisce `DownloadFailed`;
-/// - SHA-256 o dimensione errati: cancella il parziale e restituisce `VerificationFailed`.
+/// - `cancel` notificato prima del rename, anche durante la verifica: cancella il `.partial`
+///   e restituisce `Cancelled`;
+/// - rete interrotta: conserva il `.partial` e restituisce `DownloadFailed`;
+/// - SHA-256 o dimensione errati: cancella il `.partial` e restituisce `VerificationFailed`.
 pub async fn download(
     client: &reqwest::Client,
     model: &Model,
@@ -124,7 +125,7 @@ pub async fn download(
     }
     if offset < size {
         // Il trasferimento si abbandona al primo Annulla, anche mentre aspetta dati. Uscito dal
-        // `select!`, il future e il file aperto sono già chiusi: il parziale si può cancellare.
+        // `select!`, il future e il file aperto sono già chiusi: il `.partial` si può cancellare.
         let fetched = tokio::select! {
             fetched = fetch(client, model, &partial, offset, on_state) => Some(fetched),
             () = cancel.notified() => None,
@@ -141,6 +142,17 @@ pub async fn download(
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?
         .map_err(|e| AppError::DownloadFailed(format!("{}: {e}", partial.display())))?;
+    // L'hash gira in un thread bloccante che tiene aperto il file: Annulla si guarda qui, a
+    // verifica finita, senza aspettare (`biased` prova prima il permesso già depositato).
+    let cancelled = tokio::select! {
+        biased;
+        () = cancel.notified() => true,
+        () = std::future::ready(()) => false,
+    };
+    if cancelled {
+        remove(&partial)?;
+        return Err(AppError::Cancelled);
+    }
     if actual != model.sha256 {
         log::warn!(
             "{}: SHA-256 {actual}, atteso {}",
@@ -154,7 +166,7 @@ pub async fn download(
     std::fs::rename(&partial, &path).map_err(|e| unwritable(&path, &e))
 }
 
-/// Scarica il resto del file da `offset` e lo accoda al parziale.
+/// Scarica il resto del file da `offset` e lo accoda al `.partial`.
 async fn fetch(
     client: &reqwest::Client,
     model: &Model,
@@ -171,7 +183,7 @@ async fn fetch(
     let mut response = request.send().await.map_err(failed)?;
     let status = response.status();
     if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
-        // Il server dice che il parziale è già oltre la fine: non è un punto da cui riprendere.
+        // Il server dice che il `.partial` è già oltre la fine: non è un punto da cui riprendere.
         remove(partial)?;
     }
     if !status.is_success() {
@@ -218,7 +230,7 @@ async fn fetch(
     Ok(())
 }
 
-/// Lo stato su disco: scaricato, interrotto (c'è il parziale) o assente.
+/// Lo stato su disco: scaricato, interrotto (c'è il `.partial`) o assente.
 pub fn disk_state(model: &Model, dir: &Path) -> ModelState {
     let size = u64::from(model.size);
     if std::fs::metadata(model.path(dir)).is_ok_and(|m| m.len() == size) {
@@ -232,7 +244,7 @@ pub fn disk_state(model: &Model, dir: &Path) -> ModelState {
     }
 }
 
-/// Elimina il modello scaricato e un eventuale parziale.
+/// Elimina il modello scaricato e un eventuale `.partial`.
 pub fn delete(model: &Model, dir: &Path) -> Result<(), AppError> {
     remove(&model.path(dir))?;
     remove(&model.partial_path(dir))
@@ -332,7 +344,7 @@ impl Models {
         let client = reqwest::Client::builder()
             .user_agent(concat!("sbobino/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
-            // Una connessione ferma diventa un'interruzione: il parziale resta.
+            // Una connessione ferma diventa un'interruzione: il `.partial` resta.
             .read_timeout(Duration::from_secs(60))
             .build()
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -366,7 +378,7 @@ impl Models {
             .collect()
     }
 
-    /// Avvia il download in background; se è già in corso non fa nulla.
+    /// Avvia il download in background; se è già in corso o il modello è scaricato non fa nulla.
     pub fn start_download(&self, app: &AppHandle, id: &str) -> Result<(), AppError> {
         let model = known(id)?;
         let cancel = Arc::new(Notify::new());
@@ -376,6 +388,8 @@ impl Models {
                 return Ok(());
             }
             let percent = match disk_state(model, &self.dir) {
+                // Riscaricarlo vorrebbe dire sovrascrivere un file forse aperto da una Trascrizione.
+                ModelState::Downloaded => return Ok(()),
                 ModelState::Interrupted { percent } => percent,
                 _ => 0,
             };
@@ -421,17 +435,24 @@ impl Models {
         }
     }
 
-    /// Elimina il modello scaricato. Durante il download si usa Annulla.
+    /// Elimina il modello scaricato o il `.partial`. Durante un download vale come Annulla.
+    /// Un errore resta sulla riga del modello, come quelli del download.
     pub fn delete(&self, app: &AppHandle, id: &str) -> Result<(), AppError> {
         let model = known(id)?;
-        {
+        let deleted = {
+            // Sotto il lock: un download non parte mentre i file spariscono.
             let mut entries = self.entries();
-            if let Some(Entry::Running { .. }) = entries.get(id) {
-                return Err(AppError::Internal(format!("download di {id} in corso")));
+            if let Some(Entry::Running { cancel, .. }) = entries.get(id) {
+                cancel.notify_one();
+                return Ok(());
             }
-            entries.remove(id);
-        }
-        let deleted = delete(model, &self.dir);
+            let deleted = delete(model, &self.dir);
+            match &deleted {
+                Ok(()) => entries.remove(id),
+                Err(e) => entries.insert(&model.id, Entry::Failed(e.clone())),
+            };
+            deleted
+        };
         self.emit_state(app, model);
         deleted
     }
@@ -694,7 +715,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn un_download_interrotto_conserva_il_parziale_e_riprende_con_range() {
+    async fn un_download_interrotto_conserva_il_file_incompleto_e_riprende_con_range() {
         let bytes = body(100_000);
         let dir = temp_dir("ripresa");
         let cut = serve(bytes.clone(), Behavior::CutAfter(40_000));
@@ -749,7 +770,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn uno_sha_errato_cancella_il_parziale_e_il_modello_non_e_utilizzabile() {
+    async fn uno_sha_errato_cancella_il_file_incompleto_e_il_modello_non_e_utilizzabile() {
         let bytes = body(50_000);
         let server = serve(bytes.clone(), Behavior::Full);
         let model = Model {
@@ -768,7 +789,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn annulla_ferma_anche_un_trasferimento_bloccato_e_cancella_il_parziale() {
+    async fn annulla_ferma_anche_un_trasferimento_bloccato_e_cancella_il_file_incompleto() {
         let bytes = body(100_000);
         let server = serve(bytes.clone(), Behavior::StallAfter(30_000));
         let model = model_for(&server, &bytes);
@@ -785,6 +806,23 @@ mod tests {
         let ((result, _), ()) = tokio::join!(run(&model, &dir, &cancel), press);
         assert_eq!(result, Err(AppError::Cancelled));
         assert!(!partial.exists());
+        assert_eq!(disk_state(&model, &dir), ModelState::NotDownloaded);
+    }
+
+    #[tokio::test]
+    async fn annulla_vale_anche_durante_la_verifica() {
+        let bytes = body(20_000);
+        let server = serve(bytes.clone(), Behavior::Full);
+        let model = model_for(&server, &bytes);
+        let dir = temp_dir("annulla-verifica");
+        // Un `.partial` già completo passa subito alla verifica, senza richieste.
+        std::fs::write(model.partial_path(&dir), &bytes).unwrap();
+        let cancel = Notify::new();
+        cancel.notify_one();
+        let (result, states) = run(&model, &dir, &cancel).await;
+        assert_eq!(result, Err(AppError::Cancelled));
+        assert_eq!(states, [ModelState::Verifying]);
+        assert!(server.ranges.lock().unwrap().is_empty());
         assert_eq!(disk_state(&model, &dir), ModelState::NotDownloaded);
     }
 

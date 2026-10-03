@@ -128,8 +128,8 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 - **M3, prima parte (ticket 05)**: storie 29, 31–36 e 38; della 30 c'è l'indicazione "Consigliato".
   - Impostazioni si apre dall'icona accanto a Trascrivi, sopra la finestra principale, che non perde testo né Trascrizione in corso. Per ora contiene solo la sezione Trascrizione.
   - Ogni modello mostra la dimensione in MB (binari, come Esplora file), la modalità del testo (in streaming o a fine frase), la licenza e lo stato: non scaricato, download in corso con percentuale, interrotto con percentuale, verifica, scaricato.
-  - Scarica, Annulla (cancella il parziale), Riprendi (da dove si era fermato, anche dopo la chiusura dell'app) ed Elimina, con conferma; Elimina toglie anche un parziale. Si possono scaricare più modelli insieme.
-  - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, parziale cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
+  - Scarica, Annulla (cancella il file incompleto, anche durante la verifica), Riprendi (da dove si era fermato, anche dopo la chiusura dell'app) ed Elimina, con conferma; Elimina toglie anche un file incompleto e, durante un download, vale come Annulla. Si possono scaricare più modelli insieme.
+  - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, file incompleto cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
   - Mancano, nel ticket 06: la scelta del modello (oggi si trascrive sempre con Nemotron), il link alle Impostazioni nell'errore "modello assente" ed Elimina disabilitato durante la Trascrizione con quel modello (storie 26, 37 e 39).
 
 ## Fuori dal perimetro

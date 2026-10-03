@@ -6,7 +6,6 @@ import {
   mebibytes,
   stateText,
   withDownloadProgress,
-  withState,
 } from "@/features/models/models";
 
 const t = i18n.t.bind(i18n);
@@ -34,33 +33,21 @@ test("la dimensione del download è in MB come in Esplora file", () => {
   expect(mebibytes(619_628_128)).toBe(591);
 });
 
-test("model-state-changed aggiorna solo il modello indicato, errore compreso", () => {
-  const error = { code: "verificationFailed", detail: "SHA" } as const;
-  const models = withState([nemotron, whisper], {
-    error,
-    modelId: "whisper",
-    state: { state: "notDownloaded" },
-  });
-  expect(models[0]).toBe(nemotron);
-  expect(models[1]).toEqual({ ...whisper, error });
-});
-
-test("la percentuale si applica solo a un download in corso", () => {
-  const downloading = withState([nemotron], {
-    error: null,
+test("la percentuale si applica solo al download in corso di quel modello", () => {
+  const downloading: ModelInfo[] = [
+    { ...nemotron, state: { percent: 0, state: "downloading" } },
+    { ...whisper, state: { percent: 10, state: "downloading" } },
+  ];
+  const updated = withDownloadProgress(downloading, {
     modelId: "nemotron",
-    state: { percent: 0, state: "downloading" },
+    percent: 42,
   });
-  expect(
-    withDownloadProgress(downloading, { modelId: "nemotron", percent: 42 })[0]
-      ?.state
-  ).toEqual({ percent: 42, state: "downloading" });
+  expect(updated[0]?.state).toEqual({ percent: 42, state: "downloading" });
+  expect(updated[1]).toBe(downloading[1]);
   // Un avanzamento arrivato dopo la fine non riporta il modello in download.
-  const verifying = withState([nemotron], {
-    error: null,
-    modelId: "nemotron",
-    state: { state: "verifying" },
-  });
+  const verifying: ModelInfo[] = [
+    { ...nemotron, state: { state: "verifying" } },
+  ];
   expect(
     withDownloadProgress(verifying, { modelId: "nemotron", percent: 99 })
   ).toEqual(verifying);

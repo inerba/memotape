@@ -77,7 +77,7 @@ export type ModelInfo = {
 
 /**  Lo stato di un modello per l'interfaccia. */
 export type ModelState = { state: "notDownloaded" } | 
-/**  Un download interrotto: il parziale resta e il prossimo download riprende da lì. */
+/**  Un download interrotto: il `.partial` resta e il prossimo download riprende da lì. */
 { state: "interrupted"; percent: number } | { state: "downloading"; percent: number } | 
 /**  Controllo di dimensione e SHA-256 prima che il modello diventi utilizzabile. */
 { state: "verifying" } | { state: "downloaded" };

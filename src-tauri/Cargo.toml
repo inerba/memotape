@@ -35,7 +35,8 @@ vad-rs = { git = "https://github.com/cjpais/vad-rs", rev = "2a412ed858695b9251f3
 transcribe-cpp = { version = "0.2.4", default-features = false, features = ["vulkan"] }
 # Download dei modelli. `native-tls` (Schannel): il default rustls + aws-lc richiede NASM su MSVC.
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls", "http2", "system-proxy"] }
-sha2 = "0.11"
+# 0.10: la stessa versione che Tauri porta già nel grafo.
+sha2 = "0.10"
 # Già nel grafo tramite Tauri: `select!` per annullare un download fermo in attesa di dati.
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 

@@ -1,22 +1,9 @@
 import type { TFunction } from "i18next";
-import type {
-  ModelDownloadProgress,
-  ModelInfo,
-  ModelState,
-  ModelStateChanged,
-} from "@/bindings";
+import type { ModelDownloadProgress, ModelInfo, ModelState } from "@/bindings";
 
 /** Byte in MB binari, come li mostra Esplora file. */
 export function mebibytes(bytes: number): number {
   return Math.round(bytes / 2 ** 20);
-}
-
-/** Applica `model-state-changed` alla lista dei modelli. */
-export function withState(
-  models: ModelInfo[],
-  { error, modelId, state }: ModelStateChanged
-): ModelInfo[] {
-  return models.map((m) => (m.id === modelId ? { ...m, error, state } : m));
 }
 
 /** Applica `model-download-progress`, ignorando quelli arrivati dopo la fine del download. */
