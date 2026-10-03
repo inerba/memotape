@@ -112,7 +112,7 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 
 ## Stato
 
-- **M1 (tracer bullet)**: storie 1, 2, 9, 11 e 13. Sfoglia sceglie un file audio, Trascrivi mostra le Frasi una per riga mentre arrivano. Il modello è sempre Nemotron e si mette a mano nella cartella dei modelli (`AGENTS.md`) finché non arriva il download (storie 29–39). Il nome della Sorgente compare già, non ancora cliccabile (storia 4).
+- **M1 (tracer bullet)**: storie 1, 2, 9, 11 e 13. Sfoglia sceglie un file audio, Trascrivi mostra le Frasi una per riga mentre arrivano. Il modello è sempre Nemotron, il predefinito del catalogo (la scelta arriva con il ticket 06). Il nome della Sorgente compare già, non ancora cliccabile (storia 4).
 - **M2, prima parte (ticket 03)**: storie 3–5, 7, 8, 10, 14–18, 28, 64 e 65.
   - Il nome della Sorgente si clicca per aprirla con il programma associato; il percorso sta nella status bar.
   - Si trascrivono anche i video MP4, MOV, M4V e MKV, senza file intermedi.
@@ -125,6 +125,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Se l'area contiene testo, anche modificato a mano, Trascrivi chiede conferma prima di sostituirlo.
   - Una sola Attività alla volta: durante la Trascrizione Sfoglia e Trascrivi sono disabilitati, e il backend rifiuta una seconda Attività con l'errore "Attività in corso". Registra si aggancerà allo stesso controllo (ticket 08).
   - Una Trascrizione senza Frasi non crea il TXT e mostra "Nessun parlato rilevato".
+- **M3, prima parte (ticket 05)**: storie 29, 31–36 e 38; della 30 c'è l'indicazione "Consigliato".
+  - Impostazioni si apre dall'icona accanto a Trascrivi, sopra la finestra principale, che non perde testo né Trascrizione in corso. Per ora contiene solo la sezione Trascrizione.
+  - Ogni modello mostra la dimensione in MB (binari, come Esplora file), la modalità del testo (in streaming o a fine frase), la licenza e lo stato: non scaricato, download in corso con percentuale, interrotto con percentuale, verifica, scaricato.
+  - Scarica, Annulla (cancella il parziale), Riprendi (da dove si era fermato, anche dopo la chiusura dell'app) ed Elimina, con conferma; Elimina toglie anche un parziale. Si possono scaricare più modelli insieme.
+  - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, parziale cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
+  - Mancano, nel ticket 06: la scelta del modello (oggi si trascrive sempre con Nemotron), il link alle Impostazioni nell'errore "modello assente" ed Elimina disabilitato durante la Trascrizione con quel modello (storie 26, 37 e 39).
 
 ## Fuori dal perimetro
 

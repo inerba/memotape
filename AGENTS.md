@@ -43,10 +43,7 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
     ```
 
     `LOCALAPPDATA` serve a `transcribe-cpp-sys`, che compila passando da una junction corta in `%LOCALAPPDATA%\tcs` (vedi Insidie). `relative = true` risolve il percorso rispetto alla cartella che contiene `.cargo`.
-- Per trascrivere, finché non arriva il download dei modelli (ticket 05), il modello Nemotron si mette a mano in `%APPDATA%\it.sbobino.desktop\models` (`app_data_dir/models`). Non va committato:
-  - URL: `https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`;
-  - 559 647 200 byte, SHA-256 `86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65`;
-  - il nome del file resta `nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf`. Senza il file Trascrivi mostra l'errore "modello assente" con il percorso atteso.
+- Per trascrivere serve Nemotron scaricato da Impostazioni → Trascrizione in `%APPDATA%\it.sbobino.desktop\models` (`app_data_dir/models`). Senza il file Trascrivi mostra l'errore "modello assente" con il percorso atteso.
   - Lo smoke test con il modello vero si lancia a mano: `cargo test -- --ignored` in `src-tauri`. Trascrive sia `parlato-it.wav` sia `parlato-it.mp4`.
 
 ## Architettura
@@ -78,6 +75,8 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 - Il frontend chiama il backend solo tramite `commands` ed `events` di `@/bindings`. Anche i plugin passano da un comando Rust: `open_source` usa `tauri-plugin-opener` lato Rust, quindi non servono il pacchetto npm né permessi nella capability.
 - La pipeline comunica con un solo sink di `PipelineEvent` (progresso e Frasi). Il manager li traduce in `transcription-progress` e `transcript-phrase`, poi salva il TXT; l'esito (`TranscriptionOutcome`: `saved` con percorso e caratteri, oppure `noSpeech` senza TXT) o l'`AppError` tornano come risultato del comando `transcribe`.
 - Una sola Attività alla volta: `managers::activity::Activity` (in `tauri::State`) dà un guard con `begin()`, e chi arriva secondo riceve `activityInProgress`. Il guard porta il `CancelToken` di transcribe-cpp, installato sulla sessione e passato alla pipeline: `cancel_transcription` lo preme, il motore interrompe la Frase in corso (Nemotron ha `Feature::Cancellation`) e la pipeline esce con `AppError::Cancelled` al blocco successivo, senza emettere la fine né salvare il TXT. Il frontend mostra `cancelled` come esito, non come errore. La Registrazione (ticket 08) userà lo stesso guard.
+- Modelli (`managers::models`): `models.json`, accanto al modulo e incluso con `include_str!`, è l'unica fonte di URL, SHA-256, dimensione, modalità, licenza e modello predefinito; il nome del file è l'ultimo segmento dell'URL. Il core (`download`, `disk_state`, `delete`) non usa `AppHandle` e si testa contro un server HTTP sulla loopback. Il manager `Models` tiene per modello il download in corso o l'errore dell'ultimo, e li traduce in `model-download-progress` e `model-state-changed`. `download_model` torna subito: l'esito arriva con gli eventi e resta in `list_models`.
+- Impostazioni è la route figlia `/settings` della finestra principale e la copre con un livello `fixed`: la finestra resta montata (con `inert`), così testo, eventi e una Trascrizione in corso non si perdono.
 - La logica pura del frontend vive nelle feature, con un `*.test.ts` accanto. Niente test sui componenti.
 - Errori applicativi: un unico enum serializzato con un codice; il frontend mappa ogni codice a un messaggio tradotto.
 
@@ -97,6 +96,7 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 - **Animazioni**: `tw-animate-css` è importato in `global.css`. `tailwindcss-animate` è il plugin di Tailwind 3 e non serve.
 - **Line ending**: `.gitattributes` forza LF, come si aspetta Biome.
 - **reqwest**: usa `native-tls` (Schannel) senza feature di default. Il default rustls + aws-lc richiede NASM sulla build MSVC.
+- **Download e Annulla**: il trasferimento corre in un `tokio::select!` contro il `Notify` di Annulla. Il parziale si cancella solo dopo l'uscita dal `select!`, quando il future e il suo file sono già chiusi: su Windows un file aperto non si cancella. Il `select!` serve perché un trasferimento fermo non restituisce chunk, quindi un flag controllato a ogni chunk non scatterebbe.
 
 ### Audio e motore
 
@@ -116,6 +116,7 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 ### Frontend e verifica manuale
 
 - **Numeri in italiano**: con `{{count, number}}` Intl non raggruppa le migliaia sotto 10 000 (`minimumGroupingDigits` 2 nel CLDR italiano): 1234 resta "1234", 12345 diventa "12.345".
+- **Watcher di `tauri dev`**: qualunque file cambi sotto `src-tauri/`, anche un TXT creato in `tests/fixtures` da una Trascrizione di prova, ricompila e riavvia l'app. I download in corso si interrompono e il parziale resta. Per le prove trascrivi copie delle fixture fuori da `src-tauri`.
 - **Pilotare l'app**: con `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` la WebView2 di `bun tauri dev` si comanda via CDP. Il dialog di Sfoglia è nativo e UI Automation da PowerShell 5.1 vede i suoi controlli solo come `Pane`: si compila con Win32, `WM_SETTEXT` sull'`Edit` dentro il controllo 1148 e `BM_CLICK` sul pulsante 1 del dialog `#32770` "Apri". `SendKeys` non arriva, perché la finestra di Claude tiene il foreground. Per chiamare un comando senza passare dalla UI (per esempio un secondo `transcribe` durante un'Attività) c'è `window.__TAURI_INTERNALS__.invoke("transcribe", { source })`.
 
 ### Da verificare sull'hardware reale

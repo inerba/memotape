@@ -6,15 +6,15 @@
 
 **Status:** ready-for-agent
 
-- [ ] `models.json` incluso in compilazione, con URL fissati alla revision HF, SHA-256, dimensione, modalità e licenza (valori in `docs/research/transcribe-cpp-e-handy.md` §8)
-- [ ] Download in `app_data_dir/models`:
+- [x] `models.json` incluso in compilazione, con URL fissati alla revision HF, SHA-256, dimensione, modalità e licenza (valori in `docs/research/transcribe-cpp-e-handy.md` §8)
+- [x] Download in `app_data_dir/models`:
   - scrittura in `.partial`;
   - ripresa con `Range`;
   - verifica di dimensione e SHA-256, poi rename atomico.
-- [ ] `reqwest` con `native-tls`
-- [ ] Evento `model-download-progress`, al massimo 10 al secondo, e `model-state-changed`. Nei tipi esportati niente `u64`
-- [ ] Annulla cancella il parziale. Un'interruzione lo conserva. Uno SHA errato cancella il parziale e mostra un errore dedicato
-- [ ] "Elimina" rimuove il modello scaricato
-- [ ] Il download continua in background mentre si usa il resto dell'app
-- [ ] Test con un server HTTP locale sulla loopback: percentuale, ripresa, SHA errato, Annulla, interruzione, Elimina
-- [ ] `AGENTS.md` / `PRODUCT.md` aggiornati, controlli verdi
+- [x] `reqwest` con `native-tls`
+- [x] Evento `model-download-progress`, al massimo 10 al secondo, e `model-state-changed`. Nei tipi esportati niente `u64`
+- [x] Annulla cancella il parziale. Un'interruzione lo conserva. Uno SHA errato cancella il parziale e mostra un errore dedicato
+- [x] "Elimina" rimuove il modello scaricato
+- [x] Il download continua in background mentre si usa il resto dell'app
+- [x] Test con un server HTTP locale sulla loopback: percentuale, ripresa, SHA errato, Annulla, interruzione, Elimina
+- [x] `AGENTS.md` / `PRODUCT.md` aggiornati, controlli verdi
