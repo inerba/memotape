@@ -76,7 +76,8 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 
 - `audio_toolkit` ed `engine` non dipendono da Tauri: si testano senza `AppHandle`. Le uniche seam finte nei test sono `TranscriptionEngine` e `VoiceDetector`.
 - Il frontend chiama il backend solo tramite `commands` ed `events` di `@/bindings`. Anche i plugin passano da un comando Rust: `open_source` usa `tauri-plugin-opener` lato Rust, quindi non servono il pacchetto npm né permessi nella capability.
-- La pipeline comunica con un solo sink di `PipelineEvent` (progresso e Frasi). Il manager li traduce in `transcription-progress` e `transcript-phrase`, poi salva il TXT; l'esito (`TranscriptionFinished`) o l'`AppError` tornano come risultato del comando `transcribe`.
+- La pipeline comunica con un solo sink di `PipelineEvent` (progresso e Frasi). Il manager li traduce in `transcription-progress` e `transcript-phrase`, poi salva il TXT; l'esito (`TranscriptionOutcome`: `saved` con percorso e caratteri, oppure `noSpeech` senza TXT) o l'`AppError` tornano come risultato del comando `transcribe`.
+- Una sola Attività alla volta: `managers::activity::Activity` (in `tauri::State`) dà un guard con `begin()`, e chi arriva secondo riceve `activityInProgress`. Il guard porta il `CancelToken` di transcribe-cpp, installato sulla sessione e passato alla pipeline: `cancel_transcription` lo preme, il motore interrompe la Frase in corso (Nemotron ha `Feature::Cancellation`) e la pipeline esce con `AppError::Cancelled` al blocco successivo, senza emettere la fine né salvare il TXT. Il frontend mostra `cancelled` come esito, non come errore. La Registrazione (ticket 08) userà lo stesso guard.
 - La logica pura del frontend vive nelle feature, con un `*.test.ts` accanto. Niente test sui componenti.
 - Errori applicativi: un unico enum serializzato con un codice; il frontend mappa ogni codice a un messaggio tradotto.
 
@@ -115,7 +116,7 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 ### Frontend e verifica manuale
 
 - **Numeri in italiano**: con `{{count, number}}` Intl non raggruppa le migliaia sotto 10 000 (`minimumGroupingDigits` 2 nel CLDR italiano): 1234 resta "1234", 12345 diventa "12.345".
-- **Pilotare l'app**: con `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` la WebView2 di `bun tauri dev` si comanda via CDP. Il dialog di Sfoglia è nativo e UI Automation da PowerShell 5.1 vede i suoi controlli solo come `Pane`: si compila con Win32, `WM_SETTEXT` sull'`Edit` dentro il controllo 1148 e `BM_CLICK` sul pulsante 1 del dialog `#32770` "Apri". `SendKeys` non arriva, perché la finestra di Claude tiene il foreground.
+- **Pilotare l'app**: con `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` la WebView2 di `bun tauri dev` si comanda via CDP. Il dialog di Sfoglia è nativo e UI Automation da PowerShell 5.1 vede i suoi controlli solo come `Pane`: si compila con Win32, `WM_SETTEXT` sull'`Edit` dentro il controllo 1148 e `BM_CLICK` sul pulsante 1 del dialog `#32770` "Apri". `SendKeys` non arriva, perché la finestra di Claude tiene il foreground. Per chiamare un comando senza passare dalla UI (per esempio un secondo `transcribe` durante un'Attività) c'è `window.__TAURI_INTERNALS__.invoke("transcribe", { source })`.
 
 ### Da verificare sull'hardware reale
 

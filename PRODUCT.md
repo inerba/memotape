@@ -37,7 +37,7 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
 13. Come utente con Whisper o Parakeet, voglio vedere ogni Frase appena è conclusa, così vedo comunque l'avanzamento.
 14. Come utente, voglio la percentuale di avanzamento nella status bar quando la durata è nota, così so quanto manca.
 15. Come utente, voglio un avanzamento senza percentuale quando la durata non è nota, così so comunque che l'app sta lavorando.
-16. Come utente, voglio che a fine Trascrizione il testo venga salvato in `<nome Sorgente> trascrizione <N>.txt` accanto alla Sorgente, con N il primo numero libero, così non perdo il risultato e non sovrascrivo trascrizioni precedenti.
+16. Come utente, voglio che a fine Trascrizione il testo venga salvato in `<nome Sorgente> trascrizione <N>.txt` accanto alla Sorgente, con N il primo numero libero, così non perdo il risultato e non sovrascrivo trascrizioni precedenti. Se la Trascrizione non trova parlato il TXT non si crea e la status bar mostra "Nessun parlato rilevato".
 17. Come utente, voglio che la status bar mostri a fine Trascrizione che è finita, il numero di caratteri e il percorso del TXT, così so dove trovarlo.
 18. Come utente, voglio un pulsante "Copia testo" che copi l'area negli appunti, così incollo il testo altrove.
 19. Come utente, voglio una conferma prima che una nuova Trascrizione sostituisca il testo già presente nell'area, così non lo perdo per errore.
@@ -119,7 +119,12 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - La status bar mostra la fase, la percentuale (nei MKV, che non dichiarano la durata, un avanzamento senza percentuale), l'esito con caratteri e percorso del TXT, e gli errori dedicati.
   - Il TXT si salva accanto alla Sorgente. "Copia testo" copia l'area.
   - La sezione Trascrizione compare con la prima Trascrizione.
-  - Annulla, la conferma di sostituzione e una sola Attività alla volta (storie 19–21, 27) arrivano con il ticket 04. Storia 6: Trascrivi è già l'azione proposta, si abilita appena c'è una Sorgente.
+  - Storia 6: Trascrivi è già l'azione proposta, si abilita appena c'è una Sorgente.
+- **M2, seconda parte (ticket 04)**: storie 19–21 e 27.
+  - Durante la Trascrizione c'è "Annulla": il testo già comparso resta, il TXT non si salva e la status bar lo dice. Con Nemotron si interrompe anche la Frase in corso.
+  - Se l'area contiene testo, anche modificato a mano, Trascrivi chiede conferma prima di sostituirlo.
+  - Una sola Attività alla volta: durante la Trascrizione Sfoglia e Trascrivi sono disabilitati, e il backend rifiuta una seconda Attività con l'errore "Attività in corso". Registra si aggancerà allo stesso controllo (ticket 08).
+  - Una Trascrizione senza Frasi non crea il TXT e mostra "Nessun parlato rilevato".
 
 ## Fuori dal perimetro
 
