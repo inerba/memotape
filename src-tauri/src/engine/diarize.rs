@@ -1,5 +1,7 @@
 //! Diarizzazione: dai turni di Sortformer (chi parla quando) al Parlante di ogni Frase. Senza Tauri.
 
+use crate::transcript::{Ingresso, Phrase};
+
 /// Un tratto in cui parla `parlante` (l'id di Sortformer), `fine_ms` esclusa.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Turn {
@@ -46,9 +48,47 @@ pub fn assign(phrases: &[(u32, u32)], turns: &[Turn]) -> Vec<Option<u32>> {
         .collect()
 }
 
+/// Attribuisce ai Parlanti, con i turni di Sortformer sull'audio di `ingresso`, le Frasi di
+/// quell'Ingresso tra `phrases` (in ordine di inizio): i Parlanti si numerano per Ingresso. Le Frasi
+/// degli altri Ingressi non cambiano.
+pub fn assign_ingresso(phrases: &mut [Phrase], ingresso: Ingresso, turns: &[Turn]) {
+    let mut own: Vec<&mut Phrase> = phrases
+        .iter_mut()
+        .filter(|p| p.ingresso == ingresso)
+        .collect();
+    let times: Vec<_> = own.iter().map(|p| (p.inizio_ms, p.fine_ms)).collect();
+    for (phrase, parlante) in own.iter_mut().zip(assign(&times, turns)) {
+        phrase.parlante = parlante;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn con_gli_ingressi_separati_si_attribuiscono_solo_le_frasi_dell_ingresso_diarizzato() {
+        let phrase = |inizio_ms, ingresso| Phrase {
+            inizio_ms,
+            fine_ms: inizio_ms + 1000,
+            text: String::new(),
+            ingresso,
+            parlante: None,
+        };
+        let mut phrases = [
+            phrase(0, Ingresso::Microfono),
+            phrase(1000, Ingresso::Sistema),
+            phrase(2000, Ingresso::Microfono),
+            phrase(3000, Ingresso::Sistema),
+            phrase(4000, Ingresso::Sistema),
+        ];
+        // I turni dell'audio di sistema; quelli che toccano le Frasi del microfono non contano.
+        let turns = [turn(0, 2000, 5), turn(2000, 4000, 9), turn(4000, 5000, 5)];
+        assign_ingresso(&mut phrases, Ingresso::Sistema, &turns);
+        let parlanti: Vec<_> = phrases.iter().map(|p| p.parlante).collect();
+        // Il 5 compare per primo tra le Frasi dell'audio di sistema: è il Parlante 1.
+        assert_eq!(parlanti, [None, Some(1), None, Some(2), Some(1)]);
+    }
 
     fn turn(inizio_ms: u32, fine_ms: u32, parlante: u32) -> Turn {
         Turn {

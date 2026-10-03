@@ -124,7 +124,8 @@ export function HomePage() {
     const assigned = events.speakersAssigned.listen(({ payload }) => {
       setConversation((current) => withParlanti(current, payload.speakers));
     });
-    // La Trascrizione dal vivo si è fermata: la Registrazione continua senza testo.
+    // La Trascrizione dal vivo si è fermata (o Riconosci i parlanti non ha il modello): la
+    // Registrazione continua e la status bar lo dice.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
       setConversation(withoutPartials);
       setStatus((current) => withLiveError(current, payload.error));

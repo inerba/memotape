@@ -307,6 +307,16 @@ export type Settings = {
 	 *  salvati prima che esistesse: allora è spenta.
 	 */
 	parlantiFile?: boolean,
+	/**
+	 *  Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (Trascrizione dal vivo del
+	 *  mix) o con gli Ingressi separati sul microfono e sull'audio di sistema. Mancano nei file
+	 *  salvati prima che esistessero: allora sono spente.
+	 */
+	parlantiMix?: boolean,
+	/**  Riconosci i parlanti sul microfono, con gli Ingressi separati. */
+	parlantiMicrofono?: boolean,
+	/**  Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati. */
+	parlantiSistema?: boolean,
 };
 
 export type SpeakerAssignment = {

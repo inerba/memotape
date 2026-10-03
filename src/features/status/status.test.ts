@@ -39,6 +39,15 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
     phase: "transcribing",
   });
   expect(statusText(diarizing, t)).toBe("Riconoscimento dei parlanti…");
+  // Dopo Stop, finita la coda della Trascrizione dal vivo, anche la Registrazione.
+  const completing = withDiarizing({ percent: 100, phase: "completing" });
+  expect(completing).toEqual({
+    diarizing: true,
+    percent: null,
+    phase: "completing",
+  });
+  expect(statusText(completing, t)).toBe("Riconoscimento dei parlanti…");
+  expect(withProgress(completing, 100)).toBe(completing);
   // Un evento in ritardo non riapre un'Attività finita.
   const cancelled: Status = { phase: "cancelled" };
   expect(withDiarizing(cancelled)).toBe(cancelled);

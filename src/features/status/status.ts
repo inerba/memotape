@@ -5,7 +5,7 @@ import type { AppError, commands, TranscriptionOutcome } from "@/bindings";
 export type Status =
   | { phase: "idle"; source: string | null }
   | { phase: "recording"; paused: boolean; liveError?: AppError }
-  | { phase: "completing"; percent: number | null }
+  | { phase: "completing"; percent: number | null; diarizing?: boolean }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
   | { phase: "finished"; mdPath: string; chars: number }
@@ -25,6 +25,9 @@ export function statusText(status: Status, t: TFunction): string {
         ? t("status.recordingPaused")
         : t("status.recording");
     case "completing":
+      if (status.diarizing) {
+        return t("status.diarizing");
+      }
       return status.percent === null
         ? t("status.completing")
         : t("status.completingPercent", { percent: status.percent });
@@ -69,17 +72,22 @@ export function withProgress(status: Status, percent: number | null): Status {
     case "transcribing":
       return { ...status, percent };
     case "recording":
-    case "completing":
       return { percent, phase: "completing" };
+    case "completing":
+      // Un avanzamento in ritardo non toglie "Riconoscimento dei parlanti…".
+      return status.diarizing ? status : { percent, phase: "completing" };
     default:
       return status;
   }
 }
 
-/** Applica `diarization-started`: la Trascrizione è finita, ora si riconoscono i parlanti. */
+/**
+ * Applica `diarization-started`: la Trascrizione è finita (o, dopo Stop, la coda della Trascrizione
+ * dal vivo), ora si riconoscono i parlanti.
+ */
 export function withDiarizing(status: Status): Status {
-  return status.phase === "transcribing"
-    ? { diarizing: true, percent: null, phase: "transcribing" }
+  return status.phase === "transcribing" || status.phase === "completing"
+    ? { diarizing: true, percent: null, phase: status.phase }
     : status;
 }
 

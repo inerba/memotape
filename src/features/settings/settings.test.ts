@@ -3,6 +3,7 @@ import type { Settings } from "@/bindings";
 import {
   DEFAULT_SETTINGS as defaults,
   languageOf,
+  parlantiRegistrazione,
   settingsSchema,
   speechLanguageChoice,
 } from "@/features/settings/settings";
@@ -23,6 +24,25 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.copiaCome).toBe("testo");
   // Riconosci i parlanti è spenta finché l'utente non la attiva.
   expect(defaults.parlantiFile).toBe(false);
+  expect([
+    defaults.parlantiMix,
+    defaults.parlantiMicrofono,
+    defaults.parlantiSistema,
+  ]).toEqual([false, false, false]);
+});
+
+test("Riconosci i parlanti delle Registrazioni ha una casella per Ingresso solo con gli Ingressi separati", () => {
+  const both = { ...defaults, recordingSource: "both" as const };
+  expect(parlantiRegistrazione(both)).toEqual(["parlantiMix"]);
+  const separati = { ...both, modalitaDalVivo: "ingressiSeparati" as const };
+  expect(parlantiRegistrazione(separati)).toEqual([
+    "parlantiMicrofono",
+    "parlantiSistema",
+  ]);
+  // Ingressi separati vale solo registrando da Entrambi.
+  expect(
+    parlantiRegistrazione({ ...separati, recordingSource: "system" })
+  ).toEqual(["parlantiMix"]);
 });
 
 test("senza backend la Lingua dell'interfaccia è quella di sistema se supportata, altrimenti l'inglese", () => {
@@ -46,6 +66,9 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     modalitaDalVivo: "ingressiSeparati",
     outputDevice: "Cuffie",
     parlantiFile: true,
+    parlantiMicrofono: false,
+    parlantiMix: true,
+    parlantiSistema: true,
     recordingSource: "both",
     recordingsFolder: "D:\\Registrazioni",
     sampleRate: 8000,
@@ -67,6 +90,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, copiaCome: "html" },
     { ...defaults, modalitaDalVivo: "canali" },
     { ...defaults, parlantiFile: "sì" },
+    { ...defaults, parlantiSistema: 1 },
     { model: defaults.model },
   ];
   for (const value of invalid) {

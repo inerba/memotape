@@ -16,7 +16,7 @@ use transcribe_cpp::CancelToken;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::bino;
 use crate::engine::live::LiveFrames;
-use crate::engine::pipeline::{self, PipelineEvent, transcribe_file};
+use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
@@ -245,7 +245,13 @@ pub async fn transcribe(
         if let Some(diarizer) = diarizer
             && !cancel.is_cancelled()
         {
-            diarize_phrases(&app, &diarizer, &audio, &mut transcript, &cancel)?;
+            diarize_phrases(
+                &app,
+                &diarizer,
+                &[(Ingresso::Mix, audio)],
+                &mut transcript,
+                &cancel,
+            )?;
         }
         // Annulla premuto dopo l'ultima Frase: né il Bino né il Markdown cambiano.
         if cancel.is_cancelled() {
@@ -269,60 +275,77 @@ pub async fn transcribe(
     .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// Attribuisce le Frasi di `transcript` (un solo Ingresso, con gli id della pipeline in ordine di
-/// inizio) ai Parlanti con Sortformer sull'audio intero `audio`, e lo dice con `speakers-assigned`.
-/// Senza Frasi non fa nulla.
+/// Attribuisce ai Parlanti le Frasi di `transcript` con Sortformer sull'audio intero (a 16 kHz) di
+/// ogni Ingresso di `audio`, uno alla volta, e lo dice con `speakers-assigned`. Un Ingresso senza
+/// Frasi non si diarizza; senza nessuna non emette nulla.
 fn diarize_phrases(
     app: &AppHandle,
     diarizer: &DiarizerLease,
-    audio: &[f32],
+    audio: &[(Ingresso, Vec<f32>)],
     transcript: &mut Transcript,
     cancel: &CancelToken,
 ) -> Result<(), AppError> {
-    if transcript.phrases.is_empty() {
+    let with_phrases: Vec<_> = audio
+        .iter()
+        .filter(|(ingresso, _)| transcript.phrases.iter().any(|p| p.ingresso == *ingresso))
+        .collect();
+    if with_phrases.is_empty() {
         return Ok(());
     }
     if let Err(e) = DiarizationStarted.emit(app) {
         log::warn!("diarization-started non emesso: {e}");
     }
-    let started = std::time::Instant::now();
-    let turns = diarizer.diarize(audio, cancel)?;
-    log::info!(
-        "Diarizzazione di {} s in {:?}: {} turni",
-        audio.len() / 16_000,
-        started.elapsed(),
-        turns.len()
-    );
-    let times: Vec<_> = transcript
-        .phrases
-        .iter()
-        .map(|p| (p.inizio_ms, p.fine_ms))
-        .collect();
-    let speakers = diarize::assign(&times, &turns);
-    let assign = |phrases: &mut [Phrase]| {
-        for (phrase, parlante) in phrases.iter_mut().zip(&speakers) {
-            phrase.parlante = *parlante;
-        }
-    };
-    assign(&mut transcript.phrases);
+    // Prima tutti i turni, poi i Parlanti: con un errore o Annulla a metà nessuna Frase li ha.
+    let mut turns = Vec::new();
+    for (ingresso, pcm) in with_phrases {
+        let started = std::time::Instant::now();
+        let found = diarizer.diarize(pcm, cancel)?;
+        log::info!(
+            "Diarizzazione di {ingresso:?}, {} s in {:?}: {} turni",
+            pcm.len() / 16_000,
+            started.elapsed(),
+            found.len()
+        );
+        turns.push((*ingresso, found));
+    }
+    for (ingresso, found) in &turns {
+        diarize::assign_ingresso(&mut transcript.phrases, *ingresso, found);
+    }
     app.state::<LastTranscript>()
-        .update(|last| assign(&mut last.phrases));
+        .update(|last| last.phrases.clone_from(&transcript.phrases));
     let assigned = SpeakersAssigned {
-        speakers: transcript
-            .phrases
-            .iter()
-            .zip(0..)
-            .map(|(phrase, phrase_id)| SpeakerAssignment {
-                ingresso: phrase.ingresso,
-                phrase_id,
-                parlante: phrase.parlante,
-            })
-            .collect(),
+        speakers: assignments(&transcript.phrases),
     };
     if let Err(e) = assigned.emit(app) {
         log::warn!("speakers-assigned non emesso: {e}");
     }
     Ok(())
+}
+
+/// Il Parlante di ogni Frase per `speakers-assigned`, con l'id che le ha dato la pipeline del suo
+/// Ingresso: la posizione tra le Frasi di quell'Ingresso, che la pipeline numera in ordine di inizio.
+fn assignments(phrases: &[Phrase]) -> Vec<SpeakerAssignment> {
+    let mut next_id: Vec<(Ingresso, u32)> = Vec::new();
+    phrases
+        .iter()
+        .map(|phrase| {
+            let phrase_id = match next_id.iter_mut().find(|(i, _)| *i == phrase.ingresso) {
+                Some((_, id)) => {
+                    *id += 1;
+                    *id
+                }
+                None => {
+                    next_id.push((phrase.ingresso, 0));
+                    0
+                }
+            };
+            SpeakerAssignment {
+                ingresso: phrase.ingresso,
+                phrase_id,
+                parlante: phrase.parlante,
+            }
+        })
+        .collect()
 }
 
 /// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive ogni fonte di
@@ -332,7 +355,10 @@ fn diarize_phrases(
 /// `title` finché non si sa il nome del file, con le Frasi arrivate in ordine di inizio anche se la
 /// Trascrizione è stata annullata o si è guastata, e com'è finita (il primo errore). Se il modello
 /// non si carica (`liveTranscriptionUnavailable`) o una pipeline si guasta emette subito
-/// `live-transcription-failed`: la Registrazione continua, e l'altro Ingresso anche.
+/// `live-transcription-failed`: la Registrazione continua, e l'altro Ingresso anche. Con Riconosci
+/// i parlanti (`Settings::parlanti_registrazione`) tiene l'audio degli Ingressi scelti e, finite le
+/// code, li diarizza; senza Sortformer lo avvisa subito con `live-transcription-failed`
+/// (`diarizerMissing`) e trascrive senza Parlanti.
 pub fn transcribe_live(
     app: &AppHandle,
     sources: Vec<(Ingresso, LiveFrames)>,
@@ -368,6 +394,16 @@ pub fn transcribe_live(
             Err(error)
         }
         Ok((silero, mut lease, mut extra)) => {
+            let diarized = settings.parlanti_registrazione();
+            // Una Registrazione che non è partita non prenota Sortformer.
+            let diarizer = if diarized.is_empty() || cancel.is_cancelled() {
+                None
+            } else {
+                models
+                    .reserve_diarizer(app)
+                    .inspect_err(|e| live_failed(app, e, cancel))
+                    .ok()
+            };
             let engines = std::iter::once(&mut *lease).chain(&mut extra);
             let results: Vec<_> = std::thread::scope(|scope| {
                 let pipelines: Vec<_> = sources
@@ -375,7 +411,16 @@ pub fn transcribe_live(
                     .zip(engines)
                     .map(|((ingresso, mut frames), engine)| {
                         let (silero, transcript) = (&silero, &transcript);
-                        scope.spawn(move || {
+                        // La Diarizzazione vuole l'audio intero dell'Ingresso, come la pipeline lo
+                        // ha ricevuto. ponytail: in memoria, 230 MB l'ora per Ingresso.
+                        let keep = diarizer.is_some() && diarized.contains(&ingresso);
+                        let pipeline = scope.spawn(move || {
+                            let mut audio = Vec::new();
+                            let mut frames = frames.by_ref().inspect(|feed| {
+                                if let (true, Ok(Feed::Frame(frame))) = (keep, feed) {
+                                    audio.extend_from_slice(frame);
+                                }
+                            });
                             let transcribed = run_pipeline(
                                 app,
                                 engine,
@@ -397,23 +442,45 @@ pub fn transcribe_live(
                             if let Err(error) = &transcribed {
                                 live_failed(app, error, cancel);
                             }
-                            transcribed
-                        })
+                            drop(frames);
+                            (transcribed, audio)
+                        });
+                        (ingresso, pipeline)
                     })
                     .collect();
                 pipelines
                     .into_iter()
-                    .map(|pipeline| {
-                        pipeline.join().unwrap_or_else(|_| {
-                            Err(AppError::Internal("pipeline dal vivo interrotta".into()))
-                        })
+                    .map(|(ingresso, pipeline)| {
+                        let (transcribed, audio) = pipeline.join().unwrap_or_else(|_| {
+                            let error = AppError::Internal("pipeline dal vivo interrotta".into());
+                            (Err(error), Vec::new())
+                        });
+                        (transcribed, (ingresso, audio))
                     })
                     .collect()
             });
             // La seconda istanza si libera con la Registrazione.
             drop(extra);
-            models.release(app, lease, results.iter().all(keep_engine));
-            results.into_iter().collect()
+            let (outcomes, audio): (Vec<_>, Vec<_>) = results.into_iter().unzip();
+            models.release(app, lease, outcomes.iter().all(keep_engine));
+            outcomes
+                .into_iter()
+                .collect::<Result<(), AppError>>()
+                .and_then(|()| match diarizer {
+                    // Dopo Stop, finite le code: i Parlanti arrivano prima che si componga il Bino.
+                    Some(diarizer) if !cancel.is_cancelled() => {
+                        let audio: Vec<_> =
+                            audio.into_iter().filter(|(_, a)| !a.is_empty()).collect();
+                        diarize_phrases(
+                            app,
+                            &diarizer,
+                            &audio,
+                            &mut transcript.lock().unwrap_or_else(PoisonError::into_inner),
+                            cancel,
+                        )
+                    }
+                    _ => Ok(()),
+                })
         }
     };
     let transcript = transcript
@@ -885,5 +952,37 @@ mod tests {
         let source = std::env::temp_dir().join("sbobino-test-non-esiste/Audio.wav");
         let error = save_md(&source, "testo").unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
+    }
+
+    #[test]
+    fn i_parlanti_arrivano_con_l_id_della_frase_nel_suo_ingresso() {
+        let phrase = |ingresso, parlante| Phrase {
+            inizio_ms: 0,
+            fine_ms: 0,
+            text: String::new(),
+            ingresso,
+            parlante,
+        };
+        let phrases = [
+            phrase(Ingresso::Microfono, None),
+            phrase(Ingresso::Sistema, Some(1)),
+            phrase(Ingresso::Sistema, Some(2)),
+            phrase(Ingresso::Microfono, None),
+            phrase(Ingresso::Sistema, Some(1)),
+        ];
+        let ids: Vec<_> = assignments(&phrases)
+            .iter()
+            .map(|s| (s.ingresso, s.phrase_id, s.parlante))
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                (Ingresso::Microfono, 0, None),
+                (Ingresso::Sistema, 0, Some(1)),
+                (Ingresso::Sistema, 1, Some(2)),
+                (Ingresso::Microfono, 1, None),
+                (Ingresso::Sistema, 2, Some(1)),
+            ]
+        );
     }
 }

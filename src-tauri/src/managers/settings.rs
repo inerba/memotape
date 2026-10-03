@@ -5,6 +5,7 @@ use std::sync::{Mutex, PoisonError};
 
 use crate::error::AppError;
 use crate::managers::models;
+use crate::transcript::Ingresso;
 
 /// I bitrate di una Registrazione, in kbps.
 pub const BITRATES_KBPS: [u32; 9] = [16, 24, 32, 48, 64, 96, 128, 192, 320];
@@ -45,6 +46,17 @@ pub struct Settings {
     /// salvati prima che esistesse: allora è spenta.
     #[serde(default)]
     pub parlanti_file: bool,
+    /// Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (Trascrizione dal vivo del
+    /// mix) o con gli Ingressi separati sul microfono e sull'audio di sistema. Mancano nei file
+    /// salvati prima che esistessero: allora sono spente.
+    #[serde(default)]
+    pub parlanti_mix: bool,
+    /// Riconosci i parlanti sul microfono, con gli Ingressi separati.
+    #[serde(default)]
+    pub parlanti_microfono: bool,
+    /// Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati.
+    #[serde(default)]
+    pub parlanti_sistema: bool,
 }
 
 #[derive(
@@ -165,11 +177,36 @@ impl Default for Settings {
             modalita_dal_vivo: ModalitaDalVivo::Mix,
             copia_come: CopiaCome::Testo,
             parlanti_file: false,
+            parlanti_mix: false,
+            parlanti_microfono: false,
+            parlanti_sistema: false,
         }
     }
 }
 
 impl Settings {
+    /// Gli audio da diarizzare dopo Stop: quelli trascritti dal vivo (il mix, o con gli Ingressi
+    /// separati ogni Ingresso) con la loro casella attiva. Senza Trascrizione dal vivo nessuno: non
+    /// ci sono Frasi da attribuire.
+    pub fn parlanti_registrazione(&self) -> Vec<Ingresso> {
+        if !self.trascrizione_dal_vivo {
+            return Vec::new();
+        }
+        let chosen: &[(bool, Ingresso)] = if self.ingressi_separati() {
+            &[
+                (self.parlanti_microfono, Ingresso::Microfono),
+                (self.parlanti_sistema, Ingresso::Sistema),
+            ]
+        } else {
+            &[(self.parlanti_mix, Ingresso::Mix)]
+        };
+        chosen
+            .iter()
+            .filter(|(on, _)| *on)
+            .map(|(_, ingresso)| *ingresso)
+            .collect()
+    }
+
     /// Se la Registrazione trascrive dal vivo ogni Ingresso per conto suo: con la Trascrizione dal
     /// vivo, la modalità Ingressi separati e la sorgente di registrazione Entrambi.
     pub fn ingressi_separati(&self) -> bool {
@@ -335,6 +372,47 @@ mod tests {
         assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
         assert!(!settings.parlanti_file);
+        assert!(
+            !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
+        );
+    }
+
+    #[test]
+    fn dopo_stop_si_diarizzano_gli_audio_trascritti_dal_vivo_con_la_casella_attiva() {
+        let tutte = Settings {
+            trascrizione_dal_vivo: true,
+            recording_source: RecordingSource::Both,
+            parlanti_mix: true,
+            parlanti_microfono: true,
+            parlanti_sistema: true,
+            ..Settings::default()
+        };
+        assert_eq!(tutte.parlanti_registrazione(), [Ingresso::Mix]);
+        let separati = Settings {
+            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
+            ..tutte.clone()
+        };
+        assert_eq!(
+            separati.parlanti_registrazione(),
+            [Ingresso::Microfono, Ingresso::Sistema]
+        );
+        let solo_sistema = Settings {
+            parlanti_microfono: false,
+            ..separati.clone()
+        };
+        assert_eq!(solo_sistema.parlanti_registrazione(), [Ingresso::Sistema]);
+        // Ingressi separati scelti ma registrando dal solo microfono: vale il mix.
+        let mic = Settings {
+            recording_source: RecordingSource::Mic,
+            ..separati.clone()
+        };
+        assert_eq!(mic.parlanti_registrazione(), [Ingresso::Mix]);
+        // Senza Trascrizione dal vivo non ci sono Frasi.
+        let spenta = Settings {
+            trascrizione_dal_vivo: false,
+            ..separati
+        };
+        assert_eq!(spenta.parlanti_registrazione(), []);
     }
 
     #[test]
@@ -381,6 +459,9 @@ mod tests {
         object.remove("modalitaDalVivo");
         object.remove("copiaCome");
         object.remove("parlantiFile");
+        object.remove("parlantiMix");
+        object.remove("parlantiMicrofono");
+        object.remove("parlantiSistema");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
@@ -388,6 +469,9 @@ mod tests {
         assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
         assert!(!settings.parlanti_file);
+        assert!(
+            !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
+        );
     }
 
     #[test]
@@ -460,6 +544,9 @@ mod tests {
             modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
             copia_come: CopiaCome::Markdown,
             parlanti_file: true,
+            parlanti_mix: true,
+            parlanti_microfono: false,
+            parlanti_sistema: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

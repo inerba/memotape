@@ -101,6 +101,9 @@
         "ingressiSeparati": "Oddzielne wejścia"
       },
       "liveModeDescription": "Tylko z opcją Oba: Oddzielne wejścia transkrybuje mikrofon i dźwięk systemowy osobno, jak rozmowę, z dwiema instancjami modelu (dwa razy więcej pamięci).",
+      "parlanti": "Rozpoznawaj mówców",
+      "parlantiMix": "W miksie",
+      "parlantiDescription": "Po Stop, na zdaniach transkrypcji na żywo: z oddzielnymi wejściami wybiera, na których wejściach. Rozpoznaje maksymalnie 4 mówców na nagranie i wymaga modelu rozpoznawania mówców.",
       "microphone": "Mikrofon",
       "outputDevice": "Urządzenie wyjściowe",
       "defaultDevice": "Domyślne systemowe",

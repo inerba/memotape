@@ -26,6 +26,8 @@ import {
   BITRATES_KBPS,
   LANGUAGE_NAMES,
   LANGUAGES,
+  type ParlantiRegistrazione,
+  parlantiRegistrazione,
   SAMPLE_RATES,
   settingsSchema,
 } from "@/features/settings/settings";
@@ -38,6 +40,11 @@ const SELECT =
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
 const LIVE_MODES: ModalitaDalVivo[] = ["mix", "ingressiSeparati"];
+const PARLANTI_LABELS: Record<ParlantiRegistrazione, string> = {
+  parlantiMicrofono: "settings.recording.inputs.mic",
+  parlantiMix: "settings.recording.parlantiMix",
+  parlantiSistema: "settings.recording.inputs.system",
+};
 
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
@@ -74,6 +81,11 @@ export function SettingsPage() {
           SOURCES.find((s) => s === e.target.value) ?? settings.recordingSource,
       }),
     [choose, settings.recordingSource]
+  );
+  const chooseParlanti = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) =>
+      choose({ [e.target.name]: e.target.checked }),
+    [choose]
   );
   const chooseLiveMode = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
@@ -250,6 +262,33 @@ export function SettingsPage() {
               id="live-mode-description"
             >
               {t("settings.recording.liveModeDescription")}
+            </p>
+            <span className="text-sm" id="recording-parlanti">
+              {t("settings.recording.parlanti")}
+            </span>
+            <fieldset
+              aria-describedby="recording-parlanti-description"
+              aria-labelledby="recording-parlanti"
+              className="flex flex-wrap gap-x-4 gap-y-2"
+            >
+              {parlantiRegistrazione(settings).map((name) => (
+                <label className="flex items-center gap-2 text-sm" key={name}>
+                  <input
+                    checked={settings[name] ?? false}
+                    className="size-4 accent-primary"
+                    name={name}
+                    onChange={chooseParlanti}
+                    type="checkbox"
+                  />
+                  {t(PARLANTI_LABELS[name])}
+                </label>
+              ))}
+            </fieldset>
+            <p
+              className="col-start-2 text-muted-foreground text-sm"
+              id="recording-parlanti-description"
+            >
+              {t("settings.recording.parlantiDescription")}
             </p>
             <label className="text-sm" htmlFor="bitrate">
               {t("settings.recording.bitrate")}

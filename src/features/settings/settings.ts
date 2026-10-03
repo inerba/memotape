@@ -51,6 +51,9 @@ export const DEFAULT_SETTINGS: Settings = {
   model: catalog.predefinito,
   outputDevice: null,
   parlantiFile: false,
+  parlantiMicrofono: false,
+  parlantiMix: false,
+  parlantiSistema: false,
   recordingSource: "mic",
   recordingsFolder: null,
   sampleRate: 48_000,
@@ -76,6 +79,10 @@ export const settingsSchema = z.object({
   outputDevice: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   parlantiFile: z.boolean().optional(),
+  // Facoltative come nei bindings: i file salvati prima che esistessero non ce l'hanno.
+  parlantiMicrofono: z.boolean().optional(),
+  parlantiMix: z.boolean().optional(),
+  parlantiSistema: z.boolean().optional(),
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),
@@ -111,4 +118,25 @@ export function speechLanguageChoice(
   }
   const value = options.find((l) => l === current) ?? "auto";
   return { options, value };
+}
+
+/** Una casella di Riconosci i parlanti delle Registrazioni. */
+export type ParlantiRegistrazione =
+  | "parlantiMix"
+  | "parlantiMicrofono"
+  | "parlantiSistema";
+
+/**
+ * Le caselle di Riconosci i parlanti delle Registrazioni da mostrare: con gli Ingressi separati
+ * (registrando da Entrambi) una per Ingresso, altrimenti una per il mix. È la scelta degli Ingressi
+ * di `Settings::parlanti_registrazione` in Rust, che in più vale solo con la Trascrizione dal vivo e
+ * guarda quali caselle sono attive.
+ */
+export function parlantiRegistrazione(
+  settings: Settings
+): ParlantiRegistrazione[] {
+  return settings.recordingSource === "both" &&
+    settings.modalitaDalVivo === "ingressiSeparati"
+    ? ["parlantiMicrofono", "parlantiSistema"]
+    : ["parlantiMix"];
 }
