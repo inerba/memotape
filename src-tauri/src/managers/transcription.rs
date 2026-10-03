@@ -15,13 +15,13 @@ use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::bino;
-use crate::engine::TranscriptionEngine;
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
+use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
 use crate::managers::activity::Activity;
-use crate::managers::models::{self, Models};
+use crate::managers::models::{self, DiarizerLease, Models};
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
 use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
 
@@ -38,6 +38,9 @@ pub struct TranscriptPhrase {
     pub text: String,
     /// Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri.
     pub ingresso: Ingresso,
+    /// Il Parlante, da 1: c'è nelle Frasi di un Bino diarizzato. Durante una Trascrizione arriva
+    /// dopo, con `speakers-assigned`.
+    pub parlante: Option<u32>,
 }
 
 /// Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
@@ -57,6 +60,25 @@ pub struct TranscriptPartial {
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 pub struct LiveTranscriptionFailed {
     pub error: AppError,
+}
+
+/// Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti).
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+pub struct DiarizationStarted;
+
+/// I Parlanti delle Frasi dopo la Diarizzazione: `parlante` da 1 per ordine di comparsa, `null` se
+/// nessuno parlava durante la Frase.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+pub struct SpeakersAssigned {
+    pub speakers: Vec<SpeakerAssignment>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeakerAssignment {
+    pub ingresso: Ingresso,
+    pub phrase_id: u32,
+    pub parlante: Option<u32>,
 }
 
 /// Avanzamento della Trascrizione, o dello smaltimento della coda dal vivo dopo Stop: `percent` è
@@ -165,7 +187,8 @@ fn title_of(source: &Path) -> String {
 }
 
 /// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
-/// `transcript-phrase`, poi salva il Markdown.
+/// `transcript-phrase`; con Riconosci i parlanti poi diarizza (`diarization-started`,
+/// `speakers-assigned`). Infine salva il Markdown.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
@@ -184,10 +207,17 @@ pub async fn transcribe(
     let bino = bino::is_bino(&source)
         .then(|| bino::read(&source))
         .transpose()?;
+    // Senza Sortformer lo si dice subito, non dopo aver trascritto.
+    let diarizer = settings
+        .parlanti_file
+        .then(|| app.state::<Models>().reserve_diarizer(&app))
+        .transpose()?;
+    let diarize = diarizer.is_some();
     let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     tauri::async_runtime::spawn_blocking(move || {
         let models = app.state::<Models>();
         let mut engine = models.take(&app, || model.id.as_str())?;
+        let mut audio = Vec::new();
         let transcribed = run_pipeline(
             &app,
             &mut engine,
@@ -201,6 +231,7 @@ pub async fn transcribe(
                     engine,
                     detector,
                     settings.speech_language.code(),
+                    diarize.then_some(&mut audio),
                     &cancel,
                     on_event,
                 )
@@ -208,9 +239,14 @@ pub async fn transcribe(
         );
         models.release(&app, engine, keep_engine(&transcribed));
         transcribed?;
-        let transcript = transcript
+        let mut transcript = transcript
             .into_inner()
             .unwrap_or_else(PoisonError::into_inner);
+        if let Some(diarizer) = diarizer
+            && !cancel.is_cancelled()
+        {
+            diarize_phrases(&app, &diarizer, &audio, &mut transcript, &cancel)?;
+        }
         // Annulla premuto dopo l'ultima Frase: né il Bino né il Markdown cambiano.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
@@ -231,6 +267,62 @@ pub async fn transcribe(
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Attribuisce le Frasi di `transcript` (un solo Ingresso, con gli id della pipeline in ordine di
+/// inizio) ai Parlanti con Sortformer sull'audio intero `audio`, e lo dice con `speakers-assigned`.
+/// Senza Frasi non fa nulla.
+fn diarize_phrases(
+    app: &AppHandle,
+    diarizer: &DiarizerLease,
+    audio: &[f32],
+    transcript: &mut Transcript,
+    cancel: &CancelToken,
+) -> Result<(), AppError> {
+    if transcript.phrases.is_empty() {
+        return Ok(());
+    }
+    if let Err(e) = DiarizationStarted.emit(app) {
+        log::warn!("diarization-started non emesso: {e}");
+    }
+    let started = std::time::Instant::now();
+    let turns = diarizer.diarize(audio, cancel)?;
+    log::info!(
+        "Diarizzazione di {} s in {:?}: {} turni",
+        audio.len() / 16_000,
+        started.elapsed(),
+        turns.len()
+    );
+    let times: Vec<_> = transcript
+        .phrases
+        .iter()
+        .map(|p| (p.inizio_ms, p.fine_ms))
+        .collect();
+    let speakers = diarize::assign(&times, &turns);
+    let assign = |phrases: &mut [Phrase]| {
+        for (phrase, parlante) in phrases.iter_mut().zip(&speakers) {
+            phrase.parlante = *parlante;
+        }
+    };
+    assign(&mut transcript.phrases);
+    app.state::<LastTranscript>()
+        .update(|last| assign(&mut last.phrases));
+    let assigned = SpeakersAssigned {
+        speakers: transcript
+            .phrases
+            .iter()
+            .zip(0..)
+            .map(|(phrase, phrase_id)| SpeakerAssignment {
+                ingresso: phrase.ingresso,
+                phrase_id,
+                parlante: phrase.parlante,
+            })
+            .collect(),
+    };
+    if let Err(e) = assigned.emit(app) {
+        log::warn!("speakers-assigned non emesso: {e}");
+    }
+    Ok(())
 }
 
 /// La Trascrizione dal vivo di una Registrazione: carica il modello scelto e trascrive ogni fonte di
@@ -405,6 +497,7 @@ pub fn open_bino(app: &AppHandle, source: &Path) -> Result<Vec<TranscriptPhrase>
             fine_ms: frase.fine_ms,
             text: frase.testo.clone(),
             ingresso: frase.ingresso,
+            parlante: frase.parlante,
         })
         .collect();
     app.state::<LastTranscript>()
@@ -423,7 +516,6 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
             .map(|id| models::find(&id).map_or(id, |m| m.name.clone()))
             .unwrap_or_default(),
         speech_language: document.lingua_parlato,
-        // ponytail: il Parlante arriva con la Diarizzazione.
         phrases: document
             .frasi
             .into_iter()
@@ -432,7 +524,7 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
                 fine_ms: frase.fine_ms,
                 text: frase.testo,
                 ingresso: frase.ingresso,
-                parlante: None,
+                parlante: frase.parlante,
             })
             .collect(),
     }
@@ -497,6 +589,7 @@ fn run_pipeline(
                         fine_ms,
                         text: text.clone(),
                         ingresso,
+                        parlante: None,
                     }
                     .emit(app);
                     let phrase = Phrase {

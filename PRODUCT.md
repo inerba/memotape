@@ -166,7 +166,7 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - A fine Registrazione il testo si salva in `<Registrazione> trascrizione 1.md` accanto alla Registrazione (dalla V2 il Bino) e la status bar lo dice.
   - Con testo nell'area, Registra con la casella attiva chiede conferma prima di sostituirlo.
   - Se il modello scelto non è scaricato o non si carica la Registrazione parte comunque, con un avviso e il link alle Impostazioni.
-- **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è già nel renderer e arriva con i ticket v2/06 (Ingressi, fatto) e v2/07.
+- **V3 (ticket v2/03)**: storie 26–28 e 30 della spec v2; la 29 (turni con Parlanti e Ingressi) è arrivata con i ticket v2/06 e v2/07.
   - Il risultato di una Trascrizione, anche dal vivo, è `<nome Sorgente> trascrizione <N>.md` invece del TXT, con la stessa regola del primo N libero. Ha come titolo il nome della Sorgente e un'intestazione con data e ora, durata, modello e Lingua del parlato, nella Lingua dell'interfaccia.
   - Le Frasi si uniscono in paragrafi, e se ne apre uno nuovo dopo oltre 2 s di silenzio.
   - In Impostazioni → Generale, "Copia testo come" sceglie testo semplice (predefinito) o Markdown. Copia testo copia l'ultima Trascrizione, anche annullata o in corso, nel formato scelto; se il testo nell'area è stato modificato a mano lo copia com'è.
@@ -183,13 +183,18 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Con Ingressi separati microfono e audio di sistema si trascrivono in parallelo, ognuno con la sua istanza del modello (il doppio della memoria), caricata all'inizio della Registrazione e liberata alla fine. Se un Ingresso si guasta compare l'avviso e l'altro continua; il Markdown non si salva.
   - Il testo è una conversazione: le Frasi in ordine di inizio, non di arrivo, e ogni turno di un Ingresso comincia con l'etichetta "Microfono:" o "Audio di sistema:" su una riga. Con Nemotron ogni Ingresso ha i suoi Parziali, al loro posto.
   - Il Bino contiene anche `microfono.ogg` e `sistema.ogg` ed è segnato come Ingressi separati; riaperto mostra la conversazione. Il Markdown e Copia testo hanno un paragrafo per turno, `**Microfono:**` e `**Audio di sistema:**`. Trascrivi su un Bino trascrive sempre il mix.
+- **V5, Diarizzazione dei file (ticket v2/07)**: storie 31 e 34–38 della spec v2 per i file e la parte della 29 sui Parlanti; le Registrazioni (32, 33) arrivano con il ticket v2/08.
+  - Impostazioni → Trascrizione ha, separato dai modelli di trascrizione, "Riconoscimento dei parlanti" con Sortformer 4spk v2.1 (133 MB, NVIDIA Open Model License): download con percentuale, verifica, ripresa ed Elimina come gli altri, ma non si sceglie. Informazioni ne mostra la licenza.
+  - La casella "Riconosci i parlanti" accanto a Trascrivi, spenta per default e salvata tra un avvio e l'altro, dice nel suggerimento che si riconoscono al massimo 4 Parlanti. Senza Sortformer scaricato Trascrivi mostra subito l'errore "il modello per Riconosci i parlanti non è scaricato" con il link alle Impostazioni, e durante la Trascrizione Sortformer non si può eliminare.
+  - Finita la Trascrizione, nella stessa Attività, la status bar dice "Riconoscimento dei parlanti…" e Annulla resta disponibile (annullando non si salva il Markdown). Ogni Frase va al Parlante che parla di più durante la Frase, numerato per ordine di comparsa; nell'area e nel Markdown ogni turno comincia con "Parlante N:". Una Frase in cui nessuno parla resta senza etichetta.
+  - Trascrivi su un Bino con la casella attiva salva i Parlanti dentro il Bino, e riaprendolo tornano.
 
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
-- Timestamp nel testo, diarizzazione, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
+- Timestamp nel testo, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
 - Storico delle trascrizioni, editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.

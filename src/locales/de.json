@@ -21,7 +21,9 @@
       "descriptionOpen": "Der Text im Feld wird samt deinen Änderungen durch den Text des Bino ersetzt.",
       "keep": "Text behalten",
       "confirm": "Ersetzen"
-    }
+    },
+    "parlanti": "Sprecher erkennen",
+    "parlantiNote": "Höchstens 4 Sprecher"
   },
   "status": {
     "idle": "Wähle mit „Durchsuchen“ eine Audio- oder Videodatei",
@@ -37,7 +39,8 @@
     "finished_other": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
     "noSpeech": "Keine Sprache erkannt",
     "cancelled": "Transkription abgebrochen: keine Markdown-Datei gespeichert",
-    "openModels": "Einstellungen → Transkription öffnen"
+    "openModels": "Einstellungen → Transkription öffnen",
+    "diarizing": "Sprecher werden erkannt…"
   },
   "errors": {
     "label": "Fehler",
@@ -46,6 +49,7 @@
       "unsupportedCodec": "Das Audioformat der Datei wird nicht unterstützt: {{detail}}",
       "unwritableFolder": "Speichern im Ordner nicht möglich: {{detail}}",
       "modelMissing": "Das gewählte Modell {{detail}} ist nicht heruntergeladen",
+      "diarizerMissing": "Das Modell für Sprecher erkennen, {{detail}}, ist nicht heruntergeladen",
       "modelInUse": "Das Modell wird von einer Transkription verwendet oder gerade geladen: versuche es erneut, wenn es fertig ist",
       "downloadFailed": "Download des Modells fehlgeschlagen: {{detail}}. Versuche es erneut",
       "verificationFailed": "Das heruntergeladene Modell war beschädigt und wurde gelöscht: {{detail}}. Lade es erneut herunter",
@@ -76,7 +80,9 @@
     "back": "Zurück",
     "transcription": {
       "title": "Transkription",
-      "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline."
+      "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline.",
+      "diarization": "Sprechererkennung",
+      "diarizationDescription": "Wird von Sprecher erkennen neben Transkribieren verwendet. Erkennt höchstens 4 Sprecher."
     },
     "recording": {
       "title": "Aufnahme und Audio",
@@ -184,7 +190,7 @@
     "description": "Die Version der App und die Lizenzen der verwendeten Komponenten.",
     "version": "Version {{version}}",
     "source": "Quelle: {{url}}",
-    "converted": "Sbobino lädt die von handy-computer in GGUF konvertierte und quantisierte Version (Q5_K_M) herunter.",
+    "converted": "Sbobino lädt die von handy-computer in GGUF konvertierte und quantisierte Version ({{quantization}}) herunter.",
     "licenseText": "Lizenztext",
     "thirdParty": "Hinweise zu Drittanbietern",
     "roles": {
@@ -193,12 +199,14 @@
       "decoder": "Dekodierung von Audio- und Videodateien",
       "engine": "Ausführung der Transkriptionsmodelle",
       "onnx": "Ausführung von Silero VAD",
-      "vadRs": "Verbindung zwischen Silero VAD und Rust"
+      "vadRs": "Verbindung zwischen Silero VAD und Rust",
+      "diarization": "Sprechererkennung"
     }
   },
   "transcript": {
     "date": "Datum",
     "duration": "Dauer",
-    "model": "Modell"
+    "model": "Modell",
+    "parlante": "Sprecher {{n}}"
   }
 }

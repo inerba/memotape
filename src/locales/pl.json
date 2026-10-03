@@ -21,7 +21,9 @@
       "descriptionOpen": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony tekstem z pliku Bino.",
       "keep": "Zachowaj tekst",
       "confirm": "Zastąp"
-    }
+    },
+    "parlanti": "Rozpoznaj mówców",
+    "parlantiNote": "Najwyżej 4 mówców"
   },
   "status": {
     "idle": "Wybierz plik audio lub wideo przyciskiem Przeglądaj",
@@ -39,7 +41,8 @@
     "finished_other": "Transkrypcja zakończona: zapisano {{count, number}} znaku w pliku {{path}}",
     "noSpeech": "Nie wykryto mowy",
     "cancelled": "Transkrypcja anulowana: nie zapisano pliku Markdown",
-    "openModels": "Otwórz Ustawienia → Transkrypcja"
+    "openModels": "Otwórz Ustawienia → Transkrypcja",
+    "diarizing": "Rozpoznawanie mówców…"
   },
   "errors": {
     "label": "Błąd",
@@ -48,6 +51,7 @@
       "unsupportedCodec": "Format audio pliku nie jest obsługiwany: {{detail}}",
       "unwritableFolder": "Nie można zapisać w folderze: {{detail}}",
       "modelMissing": "Wybrany model, {{detail}}, nie jest pobrany",
+      "diarizerMissing": "Model dla Rozpoznaj mówców, {{detail}}, nie jest pobrany",
       "modelInUse": "Model jest używany przez transkrypcję lub właśnie się wczytuje: spróbuj ponownie, gdy skończy",
       "downloadFailed": "Nie udało się pobrać modelu: {{detail}}. Spróbuj ponownie",
       "verificationFailed": "Pobrany model był uszkodzony i został usunięty: {{detail}}. Pobierz go ponownie",
@@ -78,7 +82,9 @@
     "back": "Wstecz",
     "transcription": {
       "title": "Transkrypcja",
-      "description": "Modele transkrybują na Twoim komputerze: pobierasz je raz, a potem działają bez internetu."
+      "description": "Modele transkrybują na Twoim komputerze: pobierasz je raz, a potem działają bez internetu.",
+      "diarization": "Rozpoznawanie mówców",
+      "diarizationDescription": "Używane przez Rozpoznaj mówców obok Transkrybuj. Rozpoznaje najwyżej 4 mówców."
     },
     "recording": {
       "title": "Nagrywanie i dźwięk",
@@ -186,7 +192,7 @@
     "description": "Wersja aplikacji i licencje używanych przez nią komponentów.",
     "version": "Wersja {{version}}",
     "source": "Źródło: {{url}}",
-    "converted": "Sbobino pobiera wersję przekonwertowaną do formatu GGUF i skwantyzowaną (Q5_K_M) przez handy-computer.",
+    "converted": "Sbobino pobiera wersję przekonwertowaną do formatu GGUF i skwantyzowaną ({{quantization}}) przez handy-computer.",
     "licenseText": "Tekst licencji",
     "thirdParty": "Informacje o komponentach innych firm",
     "roles": {
@@ -195,12 +201,14 @@
       "decoder": "Dekodowanie plików audio i wideo",
       "engine": "Uruchamianie modeli transkrypcji",
       "onnx": "Uruchamianie Silero VAD",
-      "vadRs": "Łącznik między Silero VAD a Rustem"
+      "vadRs": "Łącznik między Silero VAD a Rustem",
+      "diarization": "Rozpoznawanie mówców"
     }
   },
   "transcript": {
     "date": "Data",
     "duration": "Czas trwania",
-    "model": "Model"
+    "model": "Model",
+    "parlante": "Mówca {{n}}"
   }
 }

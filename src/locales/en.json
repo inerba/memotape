@@ -21,7 +21,9 @@
       "descriptionOpen": "The text in the area, including your edits, will be replaced by the one in the Bino.",
       "keep": "Keep the text",
       "confirm": "Replace"
-    }
+    },
+    "parlanti": "Recognize speakers",
+    "parlantiNote": "At most 4 speakers"
   },
   "status": {
     "idle": "Choose an audio or video file with Browse",
@@ -37,7 +39,8 @@
     "finished_other": "Transcription finished: {{count, number}} characters saved to {{path}}",
     "noSpeech": "No speech detected",
     "cancelled": "Transcription cancelled: no Markdown saved",
-    "openModels": "Open Settings → Transcription"
+    "openModels": "Open Settings → Transcription",
+    "diarizing": "Recognizing speakers…"
   },
   "errors": {
     "label": "Error",
@@ -46,6 +49,7 @@
       "unsupportedCodec": "The file's audio format is not supported: {{detail}}",
       "unwritableFolder": "Cannot save to the folder: {{detail}}",
       "modelMissing": "The selected model, {{detail}}, is not downloaded",
+      "diarizerMissing": "The model for Recognize speakers, {{detail}}, is not downloaded",
       "modelInUse": "The model is being used by a transcription or is loading: try again when it's done",
       "downloadFailed": "Model download failed: {{detail}}. Try again",
       "verificationFailed": "The downloaded model was corrupted and has been deleted: {{detail}}. Download it again",
@@ -76,7 +80,9 @@
     "back": "Back",
     "transcription": {
       "title": "Transcription",
-      "description": "Models transcribe on your computer: download them once, then they work offline."
+      "description": "Models transcribe on your computer: download them once, then they work offline.",
+      "diarization": "Speaker recognition",
+      "diarizationDescription": "Used by Recognize speakers, next to Transcribe. Recognizes at most 4 speakers."
     },
     "recording": {
       "title": "Recording and audio",
@@ -184,7 +190,7 @@
     "description": "The app version and the licenses of the components it uses.",
     "version": "Version {{version}}",
     "source": "Source: {{url}}",
-    "converted": "Sbobino downloads the version converted to GGUF and quantized (Q5_K_M) by handy-computer.",
+    "converted": "Sbobino downloads the version converted to GGUF and quantized ({{quantization}}) by handy-computer.",
     "licenseText": "License text",
     "thirdParty": "Third-party notices",
     "roles": {
@@ -193,12 +199,14 @@
       "decoder": "Decoding of audio and video files",
       "engine": "Runs the transcription models",
       "onnx": "Runs Silero VAD",
-      "vadRs": "Bridge between Silero VAD and Rust"
+      "vadRs": "Bridge between Silero VAD and Rust",
+      "diarization": "Speaker recognition"
     }
   },
   "transcript": {
     "date": "Date",
     "duration": "Duration",
-    "model": "Model"
+    "model": "Model",
+    "parlante": "Speaker {{n}}"
   }
 }

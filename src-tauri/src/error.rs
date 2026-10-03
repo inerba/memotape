@@ -11,6 +11,10 @@ pub enum AppError {
     UnwritableFolder(String),
     #[error("modello assente: {0}")]
     ModelMissing(String),
+    /// Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
+    /// scaricato.
+    #[error("modello di diarizzazione assente: {0}")]
+    DiarizerMissing(String),
     /// Il modello si sta caricando o lo usa una Trascrizione: non si elimina.
     #[error("modello in uso: {0}")]
     ModelInUse(String),

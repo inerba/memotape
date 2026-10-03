@@ -37,7 +37,8 @@ export function About() {
 
 function CreditRow({ credit }: { credit: Credit }) {
   const { t } = useTranslation();
-  const { author, converted, file, license, name, notices, role, url } = credit;
+  const { author, file, license, name, notices, quantization, role, url } =
+    credit;
   return (
     <li className="flex flex-col gap-1 p-4">
       <div className="flex flex-wrap items-baseline gap-x-2">
@@ -51,8 +52,10 @@ function CreditRow({ credit }: { credit: Credit }) {
       <p className="text-muted-foreground text-sm">
         {t(`about.roles.${role}`)}
       </p>
-      {converted ? (
-        <p className="text-muted-foreground text-sm">{t("about.converted")}</p>
+      {quantization ? (
+        <p className="text-muted-foreground text-sm">
+          {t("about.converted", { quantization })}
+        </p>
       ) : null}
       <p className="select-text break-all text-muted-foreground text-sm">
         {t("about.source", { url })}

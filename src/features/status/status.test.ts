@@ -6,6 +6,7 @@ import {
   needsSettings,
   type Status,
   statusText,
+  withDiarizing,
   withLiveError,
   withProgress,
 } from "@/features/status/status";
@@ -28,6 +29,19 @@ test("durante la Trascrizione mostra la percentuale solo se la durata è nota", 
   expect(statusText({ percent: null, phase: "transcribing" }, t)).toBe(
     "Trascrizione in corso…"
   );
+});
+
+test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza percentuale", () => {
+  const diarizing = withDiarizing({ percent: 100, phase: "transcribing" });
+  expect(diarizing).toEqual({
+    diarizing: true,
+    percent: null,
+    phase: "transcribing",
+  });
+  expect(statusText(diarizing, t)).toBe("Riconoscimento dei parlanti…");
+  // Un evento in ritardo non riapre un'Attività finita.
+  const cancelled: Status = { phase: "cancelled" };
+  expect(withDiarizing(cancelled)).toBe(cancelled);
 });
 
 test("a fine Trascrizione mostra i caratteri e il percorso del Markdown", () => {
@@ -153,6 +167,15 @@ test("senza modello la Registrazione continua e la status bar lo dice con il lin
     })
   ).toBe(true);
   expect(needsSettings({ paused: false, phase: "recording" })).toBe(false);
+  // Riconosci i parlanti senza Sortformer: si scarica dalle Impostazioni.
+  const diarizerMissing = {
+    error: { code: "diarizerMissing", detail: "Sortformer 4spk v2.1" },
+    phase: "failed",
+  } as const;
+  expect(needsSettings(diarizerMissing)).toBe(true);
+  expect(statusText(diarizerMissing, t)).toBe(
+    "Il modello per Riconosci i parlanti, Sortformer 4spk v2.1, non è scaricato"
+  );
   // Finita la Registrazione l'avviso arriva con il suo esito, non con l'evento.
   const recorded: Status = { path: "a.ogg", phase: "recorded" };
   expect(withLiveError(recorded, error)).toBe(recorded);

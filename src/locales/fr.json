@@ -21,7 +21,9 @@
       "descriptionOpen": "Le texte de la zone, y compris vos modifications, sera remplacé par celui du Bino.",
       "keep": "Garder le texte",
       "confirm": "Remplacer"
-    }
+    },
+    "parlanti": "Reconnaître les intervenants",
+    "parlantiNote": "4 intervenants au maximum"
   },
   "status": {
     "idle": "Choisissez un fichier audio ou vidéo avec Parcourir",
@@ -38,7 +40,8 @@
     "finished_other": "Transcription terminée : {{count, number}} caractères enregistrés dans {{path}}",
     "noSpeech": "Aucune parole détectée",
     "cancelled": "Transcription annulée : aucun Markdown enregistré",
-    "openModels": "Ouvrir Paramètres → Transcription"
+    "openModels": "Ouvrir Paramètres → Transcription",
+    "diarizing": "Reconnaissance des intervenants…"
   },
   "errors": {
     "label": "Erreur",
@@ -47,6 +50,7 @@
       "unsupportedCodec": "Le format audio du fichier n'est pas pris en charge : {{detail}}",
       "unwritableFolder": "Impossible d'enregistrer dans le dossier : {{detail}}",
       "modelMissing": "Le modèle choisi, {{detail}}, n'est pas téléchargé",
+      "diarizerMissing": "Le modèle pour Reconnaître les intervenants, {{detail}}, n'est pas téléchargé",
       "modelInUse": "Le modèle est utilisé par une transcription ou en cours de chargement : réessayez quand il aura terminé",
       "downloadFailed": "Échec du téléchargement du modèle : {{detail}}. Réessayez",
       "verificationFailed": "Le modèle téléchargé était corrompu et a été supprimé : {{detail}}. Relancez le téléchargement",
@@ -77,7 +81,9 @@
     "back": "Retour",
     "transcription": {
       "title": "Transcription",
-      "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau."
+      "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau.",
+      "diarization": "Reconnaissance des intervenants",
+      "diarizationDescription": "Utilisé par Reconnaître les intervenants, à côté de Transcrire. Reconnaît 4 intervenants au maximum."
     },
     "recording": {
       "title": "Enregistrement et audio",
@@ -185,7 +191,7 @@
     "description": "La version de l'application et les licences des composants qu'elle utilise.",
     "version": "Version {{version}}",
     "source": "Source : {{url}}",
-    "converted": "Sbobino télécharge la version convertie en GGUF et quantifiée (Q5_K_M) par handy-computer.",
+    "converted": "Sbobino télécharge la version convertie en GGUF et quantifiée ({{quantization}}) par handy-computer.",
     "licenseText": "Texte de la licence",
     "thirdParty": "Mentions de tiers",
     "roles": {
@@ -194,12 +200,14 @@
       "decoder": "Décodage des fichiers audio et vidéo",
       "engine": "Exécution des modèles de transcription",
       "onnx": "Exécution de Silero VAD",
-      "vadRs": "Liaison entre Silero VAD et Rust"
+      "vadRs": "Liaison entre Silero VAD et Rust",
+      "diarization": "Reconnaissance des intervenants"
     }
   },
   "transcript": {
     "date": "Date",
     "duration": "Durée",
-    "model": "Modèle"
+    "model": "Modèle",
+    "parlante": "Intervenant {{n}}"
   }
 }

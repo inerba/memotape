@@ -6,8 +6,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::OnceLock;
 
-use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session, StreamOptions};
+use transcribe_cpp::{CancelToken, Diarize, Feature, Model, RunOptions, Session, StreamOptions};
 
+use super::diarize::Turn;
 use super::{EngineError, TranscriptionEngine};
 use crate::error::AppError;
 
@@ -91,6 +92,50 @@ impl TranscriptionEngine for TranscribeCpp {
         }
         catch_native(|| stream.finalize())?;
         Ok(stream.text().full.trim().to_string())
+    }
+}
+
+/// Il modello di diarizzazione (Sortformer, al massimo 4 parlanti): solo `run`, sull'audio intero.
+pub struct Sortformer {
+    session: Session,
+}
+
+impl Sortformer {
+    pub fn load(path: &Path) -> Result<Self, AppError> {
+        if !path.is_file() {
+            return Err(AppError::ModelMissing(path.display().to_string()));
+        }
+        init_backends()?;
+        let session = catch_native(|| Model::load(path)?.session())?;
+        Ok(Self { session })
+    }
+
+    /// I turni di chi parla nell'audio `pcm` (mono a 16 kHz), in ordine di inizio. `cancel` lo
+    /// interrompe tra un blocco e l'altro con `EngineError::Cancelled`.
+    pub fn diarize(&mut self, pcm: &[f32], cancel: &CancelToken) -> Result<Vec<Turn>, EngineError> {
+        self.session.set_cancel_token(cancel);
+        let run = RunOptions {
+            diarize: Diarize::On,
+            ..RunOptions::default()
+        };
+        let session = &mut self.session;
+        let transcript = catch_native(|| session.run(pcm, &run))?;
+        // Sortformer dà i segmenti per parlante, non per tempo. Un id negativo o un tratto senza
+        // tempi non dice nulla su chi parla quando: si scarta.
+        let mut turns: Vec<Turn> = transcript
+            .speaker_segments
+            .iter()
+            .filter_map(|s| {
+                Some(Turn {
+                    inizio_ms: u32::try_from(s.t0_ms).ok()?,
+                    fine_ms: u32::try_from(s.t1_ms).ok()?,
+                    parlante: u32::try_from(s.speaker_id).ok()?,
+                })
+            })
+            .filter(|t| t.fine_ms > t.inizio_ms)
+            .collect();
+        turns.sort_by_key(|t| (t.inizio_ms, t.parlante));
+        Ok(turns)
     }
 }
 

@@ -4,32 +4,46 @@ import catalog from "../../../src-tauri/src/managers/models.json";
 export interface Credit {
   /** Chi l'ha creato, per l'attribuzione. */
   author?: string;
-  /** I modelli si scaricano nella versione GGUF di handy-computer. */
-  converted?: boolean;
   /** Il file del testo della licenza in `src-tauri/resources/licenses`. */
   file: string;
   license: string;
   name: string;
   /** Avvisi di terze parti, in un file a parte. */
   notices?: string;
+  /** I modelli si scaricano nella versione GGUF di handy-computer, con questa quantizzazione. */
+  quantization?: string;
   /** Quale parte di Sbobino è: la chiave in `about.roles`. */
-  role: "decoder" | "engine" | "model" | "onnx" | "vad" | "vadRs";
+  role:
+    | "decoder"
+    | "diarization"
+    | "engine"
+    | "model"
+    | "onnx"
+    | "vad"
+    | "vadRs";
   url: string;
 }
 
 /** Nome e licenza di un modello vengono dal catalogo. */
-function model(id: string, author: string, file: string, url: string): Credit {
+function model(
+  id: string,
+  author: string,
+  file: string,
+  url: string,
+  role: Credit["role"] = "model",
+  quantization = "Q5_K_M"
+): Credit {
   const entry = catalog.modelli.find((m) => m.id === id);
   if (!entry) {
     throw new Error(`modello ${id} non nel catalogo`);
   }
   return {
     author,
-    converted: true,
     file,
     license: entry.licenza,
     name: entry.nome,
-    role: "model",
+    quantization,
+    role,
     url,
   };
 }
@@ -53,6 +67,14 @@ export const CREDITS: Credit[] = [
     "OpenAI",
     "whisper-large-v3-turbo.txt",
     "https://github.com/openai/whisper"
+  ),
+  model(
+    "sortformer-4spk-v2.1-q8",
+    "NVIDIA",
+    "diar_streaming_sortformer_4spk-v2.1.txt",
+    "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1",
+    "diarization",
+    "Q8_0"
   ),
   {
     author: "Silero Team",

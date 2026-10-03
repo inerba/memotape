@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { commands, type ModelInfo } from "@/bindings";
+import { commands, type ModelInfo, type ModelKind } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,18 +17,20 @@ import { useModels } from "@/features/models/use-models";
 import { errorText } from "@/features/status/status";
 
 /**
- * I modelli del catalogo: la scelta del modello (`selected`), download, Annulla ed Elimina.
- * Il download prosegue anche fuori da qui.
+ * I modelli del catalogo di un tipo: download, Annulla ed Elimina, e per i modelli di trascrizione
+ * la scelta (`selected`). Il download prosegue anche fuori da qui.
  */
 export function ModelList({
+  kind,
   onSelect,
   selected,
 }: {
-  onSelect: (id: string) => void;
-  selected: string;
+  kind: ModelKind;
+  onSelect?: (id: string) => void;
+  selected?: string;
 }) {
   const { t } = useTranslation();
-  const models = useModels();
+  const models = useModels().filter((m) => m.kind === kind);
   const [toDelete, setToDelete] = useState<ModelInfo | null>(null);
 
   // Esito ed errori arrivano con `model-state-changed`.
@@ -49,7 +51,11 @@ export function ModelList({
   return (
     <>
       <ul
-        aria-label={t("models.choose")}
+        aria-label={
+          kind === "trascrizione"
+            ? t("models.choose")
+            : t("settings.transcription.diarization")
+        }
         className="flex flex-col divide-y rounded-md border"
       >
         {models.map((model) => (
@@ -98,7 +104,7 @@ function ModelRow({
   onCancel: (id: string) => void;
   onDelete: (model: ModelInfo) => void;
   onDownload: (id: string) => void;
-  onSelect: (id: string) => void;
+  onSelect?: (id: string) => void;
   selected: boolean;
 }) {
   const { t } = useTranslation();
@@ -109,21 +115,23 @@ function ModelRow({
     () => onDownload(model.id),
     [onDownload, model.id]
   );
-  const select = useCallback(() => onSelect(model.id), [onSelect, model.id]);
+  const select = useCallback(() => onSelect?.(model.id), [onSelect, model.id]);
   const radio = `model-${model.id}`;
 
   return (
     <li className="flex flex-col gap-2 p-4">
       <div className="flex items-center gap-3">
-        <input
-          checked={selected}
-          className="size-4 shrink-0 accent-primary"
-          id={radio}
-          name="model"
-          onChange={select}
-          type="radio"
-          value={model.id}
-        />
+        {onSelect ? (
+          <input
+            checked={selected}
+            className="size-4 shrink-0 accent-primary"
+            id={radio}
+            name="model"
+            onChange={select}
+            type="radio"
+            value={model.id}
+          />
+        ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <label className="font-medium" htmlFor={radio}>
@@ -138,9 +146,11 @@ function ModelRow({
           <p className="text-muted-foreground text-sm">
             {[
               t("models.size", { mb: mebibytes(model.size) }),
-              t(`models.mode.${model.mode}`),
+              model.mode ? t(`models.mode.${model.mode}`) : null,
               t("models.license", { license: model.license }),
-            ].join(" · ")}
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {state === "notDownloaded" ? (

@@ -41,8 +41,8 @@ pub struct Phrase {
     pub fine_ms: u32,
     pub text: String,
     pub ingresso: Ingresso,
-    /// Il nome del Parlante (`Parlante 2` o quello dato dall'utente), con la Diarizzazione.
-    pub parlante: Option<String>,
+    /// Il Parlante (da 1, per ordine di comparsa), con la Diarizzazione.
+    pub parlante: Option<u32>,
 }
 
 /// Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
@@ -63,11 +63,15 @@ impl Phrase {
             Ingresso::Microfono => Some(labels.get("/settings/recording/inputs/mic")),
             Ingresso::Sistema => Some(labels.get("/settings/recording/inputs/system")),
         };
-        match (ingresso, &self.parlante) {
+        let parlante = self.parlante.map(|n| {
+            labels
+                .get("/transcript/parlante")
+                .replace("{{n}}", &n.to_string())
+        });
+        match (ingresso, parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
             (Some(ingresso), None) => Some(ingresso.to_string()),
-            (None, Some(parlante)) => Some(parlante.clone()),
-            (None, None) => None,
+            (None, parlante) => parlante,
         }
     }
 }
@@ -222,10 +226,10 @@ mod tests {
         }
     }
 
-    fn voice(ingresso: Ingresso, parlante: Option<&str>, text: &str) -> Phrase {
+    fn voice(ingresso: Ingresso, parlante: Option<u32>, text: &str) -> Phrase {
         Phrase {
             ingresso,
-            parlante: parlante.map(Into::into),
+            parlante,
             ..phrase(0, 0, text)
         }
     }
@@ -292,16 +296,16 @@ mod tests {
         let text = markdown(&transcript(vec![
             voice(Ingresso::Microfono, None, "Mi senti?"),
             voice(Ingresso::Microfono, None, "Pronto?"),
-            voice(Ingresso::Sistema, Some("Parlante 1"), "Sì."),
-            voice(Ingresso::Sistema, Some("Anna"), "Anch'io."),
-            voice(Ingresso::Sistema, Some("Anna"), "Ciao."),
-            voice(Ingresso::Mix, Some("Parlante 2"), "Eccomi."),
+            voice(Ingresso::Sistema, Some(1), "Sì."),
+            voice(Ingresso::Sistema, Some(3), "Anch'io."),
+            voice(Ingresso::Sistema, Some(3), "Ciao."),
+            voice(Ingresso::Mix, Some(2), "Eccomi."),
         ]));
         assert!(
             text.ends_with(
                 "\n**Microfono:** Mi senti? Pronto?\n\
                  \n**Audio di sistema · Parlante 1:** Sì.\n\
-                 \n**Audio di sistema · Anna:** Anch'io. Ciao.\n\
+                 \n**Audio di sistema · Parlante 3:** Anch'io. Ciao.\n\
                  \n**Parlante 2:** Eccomi.\n"
             ),
             "{text}"
@@ -311,8 +315,8 @@ mod tests {
     #[test]
     fn il_testo_semplice_non_ha_sintassi_markdown() {
         let document = transcript(vec![
-            voice(Ingresso::Mix, Some("Parlante 1"), "Uno."),
-            voice(Ingresso::Mix, Some("Parlante 2"), "Due."),
+            voice(Ingresso::Mix, Some(1), "Uno."),
+            voice(Ingresso::Mix, Some(2), "Due."),
         ]);
         let text = render(&document, &Labels::of(Language::It), CopiaCome::Testo);
         assert_eq!(
@@ -406,6 +410,7 @@ mod tests {
                 "/transcript/date",
                 "/transcript/duration",
                 "/transcript/model",
+                "/transcript/parlante",
                 "/speechLanguage/label",
                 "/settings/recording/inputs/mic",
                 "/settings/recording/inputs/system",

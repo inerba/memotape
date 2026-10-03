@@ -7,7 +7,7 @@ export type Status =
   | { phase: "recording"; paused: boolean; liveError?: AppError }
   | { phase: "completing"; percent: number | null }
   | { phase: "recorded"; path: string }
-  | { phase: "transcribing"; percent: number | null }
+  | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
   | { phase: "finished"; mdPath: string; chars: number }
   | { phase: "noSpeech" }
   | { phase: "cancelled" }
@@ -31,6 +31,9 @@ export function statusText(status: Status, t: TFunction): string {
     case "recorded":
       return t("status.recorded", { path: status.path });
     case "transcribing":
+      if (status.diarizing) {
+        return t("status.diarizing");
+      }
       return status.percent === null
         ? t("status.transcribing")
         : t("status.transcribingPercent", { percent: status.percent });
@@ -73,6 +76,13 @@ export function withProgress(status: Status, percent: number | null): Status {
   }
 }
 
+/** Applica `diarization-started`: la Trascrizione è finita, ora si riconoscono i parlanti. */
+export function withDiarizing(status: Status): Status {
+  return status.phase === "transcribing"
+    ? { diarizing: true, percent: null, phase: "transcribing" }
+    : status;
+}
+
 /** Applica `live-transcription-failed`: la Registrazione continua e la status bar lo dice. */
 export function withLiveError(status: Status, liveError: AppError): Status {
   return status.phase === "recording" ? { ...status, liveError } : status;
@@ -81,7 +91,11 @@ export function withLiveError(status: Status, liveError: AppError): Status {
 /** Se accanto al messaggio serve il link alle Impostazioni, per scaricare o cambiare modello. */
 export function needsSettings(status: Status): boolean {
   const code = shownError(status)?.code;
-  return code === "modelMissing" || code === "liveTranscriptionUnavailable";
+  return (
+    code === "modelMissing" ||
+    code === "diarizerMissing" ||
+    code === "liveTranscriptionUnavailable"
+  );
 }
 
 function shownError(status: Status): AppError | undefined {

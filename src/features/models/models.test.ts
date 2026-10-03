@@ -14,6 +14,7 @@ const nemotron: ModelInfo = {
   error: null,
   id: "nemotron",
   inUse: false,
+  kind: "trascrizione",
   languages: null,
   license: "OpenMDW-1.1",
   mode: "stream",

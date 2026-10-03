@@ -27,6 +27,15 @@
       "size": 548946272,
       "modalita": "frase",
       "licenza": "CC-BY-4.0"
+    },
+    {
+      "id": "sortformer-4spk-v2.1-q8",
+      "tipo": "diarizzazione",
+      "nome": "Sortformer 4spk v2.1",
+      "url": "https://huggingface.co/handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf/resolve/ae4afbb5c3d33b71cf2dbf600022b655ee706dd0/diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf",
+      "sha256": "a5dacdc650790266c7a362e54e6bf51952015487edaa606c4e11632bc32442a9",
+      "size": 139310336,
+      "licenza": "NVIDIA Open Model License"
     }
   ]
 }

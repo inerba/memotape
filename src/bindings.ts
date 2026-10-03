@@ -94,10 +94,12 @@ export const commands = {
 /** Events */
 export const events = {
 	binoRequested: makeEvent<BinoRequested>("bino-requested"),
+	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
 	recordingTick: makeEvent<RecordingTick>("recording-tick"),
+	speakersAssigned: makeEvent<SpeakersAssigned>("speakers-assigned"),
 	transcriptPartial: makeEvent<TranscriptPartial>("transcript-partial"),
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
@@ -105,6 +107,11 @@ export const events = {
 
 /* Types */
 export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+/**
+ *  Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
+ *  scaricato.
+ */
+{ code: "diarizerMissing"; detail: string } | 
 /**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 { code: "modelInUse"; detail: string } | { code: "downloadFailed"; detail: string } | 
 /**  Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo. */
@@ -141,6 +148,9 @@ export type Channels = "mono" | "stereo";
 export type CopiaCome = 
 /**  Testo semplice, senza sintassi Markdown. */
 "testo" | "markdown";
+
+/**  Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti). */
+export type DiarizationStarted = null;
 
 /**
  *  Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
@@ -204,7 +214,9 @@ export type ModelInfo = {
 	name: string,
 	/**  Byte da scaricare. */
 	size: number,
-	mode: Mode,
+	kind: ModelKind,
+	/**  `null` per il modello di diarizzazione. */
+	mode: Mode | null,
 	license: string,
 	/**  Consigliato e predefinito. */
 	recommended: boolean,
@@ -219,6 +231,12 @@ export type ModelInfo = {
 	/**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 	inUse: boolean,
 };
+
+/**
+ *  Cosa fa un modello: trascrive (si sceglie in Impostazioni), oppure diarizza (uno solo, per
+ *  "Riconosci i parlanti").
+ */
+export type ModelKind = "trascrizione" | "diarizzazione";
 
 /**  Lo stato di un modello per l'interfaccia. */
 export type ModelState = { state: "notDownloaded" } | 
@@ -284,6 +302,25 @@ export type Settings = {
 	modalitaDalVivo?: ModalitaDalVivo,
 	/**  Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo. */
 	copiaCome?: CopiaCome,
+	/**
+	 *  Riconosci i parlanti: Trascrivi su un file diarizza dopo la Trascrizione. Manca nei file
+	 *  salvati prima che esistesse: allora è spenta.
+	 */
+	parlantiFile?: boolean,
+};
+
+export type SpeakerAssignment = {
+	ingresso: Ingresso,
+	phraseId: number,
+	parlante: number | null,
+};
+
+/**
+ *  I Parlanti delle Frasi dopo la Diarizzazione: `parlante` da 1 per ordine di comparsa, `null` se
+ *  nessuno parlava durante la Frase.
+ */
+export type SpeakersAssigned = {
+	speakers: SpeakerAssignment[],
 };
 
 /**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
@@ -312,6 +349,11 @@ export type TranscriptPhrase = {
 	text: string,
 	/**  Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri. */
 	ingresso: Ingresso,
+	/**
+	 *  Il Parlante, da 1: c'è nelle Frasi di un Bino diarizzato. Durante una Trascrizione arriva
+	 *  dopo, con `speakers-assigned`.
+	 */
+	parlante: number | null,
 };
 
 /**  Dove è il Markdown salvato e quanti caratteri contiene. */

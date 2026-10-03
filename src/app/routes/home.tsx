@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
-import { commands, events } from "@/bindings";
+import { type AppError, commands, events } from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ import {
   needsSettings,
   type Status,
   statusText,
+  withDiarizing,
   withLiveError,
   withProgress,
 } from "@/features/status/status";
@@ -41,6 +42,7 @@ import {
   conversationText,
   EMPTY_CONVERSATION,
   withoutPartials,
+  withParlanti,
   withPartial,
   withPhrase,
 } from "@/features/transcription/phrases";
@@ -115,6 +117,13 @@ export function HomePage() {
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       setStatus((current) => withProgress(current, payload.percent));
     });
+    // Finita la Trascrizione, Riconosci i parlanti attribuisce le Frasi ai Parlanti.
+    const diarizing = events.diarizationStarted.listen(() => {
+      setStatus(withDiarizing);
+    });
+    const assigned = events.speakersAssigned.listen(({ payload }) => {
+      setConversation((current) => withParlanti(current, payload.speakers));
+    });
     // La Trascrizione dal vivo si è fermata: la Registrazione continua senza testo.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
       setConversation(withoutPartials);
@@ -131,6 +140,8 @@ export function HomePage() {
       partials.then((stop) => stop());
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
+      diarizing.then((stop) => stop());
+      assigned.then((stop) => stop());
       binoRequested.then((stop) => stop());
     };
   }, []);
@@ -299,17 +310,9 @@ export function HomePage() {
     }
   }, [confirmReplace, openBino, record, transcribe]);
 
-  const toggleLive = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const error = await save({
-        ...settings,
-        trascrizioneDalVivo: e.target.checked,
-      });
-      if (error) {
-        setStatus({ error, phase: "failed" });
-      }
-    },
-    [save, settings]
+  const failed = useCallback(
+    (error: AppError) => setStatus({ error, phase: "failed" }),
+    []
   );
 
   const cancel = useCallback(async () => {
@@ -375,16 +378,12 @@ export function HomePage() {
               <Circle className="fill-destructive text-destructive" />
               {t("recording.start")}
             </Button>
-            <label className="flex shrink-0 items-center gap-2 text-sm has-[:disabled]:opacity-50">
-              <input
-                checked={live}
-                className="size-4 accent-primary"
-                disabled={busy}
-                onChange={toggleLive}
-                type="checkbox"
-              />
-              {t("recording.live")}
-            </label>
+            <SettingCheckbox
+              disabled={busy}
+              label={t("recording.live")}
+              name="trascrizioneDalVivo"
+              onError={failed}
+            />
             {source ? (
               <div className="min-w-0 flex-1">
                 <button
@@ -420,6 +419,13 @@ export function HomePage() {
                 </option>
               ))}
             </select>
+            <SettingCheckbox
+              disabled={busy}
+              label={t("transcription.parlanti")}
+              name="parlantiFile"
+              note={t("transcription.parlantiNote")}
+              onError={failed}
+            />
             <Button disabled={!source || busy} onClick={requestTranscription}>
               {running ? t("transcription.running") : t("transcription.start")}
             </Button>
@@ -492,6 +498,47 @@ export function HomePage() {
       </div>
       {settingsPage}
     </>
+  );
+}
+
+/** Una casella della barra che salva subito un'impostazione; un errore va nella status bar. */
+function SettingCheckbox({
+  disabled,
+  label,
+  name,
+  note,
+  onError,
+}: {
+  disabled: boolean;
+  label: string;
+  name: "parlantiFile" | "trascrizioneDalVivo";
+  note?: string;
+  onError: (error: AppError) => void;
+}) {
+  const { save, settings } = useSettings();
+  const change = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const error = await save({ ...settings, [name]: e.target.checked });
+      if (error) {
+        onError(error);
+      }
+    },
+    [name, onError, save, settings]
+  );
+  return (
+    <label
+      className="flex shrink-0 items-center gap-2 text-sm has-[:disabled]:opacity-50"
+      title={note}
+    >
+      <input
+        checked={settings[name] ?? false}
+        className="size-4 accent-primary"
+        disabled={disabled}
+        onChange={change}
+        type="checkbox"
+      />
+      {label}
+    </label>
   );
 }
 

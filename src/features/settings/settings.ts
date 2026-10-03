@@ -50,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   modalitaDalVivo: "mix",
   model: catalog.predefinito,
   outputDevice: null,
+  parlantiFile: false,
   recordingSource: "mic",
   recordingsFolder: null,
   sampleRate: 48_000,
@@ -73,6 +74,8 @@ export const settingsSchema = z.object({
   modalitaDalVivo: z.enum(["mix", "ingressiSeparati"]).optional(),
   model: z.string().min(1),
   outputDevice: z.string().nullable(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  parlantiFile: z.boolean().optional(),
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),

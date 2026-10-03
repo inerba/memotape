@@ -41,6 +41,10 @@ pub struct Settings {
     /// Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo.
     #[serde(default)]
     pub copia_come: CopiaCome,
+    /// Riconosci i parlanti: Trascrivi su un file diarizza dopo la Trascrizione. Manca nei file
+    /// salvati prima che esistesse: allora è spenta.
+    #[serde(default)]
+    pub parlanti_file: bool,
 }
 
 #[derive(
@@ -160,6 +164,7 @@ impl Default for Settings {
             trascrizione_dal_vivo: false,
             modalita_dal_vivo: ModalitaDalVivo::Mix,
             copia_come: CopiaCome::Testo,
+            parlanti_file: false,
         }
     }
 }
@@ -190,7 +195,7 @@ impl Settings {
         };
         Ok(match serde_json::from_slice::<Self>(&read) {
             Ok(mut settings) if settings.is_valid() => {
-                if models::find(&settings.model).is_none() {
+                if models::find_transcriber(&settings.model).is_none() {
                     log::warn!("modello {} non più nel catalogo", settings.model);
                     settings.model = Self::default().model;
                 }
@@ -209,7 +214,7 @@ impl Settings {
 
     /// Scrive `path` passando da un file temporaneo, così un'interruzione non lo lascia a metà.
     pub fn save(&self, path: &Path) -> Result<(), AppError> {
-        if !self.is_valid() || models::find(&self.model).is_none() {
+        if !self.is_valid() || models::find_transcriber(&self.model).is_none() {
             return Err(AppError::Internal(format!(
                 "impostazioni non valide: {self:?}"
             )));
@@ -274,7 +279,7 @@ impl SettingsStore {
 
     /// Il modello di `settings`, che sono validate: è nel catalogo.
     pub fn model_of(settings: &Settings) -> &'static models::Model {
-        models::find(&settings.model).unwrap_or_else(models::default_model)
+        models::find_transcriber(&settings.model).unwrap_or_else(models::default_model)
     }
 
     pub fn get(&self) -> Settings {
@@ -329,6 +334,7 @@ mod tests {
         assert!(!settings.trascrizione_dal_vivo);
         assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
+        assert!(!settings.parlanti_file);
     }
 
     #[test]
@@ -374,12 +380,14 @@ mod tests {
         object.remove("trascrizioneDalVivo");
         object.remove("modalitaDalVivo");
         object.remove("copiaCome");
+        object.remove("parlantiFile");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
         assert!(!settings.trascrizione_dal_vivo);
         assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
+        assert!(!settings.parlanti_file);
     }
 
     #[test]
@@ -451,6 +459,7 @@ mod tests {
             trascrizione_dal_vivo: true,
             modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
             copia_come: CopiaCome::Markdown,
+            parlanti_file: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

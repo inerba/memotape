@@ -98,7 +98,6 @@ impl Document {
             lingua_parlato,
             completa,
             parlanti: BTreeMap::new(),
-            // ponytail: il Parlante arriva con la Diarizzazione.
             frasi: phrases
                 .iter()
                 .zip(0..)
@@ -108,7 +107,7 @@ impl Document {
                     fine_ms: phrase.fine_ms,
                     testo: phrase.text.clone(),
                     ingresso: phrase.ingresso,
-                    parlante: None,
+                    parlante: phrase.parlante,
                 })
                 .collect(),
         }

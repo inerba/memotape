@@ -300,7 +300,20 @@ export function SettingsPage() {
           id="settings-transcription"
           title={t("settings.transcription.title")}
         >
-          <ModelList onSelect={selectModel} selected={settings.model} />
+          <ModelList
+            kind="trascrizione"
+            onSelect={selectModel}
+            selected={settings.model}
+          />
+          <div className="flex flex-col gap-1">
+            <h3 className="font-medium text-sm">
+              {t("settings.transcription.diarization")}
+            </h3>
+            <p className="text-muted-foreground text-sm">
+              {t("settings.transcription.diarizationDescription")}
+            </p>
+          </div>
+          <ModelList kind="diarizzazione" />
         </Section>
         <Section
           description={t("settings.general.description")}

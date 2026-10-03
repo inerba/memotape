@@ -10,6 +10,7 @@ test("Informazioni elenca le licenze della spec, Parakeet per primo", () => {
     ["Parakeet TDT v3 0.6B", "CC-BY-4.0"],
     ["Nemotron Streaming 3.5 0.6B", "OpenMDW-1.1"],
     ["Whisper Large v3 Turbo", "MIT"],
+    ["Sortformer 4spk v2.1", "NVIDIA Open Model License"],
     ["Silero VAD v4", "MIT"],
     ["Symphonia", "MPL-2.0"],
     ["transcribe.cpp", "MIT"],

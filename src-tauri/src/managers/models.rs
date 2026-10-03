@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -13,8 +14,10 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use tokio::sync::Notify;
+use transcribe_cpp::CancelToken;
 
-use crate::engine::transcribe_cpp::TranscribeCpp;
+use crate::engine::diarize::Turn;
+use crate::engine::transcribe_cpp::{Sortformer, TranscribeCpp};
 use crate::error::AppError;
 use crate::managers::loaded_model::{Lease, LoadedModel};
 
@@ -29,10 +32,26 @@ pub struct Model {
     pub sha256: String,
     /// Byte; tutti i modelli stanno sotto i 4 GiB.
     pub size: u32,
-    #[serde(rename = "modalita")]
-    pub mode: Mode,
+    /// Un modello di trascrizione, o il modello di diarizzazione (Sortformer).
+    #[serde(rename = "tipo", default)]
+    pub kind: ModelKind,
+    /// Solo per i modelli di trascrizione.
+    #[serde(rename = "modalita", default)]
+    pub mode: Option<Mode>,
     #[serde(rename = "licenza")]
     pub license: String,
+}
+
+/// Cosa fa un modello: trascrive (si sceglie in Impostazioni), oppure diarizza (uno solo, per
+/// "Riconosci i parlanti").
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelKind {
+    #[default]
+    Trascrizione,
+    Diarizzazione,
 }
 
 /// Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase.
@@ -83,6 +102,19 @@ pub fn default_model() -> &'static Model {
 
 pub fn find(id: &str) -> Option<&'static Model> {
     catalog().iter().find(|m| m.id == id)
+}
+
+/// Il modello di trascrizione `id`: quello di diarizzazione non si sceglie.
+pub fn find_transcriber(id: &str) -> Option<&'static Model> {
+    find(id).filter(|m| m.kind == ModelKind::Trascrizione)
+}
+
+/// Il modello di diarizzazione (Sortformer).
+pub fn diarizer() -> &'static Model {
+    catalog()
+        .iter()
+        .find(|m| m.kind == ModelKind::Diarizzazione)
+        .expect("il modello di diarizzazione è nel catalogo")
 }
 
 /// Lo stato di un modello per l'interfaccia.
@@ -299,7 +331,9 @@ pub struct ModelInfo {
     pub name: String,
     /// Byte da scaricare.
     pub size: u32,
-    pub mode: Mode,
+    pub kind: ModelKind,
+    /// `null` per il modello di diarizzazione.
+    pub mode: Option<Mode>,
     pub license: String,
     /// Consigliato e predefinito.
     pub recommended: bool,
@@ -347,6 +381,31 @@ pub struct Models {
     loaded: LoadedModel<TranscribeCpp>,
     /// Le lingue dei modelli caricati almeno una volta.
     languages: Mutex<HashMap<&'static str, Vec<String>>>,
+    /// Il modello di diarizzazione si sta caricando o lo usa una Diarizzazione.
+    diarizing: AtomicBool,
+}
+
+/// Sortformer prenotato per una Trascrizione con Riconosci i parlanti: dalla prenotazione al drop il
+/// modello è in uso e non si elimina, così a fine Trascrizione c'è ancora.
+pub struct DiarizerLease {
+    app: AppHandle,
+}
+
+impl DiarizerLease {
+    /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio. Sortformer si carica
+    /// qui e non resta in memoria: si carica in pochi istanti e serve solo a fine Trascrizione.
+    pub fn diarize(&self, audio: &[f32], cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
+        let path = diarizer().path(&self.app.state::<Models>().dir);
+        Ok(Sortformer::load(&path)?.diarize(audio, cancel)?)
+    }
+}
+
+impl Drop for DiarizerLease {
+    fn drop(&mut self) {
+        let models = self.app.state::<Models>();
+        models.diarizing.store(false, Ordering::SeqCst);
+        models.emit_state(&self.app, diarizer());
+    }
 }
 
 impl Models {
@@ -365,11 +424,13 @@ impl Models {
             entries: Mutex::default(),
             loaded: LoadedModel::default(),
             languages: Mutex::default(),
+            diarizing: AtomicBool::new(false),
         })
     }
 
     pub fn list(&self) -> Vec<ModelInfo> {
         let in_use = self.loaded.in_use();
+        let diarizing = self.diarizing.load(Ordering::SeqCst);
         let languages = lock(&self.languages);
         catalog()
             .iter()
@@ -379,13 +440,15 @@ impl Models {
                     id: model.id.clone(),
                     name: model.name.clone(),
                     size: model.size,
+                    kind: model.kind,
                     mode: model.mode,
                     license: model.license.clone(),
                     recommended: model.id == CATALOG.default,
                     state,
                     error,
                     languages: languages.get(model.id.as_str()).cloned(),
-                    in_use: in_use == Some(model.id.as_str()),
+                    in_use: in_use == Some(model.id.as_str())
+                        || (model.kind == ModelKind::Diarizzazione && diarizing),
                 }
             })
             .collect()
@@ -431,6 +494,24 @@ impl Models {
         let engine = loaded.inspect_err(|_| self.emit_state(app, model))?;
         lock(&self.languages).insert(id, engine.languages().to_vec());
         Ok(engine)
+    }
+
+    /// Prenota Sortformer per la Trascrizione che parte: `diarizerMissing` con il suo nome se non è
+    /// scaricato, così Riconosci i parlanti lo dice prima di trascrivere e non dopo.
+    pub fn reserve_diarizer(&self, app: &AppHandle) -> Result<DiarizerLease, AppError> {
+        let model = diarizer();
+        {
+            // Sotto il lock di `entries`, come `delete`: il file non sparisce intanto.
+            let _entries = self.entries();
+            if disk_state(model, &self.dir) != ModelState::Downloaded {
+                return Err(AppError::DiarizerMissing(model.name.clone()));
+            }
+            if self.diarizing.swap(true, Ordering::SeqCst) {
+                return Err(AppError::ModelInUse(model.id.clone()));
+            }
+        }
+        self.emit_state(app, model);
+        Ok(DiarizerLease { app: app.clone() })
     }
 
     /// Restituisce il motore, che resta caricato, oppure lo scarta (`keep` falso) dopo un guasto.
@@ -521,6 +602,9 @@ impl Models {
             }
             // Il file di un modello caricato resta aperto: prima si scarica il motore.
             self.loaded.evict(id)?;
+            if model.kind == ModelKind::Diarizzazione && self.diarizing.load(Ordering::SeqCst) {
+                return Err(AppError::ModelInUse(model.id.clone()));
+            }
             let deleted = delete(model, &self.dir);
             match &deleted {
                 Ok(()) => entries.remove(id),
@@ -596,19 +680,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn il_catalogo_ha_i_tre_modelli_con_nemotron_predefinito() {
+    fn il_catalogo_ha_i_tre_modelli_con_nemotron_predefinito_e_sortformer() {
         let ids: Vec<_> = catalog().iter().map(|m| m.id.as_str()).collect();
         assert_eq!(
             ids,
             [
                 "nemotron-3.5-streaming-0.6b-q5km",
                 "whisper-large-v3-turbo-q5km",
-                "parakeet-tdt-0.6b-v3-q5km"
+                "parakeet-tdt-0.6b-v3-q5km",
+                "sortformer-4spk-v2.1-q8"
             ]
         );
         let nemotron = default_model();
         assert_eq!(nemotron.id, ids[0]);
-        assert_eq!(nemotron.mode, Mode::Stream);
+        assert_eq!(nemotron.mode, Some(Mode::Stream));
+        assert!(ids[..3].iter().all(|id| find_transcriber(id).is_some()));
+        // Sortformer non si sceglie come modello di trascrizione.
+        assert_eq!(diarizer().id, ids[3]);
+        assert_eq!(diarizer().mode, None);
+        assert!(find_transcriber(ids[3]).is_none());
         assert_eq!(
             nemotron.file_name(),
             "nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf"
@@ -734,7 +824,8 @@ mod tests {
             url: server.url.clone(),
             sha256: hex(&Sha256::digest(body)),
             size: u32::try_from(body.len()).unwrap(),
-            mode: Mode::Phrase,
+            kind: ModelKind::Trascrizione,
+            mode: Some(Mode::Phrase),
             license: "MIT".into(),
         }
     }

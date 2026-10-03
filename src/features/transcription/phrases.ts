@@ -1,5 +1,10 @@
 import type { TFunction } from "i18next";
-import type { Ingresso, TranscriptPartial, TranscriptPhrase } from "@/bindings";
+import type {
+  Ingresso,
+  SpeakerAssignment,
+  TranscriptPartial,
+  TranscriptPhrase,
+} from "@/bindings";
 
 /**
  * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio e il Parziale in corso di
@@ -55,15 +60,44 @@ export function withoutPartials(conversation: Conversation): Conversation {
   return { ...conversation, partials: [] };
 }
 
+/** Applica `speakers-assigned`: il Parlante di ogni Frase dopo la Diarizzazione. */
+export function withParlanti(
+  conversation: Conversation,
+  assignments: SpeakerAssignment[]
+): Conversation {
+  return {
+    ...conversation,
+    phrases: conversation.phrases.map((phrase) => {
+      const assigned = assignments.find(
+        (s) => s.ingresso === phrase.ingresso && s.phraseId === phrase.phraseId
+      );
+      return assigned ? { ...phrase, parlante: assigned.parlante } : phrase;
+    }),
+  };
+}
+
 const INGRESSO_LABELS = {
   microfono: "settings.recording.inputs.mic",
   sistema: "settings.recording.inputs.system",
 } as const;
 
+/** `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta, come nel Markdown. */
+function voiceLabel(
+  ingresso: Ingresso,
+  parlante: number | null | undefined,
+  t: TFunction
+): string | null {
+  const parts = [
+    ingresso === "mix" ? null : t(INGRESSO_LABELS[ingresso]),
+    parlante ? t("transcript.parlante", { n: parlante }) : null,
+  ].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /**
  * Il testo dell'area: una Frase per riga in ordine di inizio, con i Parziali al loro posto. Con gli
- * Ingressi separati è una conversazione: ogni turno di un Ingresso comincia con la sua etichetta
- * (`Microfono:`) su una riga, dopo una riga vuota.
+ * Ingressi separati o i Parlanti è una conversazione: ogni turno di una voce comincia con la sua
+ * etichetta (`Microfono:`, `Parlante 1:`) su una riga, dopo una riga vuota.
  */
 export function conversationText(
   phrases: TranscriptPhrase[],
@@ -71,16 +105,26 @@ export function conversationText(
   t: TFunction
 ): string {
   const lines: string[] = [];
-  let previous: Ingresso = "mix";
-  for (const { ingresso, text } of partials.reduce(byStart, phrases)) {
-    if (ingresso !== "mix" && ingresso !== previous) {
+  let previous: string | null = null;
+  for (const item of partials.reduce<(TranscriptPhrase | TranscriptPartial)[]>(
+    byStart,
+    phrases
+  )) {
+    const label = voiceLabel(
+      item.ingresso,
+      "parlante" in item ? item.parlante : null,
+      t
+    );
+    if (label !== previous) {
       if (lines.length > 0) {
         lines.push("");
       }
-      lines.push(`${t(INGRESSO_LABELS[ingresso])}:`);
+      if (label) {
+        lines.push(`${label}:`);
+      }
     }
-    previous = ingresso;
-    lines.push(text);
+    previous = label;
+    lines.push(item.text);
   }
   return lines.join("\n");
 }

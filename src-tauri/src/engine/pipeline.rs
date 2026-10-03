@@ -136,18 +136,31 @@ pub fn transcribe(
     Ok(to_ms(events.received))
 }
 
-/// Trascrive il file `source` come `transcribe`, con il progresso della decodifica.
+/// Trascrive il file `source` come `transcribe`, con il progresso della decodifica. Se c'è,
+/// `audio` riceve tutti i frame dati alla pipeline (la Diarizzazione vuole l'audio intero).
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
     language: Option<&str>,
+    audio: Option<&mut Vec<f32>>,
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
     let mut frames = FileFrames::open(source)?;
     on_event(PipelineEvent::Progress(frames.progress));
-    transcribe(&mut frames, engine, detector, language, cancel, on_event)
+    match audio {
+        // ponytail: l'audio intero in memoria (230 MB l'ora); Sortformer lo vuole tutto in un buffer.
+        Some(audio) => {
+            let mut kept = frames.by_ref().inspect(|feed| {
+                if let Ok(Feed::Frame(frame)) = feed {
+                    audio.extend_from_slice(frame);
+                }
+            });
+            transcribe(&mut kept, engine, detector, language, cancel, on_event)
+        }
+        None => transcribe(&mut frames, engine, detector, language, cancel, on_event),
+    }
 }
 
 /// Millisecondi dall'inizio della Sorgente a `frames` frame.
@@ -428,6 +441,7 @@ pub(crate) mod tests {
             engine,
             &mut EnergyDetector,
             None,
+            None,
             &cancel,
             &mut |event| {
                 events.push(event);
@@ -455,6 +469,29 @@ pub(crate) mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn transcribe_file_tiene_tutto_l_audio_a_16_khz_per_la_diarizzazione() {
+        let path = wav("audio-tenuto", 44_100, 2, &[(1.0, true), (1.0, false)]);
+        let mut audio = Vec::new();
+        let durata_ms = transcribe_file(
+            &path,
+            &mut FakeEngine::default(),
+            &mut EnergyDetector,
+            None,
+            Some(&mut audio),
+            &CancelToken::new(),
+            &mut |_| {},
+        )
+        .unwrap();
+        // Tutti i frame dati alla pipeline, e solo quelli: la durata restituita è la loro.
+        assert_eq!(audio.len() % FRAME_SAMPLES, 0);
+        assert_eq!(audio.len() as u32 / 16, durata_ms);
+        assert!((1950..=2050).contains(&durata_ms), "{durata_ms}");
+        // Il tono del primo secondo c'è, il silenzio del secondo anche.
+        assert!(audio[..14_000].iter().any(|s| s.abs() > 0.1));
+        assert!(audio[18_000..].iter().all(|s| s.abs() < 0.01));
     }
 
     #[test]
@@ -501,6 +538,7 @@ pub(crate) mod tests {
             &mut engine,
             &mut EnergyDetector,
             Some("it"),
+            None,
             &CancelToken::new(),
             &mut |event| events.push(event),
         )
@@ -614,6 +652,7 @@ pub(crate) mod tests {
             &mut engine,
             &mut EnergyDetector,
             None,
+            None,
             &cancel,
             &mut |event| {
                 if let PipelineEvent::Phrase { id, .. } = event {
@@ -639,6 +678,7 @@ pub(crate) mod tests {
             &path,
             &mut engine,
             &mut EnergyDetector,
+            None,
             None,
             &cancel,
             &mut |_| {
@@ -844,7 +884,10 @@ pub(crate) mod tests {
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
-        for model in crate::managers::models::catalog() {
+        for model in crate::managers::models::catalog()
+            .iter()
+            .filter(|m| m.mode.is_some())
+        {
             let mut engine =
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
             println!("{}: lingue {:?}", model.id, engine.languages());
@@ -858,6 +901,7 @@ pub(crate) mod tests {
                     &mut engine,
                     &mut detector,
                     language,
+                    None,
                     &cancel,
                     &mut |event| match event {
                         PipelineEvent::Phrase { id, text, .. } => {
@@ -877,7 +921,7 @@ pub(crate) mod tests {
                 // Solo Nemotron è in streaming: gli altri trascrivono la Frase intera.
                 assert_eq!(
                     !partials.is_empty(),
-                    model.mode == crate::managers::models::Mode::Stream,
+                    model.mode == Some(crate::managers::models::Mode::Stream),
                     "{} {name}",
                     model.id
                 );

@@ -6,14 +6,16 @@ import {
   conversationText,
   EMPTY_CONVERSATION,
   withoutPartials,
+  withParlanti,
   withPartial,
   withPhrase,
 } from "@/features/transcription/phrases";
 
-const t = ((key: string) =>
+const t = ((key: string, options?: { n?: number }) =>
   ({
     "settings.recording.inputs.mic": "Microfono",
     "settings.recording.inputs.system": "Audio di sistema",
+    "transcript.parlante": `Parlante ${options?.n}`,
   })[key] ?? key) as TFunction;
 
 const phrase = (
@@ -21,7 +23,14 @@ const phrase = (
   inizioMs: number,
   text: string,
   ingresso: Ingresso = "mix"
-) => ({ fineMs: inizioMs + 900, ingresso, inizioMs, phraseId, text });
+) => ({
+  fineMs: inizioMs + 900,
+  ingresso,
+  inizioMs,
+  parlante: null,
+  phraseId,
+  text,
+});
 
 const render = (c: Conversation) => conversationText(c.phrases, c.partials, t);
 
@@ -103,4 +112,39 @@ test("a fine Trascrizione i Parziali spariscono e le Frasi restano", () => {
     phrase(0, 1000, "Sì", "sistema")
   );
   expect(withoutPartials(c)).toEqual({ partials: [], phrases: c.phrases });
+});
+
+test("dopo la Diarizzazione ogni turno di un Parlante comincia con la sua etichetta", () => {
+  let c = [
+    phrase(0, 0, "Buongiorno."),
+    phrase(1, 1000, "Cominciamo."),
+    phrase(2, 2000, "Grazie."),
+    phrase(3, 3000, "Boh."),
+  ].reduce(withPhrase, EMPTY_CONVERSATION);
+  c = withParlanti(c, [
+    { ingresso: "mix", parlante: 1, phraseId: 0 },
+    { ingresso: "mix", parlante: 1, phraseId: 1 },
+    { ingresso: "mix", parlante: 2, phraseId: 2 },
+    { ingresso: "mix", parlante: null, phraseId: 3 },
+  ]);
+  expect(render(c)).toBe(
+    "Parlante 1:\nBuongiorno.\nCominciamo.\n\nParlante 2:\nGrazie.\n\nBoh."
+  );
+});
+
+test("con gli Ingressi separati l'etichetta unisce Ingresso e Parlante", () => {
+  const c = withParlanti(
+    [
+      phrase(0, 0, "Mi senti?", "microfono"),
+      phrase(0, 1000, "Sì.", "sistema"),
+      phrase(1, 2000, "Anch'io.", "sistema"),
+    ].reduce(withPhrase, EMPTY_CONVERSATION),
+    [
+      { ingresso: "sistema", parlante: 1, phraseId: 0 },
+      { ingresso: "sistema", parlante: 2, phraseId: 1 },
+    ]
+  );
+  expect(render(c)).toBe(
+    "Microfono:\nMi senti?\n\nAudio di sistema · Parlante 1:\nSì.\n\nAudio di sistema · Parlante 2:\nAnch'io."
+  );
 });
