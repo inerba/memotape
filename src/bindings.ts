@@ -45,10 +45,13 @@ export const commands = {
 	setSettings: (settings: Settings) => typedError<null, AppError>(__TAURI_INVOKE("set_settings", { settings })),
 	/**  I microfoni rilevati, per la scelta in Impostazioni. */
 	listMicrophones: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_microphones")),
+	/**  I dispositivi di uscita rilevati, per la scelta dell'audio di sistema in Impostazioni. */
+	listOutputDevices: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_output_devices")),
 	/**
-	 *  Registra dal microfono finché arriva `stop_recording` o il dispositivo si scollega; poi il file
-	 *  diventa la Sorgente. Durata e livello arrivano con `recording-tick`. `prefix` è il prefisso
-	 *  tradotto del nome del file. Rifiuta con `activityInProgress` se un'Attività è già in corso.
+	 *  Registra dalla sorgente delle impostazioni (microfono, audio di sistema o entrambi) finché
+	 *  arriva `stop_recording` o un dispositivo si scollega; poi il file diventa la Sorgente. Durata e
+	 *  livelli arrivano con `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta
+	 *  con `activityInProgress` se un'Attività è già in corso.
 	 */
 	record: (prefix: string) => typedError<RecordingSaved, AppError>(__TAURI_INVOKE("record", { prefix })),
 	/**  Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso. */
@@ -83,9 +86,11 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 /**  Il dispositivo si è scollegato durante la Registrazione, che si è salvata: porta il nome. */
 { code: "deviceDisconnected"; detail: string } | 
 /**  Nessun microfono, o quello scelto in Impostazioni non è collegato. */
-{ code: "microphoneMissing" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "microphoneMissing" } | 
+/**  Nessun dispositivo di uscita per l'audio di sistema, o quello scelto non è collegato. */
+{ code: "outputDeviceMissing" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
-/**  Un dispositivo di ingresso, per la scelta in Impostazioni. */
+/**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
 	/**  L'id stabile di cpal (`wasapi:{…}`), salvato nelle impostazioni. */
 	id: string,
@@ -97,6 +102,12 @@ export type Channels = "mono" | "stereo";
 
 /**  Le sei lingue dell'interfaccia. */
 export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
+
+/**  Il picco, tra 0 e 1, di ogni sorgente; `null` per quella che non si registra. */
+export type Levels = {
+	microphone: number | null,
+	system: number | null,
+};
 
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
 export type Mode = "stream" | "frase";
@@ -155,13 +166,10 @@ export type RecordingSaved = {
 
 export type RecordingSource = "mic" | "system" | "both";
 
-/**
- *  Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni ingresso attivo
- *  dall'evento precedente (oggi solo il microfono).
- */
+/**  Durata registrata (pause escluse) e livelli dall'evento precedente. */
 export type RecordingTick = {
 	elapsedMs: number,
-	levels: (number | null)[],
+	levels: Levels,
 };
 
 export type Settings = {

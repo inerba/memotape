@@ -1,4 +1,5 @@
-//! Cattura con cpal (WASAPI). La callback non alloca: copia i campioni in un buffer preso da un
+//! Cattura con cpal (WASAPI) dal microfono o dall'audio di sistema (loopback: uno stream di input
+//! sul dispositivo di uscita). La callback non alloca: copia i campioni in un buffer preso da un
 //! pool e lo passa al worker con il timestamp di cattura (QPC). Non testata: richiede hardware.
 
 use std::str::FromStr;
@@ -14,7 +15,7 @@ const POOL: usize = 128;
 /// Capacità di un buffer, in secondi di audio: ben oltre un periodo WASAPI (10 ms).
 const BUFFER_SECONDS: f32 = 0.25;
 
-/// Un dispositivo di ingresso, per la scelta in Impostazioni.
+/// Un microfono o un dispositivo di uscita, per la scelta in Impostazioni.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioDevice {
@@ -26,6 +27,8 @@ pub struct AudioDevice {
 
 /// Un blocco catturato.
 pub struct Block {
+    /// L'ingresso che l'ha catturato, come indicato a `Capture::open`.
+    pub source: usize,
     /// Timestamp di cattura in ns (QPC su WASAPI).
     pub capture_ns: u64,
     /// Campioni interleaved del dispositivo, convertiti in f32.
@@ -35,8 +38,22 @@ pub struct Block {
 /// I microfoni rilevati.
 pub fn microphones() -> Result<Vec<AudioDevice>, AppError> {
     let host = cpal::default_host();
-    let default = host.default_input_device().and_then(|d| d.id().ok());
-    let devices = host.input_devices().map_err(cpal_error)?;
+    let default = host.default_input_device();
+    devices(host.input_devices().map_err(cpal_error)?, default)
+}
+
+/// I dispositivi di uscita rilevati, per l'audio di sistema.
+pub fn output_devices() -> Result<Vec<AudioDevice>, AppError> {
+    let host = cpal::default_host();
+    let default = host.default_output_device();
+    devices(host.output_devices().map_err(cpal_error)?, default)
+}
+
+fn devices(
+    devices: impl Iterator<Item = cpal::Device>,
+    default: Option<cpal::Device>,
+) -> Result<Vec<AudioDevice>, AppError> {
+    let default = default.and_then(|d| d.id().ok());
     Ok(devices
         .filter_map(|device| {
             let id = device.id().ok()?;
@@ -49,11 +66,23 @@ pub fn microphones() -> Result<Vec<AudioDevice>, AppError> {
         .collect())
 }
 
+/// Il canale dei blocchi di `sources` catture: ha posto per tutti i loro buffer, quindi la
+/// callback non trova mai il canale pieno.
+pub fn channel(sources: usize) -> (SyncSender<Block>, Receiver<Block>) {
+    sync_channel(POOL * sources)
+}
+
+/// Quale dispositivo catturare.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    Microphone,
+    /// Il loopback del dispositivo di uscita.
+    System,
+}
+
 /// Una cattura in corso: si ferma al drop.
 pub struct Capture {
     _stream: cpal::Stream,
-    /// I blocchi catturati, in ordine.
-    pub blocks: Receiver<Block>,
     /// Gli errori del dispositivo (scollegato, discontinuità…).
     pub errors: Receiver<cpal::Error>,
     recycle: SyncSender<Vec<f32>>,
@@ -64,21 +93,36 @@ pub struct Capture {
 }
 
 impl Capture {
-    /// Apre il microfono con l'id dato, o quello predefinito, alla sua frequenza nativa.
-    /// Senza microfoni, o se quello scelto non è collegato, dà `MicrophoneMissing`.
-    pub fn microphone(id: Option<&str>) -> Result<Self, AppError> {
+    /// Apre il dispositivo con l'id dato, o quello predefinito, alla sua frequenza nativa, e manda
+    /// i blocchi in `blocks` con `source`. Senza dispositivi, o se quello scelto non è collegato,
+    /// dà `MicrophoneMissing` o `OutputDeviceMissing`.
+    pub fn open(
+        kind: Kind,
+        id: Option<&str>,
+        source: usize,
+        blocks: SyncSender<Block>,
+    ) -> Result<Self, AppError> {
         let host = cpal::default_host();
-        let device = match id {
-            Some(id) => cpal::DeviceId::from_str(id)
-                .ok()
-                .and_then(|id| host.device_by_id(&id))
-                .ok_or(AppError::MicrophoneMissing)?,
-            None => host
-                .default_input_device()
-                .ok_or(AppError::MicrophoneMissing)?,
+        let missing = match kind {
+            Kind::Microphone => AppError::MicrophoneMissing,
+            Kind::System => AppError::OutputDeviceMissing,
         };
+        let device = match (id, kind) {
+            (Some(id), _) => cpal::DeviceId::from_str(id)
+                .ok()
+                .and_then(|id| host.device_by_id(&id)),
+            (None, Kind::Microphone) => host.default_input_device(),
+            (None, Kind::System) => host.default_output_device(),
+        }
+        .ok_or(missing)?;
         let name = device.to_string();
-        let config = device.default_input_config().map_err(cpal_error)?;
+        // Il loopback è uno stream di input sul dispositivo di uscita, nel formato del suo mix:
+        // lì `default_input_config` dà errore.
+        let config = match kind {
+            Kind::Microphone => device.default_input_config(),
+            Kind::System => device.default_output_config(),
+        }
+        .map_err(cpal_error)?;
         let rate = config.sample_rate();
         let channels = usize::from(config.channels());
         let capacity = (rate as f32 * BUFFER_SECONDS) as usize * channels;
@@ -88,17 +132,16 @@ impl Capture {
                 .send(Vec::with_capacity(capacity))
                 .expect("il pool ha spazio per tutti i buffer");
         }
-        let (blocks_tx, blocks) = sync_channel(POOL);
         let (errors_tx, errors) = std::sync::mpsc::channel();
         let format = config.sample_format();
         let config = config.config();
         let stream = match format {
-            SampleFormat::F32 => build::<f32>(&device, config, pool, blocks_tx, errors_tx),
-            SampleFormat::I16 => build::<i16>(&device, config, pool, blocks_tx, errors_tx),
-            SampleFormat::I32 => build::<i32>(&device, config, pool, blocks_tx, errors_tx),
+            SampleFormat::F32 => build::<f32>(&device, config, source, pool, blocks, errors_tx),
+            SampleFormat::I16 => build::<i16>(&device, config, source, pool, blocks, errors_tx),
+            SampleFormat::I32 => build::<i32>(&device, config, source, pool, blocks, errors_tx),
             other => {
                 return Err(AppError::Internal(format!(
-                    "formato del microfono non supportato: {other}"
+                    "formato audio non supportato da {name}: {other}"
                 )));
             }
         }
@@ -106,13 +149,17 @@ impl Capture {
         stream.play().map_err(cpal_error)?;
         Ok(Self {
             _stream: stream,
-            blocks,
             errors,
             recycle,
             rate,
             channels,
             name,
         })
+    }
+
+    /// L'istante corrente sullo stesso orologio dei timestamp di cattura (QPC su WASAPI), in ns.
+    pub fn now(&self) -> u64 {
+        u64::try_from(self._stream.now().as_nanos()).unwrap_or(0)
     }
 
     /// Restituisce al pool il buffer di un blocco già elaborato.
@@ -125,6 +172,7 @@ impl Capture {
 fn build<T>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
+    source: usize,
     pool: Receiver<Vec<f32>>,
     blocks: SyncSender<Block>,
     errors: std::sync::mpsc::Sender<cpal::Error>,
@@ -147,6 +195,7 @@ where
             let capture_ns = u64::try_from(info.timestamp().capture.as_nanos()).unwrap_or(0);
             // Il canale ha posto per tutti i buffer del pool: l'invio non fallisce.
             let _ = blocks.try_send(Block {
+                source,
                 capture_ns,
                 samples: buffer,
             });

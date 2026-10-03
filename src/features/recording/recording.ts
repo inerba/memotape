@@ -1,4 +1,4 @@
-import type { commands } from "@/bindings";
+import type { commands, Levels, RecordingSource } from "@/bindings";
 import type { Status } from "@/features/status/status";
 
 /** Il livello più basso mostrato, in dBFS: sotto è silenzio. */
@@ -22,6 +22,28 @@ export function levelPercent(peak: number | null): number {
   }
   const db = 20 * Math.log10(Math.min(peak, 1));
   return Math.round(Math.max(0, 1 - db / FLOOR_DB) * 100);
+}
+
+/** Un indicatore di livello: la sorgente e la percentuale. */
+export interface Meter {
+  percent: number;
+  source: keyof Levels;
+}
+
+/** Gli indicatori di `recording-tick`: uno per sorgente registrata, prima il microfono. */
+export function meters(levels: Levels): Meter[] {
+  return (["microphone", "system"] as const).flatMap((source) => {
+    const peak = levels[source];
+    return peak === null ? [] : [{ percent: levelPercent(peak), source }];
+  });
+}
+
+/** I livelli a zero delle sorgenti di `source`, prima del primo `recording-tick`. */
+export function silentLevels(source: RecordingSource): Levels {
+  return {
+    microphone: source === "system" ? null : 0,
+    system: source === "mic" ? null : 0,
+  };
 }
 
 type RecordResult = Awaited<ReturnType<typeof commands.record>>;

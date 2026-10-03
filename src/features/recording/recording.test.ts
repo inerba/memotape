@@ -5,6 +5,8 @@ import {
   afterRecording,
   elapsedText,
   levelPercent,
+  meters,
+  silentLevels,
 } from "@/features/recording/recording";
 import { statusText } from "@/features/status/status";
 
@@ -24,6 +26,43 @@ test("il livello va da 0 a 100 su una scala in decibel", () => {
   expect(levelPercent(0.0005)).toBe(0);
   expect(levelPercent(1)).toBe(100);
   expect(levelPercent(10 ** (-30 / 20))).toBe(50);
+});
+
+test("c'è un indicatore per ogni sorgente registrata, prima il microfono", () => {
+  expect(meters({ microphone: 1, system: null })).toEqual([
+    { percent: 100, source: "microphone" },
+  ]);
+  expect(meters({ microphone: null, system: 0 })).toEqual([
+    { percent: 0, source: "system" },
+  ]);
+  expect(meters({ microphone: 0, system: 1 })).toEqual([
+    { percent: 0, source: "microphone" },
+    { percent: 100, source: "system" },
+  ]);
+});
+
+test("prima del primo recording-tick gli indicatori seguono la sorgente delle impostazioni", () => {
+  expect(meters(silentLevels("mic")).map((m) => m.source)).toEqual([
+    "microphone",
+  ]);
+  expect(meters(silentLevels("system")).map((m) => m.source)).toEqual([
+    "system",
+  ]);
+  expect(meters(silentLevels("both")).map((m) => m.source)).toEqual([
+    "microphone",
+    "system",
+  ]);
+});
+
+test("senza dispositivo di uscita la Registrazione non parte con un errore dedicato", () => {
+  const after = afterRecording({
+    error: { code: "outputDeviceMissing" },
+    status: "error",
+  });
+  expect(after.source).toBeUndefined();
+  expect(statusText(after.status, t)).toBe(
+    "Nessun dispositivo di uscita per l'audio di sistema, o quello scelto in Impostazioni non è disponibile"
+  );
 });
 
 test("durante la Registrazione la status bar dice se è in pausa", () => {

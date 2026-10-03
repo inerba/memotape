@@ -1,5 +1,5 @@
-//! Registrazione dal microfono: cattura, mixer e writer Ogg/Opus in un thread, con Pausa e Stop
-//! comandati da flag atomici. Il file si scrive mentre si registra e a Stop diventa la Sorgente.
+//! Registrazione dal microfono, dall'audio di sistema o da entrambi: catture, mixer e writer
+//! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. Il file si scrive mentre si registra e a Stop diventa la Sorgente.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,23 +11,30 @@ use chrono::NaiveDateTime;
 use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 
-use crate::audio_toolkit::capture::Capture;
+use crate::audio_toolkit::capture::{self, Capture, Kind};
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
 use crate::error::AppError;
 use crate::managers::activity::Activity;
-use crate::managers::settings::{Channels, SettingsStore};
+use crate::managers::settings::{Channels, RecordingSource, SettingsStore};
 
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
 
-/// Durata registrata (pause escluse) e livello di picco, tra 0 e 1, di ogni ingresso attivo
-/// dall'evento precedente (oggi solo il microfono).
+/// Durata registrata (pause escluse) e livelli dall'evento precedente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingTick {
     pub elapsed_ms: u32,
-    pub levels: Vec<f32>,
+    pub levels: Levels,
+}
+
+/// Il picco, tra 0 e 1, di ogni sorgente; `null` per quella che non si registra.
+#[derive(Debug, Clone, Default, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Levels {
+    pub microphone: Option<f32>,
+    pub system: Option<f32>,
 }
 
 /// La Registrazione salvata, che diventa la Sorgente.
@@ -72,7 +79,7 @@ impl Recorder {
     }
 }
 
-/// Registra dal microfono delle impostazioni finché arriva Stop o il dispositivo si scollega,
+/// Registra dalla sorgente delle impostazioni finché arriva Stop o il dispositivo si scollega,
 /// emettendo `recording-tick`. `prefix` è il prefisso tradotto del nome del file.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn record(
@@ -120,11 +127,29 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         Channels::Mono => 1,
         Channels::Stereo => 2,
     };
-    let capture = Capture::microphone(settings.microphone.as_deref())?;
-    let mut mixer = Mixer::new(
-        (capture.rate, capture.channels),
-        (settings.sample_rate, channels),
-    )?;
+    let kinds: &[Kind] = match settings.recording_source {
+        RecordingSource::Mic => &[Kind::Microphone],
+        RecordingSource::System => &[Kind::System],
+        RecordingSource::Both => &[Kind::Microphone, Kind::System],
+    };
+    let (blocks_tx, blocks) = capture::channel(kinds.len());
+    let captures = kinds
+        .iter()
+        .enumerate()
+        .map(|(source, &kind)| {
+            let id = match kind {
+                Kind::Microphone => settings.microphone.as_deref(),
+                Kind::System => settings.output_device.as_deref(),
+            };
+            Capture::open(kind, id, source, blocks_tx.clone())
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // Restano solo i mittenti delle callback.
+    drop(blocks_tx);
+    // Tutte le catture hanno lo stesso orologio (QPC).
+    let now = || captures[0].now();
+    let formats: Vec<_> = captures.iter().map(|c| (c.rate, c.channels)).collect();
+    let mut mixer = Mixer::new(now(), &formats, (settings.sample_rate, channels))?;
     let folder = recordings_folder(app)?;
     std::fs::create_dir_all(&folder).map_err(|e| unwritable(&folder, &e))?;
     let start = chrono::Local::now().naive_local();
@@ -137,13 +162,15 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
             Err(e) => return Err(unwritable(&path, &e)),
         }
     };
-    log::info!(
-        "Registrazione da {} ({} Hz, {} canali) in {}",
-        capture.name,
-        capture.rate,
-        capture.channels,
-        path.display()
-    );
+    for capture in &captures {
+        log::info!(
+            "Registrazione da {} ({} Hz, {} canali) in {}",
+            capture.name,
+            capture.rate,
+            capture.channels,
+            path.display()
+        );
+    }
     let mut writer =
         OggOpusWriter::new(file, settings.sample_rate, channels, settings.bitrate_kbps)
             .inspect_err(|_| {
@@ -151,39 +178,50 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
                 let _ = std::fs::remove_file(&path);
             })?;
     let mut out = Vec::new();
-    let mut peak = 0.0f32;
     let mut last_tick = Instant::now();
     let mut error = None;
     while !controls.stop.load(Ordering::Relaxed) {
-        if let Some(e) = device_error(&capture) {
+        if let Some((capture, e)) = captures
+            .iter()
+            .find_map(|c| device_error(c).map(|e| (c, e)))
+        {
             log::warn!("Registrazione fermata, {}: {e}", capture.name);
             error = Some(AppError::DeviceDisconnected(capture.name.clone()));
             break;
         }
-        match capture.blocks.recv_timeout(TICK) {
+        // Anche senza blocchi (il loopback a riproduzione ferma) l'orologio avanza ogni `TICK`.
+        let received = blocks.recv_timeout(TICK);
+        mixer.advance(now(), controls.paused.load(Ordering::Relaxed), &mut out);
+        match received {
             Ok(block) => {
-                let paused = controls.paused.load(Ordering::Relaxed);
-                peak = peak.max(mixer.push(block.capture_ns, &block.samples, paused, &mut out));
-                capture.recycle(block.samples);
-                // Un errore di scrittura (disco pieno) ferma come Stop: quanto è già sul disco
-                // diventa comunque la Sorgente.
-                if let Err(e) = writer.write(&out) {
-                    error = Some(e);
-                    break;
-                }
-                out.clear();
+                mixer.push(block.source, block.capture_ns, &block.samples, &mut out);
+                captures[block.source].recycle(block.samples);
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
-                error = Some(AppError::DeviceDisconnected(capture.name.clone()));
+                error = Some(AppError::DeviceDisconnected(captures[0].name.clone()));
                 break;
             }
         }
+        // Un errore di scrittura (disco pieno) ferma come Stop: quanto è già sul disco diventa
+        // comunque la Sorgente.
+        if let Err(e) = writer.write(&out) {
+            error = Some(e);
+            break;
+        }
+        out.clear();
         if last_tick.elapsed() >= TICK {
             last_tick = Instant::now();
+            let mut levels = Levels::default();
+            for (&kind, peak) in kinds.iter().zip(mixer.take_peaks()) {
+                match kind {
+                    Kind::Microphone => levels.microphone = Some(peak),
+                    Kind::System => levels.system = Some(peak),
+                }
+            }
             let tick = RecordingTick {
                 elapsed_ms: mixer.elapsed_ms(),
-                levels: vec![std::mem::take(&mut peak)],
+                levels,
             };
             if let Err(e) = tick.emit(app) {
                 log::warn!("recording-tick non emesso: {e}");
@@ -191,12 +229,12 @@ fn run(app: &AppHandle, prefix: &str, controls: &Controls) -> Result<RecordingSa
         }
     }
     // Quanto è già arrivato prima di Stop fa parte della Registrazione.
-    let paused = controls.paused.load(Ordering::Relaxed);
-    while let Ok(block) = capture.blocks.try_recv() {
-        mixer.push(block.capture_ns, &block.samples, paused, &mut out);
+    let stop = now();
+    while let Ok(block) = blocks.try_recv() {
+        mixer.push(block.source, block.capture_ns, &block.samples, &mut out);
     }
-    drop(capture);
-    mixer.finish(&mut out);
+    drop(captures);
+    mixer.finish(stop, &mut out);
     if let Err(e) = writer.write(&out).and_then(|()| writer.finish().map(drop)) {
         log::warn!("chiusura della Registrazione: {e}");
         error.get_or_insert(e);
@@ -219,7 +257,7 @@ fn device_error(capture: &Capture) -> Option<cpal::Error> {
                 | cpal::ErrorKind::DeviceChanged
         );
         if ignore {
-            log::warn!("microfono: {e}");
+            log::warn!("{}: {e}", capture.name);
         }
         !ignore
     })

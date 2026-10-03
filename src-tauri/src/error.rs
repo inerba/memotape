@@ -25,6 +25,9 @@ pub enum AppError {
     /// Nessun microfono, o quello scelto in Impostazioni non è collegato.
     #[error("microfono assente")]
     MicrophoneMissing,
+    /// Nessun dispositivo di uscita per l'audio di sistema, o quello scelto non è collegato.
+    #[error("dispositivo di uscita assente")]
+    OutputDeviceMissing,
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

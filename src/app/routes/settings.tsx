@@ -14,6 +14,7 @@ import {
   type AppError,
   type AudioDevice,
   commands,
+  type RecordingSource,
   type Settings,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
@@ -29,14 +30,16 @@ import { errorText } from "@/features/status/status";
 const SELECT =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
 
-// ponytail: manca la sezione Informazioni e la Lingua dell'interfaccia (ticket 10); la sorgente
-// di registrazione e il dispositivo di uscita arrivano con "Audio di sistema" (ticket 09).
+const SOURCES: RecordingSource[] = ["mic", "system", "both"];
+
+// ponytail: manca la sezione Informazioni e la Lingua dell'interfaccia (ticket 10).
 export function SettingsPage() {
   const { t } = useTranslation();
   const { save, settings } = useSettings();
   const [error, setError] = useState<AppError | null>(null);
-  // `null` finché `list_microphones` non risponde.
+  // `null` finché `list_microphones` e `list_output_devices` non rispondono.
   const [microphones, setMicrophones] = useState<AudioDevice[] | null>(null);
+  const [outputs, setOutputs] = useState<AudioDevice[] | null>(null);
   const [folder, setFolder] = useState("");
   // Ogni scelta si salva subito: non c'è un pulsante Salva.
   const form = useForm<Settings>({
@@ -57,6 +60,19 @@ export function SettingsPage() {
       })();
     },
     [handleSubmit, reset, save, settings]
+  );
+  const chooseSource = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        recordingSource:
+          SOURCES.find((s) => s === e.target.value) ?? settings.recordingSource,
+      }),
+    [choose, settings.recordingSource]
+  );
+  const chooseOutput = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({ outputDevice: e.target.value || null }),
+    [choose]
   );
   const chooseMicrophone = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
@@ -95,6 +111,13 @@ export function SettingsPage() {
         setError(result.error);
       }
     });
+    commands.listOutputDevices().then((result) => {
+      if (result.status === "ok") {
+        setOutputs(result.data);
+      } else {
+        setError(result.error);
+      }
+    });
   }, []);
 
   // La cartella in uso cambia con la scelta salvata.
@@ -113,12 +136,6 @@ export function SettingsPage() {
       choose({ recordingsFolder: picked });
     }
   }, [choose]);
-
-  const defaultMicrophone = microphones?.find((m) => m.isDefault);
-  const savedMissing =
-    microphones !== null &&
-    settings.microphone !== null &&
-    !microphones.some((m) => m.id === settings.microphone);
 
   return (
     <div className="fixed inset-0 z-10 flex flex-col bg-background">
@@ -143,33 +160,41 @@ export function SettingsPage() {
           title={t("settings.recording.title")}
         >
           <div className="grid max-w-xl grid-cols-[auto_1fr] items-center gap-x-4 gap-y-3">
-            <label className="text-sm" htmlFor="microphone">
-              {t("settings.recording.microphone")}
+            <label className="text-sm" htmlFor="recording-source">
+              {t("settings.recording.source")}
             </label>
             <select
               className={SELECT}
-              id="microphone"
-              onChange={chooseMicrophone}
-              value={settings.microphone ?? ""}
+              id="recording-source"
+              onChange={chooseSource}
+              value={settings.recordingSource}
             >
-              <option value="">
-                {defaultMicrophone
-                  ? t("settings.recording.defaultMicrophoneNamed", {
-                      name: defaultMicrophone.name,
-                    })
-                  : t("settings.recording.defaultMicrophone")}
-              </option>
-              {microphones?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
+              {SOURCES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`settings.recording.sources.${value}`)}
                 </option>
               ))}
-              {savedMissing ? (
-                <option value={settings.microphone ?? ""}>
-                  {t("settings.recording.missingMicrophone")}
-                </option>
-              ) : null}
             </select>
+            <label className="text-sm" htmlFor="microphone">
+              {t("settings.recording.microphone")}
+            </label>
+            <DeviceSelect
+              devices={microphones}
+              disabled={settings.recordingSource === "system"}
+              id="microphone"
+              onChange={chooseMicrophone}
+              value={settings.microphone}
+            />
+            <label className="text-sm" htmlFor="output-device">
+              {t("settings.recording.outputDevice")}
+            </label>
+            <DeviceSelect
+              devices={outputs}
+              disabled={settings.recordingSource === "mic"}
+              id="output-device"
+              onChange={chooseOutput}
+              value={settings.outputDevice}
+            />
             <label className="text-sm" htmlFor="bitrate">
               {t("settings.recording.bitrate")}
             </label>
@@ -253,6 +278,55 @@ export function SettingsPage() {
         </Section>
       </main>
     </div>
+  );
+}
+
+/**
+ * Un microfono o un dispositivo di uscita: il predefinito di sistema (`null`) o uno dei rilevati.
+ * Un dispositivo salvato ma non collegato resta scelto, come "Non collegato". `devices` è `null`
+ * finché l'elenco non arriva.
+ */
+function DeviceSelect({
+  devices,
+  disabled,
+  id,
+  onChange,
+  value,
+}: {
+  devices: AudioDevice[] | null;
+  disabled: boolean;
+  id: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  value: string | null;
+}) {
+  const { t } = useTranslation();
+  const fallback = devices?.find((d) => d.isDefault);
+  const missing =
+    devices !== null && value !== null && !devices.some((d) => d.id === value);
+  return (
+    <select
+      className={SELECT}
+      disabled={disabled}
+      id={id}
+      onChange={onChange}
+      value={value ?? ""}
+    >
+      <option value="">
+        {fallback
+          ? t("settings.recording.defaultDeviceNamed", { name: fallback.name })
+          : t("settings.recording.defaultDevice")}
+      </option>
+      {devices?.map((d) => (
+        <option key={d.id} value={d.id}>
+          {d.name}
+        </option>
+      ))}
+      {missing ? (
+        <option value={value ?? ""}>
+          {t("settings.recording.missingDevice")}
+        </option>
+      ) : null}
+    </select>
   );
 }
 

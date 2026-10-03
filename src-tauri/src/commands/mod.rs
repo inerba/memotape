@@ -153,9 +153,19 @@ pub async fn list_microphones() -> Result<Vec<AudioDevice>, AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// Registra dal microfono finché arriva `stop_recording` o il dispositivo si scollega; poi il file
-/// diventa la Sorgente. Durata e livello arrivano con `recording-tick`. `prefix` è il prefisso
-/// tradotto del nome del file. Rifiuta con `activityInProgress` se un'Attività è già in corso.
+/// I dispositivi di uscita rilevati, per la scelta dell'audio di sistema in Impostazioni.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_output_devices() -> Result<Vec<AudioDevice>, AppError> {
+    tauri::async_runtime::spawn_blocking(capture::output_devices)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Registra dalla sorgente delle impostazioni (microfono, audio di sistema o entrambi) finché
+/// arriva `stop_recording` o un dispositivo si scollega; poi il file diventa la Sorgente. Durata e
+/// livelli arrivano con `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta
+/// con `activityInProgress` se un'Attività è già in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn record(

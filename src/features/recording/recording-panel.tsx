@@ -1,12 +1,17 @@
 import { Circle, Pause, Play, Square } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { commands, events } from "@/bindings";
+import { commands, events, type RecordingTick } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import { elapsedText, levelPercent } from "@/features/recording/recording";
+import {
+  elapsedText,
+  meters,
+  silentLevels,
+} from "@/features/recording/recording";
+import { useSettings } from "@/features/settings/settings-context";
 
 /**
- * La Registrazione in corso: timer, livello, Pausa/Riprendi e Stop. L'esito arriva a chi ha
+ * La Registrazione in corso: timer, un livello per sorgente, Pausa/Riprendi e Stop. L'esito arriva a chi ha
  * chiamato `record`; `onPausedChange` riceve la pausa confermata dal backend.
  */
 export function RecordingPanel({
@@ -17,16 +22,17 @@ export function RecordingPanel({
   paused: boolean;
 }) {
   const { t } = useTranslation();
-  // Durata e livello dall'ultimo `recording-tick`.
-  const [tick, setTick] = useState({ elapsedMs: 0, level: 0 });
+  const { settings } = useSettings();
+  // L'ultimo `recording-tick`; prima, gli indicatori della sorgente scelta.
+  const [tick, setTick] = useState<RecordingTick>(() => ({
+    elapsedMs: 0,
+    levels: silentLevels(settings.recordingSource),
+  }));
   const [stopping, setStopping] = useState(false);
 
   useEffect(() => {
     const ticks = events.recordingTick.listen(({ payload }) => {
-      setTick({
-        elapsedMs: payload.elapsedMs,
-        level: levelPercent(payload.levels[0] ?? null),
-      });
+      setTick(payload);
     });
     return () => {
       ticks.then((unlisten) => unlisten());
@@ -62,17 +68,28 @@ export function RecordingPanel({
         <span className="sr-only">{t("recording.elapsed")} </span>
         {elapsedText(tick.elapsedMs)}
       </span>
-      {/* Verde fino a -15 dBFS, poi giallo, rosso vicino alla saturazione. */}
-      <meter
-        aria-label={t("recording.level")}
-        className="h-3 min-w-0 flex-1"
-        high={95}
-        low={75}
-        max={100}
-        min={0}
-        optimum={0}
-        value={paused ? 0 : tick.level}
-      />
+      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
+        {meters(tick.levels).map(({ percent, source }) => (
+          <Fragment key={source}>
+            <span aria-hidden className="text-muted-foreground text-xs">
+              {t(`recording.levels.${source}`)}
+            </span>
+            {/* Verde fino a -15 dBFS, poi giallo, rosso vicino alla saturazione. */}
+            <meter
+              aria-label={t("recording.level", {
+                source: t(`recording.levels.${source}`),
+              })}
+              className="h-3 w-full min-w-0"
+              high={95}
+              low={75}
+              max={100}
+              min={0}
+              optimum={0}
+              value={paused ? 0 : percent}
+            />
+          </Fragment>
+        ))}
+      </div>
       <Button disabled={stopping} onClick={togglePause} variant="outline">
         {paused ? <Play /> : <Pause />}
         {paused ? t("recording.resume") : t("recording.pause")}
