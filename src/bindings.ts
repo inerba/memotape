@@ -206,16 +206,23 @@ export type SpeechLanguage = "auto" | "it" | "en" | "fr" | "es" | "de" | "pl";
 
 /**
  *  Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
- *  ha l'id che avrà la Frase.
+ *  ha l'id che avrà la Frase. `fine_ms` è la fine dell'audio letto finora.
  */
 export type TranscriptPartial = {
 	phraseId: number,
+	inizioMs: number,
+	fineMs: number,
 	text: string,
 };
 
-/**  Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id. */
+/**
+ *  Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
+ *  `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
+ */
 export type TranscriptPhrase = {
 	phraseId: number,
+	inizioMs: number,
+	fineMs: number,
 	text: string,
 };
 

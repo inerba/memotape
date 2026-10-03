@@ -30,7 +30,8 @@ impl Default for Params {
 
 #[derive(Debug, PartialEq)]
 pub enum Event {
-    PhraseStart,
+    /// Inizio di una Frase, con l'indice (da 0) del suo primo frame tra quelli ricevuti.
+    PhraseStart(usize),
     Audio(Vec<f32>),
     PhraseEnd,
 }
@@ -47,6 +48,8 @@ pub struct Segmenter {
     /// `Some` durante una Frase: frame di silenzio ancora tollerati prima della chiusura.
     hangover_left: Option<usize>,
     phrase_frames: usize,
+    /// Frame ricevuti finora.
+    position: usize,
 }
 
 /// Millisecondi in frame, per eccesso.
@@ -74,11 +77,13 @@ impl Segmenter {
             onset_count: 0,
             hangover_left: None,
             phrase_frames: 0,
+            position: 0,
         }
     }
 
     pub fn push(&mut self, frame: Vec<f32>, probability: f32) -> Vec<Event> {
         let speech = probability >= self.threshold;
+        self.position += 1;
         let mut events = Vec::new();
         match self.hangover_left {
             None => {
@@ -88,7 +93,7 @@ impl Segmenter {
                     self.pending.pop_front();
                 }
                 if self.onset_count >= self.onset {
-                    events.push(Event::PhraseStart);
+                    events.push(Event::PhraseStart(self.position - self.pending.len()));
                     self.phrase_frames = self.pending.len();
                     events.extend(self.pending.drain(..).map(Event::Audio));
                     self.onset_count = 0;
@@ -116,8 +121,10 @@ impl Segmenter {
         events
     }
 
-    /// Fine dell'audio: chiude la Frase in corso, se c'è.
-    pub fn finish(&mut self) -> Vec<Event> {
+    /// Chiude la Frase in corso, se c'è, come a fine parlato: alla fine dell'audio o per la Pausa.
+    /// Anche fuori da una Frase il parlato successivo deve superare di nuovo l'onset.
+    pub fn close_phrase(&mut self) -> Vec<Event> {
+        self.onset_count = 0;
         let mut events = Vec::new();
         if self.hangover_left.is_some() {
             self.end_phrase(&mut events);
@@ -144,10 +151,10 @@ mod tests {
         for (i, &p) in probabilities.iter().enumerate() {
             events.extend(segmenter.push(vec![i as f32], p));
         }
-        events.extend(segmenter.finish());
+        events.extend(segmenter.close_phrase());
         for event in events {
             out.push(match event {
-                Event::PhraseStart => "[".to_string(),
+                Event::PhraseStart(_) => "[".to_string(),
                 Event::Audio(frame) => format!("{}", frame[0]),
                 Event::PhraseEnd => "]".to_string(),
             });
@@ -224,6 +231,58 @@ mod tests {
         assert_eq!(all[1].len(), 600);
         let flat: Vec<usize> = all.concat();
         assert_eq!(flat, (0..1334).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn l_inizio_della_frase_e_l_indice_del_suo_primo_frame() {
+        // Prefill, pausa lunga e taglio a 18 s: ogni inizio è il primo frame della sua Frase.
+        let mut segmenter = Segmenter::new(Params::default());
+        let mut events = Vec::new();
+        let probabilities = seq(&[(0.0, 20), (0.9, 5), (0.0, 40), (0.9, 700), (0.0, 30)]);
+        for (i, &p) in probabilities.iter().enumerate() {
+            events.extend(segmenter.push(vec![i as f32], p));
+        }
+        let starts: Vec<(usize, f32)> = events
+            .windows(2)
+            .filter_map(|w| match w {
+                [Event::PhraseStart(start), Event::Audio(frame)] => Some((*start, frame[0])),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(starts.len(), 3, "{starts:?}");
+        assert!(
+            starts.iter().all(|&(start, first)| start as f32 == first),
+            "{starts:?}"
+        );
+        assert_eq!(starts[0].0, 10);
+    }
+
+    #[test]
+    fn chiudere_la_frase_a_meta_parlato_ne_apre_una_nuova_senza_prefill() {
+        let mut segmenter = Segmenter::new(Params::default());
+        let mut labels = Vec::new();
+        for i in 0..20 {
+            labels.extend(segmenter.push(vec![i as f32], 0.9));
+        }
+        labels.extend(segmenter.close_phrase());
+        for i in 20..40 {
+            labels.extend(segmenter.push(vec![i as f32], 0.9));
+        }
+        let ends = labels.iter().filter(|e| **e == Event::PhraseEnd).count();
+        assert_eq!(ends, 1);
+        assert!(labels.contains(&Event::PhraseStart(0)));
+        // Dopo la chiusura serve di nuovo l'onset: la Frase nuova parte dal frame 20.
+        assert!(labels.contains(&Event::PhraseStart(20)), "{labels:?}");
+    }
+
+    #[test]
+    fn chiudere_fuori_da_una_frase_azzera_l_onset() {
+        // Un frame di parlato prima della chiusura e uno dopo non fanno un onset da 2 frame.
+        let mut segmenter = Segmenter::new(Params::default());
+        let mut events = segmenter.push(vec![0.0], 0.9);
+        events.extend(segmenter.close_phrase());
+        events.extend(segmenter.push(vec![1.0], 0.9));
+        assert!(events.is_empty(), "{events:?}");
     }
 
     #[test]

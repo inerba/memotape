@@ -10,13 +10,13 @@ Trascrivi su un file deve funzionare esattamente come prima.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Pipeline generica su una fonte di frame; Trascrivi su un file passa da lì
-- [ ] `inizio_ms`/`fine_ms` contati in frame da 30 ms, presenti negli eventi `transcript-phrase` e `transcript-partial` e in `bindings.ts`
-- [ ] Segnale di chiusura della Frase: la Frase in corso si chiude come a fine parlato
-- [ ] Test con fonte sintetica: tempi corretti, chiusura forzata; i test esistenti restano verdi
-- [ ] Lo smoke test `#[ignore]` con i tre modelli passa, e Trascrivi in `bun tauri dev` è invariato
+- [x] Pipeline generica su una fonte di frame; Trascrivi su un file passa da lì
+- [x] `inizio_ms`/`fine_ms` contati in frame da 30 ms, presenti negli eventi `transcript-phrase` e `transcript-partial` e in `bindings.ts`
+- [x] Segnale di chiusura della Frase: la Frase in corso si chiude come a fine parlato
+- [x] Test con fonte sintetica: tempi corretti, chiusura forzata; i test esistenti restano verdi
+- [x] Lo smoke test `#[ignore]` con i tre modelli passa, e Trascrivi in `bun tauri dev` è invariato
 
 ## Note per chi lo implementa
 - Leggi prima `AGENTS.md` (comandi, prerequisiti, Insidie), `CONTEXT.md` (usa i suoi termini), gli ADR in `docs/adr/` e la spec `.scratch/sbobino-v2/spec.md`.

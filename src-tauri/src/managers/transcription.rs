@@ -20,19 +20,24 @@ use crate::managers::settings::SettingsStore;
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
 /// Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
+/// `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptPhrase {
     pub phrase_id: u32,
+    pub inizio_ms: u32,
+    pub fine_ms: u32,
     pub text: String,
 }
 
 /// Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
-/// ha l'id che avrà la Frase.
+/// ha l'id che avrà la Frase. `fine_ms` è la fine dell'audio letto finora.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptPartial {
     pub phrase_id: u32,
+    pub inizio_ms: u32,
+    pub fine_ms: u32,
     pub text: String,
 }
 
@@ -97,14 +102,28 @@ pub async fn transcribe(
                         PipelineEvent::Progress(percent) => {
                             TranscriptionProgress { percent }.emit(&app)
                         }
-                        PipelineEvent::Partial { id, text } => TranscriptPartial {
+                        PipelineEvent::Partial {
+                            id,
+                            inizio_ms,
+                            fine_ms,
+                            text,
+                        } => TranscriptPartial {
                             phrase_id: id,
+                            inizio_ms,
+                            fine_ms,
                             text,
                         }
                         .emit(&app),
-                        PipelineEvent::Phrase { id, text } => {
+                        PipelineEvent::Phrase {
+                            id,
+                            inizio_ms,
+                            fine_ms,
+                            text,
+                        } => {
                             let emitted = TranscriptPhrase {
                                 phrase_id: id,
+                                inizio_ms,
+                                fine_ms,
                                 text: text.clone(),
                             }
                             .emit(&app);

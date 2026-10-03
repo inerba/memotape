@@ -5,6 +5,13 @@ import {
   withPartial,
 } from "@/features/transcription/phrases";
 
+const partialOf = (phraseId: number, text: string) => ({
+  fineMs: 0,
+  inizioMs: 0,
+  phraseId,
+  text,
+});
+
 test("le Frasi finiscono una per riga, nell'ordine di arrivo", () => {
   const text = ["Buongiorno a tutti.", "Oggi parliamo di trascrizione."].reduce(
     appendPhrase,
@@ -15,9 +22,9 @@ test("le Frasi finiscono una per riga, nell'ordine di arrivo", () => {
 
 test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa", () => {
   const text = "Buongiorno a tutti.";
-  let partial = { phraseId: 1, text: "Oggi parl" };
+  let partial = partialOf(1, "Oggi parl");
   expect(withPartial(text, partial)).toBe("Buongiorno a tutti.\nOggi parl");
-  partial = { phraseId: 1, text: "Oggi parliamo di" };
+  partial = partialOf(1, "Oggi parliamo di");
   expect(withPartial(text, partial)).toBe(
     "Buongiorno a tutti.\nOggi parliamo di"
   );
@@ -27,7 +34,7 @@ test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa",
     "Buongiorno a tutti.\nOggi parliamo di trascrizione."
   );
   // Un Parziale vuoto o di un'altra Frase non aggiunge e non toglie righe.
-  expect(withPartial(text, { phraseId: 1, text: "" })).toBe(text);
+  expect(withPartial(text, partialOf(1, ""))).toBe(text);
   expect(afterPhrase(partial, 0)).toBe(partial);
-  expect(withPartial("", { phraseId: 0, text: "Buon" })).toBe("Buon");
+  expect(withPartial("", partialOf(0, "Buon"))).toBe("Buon");
 });

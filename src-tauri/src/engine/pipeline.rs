@@ -1,7 +1,8 @@
-//! Pipeline di Trascrizione di un file: decodifica → frame a 16 kHz → VAD → segmentatore → motore.
-//! Gira alla velocità del calcolo e non sa nulla di Tauri né dei file TXT.
+//! Pipeline di Trascrizione: frame a 16 kHz → VAD → segmentatore → motore. La fonte dei frame può
+//! essere un file (`transcribe_file`) o qualunque altro flusso. Gira alla velocità del calcolo e non
+//! sa nulla di Tauri né dei file TXT.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::path::Path;
 
@@ -10,29 +11,58 @@ use transcribe_cpp::CancelToken;
 use super::TranscriptionEngine;
 use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::resample::FrameResampler;
-use crate::audio_toolkit::segmenter::{Event, Params, Segmenter};
+use crate::audio_toolkit::segmenter::{Event, FRAME_MS, Params, Segmenter};
 use crate::audio_toolkit::vad::VoiceDetector;
 use crate::error::AppError;
 
-/// Cosa la pipeline comunica a chi la esegue.
+/// Cosa la pipeline comunica a chi la esegue. `inizio_ms` e `fine_ms` sono sulla linea del tempo
+/// della Sorgente, contati nei frame da 30 ms ricevuti dalla fonte (fine esclusa). Comprendono il
+/// prefill e l'hangover del segmentatore: sono l'audio dato al motore.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PipelineEvent {
     /// Percentuale decodificata, `None` se la durata non è nota. Si emette all'inizio e a ogni
     /// cambio di punto percentuale.
     Progress(Option<u8>),
-    /// Il testo provvisorio della Frase in corso, con l'id che avrà la Frase. Se la Frase finisce
-    /// vuota arriva un Parziale vuoto e l'id passa alla successiva.
-    Partial { id: u32, text: String },
+    /// Il testo provvisorio della Frase in corso, con l'id che avrà la Frase e l'audio letto
+    /// finora. Se la Frase finisce vuota arriva un Parziale vuoto e l'id passa alla successiva.
+    Partial {
+        id: u32,
+        inizio_ms: u32,
+        fine_ms: u32,
+        text: String,
+    },
     /// Una Frase non vuota, con id progressivo da 0.
-    Phrase { id: u32, text: String },
+    Phrase {
+        id: u32,
+        inizio_ms: u32,
+        fine_ms: u32,
+        text: String,
+    },
 }
 
-/// Trascrive `source` chiamando `on_event` per il progresso, i Parziali e ogni Frase non vuota, in
+/// Quello che la fonte di frame dà alla pipeline.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Feed {
+    /// Un frame da 30 ms (`FRAME_SAMPLES` campioni) mono a 16 kHz in [-1, 1].
+    Frame(Vec<f32>),
+    /// Chiude la Frase in corso come a fine parlato (la Pausa): il frame successivo può solo
+    /// aprirne una nuova.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "la userà la Trascrizione dal vivo")
+    )]
+    ClosePhrase,
+    /// Avanzamento da inoltrare com'è in `PipelineEvent::Progress`.
+    Progress(Option<u8>),
+}
+
+/// Trascrive la fonte `frames` chiamando `on_event` per il progresso, i Parziali e ogni Frase non vuota, in
 /// ordine. `language` è la Lingua del parlato (`None`: automatica). Con `cancel` premuto si ferma
-/// al prossimo blocco decodificato o alla fine della Frase in corso, senza emettere quella Frase,
-/// e restituisce `AppError::Cancelled`.
-pub fn transcribe_file(
-    source: &Path,
+/// al prossimo frame letto o alla fine della Frase in corso, senza emettere quella Frase, e
+/// restituisce `AppError::Cancelled`. La fonte si legge solo quando servono frame, e un suo errore
+/// ferma la pipeline.
+pub fn transcribe(
+    frames: &mut dyn Iterator<Item = Result<Feed, AppError>>,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
     language: Option<&str>,
@@ -40,32 +70,30 @@ pub fn transcribe_file(
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<(), AppError> {
     detector.reset();
-    let decoder = Decoder::open(source)?;
-    let progress = decoder.progress();
-    on_event(PipelineEvent::Progress(progress));
     // Lo usano sia la lettura dell'audio (progresso) sia il motore (Parziali), mai insieme.
     let on_event = RefCell::new(on_event);
     let emit = |event| (on_event.borrow_mut())(event);
     let mut events = SegmentedSource {
-        decoder,
-        resampler: None,
+        frames,
         detector,
         segmenter: Segmenter::new(Params::default()),
         cancel,
         queue: VecDeque::new(),
-        decoded_all: false,
+        ended: false,
         error: None,
-        progress,
         emit: &emit,
     };
     let mut phrase_id = 0;
     while let Some(event) = events.next()? {
         // Fuori da una Frase arrivano solo inizi: l'audio lo consuma `PhraseAudio`.
-        if event != Event::PhraseStart {
+        let Event::PhraseStart(start) = event else {
             continue;
-        }
+        };
+        let inizio_ms = to_ms(start);
+        let end = Cell::new(start);
         let mut audio = PhraseAudio {
             events: &mut events,
+            end: &end,
             ended: false,
         };
         let mut partial_shown = false;
@@ -73,6 +101,8 @@ pub fn transcribe_file(
             partial_shown = !text.is_empty();
             emit(PipelineEvent::Partial {
                 id: phrase_id,
+                inizio_ms,
+                fine_ms: to_ms(end.get()),
                 text: text.to_string(),
             });
         };
@@ -86,16 +116,21 @@ pub fn transcribe_file(
             return Err(error);
         }
         let text = text?;
+        let fine_ms = to_ms(end.get());
         if text.is_empty() && partial_shown {
             // Il Parziale di una Frase finita vuota non resta a schermo.
             emit(PipelineEvent::Partial {
                 id: phrase_id,
+                inizio_ms,
+                fine_ms,
                 text: String::new(),
             });
         }
         if !text.is_empty() {
             emit(PipelineEvent::Phrase {
                 id: phrase_id,
+                inizio_ms,
+                fine_ms,
                 text,
             });
             phrase_id += 1;
@@ -104,19 +139,105 @@ pub fn transcribe_file(
     Ok(())
 }
 
-/// Gli eventi del segmentatore, prodotti decodificando il file solo quando servono.
-struct SegmentedSource<'a> {
+/// Trascrive il file `source` come `transcribe`, con il progresso della decodifica.
+pub fn transcribe_file(
+    source: &Path,
+    engine: &mut dyn TranscriptionEngine,
+    detector: &mut dyn VoiceDetector,
+    language: Option<&str>,
+    cancel: &CancelToken,
+    on_event: &mut dyn FnMut(PipelineEvent),
+) -> Result<(), AppError> {
+    let mut frames = FileFrames::open(source)?;
+    on_event(PipelineEvent::Progress(frames.progress));
+    transcribe(&mut frames, engine, detector, language, cancel, on_event)
+}
+
+/// Millisecondi dall'inizio della Sorgente a `frames` frame.
+fn to_ms(frames: usize) -> u32 {
+    u32::try_from(frames * FRAME_MS as usize).unwrap_or(u32::MAX)
+}
+
+/// I frame di un file, decodificati e ricampionati un blocco alla volta.
+struct FileFrames {
     decoder: Decoder,
     resampler: Option<FrameResampler>,
+    /// L'ultimo progresso emesso.
+    progress: Option<u8>,
+    ready: VecDeque<Feed>,
+    decoded_all: bool,
+}
+
+impl FileFrames {
+    fn open(path: &Path) -> Result<Self, AppError> {
+        let decoder = Decoder::open(path)?;
+        Ok(Self {
+            progress: decoder.progress(),
+            decoder,
+            resampler: None,
+            ready: VecDeque::new(),
+            decoded_all: false,
+        })
+    }
+
+    /// Decodifica il blocco successivo in `ready`.
+    fn decode(&mut self) -> Result<(), AppError> {
+        let frames = match self.decoder.next_mono()? {
+            Some((mono, rate)) => {
+                let progress = self.decoder.progress();
+                if progress != self.progress {
+                    self.progress = progress;
+                    self.ready.push_back(Feed::Progress(progress));
+                }
+                let resampler = match &mut self.resampler {
+                    Some(resampler) => resampler,
+                    // ponytail: frequenza fissata dal primo blocco; i file che la cambiano a metà non sono gestiti.
+                    None => self.resampler.insert(FrameResampler::new(rate)?),
+                };
+                resampler.push(&mono)
+            }
+            None => {
+                self.decoded_all = true;
+                self.resampler
+                    .as_mut()
+                    .map(FrameResampler::finish)
+                    .unwrap_or_default()
+            }
+        };
+        self.ready.extend(frames.into_iter().map(Feed::Frame));
+        Ok(())
+    }
+}
+
+impl Iterator for FileFrames {
+    type Item = Result<Feed, AppError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(input) = self.ready.pop_front() {
+                return Some(Ok(input));
+            }
+            if self.decoded_all {
+                return None;
+            }
+            if let Err(error) = self.decode() {
+                self.decoded_all = true;
+                return Some(Err(error));
+            }
+        }
+    }
+}
+
+/// Gli eventi del segmentatore, prodotti leggendo la fonte solo quando servono.
+struct SegmentedSource<'a> {
+    frames: &'a mut dyn Iterator<Item = Result<Feed, AppError>>,
     detector: &'a mut dyn VoiceDetector,
     segmenter: Segmenter,
     cancel: &'a CancelToken,
     queue: VecDeque<Event>,
-    decoded_all: bool,
+    ended: bool,
     /// Errore incontrato mentre il motore leggeva l'audio della Frase.
     error: Option<AppError>,
-    /// L'ultimo progresso emesso.
-    progress: Option<u8>,
     emit: &'a dyn Fn(PipelineEvent),
 }
 
@@ -129,45 +250,30 @@ impl SegmentedSource<'_> {
             if let Some(event) = self.queue.pop_front() {
                 return Ok(Some(event));
             }
-            if self.decoded_all {
+            if self.ended {
                 return Ok(None);
             }
-            let frames = match self.decoder.next_mono()? {
-                Some((mono, rate)) => {
-                    let progress = self.decoder.progress();
-                    if progress != self.progress {
-                        self.progress = progress;
-                        (self.emit)(PipelineEvent::Progress(progress));
-                    }
-                    let resampler = match &mut self.resampler {
-                        Some(resampler) => resampler,
-                        // ponytail: frequenza fissata dal primo blocco; i file che la cambiano a metà non sono gestiti.
-                        None => self.resampler.insert(FrameResampler::new(rate)?),
-                    };
-                    resampler.push(&mono)
+            match self.frames.next().transpose()? {
+                Some(Feed::Frame(frame)) => {
+                    let probability = self.detector.probability(&frame)?;
+                    self.queue.extend(self.segmenter.push(frame, probability));
                 }
+                Some(Feed::ClosePhrase) => self.queue.extend(self.segmenter.close_phrase()),
+                Some(Feed::Progress(progress)) => (self.emit)(PipelineEvent::Progress(progress)),
                 None => {
-                    self.decoded_all = true;
-                    self.resampler
-                        .as_mut()
-                        .map(FrameResampler::finish)
-                        .unwrap_or_default()
+                    self.ended = true;
+                    self.queue.extend(self.segmenter.close_phrase());
                 }
-            };
-            for frame in frames {
-                let probability = self.detector.probability(&frame)?;
-                self.queue.extend(self.segmenter.push(frame, probability));
-            }
-            if self.decoded_all {
-                self.queue.extend(self.segmenter.finish());
             }
         }
     }
 }
 
-/// L'audio di una Frase, frame per frame, fino alla sua fine.
+/// L'audio di una Frase, frame per frame, fino alla sua fine. `end` è la posizione dopo l'ultimo
+/// frame letto: a Frase finita, la sua fine sulla linea del tempo, esclusa.
 struct PhraseAudio<'e, 'a> {
     events: &'e mut SegmentedSource<'a>,
+    end: &'e Cell<usize>,
     ended: bool,
 }
 
@@ -179,7 +285,10 @@ impl Iterator for PhraseAudio<'_, '_> {
             return None;
         }
         match self.events.next() {
-            Ok(Some(Event::Audio(frame))) => return Some(frame),
+            Ok(Some(Event::Audio(frame))) => {
+                self.end.set(self.end.get() + 1);
+                return Some(frame);
+            }
             Ok(_) => {}
             Err(error) => self.events.error = Some(error),
         }
@@ -329,7 +438,7 @@ mod tests {
         Ok(events(path, engine)?
             .into_iter()
             .filter_map(|event| match event {
-                PipelineEvent::Phrase { id, text } => Some((id, text)),
+                PipelineEvent::Phrase { id, text, .. } => Some((id, text)),
                 _ => None,
             })
             .collect())
@@ -398,7 +507,7 @@ mod tests {
         let (mut next_id, mut partials) = (0, 0);
         for event in &events {
             match event {
-                PipelineEvent::Partial { id, text } => {
+                PipelineEvent::Partial { id, text, .. } => {
                     assert_eq!(*id, next_id, "{events:?}");
                     assert!(text.starts_with(&format!("frase {} (", id + 1)), "{text}");
                     partials += 1;
@@ -429,7 +538,7 @@ mod tests {
         let mut ids: Vec<(u32, &str)> = events
             .iter()
             .filter_map(|event| match event {
-                PipelineEvent::Partial { id, text } => {
+                PipelineEvent::Partial { id, text, .. } => {
                     Some((*id, text.split(" (").next().unwrap_or_default()))
                 }
                 PipelineEvent::Phrase { id, .. } => Some((*id, "FRASE")),
@@ -613,6 +722,100 @@ mod tests {
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
 
+    /// `n` frame di parlato (`true`) o di silenzio, in sequenza.
+    fn frames(parts: &[(bool, usize)]) -> Vec<Result<Feed, AppError>> {
+        parts
+            .iter()
+            .flat_map(|&(speech, n)| {
+                let sample = if speech { 0.3 } else { 0.0 };
+                std::iter::repeat_n(Ok(Feed::Frame(vec![sample; FRAME_SAMPLES])), n)
+            })
+            .collect()
+    }
+
+    fn run_feed(
+        feed: Vec<Result<Feed, AppError>>,
+        engine: &mut FakeEngine,
+    ) -> Result<Vec<PipelineEvent>, AppError> {
+        let mut events = Vec::new();
+        transcribe(
+            &mut feed.into_iter(),
+            engine,
+            &mut EnergyDetector,
+            None,
+            &CancelToken::new(),
+            &mut |event| events.push(event),
+        )?;
+        Ok(events)
+    }
+
+    /// Le Frasi come `(id, inizio_ms, fine_ms)`.
+    fn times(events: &[PipelineEvent]) -> Vec<(u32, u32, u32)> {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                PipelineEvent::Phrase {
+                    id,
+                    inizio_ms,
+                    fine_ms,
+                    ..
+                } => Some((*id, *inizio_ms, *fine_ms)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn le_frasi_e_i_parziali_portano_i_tempi_sulla_linea_del_tempo_della_sorgente() {
+        let feed = frames(&[
+            (false, 20),
+            (true, 30),
+            (false, 50),
+            (true, 40),
+            (false, 30),
+        ]);
+        let mut engine = FakeEngine {
+            streaming: true,
+            ..FakeEngine::default()
+        };
+        let events = run_feed(feed, &mut engine).unwrap();
+        // Prima Frase: 300 ms di prefill prima del parlato (frame 20) e 24 frame di hangover dopo
+        // l'ultimo (49). Seconda: parlato dal frame 100 al 139.
+        assert_eq!(times(&events), [(0, 300, 2220), (1, 2700, 4920)]);
+        // Il primo Parziale arriva dopo 10 frame letti dal motore.
+        let first_partial = events.iter().find_map(|event| match event {
+            PipelineEvent::Partial {
+                inizio_ms, fine_ms, ..
+            } => Some((*inizio_ms, *fine_ms)),
+            _ => None,
+        });
+        assert_eq!(first_partial, Some((300, 600)));
+    }
+
+    #[test]
+    fn la_chiusura_della_frase_la_chiude_come_a_fine_parlato() {
+        let mut feed = frames(&[(false, 10), (true, 30)]);
+        feed.push(Ok(Feed::ClosePhrase));
+        feed.push(Ok(Feed::Progress(Some(50))));
+        feed.extend(frames(&[(true, 30), (false, 50)]));
+        let mut engine = FakeEngine::default();
+        let events = run_feed(feed, &mut engine).unwrap();
+        // La prima Frase finisce alla chiusura, la seconda riparte da lì senza prefill.
+        assert_eq!(times(&events), [(0, 0, 1200), (1, 1200, 2820)]);
+        assert_eq!(engine.samples[0], 40 * FRAME_SAMPLES);
+        // Il progresso della fonte passa com'è.
+        assert!(events.contains(&PipelineEvent::Progress(Some(50))));
+    }
+
+    #[test]
+    fn un_errore_della_fonte_ferma_la_pipeline() {
+        let mut feed = frames(&[(true, 20)]);
+        feed.push(Err(AppError::Internal("fonte".into())));
+        feed.extend(frames(&[(true, 20)]));
+        let error = run_feed(feed, &mut FakeEngine::default()).unwrap_err();
+        assert!(matches!(error, AppError::Internal(_)), "{error:?}");
+    }
+
     /// Smoke test con Silero e i tre modelli veri, in `%APPDATA%\it.sbobino.desktop\models`.
     #[test]
     #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
@@ -639,12 +842,12 @@ mod tests {
                     language,
                     &cancel,
                     &mut |event| match event {
-                        PipelineEvent::Phrase { id, text } => {
+                        PipelineEvent::Phrase { id, text, .. } => {
                             // I Parziali arrivano prima della loro Frase, mai dopo.
                             assert!(partials.iter().all(|(p, _)| *p <= id), "{partials:?}");
                             phrases.push(text);
                         }
-                        PipelineEvent::Partial { id, text } => {
+                        PipelineEvent::Partial { id, text, .. } => {
                             assert_eq!(id as usize, phrases.len(), "{text}");
                             partials.push((id, text));
                         }
