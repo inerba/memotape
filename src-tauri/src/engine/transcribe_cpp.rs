@@ -70,9 +70,10 @@ impl TranscriptionEngine for TranscribeCpp {
             let transcript = catch_native(|| session.run(&pcm, &run))?;
             return Ok(transcript.text.trim().to_string());
         }
-        // Uno stream per Frase. Le opzioni di default usano l'attenzione a destra predefinita del
-        // modello, la più accurata: per Nemotron R=13, che dà lo stesso testo di `run`. Il lease
-        // del modello si libera a `finalize`, o al drop dello stream se si esce prima.
+        // Uno stream per Frase. Senza estensione vale l'attenzione a destra predefinita del modello,
+        // la prima del menu e la più accurata (`parakeet.h` di transcribe-cpp 0.2.4): per Nemotron
+        // R=13, che la sua documentazione dà identico a `run`. Il lease del modello si libera a
+        // `finalize`, o al drop dello stream se si esce prima.
         let session = &mut self.session;
         let mut stream = catch_native(|| session.stream(&run, &StreamOptions::default()))?;
         let mut shown = String::new();

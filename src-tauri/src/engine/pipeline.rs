@@ -4,11 +4,10 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::path::Path;
-use std::time::Duration;
 
 use transcribe_cpp::CancelToken;
 
-use super::{EngineError, TranscriptionEngine};
+use super::TranscriptionEngine;
 use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::resample::FrameResampler;
 use crate::audio_toolkit::segmenter::{Event, Params, Segmenter};
@@ -22,18 +21,16 @@ pub enum PipelineEvent {
     /// cambio di punto percentuale.
     Progress(Option<u8>),
     /// Il testo provvisorio della Frase in corso, con l'id che avrà la Frase. Se la Frase finisce
-    /// vuota, l'id passa alla successiva.
+    /// vuota arriva un Parziale vuoto e l'id passa alla successiva.
     Partial { id: u32, text: String },
     /// Una Frase non vuota, con id progressivo da 0.
     Phrase { id: u32, text: String },
 }
 
-/// Pausa prima di riprovare una Frase quando il motore risponde `Busy`.
-const BUSY_RETRY: Duration = Duration::from_millis(50);
-
 /// Trascrive `source` chiamando `on_event` per il progresso, i Parziali e ogni Frase non vuota, in
-/// ordine. `language` è la Lingua del parlato (`None`: automatica). Con `cancel` premuto si ferma al prossimo blocco decodificato o alla fine della Frase in corso,
-/// senza emettere quella Frase, e restituisce `AppError::Cancelled`.
+/// ordine. `language` è la Lingua del parlato (`None`: automatica). Con `cancel` premuto si ferma
+/// al prossimo blocco decodificato o alla fine della Frase in corso, senza emettere quella Frase,
+/// e restituisce `AppError::Cancelled`.
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
@@ -71,19 +68,15 @@ pub fn transcribe_file(
             events: &mut events,
             ended: false,
         };
+        let mut partial_shown = false;
         let mut on_partial = |text: &str| {
+            partial_shown = !text.is_empty();
             emit(PipelineEvent::Partial {
                 id: phrase_id,
                 text: text.to_string(),
             });
         };
-        let text = loop {
-            match engine.transcribe(&mut audio, language, &mut on_partial) {
-                // `Busy` arriva prima di leggere l'audio: si riprova la stessa Frase.
-                Err(EngineError::Busy) if !cancel.is_cancelled() => std::thread::sleep(BUSY_RETRY),
-                text => break text,
-            }
-        };
+        let text = engine.transcribe(&mut audio, language, &mut on_partial);
         // Il motore può fermarsi prima della fine della Frase: il resto si scarta.
         audio.for_each(drop);
         if cancel.is_cancelled() {
@@ -93,6 +86,13 @@ pub fn transcribe_file(
             return Err(error);
         }
         let text = text?;
+        if text.is_empty() && partial_shown {
+            // Il Parziale di una Frase finita vuota non resta a schermo.
+            emit(PipelineEvent::Partial {
+                id: phrase_id,
+                text: String::new(),
+            });
+        }
         if !text.is_empty() {
             emit(PipelineEvent::Phrase {
                 id: phrase_id,
@@ -192,6 +192,7 @@ impl Iterator for PhraseAudio<'_, '_> {
 mod tests {
     use super::*;
     use crate::audio_toolkit::resample::FRAME_SAMPLES;
+    use crate::engine::EngineError;
     use std::path::PathBuf;
 
     /// Detector finto guidato dall'energia del frame.
@@ -208,14 +209,16 @@ mod tests {
 
     /// Motore finto: restituisce "frase N" e ricorda quanti campioni e quale lingua ha ricevuto
     /// ogni Frase. Con `cancel_at` preme Annulla mentre trascrive la Frase N (da 1). Con
-    /// `streaming` manda un Parziale ogni 10 frame; con `busy` risponde `Busy` le prime volte.
+    /// `streaming` manda un Parziale ogni 10 frame; con `empty_at` la Frase N finisce vuota; con
+    /// `busy` risponde `Busy`.
     #[derive(Default)]
     struct FakeEngine {
         samples: Vec<usize>,
         languages: Vec<Option<String>>,
         cancel_at: Option<(usize, CancelToken)>,
         streaming: bool,
-        busy: u32,
+        empty_at: Option<usize>,
+        busy: bool,
     }
 
     impl TranscriptionEngine for FakeEngine {
@@ -225,8 +228,7 @@ mod tests {
             language: Option<&str>,
             on_partial: &mut dyn FnMut(&str),
         ) -> Result<String, EngineError> {
-            if self.busy > 0 {
-                self.busy -= 1;
+            if self.busy {
                 return Err(EngineError::Busy);
             }
             let n = self.samples.len() + 1;
@@ -243,6 +245,9 @@ mod tests {
                 && *at == n
             {
                 cancel.cancel();
+            }
+            if self.empty_at == Some(n) {
+                return Ok(String::new());
             }
             Ok(format!("frase {n}"))
         }
@@ -412,17 +417,48 @@ mod tests {
     }
 
     #[test]
-    fn un_motore_occupato_si_riprova_e_la_frase_non_si_perde() {
-        let path = tre_frasi("occupato");
+    fn il_parziale_di_una_frase_finita_vuota_si_cancella_e_l_id_passa_alla_successiva() {
+        let path = tre_frasi("frase-vuota");
         let mut engine = FakeEngine {
-            busy: 2,
+            streaming: true,
+            empty_at: Some(2),
             ..FakeEngine::default()
         };
-        let phrases = run(&path, &mut engine).unwrap();
-        assert_eq!(phrases.len(), 3);
-        assert_eq!(phrases[0], (0, "frase 1".to_string()));
-        // La Frase riprovata riceve tutto il suo audio.
-        assert!(engine.samples[0] > 16_000, "{:?}", engine.samples);
+        let events = events(&path, &mut engine).unwrap();
+        // Ogni evento come (id, testo), con i Parziali ridotti alla Frase che trascrivono.
+        let mut ids: Vec<(u32, &str)> = events
+            .iter()
+            .filter_map(|event| match event {
+                PipelineEvent::Partial { id, text } => {
+                    Some((*id, text.split(" (").next().unwrap_or_default()))
+                }
+                PipelineEvent::Phrase { id, .. } => Some((*id, "FRASE")),
+                PipelineEvent::Progress(_) => None,
+            })
+            .collect();
+        ids.dedup();
+        assert_eq!(
+            ids,
+            [
+                (0, "frase 1"),
+                (0, "FRASE"),
+                (1, "frase 2"),
+                (1, ""),
+                (1, "frase 3"),
+                (1, "FRASE"),
+            ]
+        );
+    }
+
+    #[test]
+    fn un_motore_occupato_e_un_modello_in_uso_non_un_guasto() {
+        let path = tre_frasi("occupato");
+        let mut engine = FakeEngine {
+            busy: true,
+            ..FakeEngine::default()
+        };
+        let error = run(&path, &mut engine).unwrap_err();
+        assert!(matches!(error, AppError::ModelInUse(_)), "{error:?}");
     }
 
     #[test]

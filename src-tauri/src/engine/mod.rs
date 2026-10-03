@@ -22,8 +22,8 @@ pub trait TranscriptionEngine {
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum EngineError {
-    /// Il modello sta già calcolando per un'altra sessione. Riprovabile: arriva prima di leggere
-    /// l'audio della Frase.
+    /// Il modello sta già calcolando per un'altra sessione: non è un guasto, il motore resta sano e
+    /// la Trascrizione si può riprovare. Con una sola Attività alla volta non capita (ADR-0003).
     #[error("modello occupato")]
     Busy,
     #[error("annullato")]
@@ -35,8 +35,9 @@ pub enum EngineError {
 impl From<EngineError> for AppError {
     fn from(error: EngineError) -> Self {
         match error {
+            EngineError::Busy => Self::ModelInUse(error.to_string()),
             EngineError::Cancelled => Self::Cancelled,
-            error => Self::Internal(error.to_string()),
+            EngineError::Internal(e) => Self::Internal(e),
         }
     }
 }

@@ -1,5 +1,11 @@
 import { Settings } from "lucide-react";
-import { type ChangeEvent, useCallback, useEffect, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useOutlet } from "react-router";
 import { commands, events, type TranscriptPartial } from "@/bindings";
@@ -39,6 +45,8 @@ export function HomePage() {
   const [text, setText] = useState("");
   // Il Parziale della Frase in corso (Nemotron), mostrato nella riga dopo le Frasi.
   const [partial, setPartial] = useState<TranscriptPartial | null>(null);
+  // Gli eventi possono arrivare dopo la risposta di `transcribe`: un Parziale tardivo si ignora.
+  const acceptPartials = useRef<boolean>(false);
   const [status, setStatus] = useState<Status>({ phase: "idle", source: null });
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -62,7 +70,9 @@ export function HomePage() {
       setPartial((current) => afterPhrase(current, payload.phraseId));
     });
     const partials = events.transcriptPartial.listen(({ payload }) => {
-      setPartial(payload);
+      if (acceptPartials.current) {
+        setPartial(payload);
+      }
     });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       setStatus((current) => withProgress(current, payload.percent));
@@ -106,6 +116,7 @@ export function HomePage() {
     }
     setText("");
     setPartial(null);
+    acceptPartials.current = true;
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
@@ -117,7 +128,8 @@ export function HomePage() {
         phase: "failed",
       });
     } finally {
-      // Il Parziale di una Frase annullata o finita vuota non resta nel testo.
+      // Il Parziale di una Frase annullata non resta nel testo.
+      acceptPartials.current = false;
       setPartial(null);
     }
   }, [source]);
