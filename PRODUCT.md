@@ -155,6 +155,10 @@ Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OG
   - Il tema chiaro o scuro segue quello di Windows, compresi i controlli nativi come i selettori.
   - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: Parakeet (CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer), Nemotron (OpenMDW-1.1), Whisper (MIT di OpenAI), Silero VAD, Symphonia (MPL-2.0), transcribe.cpp (con ggml e miniz), ONNX Runtime (con gli avvisi di terze parti) e vad-rs. I testi sono anche file del bundle, nella cartella `licenses`.
   - Se il file impostazioni esiste ma non si legge (per esempio bloccato da un altro programma), l'app parte con i valori predefiniti e la lingua di Windows, e la status bar mostra l'errore. Il primo salvataggio riuscito lo sostituisce.
+- **M9 (ticket 12)**: storia 72.
+  - `Sbobino_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Sbobino`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
+  - La disinstallazione toglie l'app e lascia impostazioni e modelli scaricati, a meno di spuntare la cancellazione dei dati dell'app.
+  - L'editore dell'installer non è ancora deciso: oggi è il segnaposto "EDITORE DA DEFINIRE".
 
 ## Fuori dal perimetro
 

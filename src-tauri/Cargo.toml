@@ -31,8 +31,9 @@ rubato = "5.0.1"
 audioadapter-buffers = "5.1"
 # Fork usato da Handy: Silero v4 su ort rc.12. Senza `helpers` (samplerate, ebur128).
 vad-rs = { git = "https://github.com/cjpais/vad-rs", rev = "2a412ed858695b9251f3f5a1a20d95b59fa7c498", default-features = false }
-# Il default è `metal`. `dynamic-backends` arriva con l'installer (ticket 12).
-transcribe-cpp = { version = "0.2.4", default-features = false, features = ["vulkan"] }
+# Il default è `metal`. `dynamic-backends`: CPU e Vulkan sono DLL scelte a runtime (moduli CPU per
+# livello di ISA), quindi il binario non dipende dalla CPU della macchina di build. Vale anche in dev.
+transcribe-cpp = { version = "0.2.4", default-features = false, features = ["vulkan", "dynamic-backends"] }
 # Download dei modelli. `native-tls` (Schannel): il default rustls + aws-lc richiede NASM su MSVC.
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls", "http2", "system-proxy"] }
 # 0.10: la stessa versione che Tauri porta già nel grafo.

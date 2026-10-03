@@ -19,8 +19,9 @@ App desktop Tauri 2 + React, solo Windows x64, che trascrive in locale audio, vi
 | `bun run format:backend` | `cargo fmt --check` (per correggere: `cargo fmt` in `src-tauri`) |
 | `bun run lint:backend` | `cargo clippy --all-targets -- -D warnings` |
 | `cargo test` (in `src-tauri`) | test Rust |
+| `bun tauri build` | installer NSIS in `src-tauri/target/release/bundle/nsis/` (vedi "Installer") |
 
-Ogni ticket si chiude con tutti e sei i controlli verdi. Lancia una sola build Rust alla volta: condividono `src-tauri/target`.
+Ogni ticket si chiude con i sei controlli verdi (da `typecheck` a `cargo test`; `bun tauri build` non è un controllo). Lancia una sola build Rust alla volta: condividono `src-tauri/target`.
 Il pre-commit esegue `bunx ultracite fix` sui file staged (lint-staged).
 Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`).
 
@@ -32,6 +33,7 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
   - CMake nel PATH: lo usano `opus` e `transcribe-cpp`;
   - Vulkan SDK LunarG (`VULKAN_SDK` impostata), per la feature `vulkan` di `transcribe-cpp`;
   - lo zip ufficiale `onnxruntime-win-x64-1.24.2.zip` dalle [release GitHub di Microsoft](https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-win-x64-1.24.2.zip) (74 075 355 byte, SHA-256 `8e3e9c826375352e29cb2614fe44f3d7a4b0ff7b8028ad7a456af9d949a7e8b0`), estratto **fuori dal repo**. Sulla macchina di sviluppo sta in `..\sbobino-deps\onnxruntime-win-x64-1.24.2`, accanto alla cartella del repo;
+  - il redistribuibile VC++ di Visual Studio (`VC\Redist\MSVC`, arriva con il workload C++): `build.rs` lo trova con `vswhere`, o da `VCToolsRedistDir` se impostata (prompt dei comandi di VS), e ne mette le DLL accanto all'exe;
   - un `.cargo/config.toml` locale **alla root del repo** (ignorato da git). Va alla root e non in `src-tauri`, perché Cargo cerca la config partendo dalla cwd e gli script `bun run *:backend` girano dalla root con `--manifest-path`:
 
     ```toml
@@ -64,7 +66,8 @@ src-tauri/src/
   audio_toolkit/         cattura, ricampionamento, VAD, segmentatore, decodifica, mixer, writer Ogg/Opus
   engine/                trait `TranscriptionEngine`, motore transcribe-cpp, pipeline di un file
 src-tauri/resources/     risorse del bundle (`silero_vad.onnx`, `licenses/` con i testi delle licenze)
-src-tauri/runtime-libs/  DLL copiate da `build.rs` e messe accanto all'exe dal bundle (ignorata da git)
+src-tauri/runtime-libs/  DLL copiate da `build.rs` (ONNX Runtime, transcribe.cpp e backend ggml, runtime VC++) e messe
+                         accanto all'exe dal bundle, e in dev in `target/debug` (ignorata da git)
 src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di Windows) e lo stesso parlato in
                          `parlato-it.mp4` (H.264 + AAC, 30 KB, fatto con `Windows.Media.Editing` di Media Foundation)
 ```
@@ -102,6 +105,28 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 - La logica pura del frontend vive nelle feature, con un `*.test.ts` accanto. Niente test sui componenti.
 - Errori applicativi: un unico enum serializzato con un codice; il frontend mappa ogni codice a un messaggio tradotto.
 
+## Installer
+
+- `bun tauri build` compila frontend ed exe in release e produce solo l'installer NSIS (`bundle.targets: ["nsis"]`): `src-tauri/target/release/bundle/nsis/Sbobino_<versione>_x64-setup.exe`, circa 15 MB (90 MB una volta installato, di cui 44 di `ggml-vulkan.dll`). La prima volta la CLI di Tauri scarica NSIS e `nsis_tauri_utils`; la prima release compila transcribe-cpp da capo (circa 6 minuti). È una build Rust come le altre: niente `tauri dev` attivo intanto.
+- Installa per l'utente corrente (`installMode` predefinito `currentUser`) in `%LOCALAPPDATA%\Sbobino`, senza UAC: `sbobino.exe` con accanto le DLL di `runtime-libs/`, `resources\silero_vad.onnx` e `licenses\*.txt`. L'elenco dei file è in `src-tauri/target/release/nsis/x64/installer.nsi`; `7z l` sull'installer mostra cosa contiene davvero.
+- **Editore**: `bundle.publisher` è il segnaposto "EDITORE DA DEFINIRE" (si vede in App installate ed è nella chiave `HKCU\Software\<editore>\Sbobino`). Va deciso prima della prima release pubblica: cambiarlo dopo lascia la chiave del vecchio editore sui PC già installati. L'installer non è firmato (fuori perimetro).
+- WebView2: l'installer usa il bootstrapper predefinito, quindi su un Windows 10 che non ce l'ha la scarica durante l'installazione (serve la rete). Windows 11 ce l'ha già.
+- La disinstallazione toglie i file installati e lascia impostazioni e modelli (`%APPDATA%\it.sbobino.desktop`) e i dati della WebView, a meno di spuntare "Delete the application data" nel dialog; con `/S` non si cancellano.
+
+### Verifica dell'installer
+
+Sulla macchina di sviluppo, senza toccare l'app di sviluppo:
+
+1. Installa in silenzio in una cartella di prova (per esempio nella scratchpad): `Start-Process <setup.exe> -ArgumentList "/S","/D=<cartella>" -Wait`. `/D=` va per ultimo e senza virgolette. Prima di installare e disinstallare l'installer chiude un `sbobino.exe` in esecuzione solo se è quello di `<cartella>`, non quello di `target\debug`.
+2. Avvia `<cartella>\sbobino.exe` da PowerShell dopo aver tolto `ORT_LIB_LOCATION`, `VULKAN_SDK` e `ORT_PREFER_DYNAMIC_LINK` e aver ripulito il `PATH` dal Vulkan SDK. Imposta `WEBVIEW2_USER_DATA_FOLDER` su una cartella di prova, così la WebView non condivide i dati con l'app di sviluppo, e `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223`.
+3. `(Get-Process -Id <pid>).Modules`: `onnxruntime.dll`, `transcribe.dll`, `ggml*.dll`, `msvcp140*.dll` e `vcruntime140*.dll` devono venire da `<cartella>`, `vulkan-1.dll` da System32. Il log (`%LOCALAPPDATA%\it.sbobino.desktop\logs\Sbobino.log`, lo stesso dell'app di sviluppo) riporta `backend di transcribe-cpp: Vulkan0 (…), CPU (…)` e il caricamento del modello.
+4. Via CDP sulla 9223 (vedi "Pilotare l'app"): `transcribe` su una copia di `parlato-it.wav` fuori dal repo, poi `record`, qualche secondo e `stop_recording`. Cancella la Registrazione di prova da `Documenti\Sbobino`.
+5. Chiudi l'app e lancia `<cartella>\uninstall.exe /S`: la cartella e la chiave `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Sbobino` spariscono, i modelli restano.
+
+L'app installata usa la stessa `%APPDATA%\it.sbobino.desktop` dell'app di sviluppo, quindi anche i modelli già scaricati: `app_data_dir` viene da `FOLDERID_RoamingAppData` e una variabile d'ambiente non lo sposta. Durante la prova non cambiare le impostazioni. La finestra dell'app installata compare sullo schermo dell'utente, che può usarla: un `activityInProgress` inatteso viene da lì.
+
+Esito del 2026-10-03 (Ryzen 7 3700X, RTX 2070 SUPER): tutte le DLL caricate dalla cartella d'installazione, backend Vulkan0 e CPU (modulo `ggml-cpu-haswell`), Nemotron caricato in 1,1 s, fixture trascritta in 1,3 s con il TXT salvato, Registrazione di 4 s salvata e ritrascritta, disinstallazione pulita. Manca la prova su un PC pulito (vedi "Da verificare sull'hardware reale").
+
 ## Insidie
 
 ### Toolchain e tooling
@@ -127,13 +152,16 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 - **opus** 0.4 compila libopus 1.6.1 da sorgente con CMake (via `opusic-sys`, link statico): niente DLL da distribuire. L'encoder accetta solo 8/12/16/24/48 kHz, quindi la frequenza del dispositivo (spesso 44,1 kHz) si ricampiona sempre prima.
 - **cpal 0.18**: `DeviceTrait::name()` non c'è più, il nome è `device.to_string()` e l'id stabile è `device.id()` (`Display`/`FromStr`, formato `wasapi:{…}`). Gli stream non partono senza `play()`. Gli stream di cattura WASAPI accettano solo il formato nativo (di solito f32 alla frequenza del mix): `capture` gestisce f32, i16 e i32.
 - **chrono**: è già nel grafo tramite Tauri, con `clock`; serve per la data e ora locali nel nome delle Registrazioni.
-- **ONNX Runtime**: niente build prebuilt di `ort` (compilata AVX2, va in crash all'avvio sulle CPU pre-Haswell) e niente `DirectML.dll`. Si usa l'ONNX Runtime ufficiale 1.24.2 in link dinamico (`ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1`): `build.rs` copia `onnxruntime.dll` in `target/<profilo>`, in `target/<profilo>/deps` (per i test) e in `runtime-libs/` per il bundle. Senza quella copia Windows carica l'`onnxruntime.dll` di System32 (Windows ML), più vecchio, e l'avvio fallisce. L'installer NSIS (ticket 12) deve includere la DLL insieme a Silero.
+- **ONNX Runtime**: niente build prebuilt di `ort` (compilata AVX2, va in crash all'avvio sulle CPU pre-Haswell) e niente `DirectML.dll`. Si usa l'ONNX Runtime ufficiale 1.24.2 in link dinamico (`ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1`): `build.rs` copia `onnxruntime.dll` in `target/<profilo>`, in `target/<profilo>/deps` (per i test) e in `runtime-libs/` per il bundle. Senza quella copia Windows carica l'`onnxruntime.dll` di System32 (Windows ML), più vecchio, e l'avvio fallisce.
 - **Silero**: il file è `silero_vad.onnx` dal tag v4.0 di snakers4/silero-vad (1 807 522 byte, SHA-256 `a35ebf52fd3ce5f1469b2a36158dba761bc47b973ea3382b3186ca15b1f5af28`). vad-rs accetta solo 8 o 16 kHz.
 - **transcribe-cpp**: la feature di default è `metal`, quindi `default-features = false` con `vulkan`.
   - Con `vulkan` serve il Vulkan SDK: `build.rs` aggiunge `%VULKAN_SDK%\Lib` al percorso del linker per `vulkan-1.lib`. La prima build nativa dura diversi minuti.
   - `transcribe-cpp-sys` compila passando da una junction NTFS corta in `%LOCALAPPDATA%\tcs`, perché MSBuild ignora `LongPathsEnabled`. **Dentro l'app desktop di Claude `%LOCALAPPDATA%` è virtualizzato e CMake fallisce con "os error 267"**: per questo il `.cargo/config.toml` locale sposta `LOCALAPPDATA` in `src-tauri/target`. Se la junction fallisce comunque, usa un `CARGO_TARGET_DIR` corto (es. `C:\tc-target`).
   - Una build Rust alla volta: due build contemporanee condividono la cartella CMake. Se si corrompe, cancella `src-tauri/target/debug/build/transcribe-cpp-sys-*`.
-  - La build statica è ottimizzata per la CPU della macchina di build: per distribuire serve `dynamic-backends` (ticket 12), con le DLL dei backend accanto all'exe.
+  - **`dynamic-backends`, in dev come in release.** La build statica sarebbe ottimizzata per la CPU della macchina di build. Con `dynamic-backends` ci sono `transcribe.dll`, `ggml.dll`, `ggml-base.dll`, un `ggml-cpu-<livello>.dll` per livello di ISA (da `x64`/`sse42` a `alderlake`/`icelake`, scelto a runtime) e `ggml-vulkan.dll`. `TranscribeCpp::load` chiama `init_backends_default` una volta per processo, che cerca i moduli accanto a `transcribe.dll`; il log dice quali dispositivi si sono registrati. In dev funziona uguale (smoke test con Vulkan), quindi c'è una sola configurazione e quello che si prova in dev è quello che si installa. Cambiare le feature ricompila CMake da capo (circa 4 minuti e mezzo).
+  - transcribe-cpp-sys copia le sue DLL in `target/<profilo>` e `deps`; `build.rs` le prende da `DEP_TRANSCRIBE_CPP_RUNTIME_DIR`/`MODULE_DIR` e le mette in `runtime-libs/`, togliendo quelle che non servono più. Debug e release scrivono nella stessa cartella, ma va bene: la sys compila CMake in `Release` in entrambi i profili. `build.rs` copia solo i file cambiati: tauri-build mette `rerun-if-changed` sulle risorse, e riscrivere le DLL a ogni build farebbe ripartire build script e compilazione ogni volta (`fs::copy` su Windows conserva la data).
+  - `ggml-vulkan.dll` dipende da `vulkan-1.dll`, il loader che installano i driver della GPU: non si distribuisce. Se manca, il modulo non si carica e transcribe-cpp usa la CPU.
+  - **`vcomp140.dll` non serve**: OpenMP è spento in 0.2.4 e `dumpbin /dependents` non lo trova in nessuna DLL. Servono invece `msvcp140.dll`, `msvcp140_1.dll`, `vcruntime140.dll` e `vcruntime140_1.dll` (ggml, transcribe e ONNX Runtime sono C++ con `/MD`): vanno nel bundle dal redistribuibile di VS, perché un PC pulito può non averli. Devono essere almeno della versione del toolset che ha linkato le DLL (14.44 per ONNX Runtime 1.24.2 e per transcribe.cpp qui): `build.rs` rifiuta un redistribuibile più vecchio. L'exe di Sbobino invece linka statico il vcruntime (lo fa tauri-build) e usa solo l'UCRT di Windows.
 - **Loopback WASAPI**: è uno stream di input aperto sul dispositivo di uscita, con la config da `default_output_config()` (il mix format, di solito f32 48 kHz stereo); `default_input_config()` lì dà errore. Verificato su Windows 11 (26200) con un'uscita USB Focusrite:
   - a riproduzione ferma il loopback non consegna nessun pacchetto, nemmeno di silenzio: timer e file avanzano solo grazie a `advance` con l'orologio QPC;
   - all'inizio e alla fine di ogni riproduzione arriva spesso un `Xrun` (discontinuità), che si ignora: il buco diventa silenzio;
@@ -161,7 +189,7 @@ src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di 
 - La deriva su sessioni di ore e con altri dispositivi (Bluetooth): il mixer la corregge a scatti da 20 ms (silenzio inserito o audio scartato), da sostituire con un resampler asincrono se gli scatti si sentono. Un dispositivo che consegna con oltre 500 ms di ritardo verrebbe scartato per intero (`LAG_NS`).
 - Il loopback su un'uscita 5.1/7.1 (downmix con l'ordine dei canali assunto) e su un'uscita che cambia formato a metà Registrazione.
 - Il pre-skip dell'OpusHead quando l'encoder lavora sotto i 48 kHz: Symphonia (test) e ffprobe ritrovano la durata esatta, `opusinfo` non è stato provato.
-- Se serve `vcomp140.dll` (OpenMP è spento per default in `transcribe-cpp` 0.2.4).
+- L'installer su un PC Windows x64 pulito (una VM va bene), da fare a mano: senza Visual Studio né redistribuibile VC++, senza Vulkan (solo CPU) e se possibile con una CPU pre-AVX2 (moduli `ggml-cpu-sse42`/`x64`, ONNX Runtime ufficiale). Installa con doppio clic, scarica Nemotron da Impostazioni → Trascrizione, trascrivi un file e fai una Registrazione. La verifica di "Installer" gira sulla macchina di sviluppo, che ha già runtime VC++ e Vulkan.
 
 ## Agent skills
 

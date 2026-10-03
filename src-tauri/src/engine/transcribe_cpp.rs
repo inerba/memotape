@@ -4,6 +4,7 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
+use std::sync::OnceLock;
 
 use transcribe_cpp::{CancelToken, Feature, Model, RunOptions, Session, StreamOptions};
 
@@ -24,6 +25,7 @@ impl TranscribeCpp {
         if !path.is_file() {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
+        init_backends()?;
         let (session, capabilities) = catch_native(|| {
             let model = Model::load(path)?;
             if !model.supports(Feature::Cancellation) {
@@ -90,6 +92,24 @@ impl TranscriptionEngine for TranscribeCpp {
         catch_native(|| stream.finalize())?;
         Ok(stream.text().full.trim().to_string())
     }
+}
+
+/// Con `dynamic-backends` i backend (un modulo CPU per livello di ISA, Vulkan) sono DLL accanto a
+/// `transcribe.dll`, da registrare una volta per processo prima del primo `Model::load`. Non si
+/// può riprovare nello stesso processo, quindi anche l'errore resta memorizzato.
+fn init_backends() -> Result<(), EngineError> {
+    static BACKENDS: OnceLock<Result<(), EngineError>> = OnceLock::new();
+    BACKENDS
+        .get_or_init(|| {
+            catch_native(transcribe_cpp::init_backends_default)?;
+            let devices: Vec<_> = transcribe_cpp::devices()
+                .into_iter()
+                .map(|d| format!("{} ({})", d.name, d.description))
+                .collect();
+            log::info!("backend di transcribe-cpp: {}", devices.join(", "));
+            Ok(())
+        })
+        .clone()
 }
 
 /// Chiamata nativa protetta: un panic non deve abbattere il thread della pipeline senza errore.
