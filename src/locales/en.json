@@ -266,9 +266,11 @@
       "week": "This week"
     },
     "showAll": "All Bini in the Collection",
-    "sortBy": "Sort by",
     "sortDate": "Date",
     "sortTitle": "Title",
+    "sortDuration": "Duration",
+    "ascending": "oldest, A to Z or shortest first",
+    "descending": "newest, Z to A or longest first",
     "moveTo": "Move to…",
     "addToLibrary": "Add to Library…",
     "reveal": "Show in File Explorer",
@@ -331,7 +333,9 @@
     "parlanti_other": "{{count}} speakers",
     "noText": "This Bino has no text yet",
     "noTextDescription": "Transcribe it to read, search and listen back to what was said.",
-    "ingressi": "Microphone + system audio"
+    "ingressi": "Microphone + system audio",
+    "changeDate": "Click to change date and time: Enter confirms, Esc cancels",
+    "dateLabel": "Recording date and time"
   },
   "tabs": {
     "label": "Bino views",

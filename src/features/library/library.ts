@@ -40,7 +40,7 @@ function groupKey(date: Date, today: Date): string {
 export function groupByDate(bini: BinoEntry[], today: Date): DateGroup[] {
   const groups: DateGroup[] = [];
   let last: DateGroup | undefined;
-  for (const bino of sortBini(bini, "date")) {
+  for (const bino of sortBini(bini, DEFAULT_ORDER)) {
     const key = groupKey(new Date(bino.creato), today);
     if (last?.key === key) {
       last.bini.push(bino);
@@ -58,15 +58,63 @@ export function clockText(creato: string): string {
   return `${two(date.getHours())}:${two(date.getMinutes())}`;
 }
 
-/** L'ordinamento dell'elenco completo: dal più recente o per titolo. */
-export type BinoOrder = "date" | "title";
+/** `creato` per `<input type="datetime-local">`: `AAAA-MM-GGTHH:mm` nell'ora locale. */
+export function dateTimeInput(creato: string): string {
+  const date = new Date(creato);
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}T${clockText(creato)}`;
+}
+
+/** Le colonne dell'elenco completo per cui si ordina. */
+export type BinoColumn = "date" | "title" | "duration";
+const COLUMNS: BinoColumn[] = ["date", "title", "duration"];
+
+export interface BinoOrder {
+  column: BinoColumn;
+  descending: boolean;
+}
+
+/** Dal più recente. */
+export const DEFAULT_ORDER: BinoOrder = { column: "date", descending: true };
+
+const COMPARE: Record<BinoColumn, (a: BinoEntry, b: BinoEntry) => number> = {
+  date: (a, b) => Date.parse(a.creato) - Date.parse(b.creato),
+  // Senza durata (Bino illeggibile) è il più corto.
+  duration: (a, b) => (a.durataMs ?? -1) - (b.durataMs ?? -1),
+  title: (a, b) => a.titolo.localeCompare(b.titolo),
+};
 
 export function sortBini(bini: BinoEntry[], order: BinoOrder): BinoEntry[] {
-  return [...bini].sort(
-    order === "date"
-      ? (a, b) => Date.parse(b.creato) - Date.parse(a.creato)
-      : (a, b) => a.titolo.localeCompare(b.titolo)
+  const compare = COMPARE[order.column];
+  return [...bini].sort((a, b) =>
+    order.descending ? compare(b, a) : compare(a, b)
   );
+}
+
+/**
+ * Il clic sull'intestazione `column`: la stessa colonna inverte il verso, un'altra parte dal più
+ * recente o più lungo, il titolo dalla A.
+ */
+export function nextOrder(current: BinoOrder, column: BinoColumn): BinoOrder {
+  if (current.column === column) {
+    return { column, descending: !current.descending };
+  }
+  return { column, descending: column !== "title" };
+}
+
+/** L'ordinamento ricordato (JSON), o quello predefinito se manca o non vale. */
+export function orderOf(saved: string | null): BinoOrder {
+  try {
+    const order = JSON.parse(saved ?? "null");
+    if (
+      COLUMNS.includes(order?.column) &&
+      typeof order.descending === "boolean"
+    ) {
+      return { column: order.column, descending: order.descending };
+    }
+  } catch {
+    // Un valore rotto vale come assente.
+  }
+  return DEFAULT_ORDER;
 }
 
 /**

@@ -1,5 +1,13 @@
-import { AudioLines, FolderPen, FolderX, Plus, Trash2 } from "lucide-react";
-import { type ChangeEvent, useCallback, useId, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  AudioLines,
+  FolderPen,
+  FolderX,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { type DragEvent, type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
@@ -7,12 +15,14 @@ import {
   commands,
   type LibraryList,
 } from "@/bindings";
-import { NativeSelect } from "@/components/native-select";
 import { Button } from "@/components/ui/button";
 import { DocumentHeader } from "@/features/library/bino-header";
 import {
+  type BinoColumn,
   type BinoOrder,
   biniOf,
+  nextOrder,
+  orderOf,
   raccoltaLabel,
   sortBini,
 } from "@/features/library/library";
@@ -23,6 +33,17 @@ import { folderOf } from "@/features/source/file-name";
 
 const PILL =
   "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground [&_svg]:size-3.5";
+
+/** L'ordinamento dell'elenco, ricordato in questo PC. */
+const ORDER_KEY = "sbobino.order";
+
+function savedOrder(): BinoOrder {
+  try {
+    return orderOf(localStorage.getItem(ORDER_KEY));
+  } catch {
+    return orderOf(null);
+  }
+}
 
 /**
  * La Libreria completa: le Raccolte (Tutta la Libreria, Senza raccolta, le altre e Nuova Raccolta,
@@ -51,14 +72,31 @@ export function AllBini({
   raccolta: string | null;
 }) {
   const { i18n, t } = useTranslation();
-  const [order, setOrder] = useState<BinoOrder>("date");
-  const orderId = useId();
+  const [order, setOrder] = useState(savedOrder);
   // La Raccolta che si sta creando (`""`) o rinominando.
   const [naming, setNaming] = useState<string | null>(null);
-  const changeOrder = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) =>
-      setOrder(e.target.value === "title" ? "title" : "date"),
-    []
+  // Il Bino che si sta trascinando su una Raccolta.
+  const [dragging, setDragging] = useState<BinoEntry | null>(null);
+  const sort = useCallback((column: BinoColumn) => {
+    setOrder((current) => {
+      const next = nextOrder(current, column);
+      try {
+        localStorage.setItem(ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // Senza memoria del browser l'ordine vale solo finché l'app resta aperta.
+      }
+      return next;
+    });
+  }, []);
+  // La riga può sparire dopo lo spostamento, senza `dragend`: il trascinamento finisce qui.
+  const drop = useCallback(
+    (to: string) => {
+      if (dragging) {
+        onMove(dragging.path, to);
+      }
+      setDragging(null);
+    },
+    [dragging, onMove]
   );
 
   const submitName = useCallback(
@@ -124,8 +162,15 @@ export function AllBini({
         >
           {scopes.map((scope) => (
             <ScopePill
+              // Il Bino trascinato si rilascia in un'altra Raccolta o in Senza raccolta.
+              accepts={
+                dragging !== null &&
+                scope !== null &&
+                scope !== (dragging.raccolta ?? "")
+              }
               key={scope ?? ".all"}
               onChoose={onRaccolta}
+              onDrop={drop}
               scope={scope}
               selected={scope === raccolta}
             />
@@ -183,17 +228,33 @@ export function AllBini({
             </Button>
           </div>
         ) : null}
-        <div className="mt-8 flex items-center justify-between gap-3 border-b pb-2">
-          <h2 className="font-medium">{raccoltaLabel(raccolta, t)}</h2>
-          <div className="flex items-center gap-2">
-            <label className="text-muted-foreground text-sm" htmlFor={orderId}>
-              {t("library.sortBy")}
-            </label>
-            <NativeSelect id={orderId} onChange={changeOrder} value={order}>
-              <option value="date">{t("library.sortDate")}</option>
-              <option value="title">{t("library.sortTitle")}</option>
-            </NativeSelect>
-          </div>
+        <h2 className="mt-8 font-medium">{raccoltaLabel(raccolta, t)}</h2>
+        <div className="mt-3 flex items-center gap-4 border-b pb-2 text-muted-foreground text-sm">
+          <SortHeader
+            className="flex-1"
+            column="title"
+            label={t("library.sortTitle")}
+            onSort={sort}
+            order={order}
+          />
+          {raccolta === null ? (
+            <span className="w-32 shrink-0">{t("library.raccolta")}</span>
+          ) : null}
+          <SortHeader
+            className="w-40"
+            column="date"
+            label={t("library.sortDate")}
+            onSort={sort}
+            order={order}
+          />
+          <SortHeader
+            className="w-16 justify-end"
+            column="duration"
+            label={t("library.sortDuration")}
+            onSort={sort}
+            order={order}
+          />
+          <span className="w-44 shrink-0" />
         </div>
         {bini.length === 0 ? (
           <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
@@ -204,6 +265,7 @@ export function AllBini({
                 bino={bino}
                 dateFormat={dateFormat}
                 key={bino.path}
+                onDrag={setDragging}
                 onMove={onMove}
                 onOpen={onOpen}
                 onTrash={onTrash}
@@ -218,22 +280,61 @@ export function AllBini({
   );
 }
 
+/**
+ * Una pillola delle Raccolte. Con `accepts` riceve il Bino trascinato: il bordo tratteggiato dice
+ * dove si può rilasciare, e quella sotto il cursore si evidenzia.
+ */
 function ScopePill({
+  accepts,
   onChoose,
+  onDrop,
   scope,
   selected,
 }: {
+  accepts: boolean;
   onChoose: (raccolta: string | null) => void;
+  onDrop: (raccolta: string) => void;
   scope: string | null;
   selected: boolean;
 }) {
   const { t } = useTranslation();
+  const [over, setOver] = useState(false);
   const choose = useCallback(() => onChoose(scope), [onChoose, scope]);
+  const dragOver = useCallback(
+    (e: DragEvent) => {
+      if (accepts) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setOver(true);
+      }
+    },
+    [accepts]
+  );
+  const dragLeave = useCallback(() => setOver(false), []);
+  const drop = useCallback(
+    (e: DragEvent) => {
+      e.preventDefault();
+      setOver(false);
+      if (accepts && scope !== null) {
+        onDrop(scope);
+      }
+    },
+    [accepts, onDrop, scope]
+  );
+  let className = PILL;
+  if (accepts && over) {
+    className += " border-primary bg-accent";
+  } else if (accepts) {
+    className += " border-muted-foreground/60 border-dashed";
+  }
   return (
     <button
       aria-pressed={selected}
-      className={PILL}
+      className={className}
       onClick={choose}
+      onDragLeave={dragLeave}
+      onDragOver={dragOver}
+      onDrop={drop}
       type="button"
     >
       {raccoltaLabel(scope, t)}
@@ -241,9 +342,50 @@ function ScopePill({
   );
 }
 
+/** L'intestazione di una colonna: un clic ordina per lei, il secondo inverte il verso. */
+function SortHeader({
+  className,
+  column,
+  label,
+  onSort,
+  order,
+}: {
+  className: string;
+  column: BinoColumn;
+  label: string;
+  onSort: (column: BinoColumn) => void;
+  order: BinoOrder;
+}) {
+  const { t } = useTranslation();
+  const sort = useCallback(() => onSort(column), [column, onSort]);
+  const active = order.column === column;
+  let arrow: ReactNode = null;
+  if (active) {
+    arrow = order.descending ? <ArrowDown /> : <ArrowUp />;
+  }
+  return (
+    <button
+      // La colonna scelta dice anche il verso, che la freccia mostra solo a chi vede.
+      aria-label={
+        active
+          ? `${label}, ${t(order.descending ? "library.descending" : "library.ascending")}`
+          : label
+      }
+      aria-pressed={active}
+      className={`flex shrink-0 items-center gap-1 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:text-foreground [&_svg]:size-3.5 ${className}`}
+      onClick={sort}
+      type="button"
+    >
+      {label}
+      {arrow}
+    </button>
+  );
+}
+
 function BinoRow({
   bino,
   dateFormat,
+  onDrag,
   onMove,
   onOpen,
   onTrash,
@@ -252,6 +394,8 @@ function BinoRow({
 }: {
   bino: BinoEntry;
   dateFormat: Intl.DateTimeFormat;
+  /** Il Bino trascinato, `null` a fine trascinamento. */
+  onDrag: (bino: BinoEntry | null) => void;
   onMove: (path: string, raccolta: string) => void;
   onOpen: (path: string) => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
@@ -265,11 +409,25 @@ function BinoRow({
     [bino.path, onMove]
   );
   const trash = useCallback(() => onTrash(bino), [bino, onTrash]);
+  const dragStart = useCallback(
+    (e: DragEvent) => {
+      // Un tipo tutto suo: rilasciato in un campo di testo non scrive nulla.
+      e.dataTransfer.setData("application/x-sbobino-bino", bino.path);
+      e.dataTransfer.effectAllowed = "move";
+      onDrag(bino);
+    },
+    [bino, onDrag]
+  );
+  const dragEnd = useCallback(() => onDrag(null), [onDrag]);
   return (
     <li className="group flex items-center gap-4 py-2.5">
+      {/* Il titolo si apre con un clic e si trascina su una Raccolta per spostarlo. */}
       <button
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        draggable
         onClick={open}
+        onDragEnd={dragEnd}
+        onDragStart={dragStart}
         title={bino.path}
         type="button"
       >
@@ -293,8 +451,9 @@ function BinoRow({
         {bino.durataMs === null ? "" : elapsedText(bino.durataMs)}
       </span>
       {/* Le azioni della riga compaiono passandoci sopra o con il focus: pochi comandi in vista. */}
-      <span className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+      <span className="flex w-44 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
         <MoveSelect
+          className="min-w-0 flex-1"
           current={bino.raccolta ?? ""}
           label={t("library.moveTo")}
           onMove={move}

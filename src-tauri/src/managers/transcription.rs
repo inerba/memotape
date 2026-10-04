@@ -329,8 +329,9 @@ pub async fn transcribe(
                 let transcript = run(Some(copy))?;
                 Ok(bino::Document {
                     origine: source.file_name().map(|n| n.to_string_lossy().into_owned()),
+                    // L'ora del file, se la dice; altrimenti quella della Trascrizione.
                     ..document(
-                        bino::creato(started),
+                        bino::creato(modified_at(&source).unwrap_or(started)),
                         transcript.durata_ms.unwrap_or_default(),
                         &transcript,
                     )
@@ -380,6 +381,15 @@ fn file_to_bino(
     let path = numbered(folder, &title_of(source), "bino", Path::exists);
     bino::write(&path, &[(Ingresso::Mix, &ogg)], &document)?;
     Ok(Some(path))
+}
+
+/// La data di modifica del file `source`: per un audio o un video importato è l'ora più vicina a
+/// quella in cui è stato registrato.
+fn modified_at(source: &Path) -> Option<chrono::DateTime<chrono::Local>> {
+    std::fs::metadata(source)
+        .and_then(|m| m.modified())
+        .ok()
+        .map(Into::into)
 }
 
 /// L'Ogg temporaneo del Bino di un file: al drop si cancella, e con lui la cartella nascosta se resta
@@ -906,6 +916,21 @@ mod tests {
 
     fn labels() -> Labels {
         Labels::of(Language::It)
+    }
+
+    #[test]
+    fn la_data_di_un_file_e_la_sua_data_di_modifica() {
+        let dir = crate::audio_toolkit::ogg_opus::tests::temp_dir("data-del-file");
+        let path = dir.join("Lezione.wav");
+        use chrono::TimeZone;
+        let file = std::fs::File::create(&path).unwrap();
+        let when = chrono::Local
+            .with_ymd_and_hms(2024, 3, 9, 8, 15, 0)
+            .unwrap();
+        file.set_modified(when.into()).unwrap();
+        drop(file);
+        assert_eq!(modified_at(&path), Some(when));
+        assert_eq!(modified_at(&dir.join("assente.wav")), None);
     }
 
     #[test]

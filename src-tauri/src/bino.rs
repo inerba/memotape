@@ -234,6 +234,22 @@ pub fn rename_parlante(
     })
 }
 
+/// Cambia `creato` con la data e l'ora locali `local` (`2026-10-03T17:05`, come
+/// `<input type="datetime-local">`) e riscrive il Bino. Restituisce il `creato` scritto.
+pub fn set_creato(path: &Path, local: &str) -> Result<String, AppError> {
+    let scritto = chrono::NaiveDateTime::parse_from_str(local, "%Y-%m-%dT%H:%M")
+        .ok()
+        // Un'ora che non esiste (cambio dell'ora legale) si rifiuta.
+        .and_then(|naive| naive.and_local_timezone(Local).earliest())
+        .map(creato)
+        .ok_or_else(|| AppError::Internal(format!("data e ora non valide: {local}")))?;
+    update(path, |document| {
+        document.creato.clone_from(&scritto);
+        Ok(())
+    })?;
+    Ok(scritto)
+}
+
 /// Legge, cambia e riscrive il documento. Due modifiche dello stesso Bino non si sovrappongono: altrimenti
 /// l'ultima cancellerebbe la prima e scriverebbero lo stesso `.tmp`.
 // ponytail: un solo lock per tutti i Bini; una mappa per percorso se le scritture diventano lente.
@@ -628,6 +644,23 @@ mod tests {
             after.parlanti.get("mix:2").map(String::as_str),
             Some("Lucia")
         );
+    }
+
+    #[test]
+    fn la_data_si_cambia_con_l_ora_locale_e_il_resto_resta() {
+        let dir = temp_dir("bino-creato");
+        let path = dir.join("Call.bino");
+        let before = document(&["Ciao."]);
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before).unwrap();
+        let creato = set_creato(&path, "2025-12-31T23:30").unwrap();
+        let after = read(&path).unwrap();
+        assert_eq!(after.creato, creato);
+        assert_eq!(after.date(), "2025-12-31 23:30");
+        assert_eq!(after.frasi, before.frasi);
+        assert_eq!(after.durata_ms, before.durata_ms);
+        // Un valore che non è data e ora si rifiuta e non cambia nulla.
+        assert!(set_creato(&path, "31/12/2025").is_err());
+        assert_eq!(read(&path).unwrap().creato, creato);
     }
 
     #[test]

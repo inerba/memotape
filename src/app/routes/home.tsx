@@ -582,6 +582,27 @@ export function HomePage() {
     [updateView]
   );
 
+  // La data e l'ora nuove del Bino `path`, nell'ora locale del campo.
+  const changeCreato = useCallback(
+    async (path: string, local: string) => {
+      const result = await commands.setCreato(path, local);
+      if (result.status === "error") {
+        setNotice(result.error);
+        return;
+      }
+      const creato = result.data;
+      setBrowsed((current) =>
+        current?.path === path && current.info
+          ? { ...current, info: { ...current.info, creato } }
+          : current
+      );
+      if (path === source) {
+        setInfo((current) => current && { ...current, creato });
+      }
+    },
+    [source]
+  );
+
   const copyActivity = useCallback(() => copy(null), [copy]);
 
   // La Raccolta di un Bino dal suo percorso nella barra in alto: apre la Libreria lì.
@@ -623,6 +644,7 @@ export function HomePage() {
       library={library}
       onCancel={cancel}
       onCopy={copy}
+      onCreato={changeCreato}
       onEdit={edit}
       onError={setNotice}
       onExported={exported}
@@ -1154,6 +1176,7 @@ function BinoPane({
   library,
   onCancel,
   onCopy,
+  onCreato,
   onEdit,
   onError,
   onExported,
@@ -1180,6 +1203,7 @@ function BinoPane({
   library: LibraryList;
   onCancel: () => void;
   onCopy: (path: string) => void;
+  onCreato: (path: string, local: string) => void;
   onEdit: (path: string, phrase: PhraseRef, text: string) => Promise<boolean>;
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
@@ -1245,6 +1269,7 @@ function BinoPane({
         disabled={!editable}
         info={info}
         library={library}
+        onCreato={onCreato}
         onRename={onRenameTitle}
         parlanti={parlantiOf(conversation, t).length}
         path={path}

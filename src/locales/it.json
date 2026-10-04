@@ -266,9 +266,11 @@
       "week": "Questa settimana"
     },
     "showAll": "Tutti i Bini della Raccolta",
-    "sortBy": "Ordina per",
     "sortDate": "Data",
     "sortTitle": "Titolo",
+    "sortDuration": "Durata",
+    "ascending": "dalla meno recente, dalla A o dalla più corta",
+    "descending": "dalla più recente, dalla Z o dalla più lunga",
     "moveTo": "Sposta in…",
     "addToLibrary": "Aggiungi alla Libreria…",
     "reveal": "Mostra in Esplora file",
@@ -332,7 +334,9 @@
     "parlanti_other": "{{count}} parlanti",
     "noText": "Questo Bino non ha ancora testo",
     "noTextDescription": "Trascrivilo per leggere, cercare e riascoltare quello che si è detto.",
-    "ingressi": "Microfono + audio di sistema"
+    "ingressi": "Microfono + audio di sistema",
+    "changeDate": "Clic per cambiare data e ora: Invio conferma, Esc annulla",
+    "dateLabel": "Data e ora della registrazione"
   },
   "tabs": {
     "label": "Viste del Bino",

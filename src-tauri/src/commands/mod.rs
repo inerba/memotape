@@ -244,23 +244,40 @@ pub async fn edit_frase(
     .await
 }
 
+/// Cambia la data e l'ora del Bino `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
+/// il `creato` scritto. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_creato(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    local: String,
+) -> Result<String, AppError> {
+    write_bino(app, &activity, bino_path(&path)?, move |path| {
+        bino::set_creato(path, &local)
+    })
+    .await
+}
+
 /// Riscrive il Bino `path` con `write`, tenendo l'Attività solo per la scrittura, poi riallinea
 /// l'indice: la modifica si trova subito con la ricerca.
-async fn write_bino(
+async fn write_bino<T: Send + 'static>(
     app: AppHandle,
     activity: &Activity,
     path: PathBuf,
-    write: impl FnOnce(&std::path::Path) -> Result<(), AppError> + Send + 'static,
-) -> Result<(), AppError> {
-    {
+    write: impl FnOnce(&std::path::Path) -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    let written = {
         let _writing = activity.write(&path)?;
-        blocking(app.clone(), move |_| write(&path)).await?;
-    }
+        blocking(app.clone(), move |_| write(&path)).await?
+    };
     blocking(app, |app| {
         managers::library::sync(app);
         Ok(())
     })
-    .await
+    .await?;
+    Ok(written)
 }
 
 /// I modelli del catalogo con il loro stato.

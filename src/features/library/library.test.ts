@@ -3,12 +3,17 @@ import "@/lib/i18n";
 import i18n from "i18next";
 import type { BinoEntry } from "@/bindings";
 import {
+  type BinoColumn,
   biniOf,
   chosenRaccolta,
   clockText,
+  DEFAULT_ORDER,
+  dateTimeInput,
   dayText,
   groupByDate,
   nameProblem,
+  nextOrder,
+  orderOf,
   sortBini,
 } from "./library";
 
@@ -98,22 +103,56 @@ test("l'ora è HH:mm nell'ora locale", () => {
   expect(clockText("2026-10-04T23:59:00")).toBe("23:59");
 });
 
-test("l'elenco completo si ordina per data o per titolo", () => {
+test("l'elenco completo si ordina per data, titolo o durata, nei due versi", () => {
   const bini = [
-    bino("beta", [2026, 10, 1]),
-    bino("Alfa", [2026, 9, 1]),
-    bino("gamma", [2026, 10, 3]),
+    { ...bino("beta", [2026, 10, 1]), durataMs: 5000 },
+    { ...bino("Alfa", [2026, 9, 1]), durataMs: null },
+    { ...bino("gamma", [2026, 10, 3]), durataMs: 9000 },
   ];
-  expect(sortBini(bini, "date").map((b) => b.titolo)).toEqual([
-    "gamma",
-    "beta",
-    "Alfa",
-  ]);
-  expect(sortBini(bini, "title").map((b) => b.titolo)).toEqual([
-    "Alfa",
-    "beta",
-    "gamma",
-  ]);
+  const titoli = (column: BinoColumn, descending: boolean) =>
+    sortBini(bini, { column, descending }).map((b) => b.titolo);
+  expect(titoli("date", true)).toEqual(["gamma", "beta", "Alfa"]);
+  expect(titoli("date", false)).toEqual(["Alfa", "beta", "gamma"]);
+  expect(titoli("title", false)).toEqual(["Alfa", "beta", "gamma"]);
+  expect(titoli("title", true)).toEqual(["gamma", "beta", "Alfa"]);
+  // Senza durata (Bino illeggibile) viene dopo i più corti.
+  expect(titoli("duration", true)).toEqual(["gamma", "beta", "Alfa"]);
+  expect(titoli("duration", false)).toEqual(["Alfa", "beta", "gamma"]);
+});
+
+test("il clic su una colonna la sceglie con il suo verso, il secondo lo inverte", () => {
+  expect(nextOrder(DEFAULT_ORDER, "date")).toEqual({
+    column: "date",
+    descending: false,
+  });
+  expect(nextOrder(DEFAULT_ORDER, "title")).toEqual({
+    column: "title",
+    descending: false,
+  });
+  expect(nextOrder(DEFAULT_ORDER, "duration")).toEqual({
+    column: "duration",
+    descending: true,
+  });
+  expect(nextOrder({ column: "title", descending: false }, "title")).toEqual({
+    column: "title",
+    descending: true,
+  });
+});
+
+test("l'ordinamento ricordato si rilegge, o vale quello predefinito", () => {
+  const order = { column: "duration", descending: false } as const;
+  expect(orderOf(JSON.stringify(order))).toEqual(order);
+  expect(orderOf(null)).toEqual(DEFAULT_ORDER);
+  expect(orderOf("{rotto")).toEqual(DEFAULT_ORDER);
+  expect(orderOf('{"column":"raccolta","descending":true}')).toEqual(
+    DEFAULT_ORDER
+  );
+});
+
+test("la data e l'ora di un Bino per il campo data e ora, nell'ora locale", () => {
+  expect(dateTimeInput(new Date(2026, 9, 3, 7, 5, 42).toISOString())).toBe(
+    "2026-10-03T07:05"
+  );
 });
 
 test("la Raccolta scelta, Senza raccolta e Tutta la Libreria", () => {

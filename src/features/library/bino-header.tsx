@@ -6,10 +6,16 @@ import {
   Languages,
   Users,
 } from "lucide-react";
-import { type ReactNode, useCallback, useState } from "react";
+import {
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import type { BinoInfo, LibraryList } from "@/bindings";
-import { dayText } from "@/features/library/library";
+import { dateTimeInput, dayText } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
 import { fileName, folderOf } from "@/features/source/file-name";
@@ -37,14 +43,17 @@ export function BinoHeader({
   disabled,
   info,
   library,
+  onCreato,
   onRename,
   parlanti,
   path,
 }: {
-  /** Ci lavora l'Attività in corso: niente rinomina. */
+  /** Ci lavora l'Attività in corso: niente rinomina né cambio di data. */
   disabled: boolean;
   info: BinoInfo | null;
   library: LibraryList;
+  /** La data e l'ora nuove, locali: `2026-10-03T17:05`. */
+  onCreato: (path: string, local: string) => void;
   onRename: (path: string, titolo: string) => void;
   /** Quanti Parlanti ha il testo. */
   parlanti: number;
@@ -68,6 +77,10 @@ export function BinoHeader({
     },
     [onRename, path]
   );
+  const changeCreato = useCallback(
+    (local: string) => onCreato(path, local),
+    [onCreato, path]
+  );
 
   return (
     <DocumentHeader
@@ -81,16 +94,21 @@ export function BinoHeader({
         ) : null
       }
       meta={
-        info
-          ? [
+        info ? (
+          <CreatoMeta
+            disabled={disabled}
+            info={info}
+            onChange={changeCreato}
+            text={[
               dayText(info.creato, new Date(), t, i18n.language),
               new Date(info.creato).toLocaleTimeString(i18n.language, {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
               elapsedText(info.durataMs),
-            ].join(" · ")
-          : null
+            ].join(" · ")}
+          />
+        ) : null
       }
       title={
         renaming ? (
@@ -115,6 +133,70 @@ export function BinoHeader({
         )
       }
     />
+  );
+}
+
+/**
+ * La riga del giorno, dell'ora e della durata: un clic apre il campo data e ora. Invio o l'uscita
+ * dal campo salvano, Esc annulla.
+ */
+function CreatoMeta({
+  disabled,
+  info,
+  onChange,
+  text,
+}: {
+  disabled: boolean;
+  info: BinoInfo;
+  onChange: (local: string) => void;
+  text: string;
+}) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const initial = dateTimeInput(info.creato);
+  const start = useCallback(() => setEditing(true), []);
+  const commit = useCallback(
+    (e: FocusEvent<HTMLInputElement>) => {
+      setEditing(false);
+      // Vuoto: il campo non ha una data intera.
+      if (e.currentTarget.value && e.currentTarget.value !== initial) {
+        onChange(e.currentTarget.value);
+      }
+    },
+    [initial, onChange]
+  );
+  const keyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      // Esc annulla: il campo torna al valore di partenza prima di uscire.
+      e.currentTarget.value = e.currentTarget.defaultValue;
+      e.currentTarget.blur();
+    }
+  }, []);
+  if (editing) {
+    return (
+      <input
+        aria-label={t("bino.dateLabel")}
+        autoFocus
+        className="h-8 rounded-md border bg-card px-2 text-base text-foreground tabular-nums"
+        defaultValue={initial}
+        onBlur={commit}
+        onKeyDown={keyDown}
+        type="datetime-local"
+      />
+    );
+  }
+  return (
+    <button
+      className="cursor-text rounded-md text-left decoration-muted-foreground/30 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
+      disabled={disabled}
+      onClick={start}
+      title={t("bino.changeDate")}
+      type="button"
+    >
+      {text}
+    </button>
   );
 }
 
@@ -176,7 +258,7 @@ export function DocumentHeader({
   title,
 }: {
   chips?: ReactNode;
-  meta?: string | null;
+  meta?: ReactNode;
   title: ReactNode;
 }) {
   return (

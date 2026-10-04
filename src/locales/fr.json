@@ -266,9 +266,11 @@
       "week": "Cette semaine"
     },
     "showAll": "Tous les Bini de la Collection",
-    "sortBy": "Trier par",
     "sortDate": "Date",
     "sortTitle": "Titre",
+    "sortDuration": "Durée",
+    "ascending": "du plus ancien, de A à Z ou du plus court",
+    "descending": "du plus récent, de Z à A ou du plus long",
     "moveTo": "Déplacer vers…",
     "addToLibrary": "Ajouter à la Bibliothèque…",
     "reveal": "Afficher dans l'Explorateur de fichiers",
@@ -332,7 +334,9 @@
     "parlanti_other": "{{count}} intervenants",
     "noText": "Ce Bino n'a pas encore de texte",
     "noTextDescription": "Transcrivez-le pour lire, rechercher et réécouter ce qui a été dit.",
-    "ingressi": "Micro + audio système"
+    "ingressi": "Micro + audio système",
+    "changeDate": "Cliquez pour changer la date et l’heure : Entrée confirme, Échap annule",
+    "dateLabel": "Date et heure de l'enregistrement"
   },
   "tabs": {
     "label": "Vues du Bino",

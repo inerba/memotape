@@ -266,9 +266,11 @@
       "week": "W tym tygodniu"
     },
     "showAll": "Wszystkie pliki Bino w Kolekcji",
-    "sortBy": "Sortuj według",
     "sortDate": "Data",
     "sortTitle": "Tytuł",
+    "sortDuration": "Czas trwania",
+    "ascending": "od najstarszych, od A do Z lub od najkrótszych",
+    "descending": "od najnowszych, od Z do A lub od najdłuższych",
     "moveTo": "Przenieś do…",
     "addToLibrary": "Dodaj do Biblioteki…",
     "reveal": "Pokaż w Eksploratorze plików",
@@ -333,7 +335,9 @@
     "parlanti_other": "{{count}} mówcy",
     "noText": "Ten Bino nie ma jeszcze tekstu",
     "noTextDescription": "Transkrybuj go, aby czytać, wyszukiwać i ponownie odsłuchać, co zostało powiedziane.",
-    "ingressi": "Mikrofon + dźwięk systemowy"
+    "ingressi": "Mikrofon + dźwięk systemowy",
+    "changeDate": "Kliknij, aby zmienić datę i godzinę: Enter zatwierdza, Esc anuluje",
+    "dateLabel": "Data i godzina nagrania"
   },
   "tabs": {
     "label": "Widoki Bino",

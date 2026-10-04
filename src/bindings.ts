@@ -47,6 +47,11 @@ export const commands = {
 	 *  restano com'erano. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
 	 */
 	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
+	/**
+	 *  Cambia la data e l'ora del Bino `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
+	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 */
+	setCreato: (path: string, local: string) => typedError<string, AppError>(__TAURI_INVOKE("set_creato", { path, local })),
 	/**  Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
 	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
 	/**
