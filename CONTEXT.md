@@ -7,7 +7,7 @@ App desktop che trasforma in testo, interamente in locale, il parlato di file au
 ### Sorgenti e attività
 
 **Sorgente**:
-Il file audio o video selezionato, su cui agiscono le Attività. Una Registrazione conclusa diventa la Sorgente.
+Il file audio, video o Bino selezionato, su cui agiscono le Attività. Il Bino prodotto da una Registrazione o da una Trascrizione diventa la Sorgente.
 _Avoid_: input, file sorgente, audio sorgente
 
 **Attività**:
@@ -31,17 +31,21 @@ Il microfono o l'audio di sistema (loopback del dispositivo di uscita) catturati
 _Avoid_: sorgente (è la Sorgente), input
 
 **Bino**:
-Il file `.bino` prodotto da una Registrazione: un archivio zip con l'audio del mix, l'audio di ogni Ingresso e il testo con i suoi metadati. Si apre come Sorgente.
+Il file `.bino` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati) e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
 _Avoid_: progetto, archivio, pacchetto
 
-**Cartella predefinita**:
-La cartella in cui si salvano le Registrazioni.
-_Avoid_: cartella di output, destinazione
+**Libreria**:
+La cartella in cui Sbobino salva i Bini e li tiene per ritrovarli, cercarli e riascoltarli: un Bino ne fa parte se sta lì dentro, e uno altrove si apre ma non compare.
+_Avoid_: Cartella predefinita, archivio, storico, database
+
+**Raccolta**:
+Una cartella di primo livello della Libreria che raggruppa Bini, per esempio le call con un cliente; un Bino sta in una Raccolta o in nessuna.
+_Avoid_: progetto, cartella, etichetta, fascicolo
 
 ### Testo
 
 **Frase**:
-Un tratto di parlato delimitato dal VAD, trascritto come unità.
+Un tratto di parlato delimitato dal VAD, trascritto come unità; resta legato al suo intervallo nell'audio salvato anche quando se ne corregge il testo.
 _Avoid_: segmento, utterance, chunk
 
 **Parziale**:
