@@ -42,6 +42,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::recordings_folder,
             commands::pick_folder,
             commands::library_list,
+            commands::library_search,
             commands::create_raccolta,
             commands::rename_raccolta,
             commands::delete_raccolta,

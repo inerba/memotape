@@ -3,6 +3,7 @@ import {
   type ChangeEvent,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -59,8 +60,10 @@ import {
   copyable,
   EMPTY_CONVERSATION,
   type Parlante,
+  type PhraseRef,
   parlanteAt,
   parlantiOf,
+  phraseRange,
   relabeled,
   shownText,
   withNome,
@@ -78,6 +81,13 @@ import {
 const COPIED_MS = 2000;
 /** Quanto resta nella status bar l'errore di un'operazione sulla Libreria. */
 const NOTICE_MS = 6000;
+
+/** Il tratto dell'area da selezionare, appena l'area mostra lì `text`: la Frase di un risultato. */
+interface Selection {
+  end: number;
+  start: number;
+  text: string;
+}
 
 /** Un Bino aperto durante un'Attività: si consulta senza toccare la vista dell'Attività. */
 interface Browsed {
@@ -114,7 +124,11 @@ export function HomePage() {
   const [confirmReplace, setConfirmReplace] = useState<{
     action: ReplaceAction;
     path?: string;
+    phrase?: PhraseRef;
   } | null>(null);
+  // La Frase di un risultato della ricerca da evidenziare nell'area, appena la mostra.
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const area = useRef<HTMLTextAreaElement>(null);
   // Il Bino del doppio clic in Esplora file, finché non si può aprire.
   const [pendingBino, setPendingBino] = useState<string | null>(null);
   // Il Parlante di cui si sta scrivendo il nome nuovo.
@@ -221,23 +235,40 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  // Un Bino si apre con il testo che contiene, senza ritrascrivere.
-  const openBino = useCallback(async (path: string) => {
-    const result = await commands.openBino(path);
-    if (result.status === "error") {
-      setStatus({ error: result.error, phase: "failed" });
-      return;
-    }
-    setSource(path);
-    edited.current = false;
-    setConversation({ ...EMPTY_CONVERSATION, ...result.data });
-    setStatus({ phase: "idle", source: path });
-  }, []);
+  // Il tratto di `value` (il testo dell'area) con la Frase `phrase` di `of`, da evidenziare.
+  const selectionOf = useCallback(
+    (value: string, of: Conversation, phrase?: PhraseRef) => {
+      const range = phrase && phraseRange(value, of, phrase, t);
+      return range
+        ? { ...range, text: value.slice(range.start, range.end) }
+        : null;
+    },
+    [t]
+  );
+
+  // Un Bino si apre con il testo che contiene, senza ritrascrivere; da un risultato della ricerca
+  // con la Frase trovata evidenziata.
+  const openBino = useCallback(
+    async (path: string, phrase?: PhraseRef) => {
+      const result = await commands.openBino(path);
+      if (result.status === "error") {
+        setStatus({ error: result.error, phase: "failed" });
+        return;
+      }
+      const opened = { ...EMPTY_CONVERSATION, ...result.data };
+      setSource(path);
+      edited.current = false;
+      setConversation(opened);
+      setSelection(selectionOf(conversationText(opened, t), opened, phrase));
+      setStatus({ phase: "idle", source: path });
+    },
+    [selectionOf, t]
+  );
 
   // Durante un'Attività un Bino della Libreria si consulta accanto, senza toccarla; quello su cui
   // lavora l'Attività riporta alla sua vista.
   const browse = useCallback(
-    async (path: string) => {
+    async (path: string, phrase?: PhraseRef) => {
       if (path === source) {
         setBrowsed(null);
         return;
@@ -246,13 +277,12 @@ export function HomePage() {
       if (result.status === "error") {
         setNotice(result.error);
       } else {
-        setBrowsed({
-          conversation: { ...EMPTY_CONVERSATION, ...result.data },
-          path,
-        });
+        const opened = { ...EMPTY_CONVERSATION, ...result.data };
+        setBrowsed({ conversation: opened, path });
+        setSelection(selectionOf(conversationText(opened, t), opened, phrase));
       }
     },
-    [source]
+    [selectionOf, source, t]
   );
 
   // Finita l'Attività torna la sua vista, con il suo esito aperto (il Bino di una Registrazione).
@@ -265,14 +295,14 @@ export function HomePage() {
   // Una Sorgente scelta con Apri file o con il doppio clic su un Bino in Esplora file. Un testo
   // modificato a mano si sostituisce solo dopo conferma.
   const openPath = useCallback(
-    (path: string) => {
+    (path: string, phrase?: PhraseRef) => {
       if (!isBino(path)) {
         setSource(path);
         setStatus({ phase: "idle", source: path });
       } else if (edited.current && text.trim()) {
-        setConfirmReplace({ action: "open", path });
+        setConfirmReplace({ action: "open", path, phrase });
       } else {
-        openBino(path);
+        openBino(path, phrase);
       }
     },
     [openBino, text]
@@ -286,17 +316,23 @@ export function HomePage() {
     }
   }, [openPath, t]);
 
-  // Un Bino della barra laterale o dell'elenco completo.
+  // Un Bino della barra laterale, dell'elenco completo o della ricerca, con la Frase trovata.
   const openFromLibrary = useCallback(
-    (path: string) => {
+    (path: string, phrase?: PhraseRef) => {
       setListOpen(false);
+      setSelection(null);
       if (busy) {
-        browse(path);
+        browse(path, phrase);
       } else if (path !== source) {
-        openPath(path);
+        openPath(path, phrase);
+      } else if (phrase) {
+        setSelection(selectionOf(text, conversation, phrase));
+      } else {
+        // Il titolo del Bino già aperto: torna all'inizio del testo.
+        area.current?.scrollTo({ top: 0 });
       }
     },
-    [browse, busy, openPath, source]
+    [browse, busy, conversation, openPath, selectionOf, source, text]
   );
 
   // "Attività in corso" riporta alla sua vista.
@@ -458,7 +494,7 @@ export function HomePage() {
     if (confirmReplace?.action === "record") {
       record();
     } else if (confirmReplace?.action === "open" && confirmReplace.path) {
-      openBino(confirmReplace.path);
+      openBino(confirmReplace.path, confirmReplace.phrase);
     } else {
       transcribe();
     }
@@ -572,6 +608,24 @@ export function HomePage() {
     [library, moveBino, renameBino, requestTrash, reveal]
   );
 
+  // La Frase di un risultato si seleziona e si porta in vista appena l'area mostra il suo testo.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: si riprova a ogni cambio di vista o testo
+  useEffect(() => {
+    const el = area.current;
+    if (
+      !(selection && el) ||
+      el.value.slice(selection.start, selection.end) !== selection.text
+    ) {
+      return;
+    }
+    setSelection(null);
+    // Il cursore all'inizio della Frase, che `focus()` porta in vista; poi la Frase selezionata.
+    el.blur();
+    el.setSelectionRange(selection.start, selection.start);
+    el.focus();
+    el.setSelectionRange(selection.start, selection.end);
+  }, [selection, text, browsed, listOpen]);
+
   // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
   // o se c'è testo.
   const showTranscription =
@@ -593,8 +647,10 @@ export function HomePage() {
   } else if (browsed) {
     mainView = (
       <BrowsedView
+        area={area}
         copied={copied}
         header={header(browsed.path, false)}
+        key={browsed.path}
         onCopy={copy}
         text={conversationText(browsed.conversation, t)}
       />
@@ -628,9 +684,12 @@ export function HomePage() {
             <Textarea
               aria-label={t("transcription.text")}
               className="flex-1 resize-none"
+              // Un altro Bino riparte dall'inizio del testo.
+              key={source}
               onChange={edit}
               onClick={clickText}
               readOnly={writing}
+              ref={area}
               value={shown}
             />
             <div className="flex items-start justify-between gap-3">
@@ -796,11 +855,13 @@ function TranscribeBar({
 
 /** Il testo di un Bino consultato durante un'Attività, in sola lettura, con Copia testo. */
 function BrowsedView({
+  area,
   copied,
   header,
   onCopy,
   text,
 }: {
+  area: RefObject<HTMLTextAreaElement | null>;
   copied: boolean;
   header: ReactNode;
   onCopy: () => void;
@@ -815,6 +876,7 @@ function BrowsedView({
           aria-label={t("transcription.text")}
           className="flex-1 resize-none"
           readOnly
+          ref={area}
           value={text}
         />
         <CopyButton copied={copied} disabled={false} onCopy={onCopy} />

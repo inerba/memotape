@@ -10,7 +10,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 
 Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Bino con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
-- **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008).
+- **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
 - **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
@@ -272,6 +272,12 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Una Registrazione salva il Bino nella Raccolta scelta (con Tutta la Libreria o Senza raccolta nella radice); a Stop compare nella barra laterale e resta aperto. Durante la Registrazione la sua Raccolta non si rinomina né si elimina.
   - Durante un'Attività gli altri Bini si aprono in sola lettura, si copiano, si rinominano, si spostano e si eliminano; il Bino su cui lavora l'Attività no. Finita l'Attività torna la sua vista, con il Bino della Registrazione aperto.
   - Aprire un Bino chiede conferma solo se il testo nell'area è stato modificato a mano.
+- **V9, Ricerca (ticket libreria/02)**: storie 35–40, 42, 44 e 45 della spec v3; della 41 la parte senza player (ticket libreria/04), della 43 la rinomina dei Parlanti (la correzione del testo arriva con il ticket libreria/03), della 100 cercare durante un'Attività.
+  - Nella barra laterale, sotto il selettore della Raccolta, c'è un campo di ricerca. Trova le parole nei titoli, nel testo delle Frasi e nei nomi dati ai Parlanti, senza maiuscole né accenti e anche dall'inizio ("prev" trova "preventivo"); con più parole, tutte nella stessa Frase.
+  - Cerca nella Raccolta scelta (o in Senza raccolta, o in Tutta la Libreria); in fondo ai risultati "Cerca in tutta la Libreria" allarga la ricerca, e i risultati mostrano allora la Raccolta di ogni Bino.
+  - I risultati sono per Bino, prima quelli che parlano di più dell'argomento, ognuno con fino a cinque Frasi trovate: il tempo e un estratto con le parole evidenziate (con il nome del Parlante davanti se la parola è lì). Al massimo 50 Bini.
+  - Il clic su una Frase apre il Bino, la seleziona nell'area e la porta in vista; il clic sul titolo apre il Bino dall'inizio. Durante un'Attività il Bino si consulta accanto, come dalla barra laterale.
+  - Un Parlante rinominato si trova subito con il nome nuovo. L'indice resta sul PC, accanto a quello dei Bini, e se si perde si ricostruisce dai Bini.
 
 ## Fuori dal perimetro
 

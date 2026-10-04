@@ -234,6 +234,9 @@
     "renameRaccolta": "Zmień nazwę Kolekcji",
     "deleteRaccolta": "Usuń Kolekcję (tylko pustą)",
     "empty": "Brak plików Bino",
+    "search": "Szukaj",
+    "searchAll": "Szukaj w całej Bibliotece",
+    "noResults": "Brak wyników",
     "groups": {
       "today": "Dzisiaj",
       "yesterday": "Wczoraj",

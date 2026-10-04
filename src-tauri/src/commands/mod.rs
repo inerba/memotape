@@ -9,7 +9,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::audio_toolkit::capture::{self, AudioDevice};
 use crate::bino;
 use crate::error::AppError;
-use crate::library::LibraryList;
+use crate::library::{LibraryList, SearchResult};
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
@@ -325,6 +325,21 @@ async fn blocking<T: Send + 'static>(
 pub async fn library_list(app: AppHandle) -> Result<LibraryList, AppError> {
     blocking(app, |app| {
         managers::library::with(app, |library| library.list())
+    })
+    .await
+}
+
+/// Cerca `query` nei Bini della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
+/// raccolta): titoli, testo delle Frasi e nomi dei Parlanti.
+#[tauri::command]
+#[specta::specta]
+pub async fn library_search(
+    app: AppHandle,
+    query: String,
+    raccolta: Option<String>,
+) -> Result<Vec<SearchResult>, AppError> {
+    blocking(app, move |app| {
+        managers::library::with(app, |library| library.search(&query, raccolta.as_deref()))
     })
     .await
 }

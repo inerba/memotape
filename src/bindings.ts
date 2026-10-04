@@ -103,6 +103,11 @@ export const commands = {
 	/**  Le Raccolte e i Bini della Libreria, dall'indice: `library-changed` avvisa quando cambiano. */
 	libraryList: () => typedError<LibraryList, AppError>(__TAURI_INVOKE("library_list")),
 	/**
+	 *  Cerca `query` nei Bini della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
+	 *  raccolta): titoli, testo delle Frasi e nomi dei Parlanti.
+	 */
+	librarySearch: (query: string, raccolta: string | null) => typedError<SearchResult[], AppError>(__TAURI_INVOKE("library_search", { query, raccolta })),
+	/**
 	 *  Crea la Raccolta `nome`. `invalidName` per un nome che Windows non ammette, `nameTaken` se c'è
 	 *  già.
 	 */
@@ -348,6 +353,23 @@ export type RecordingSource = "mic" | "system" | "both";
 export type RecordingTick = {
 	elapsedMs: number,
 	levels: Levels,
+};
+
+/**  Una Frase trovata, con l'estratto in cui le parole trovate stanno tra `MARK_START` e `MARK_END`. */
+export type SearchHit = {
+	phraseId: number,
+	ingresso: Ingresso,
+	inizioMs: number,
+	estratto: string,
+};
+
+/**
+ *  Un Bino trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
+ *  solo il titolo).
+ */
+export type SearchResult = {
+	bino: BinoEntry,
+	frasi: SearchHit[],
 };
 
 export type Settings = {

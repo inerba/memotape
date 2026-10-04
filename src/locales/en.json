@@ -232,6 +232,9 @@
     "renameRaccolta": "Rename the Collection",
     "deleteRaccolta": "Delete the Collection (only if empty)",
     "empty": "No Bini here",
+    "search": "Search",
+    "searchAll": "Search the whole Library",
+    "noResults": "No results",
     "groups": {
       "today": "Today",
       "yesterday": "Yesterday",

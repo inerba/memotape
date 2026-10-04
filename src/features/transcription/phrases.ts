@@ -269,3 +269,40 @@ export function conversationText(
   }
   return lines.join("\n");
 }
+
+/** Una Frase di un Bino, come nei `TranscriptPhrase`. */
+export interface PhraseRef {
+  ingresso: Ingresso;
+  phraseId: number;
+}
+
+/**
+ * Dove sta nel testo dell'area la Frase `phrase`: nel testo delle Frasi la sua
+ * riga, in un testo modificato a mano la prima occorrenza del suo testo. `null` se non c'è.
+ */
+export function phraseRange(
+  text: string,
+  conversation: Conversation,
+  { ingresso, phraseId }: PhraseRef,
+  t: TFunction
+): { end: number; start: number } | null {
+  const at = conversation.phrases.findIndex(
+    (p) => p.ingresso === ingresso && p.phraseId === phraseId
+  );
+  const phrase = conversation.phrases[at];
+  if (!phrase) {
+    return null;
+  }
+  const until = conversationText(
+    {
+      ...conversation,
+      partials: [],
+      phrases: conversation.phrases.slice(0, at + 1),
+    },
+    t
+  );
+  const start = text.startsWith(until)
+    ? until.length - phrase.text.length
+    : text.indexOf(phrase.text);
+  return start === -1 ? null : { end: start + phrase.text.length, start };
+}

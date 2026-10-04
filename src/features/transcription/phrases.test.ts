@@ -9,6 +9,7 @@ import {
   nomeTaken,
   parlanteAt,
   parlantiOf,
+  phraseRange,
   relabeled,
   shownText,
   withNome,
@@ -271,4 +272,49 @@ test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", (
   // Il suo stesso nome, o quello di un Parlante di un altro Ingresso, sì.
   expect(nomeTaken(list, sistema1, "Parlante 1")).toBe(false);
   expect(nomeTaken(list, microfono1, "Lucia")).toBe(false);
+});
+
+test("phraseRange trova la Frase nel testo dell'area", () => {
+  const conversation = {
+    ...EMPTY_CONVERSATION,
+    phrases: [
+      phrase(0, 0, "Ciao.", "microfono"),
+      phrase(0, 500, "Salve.", "sistema"),
+      phrase(1, 1000, "Come va?", "microfono"),
+    ],
+  };
+  const text = render(conversation);
+  const range = phraseRange(
+    text,
+    conversation,
+    { ingresso: "microfono", phraseId: 1 },
+    t
+  );
+  expect(range && text.slice(range.start, range.end)).toBe("Come va?");
+  expect(
+    phraseRange(text, conversation, { ingresso: "sistema", phraseId: 0 }, t)
+  ).toEqual({
+    end: text.indexOf("Salve.") + "Salve.".length,
+    start: text.indexOf("Salve."),
+  });
+  // Testo modificato a mano: la Frase si cerca per il suo testo.
+  const edited = `Premessa.\n${text}`;
+  const moved = phraseRange(
+    edited,
+    conversation,
+    { ingresso: "microfono", phraseId: 1 },
+    t
+  );
+  expect(moved && edited.slice(moved.start, moved.end)).toBe("Come va?");
+  expect(
+    phraseRange(
+      "altro",
+      conversation,
+      { ingresso: "microfono", phraseId: 1 },
+      t
+    )
+  ).toBeNull();
+  expect(
+    phraseRange(text, conversation, { ingresso: "mix", phraseId: 7 }, t)
+  ).toBeNull();
 });

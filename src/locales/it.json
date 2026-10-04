@@ -233,6 +233,9 @@
     "renameRaccolta": "Rinomina la Raccolta",
     "deleteRaccolta": "Elimina la Raccolta (solo se vuota)",
     "empty": "Nessun Bino qui",
+    "search": "Cerca",
+    "searchAll": "Cerca in tutta la Libreria",
+    "noResults": "Nessun risultato",
     "groups": {
       "today": "Oggi",
       "yesterday": "Ieri",

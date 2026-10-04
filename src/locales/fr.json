@@ -233,6 +233,9 @@
     "renameRaccolta": "Renommer la Collection",
     "deleteRaccolta": "Supprimer la Collection (seulement si vide)",
     "empty": "Aucun Bino ici",
+    "search": "Rechercher",
+    "searchAll": "Rechercher dans toute la Bibliothèque",
+    "noResults": "Aucun résultat",
     "groups": {
       "today": "Aujourd'hui",
       "yesterday": "Hier",

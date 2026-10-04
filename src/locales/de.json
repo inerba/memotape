@@ -232,6 +232,9 @@
     "renameRaccolta": "Sammlung umbenennen",
     "deleteRaccolta": "Sammlung löschen (nur wenn leer)",
     "empty": "Hier gibt es keine Bini",
+    "search": "Suchen",
+    "searchAll": "In der ganzen Bibliothek suchen",
+    "noResults": "Keine Ergebnisse",
     "groups": {
       "today": "Heute",
       "yesterday": "Gestern",

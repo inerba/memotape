@@ -185,7 +185,7 @@ Le decisioni di fondo sono negli ADR-0008 (Libreria come cartella con un indice)
   - una tabella virtuale FTS5 con una riga per Frase: Bino, id della Frase, Ingresso, `inizio_ms`, testo e il nome mostrato del Parlante. Ha in più una riga per il titolo del Bino.
   - Tokenizer `unicode61 remove_diacritics 2`. La query dell'utente si spezza in parole, ognuna diventa un prefisso (`parola*`), unite in AND. Ordinamento con `bm25`, estratti con `snippet()`. I caratteri speciali di FTS5 nella query si neutralizzano.
 - Il database ha una `user_version`. Se il numero non torna, il file è corrotto o non si apre, la Libreria lo cancella e ricostruisce l'indice dai Bini. Nessun dato esiste solo nel database.
-- **Risultati della ricerca**: per Bino, ordinati per il miglior `bm25` delle sue righe, ognuno con le Frasi trovate (id, Ingresso, `inizio_ms`, estratto con la parola segnata). Un limite di Frasi per Bino e di Bini per pagina tiene la risposta piccola.
+- **Risultati della ricerca**: per Bino, ordinati per la somma dei `bm25` delle sue righe (chi parla di più dell'argomento viene prima, storia 42), ognuno con le Frasi trovate (id, Ingresso, `inizio_ms`, estratto con la parola segnata). Un limite di Frasi per Bino e di Bini per pagina tiene la risposta piccola.
 
 ### Bino
 

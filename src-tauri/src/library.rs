@@ -10,9 +10,10 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::bino;
 use crate::error::AppError;
+use crate::transcript::Ingresso;
 
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
-const SCHEMA: i32 = 1;
+const SCHEMA: i32 = 2;
 
 const SCHEMA_SQL: &str = "
 CREATE TABLE bini (
@@ -24,8 +25,25 @@ CREATE TABLE bini (
     modificato INTEGER NOT NULL,
     dimensione INTEGER NOT NULL
 );
-PRAGMA user_version = 1;
+-- Una riga per Frase e una per il titolo (`frase` NULL). `parlante` è il nome dato al Parlante.
+CREATE VIRTUAL TABLE ricerca USING fts5(
+    percorso UNINDEXED,
+    frase UNINDEXED,
+    ingresso UNINDEXED,
+    inizio_ms UNINDEXED,
+    testo,
+    parlante,
+    tokenize = 'unicode61 remove_diacritics 2'
+);
+PRAGMA user_version = 2;
 ";
+
+/// Dove cominciano e finiscono le parole trovate negli estratti della ricerca.
+pub const MARK_START: char = '\u{1}';
+pub const MARK_END: char = '\u{2}';
+/// Le Frasi trovate per ogni Bino e i Bini di una ricerca.
+const FRASI_PER_BINO: u32 = 5;
+const BINI_PER_RICERCA: usize = 50;
 
 /// Le Raccolte e tutti i Bini della Libreria.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
@@ -34,6 +52,24 @@ pub struct LibraryList {
     pub raccolte: Vec<String>,
     /// Dal più recente.
     pub bini: Vec<BinoEntry>,
+}
+
+/// Un Bino trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
+/// solo il titolo).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+pub struct SearchResult {
+    pub bino: BinoEntry,
+    pub frasi: Vec<SearchHit>,
+}
+
+/// Una Frase trovata, con l'estratto in cui le parole trovate stanno tra `MARK_START` e `MARK_END`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub phrase_id: u32,
+    pub ingresso: Ingresso,
+    pub inizio_ms: u32,
+    pub estratto: String,
 }
 
 /// Un Bino della Libreria, come lo mostra la barra laterale.
@@ -105,6 +141,8 @@ impl Library {
         for gone in indexed.keys().filter(|p| !present.contains(p.as_str())) {
             tx.execute("DELETE FROM bini WHERE percorso = ?1", [gone])
                 .map_err(internal)?;
+            tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [gone])
+                .map_err(internal)?;
         }
         let mut reread = 0;
         for file in &found {
@@ -116,6 +154,41 @@ impl Library {
             let document = bino::read(&path)
                 .inspect_err(|e| log::warn!("Bino illeggibile nella Libreria: {e}"))
                 .ok();
+            // ponytail: il DELETE su `percorso` scorre tutta la tabella FTS, quindi si fa solo per i
+            // Bini già nell'indice e una ricostruzione non lo paga. Se diventa lento: una tabella
+            // delle Frasi con un indice su `percorso` e la FTS a contenuto esterno.
+            if indexed.contains_key(&file.relative) {
+                tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [&file.relative])
+                    .map_err(internal)?;
+            }
+            let titolo = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            tx.execute(
+                "INSERT INTO ricerca (percorso, testo) VALUES (?1, ?2)",
+                params![file.relative, titolo],
+            )
+            .map_err(internal)?;
+            if let Some(document) = &document {
+                for frase in &document.frasi {
+                    let parlante = frase
+                        .parlante
+                        .and_then(|n| document.parlanti.get(&frase.ingresso.parlante_key(n)));
+                    tx.execute(
+                        "INSERT INTO ricerca VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        params![
+                            file.relative,
+                            frase.id,
+                            frase.ingresso.key(),
+                            frase.inizio_ms,
+                            frase.testo,
+                            parlante,
+                        ],
+                    )
+                    .map_err(internal)?;
+                }
+            }
             let creato = document.as_ref().map_or_else(
                 || {
                     DateTime::<Local>::from(UNIX_EPOCH + nanos(file.modified))
@@ -129,7 +202,7 @@ impl Library {
                 params![
                     file.relative,
                     raccolta_of(&file.relative),
-                    path.file_stem().map(|s| s.to_string_lossy()),
+                    titolo,
                     creato,
                     document.map(|d| d.durata_ms),
                     file.modified,
@@ -164,18 +237,103 @@ impl Library {
             )
             .map_err(internal)?;
         let bini = query
-            .query_map([], |r| {
-                Ok(BinoEntry {
-                    path: self.root.join(r.get::<_, String>(0)?).display().to_string(),
-                    raccolta: r.get(1)?,
-                    titolo: r.get(2)?,
-                    creato: r.get(3)?,
-                    durata_ms: r.get(4)?,
-                })
-            })
+            .query_map([], |r| self.entry(r))
             .and_then(Iterator::collect)
             .map_err(internal)?;
         Ok(LibraryList { raccolte, bini })
+    }
+
+    /// Il Bino dalle prime cinque colonne di `r`: percorso, Raccolta, titolo, `creato`, durata.
+    fn entry(&self, r: &rusqlite::Row) -> rusqlite::Result<BinoEntry> {
+        Ok(BinoEntry {
+            path: self.root.join(r.get::<_, String>(0)?).display().to_string(),
+            raccolta: r.get(1)?,
+            titolo: r.get(2)?,
+            creato: r.get(3)?,
+            durata_ms: r.get(4)?,
+        })
+    }
+
+    /// Cerca `query` nei titoli, nelle Frasi e nei nomi dei Parlanti dei Bini della Raccolta
+    /// `raccolta` (`None` tutta la Libreria, `""` Senza raccolta). Ogni parola vale come inizio di
+    /// parola, senza maiuscole né accenti, e tutte devono stare nella stessa Frase (o nel titolo).
+    /// Prima i Bini con più testo pertinente: la somma dei `bm25` delle loro righe.
+    pub fn search(
+        &self,
+        query: &str,
+        raccolta: Option<&str>,
+    ) -> Result<Vec<SearchResult>, AppError> {
+        let Some(query) = match_query(query) else {
+            return Ok(Vec::new());
+        };
+        // ponytail: `snippet()` si calcola per tutte le righe trovate, anche oltre le
+        // `FRASI_PER_BINO`; da spostare in una seconda query se una parola comune diventa lenta.
+        let mut statement = self
+            .db
+            .prepare(
+                "WITH trovate AS (
+                     SELECT percorso, frase, ingresso, inizio_ms, bm25(ricerca) AS peso,
+                            snippet(ricerca, 4, ?3, ?4, '…', 16) AS estratto,
+                            highlight(ricerca, 5, ?3, ?4) AS parlante
+                     FROM ricerca WHERE ricerca MATCH ?1
+                 ), pesate AS (
+                     SELECT *, sum(peso) OVER (PARTITION BY percorso) AS totale,
+                            row_number() OVER (
+                                PARTITION BY percorso ORDER BY frase IS NULL, peso
+                            ) AS n
+                     FROM trovate
+                 )
+                 SELECT b.percorso, b.raccolta, b.titolo, b.creato, b.durata_ms,
+                        p.frase, p.ingresso, p.inizio_ms, p.estratto, p.parlante
+                 FROM pesate p JOIN bini b ON b.percorso = p.percorso
+                 WHERE p.n <= ?5 AND (?2 IS NULL OR coalesce(b.raccolta, '') = ?2)
+                 ORDER BY p.totale, b.percorso, p.inizio_ms",
+            )
+            .map_err(internal)?;
+        let rows = statement
+            .query_map(
+                params![
+                    query,
+                    raccolta,
+                    MARK_START.to_string(),
+                    MARK_END.to_string(),
+                    FRASI_PER_BINO
+                ],
+                |r| {
+                    let hit = match (r.get::<_, Option<u32>>(5)?, r.get::<_, Option<String>>(6)?) {
+                        (Some(phrase_id), Some(ingresso)) => {
+                            Ingresso::from_key(&ingresso).map(|ingresso| {
+                                Ok::<_, rusqlite::Error>(SearchHit {
+                                    phrase_id,
+                                    ingresso,
+                                    inizio_ms: r.get(7)?,
+                                    estratto: estratto(r.get(8)?, r.get(9)?),
+                                })
+                            })
+                        }
+                        _ => None,
+                    };
+                    Ok((self.entry(r)?, hit.transpose()?))
+                },
+            )
+            .map_err(internal)?;
+        let mut results: Vec<SearchResult> = Vec::new();
+        for row in rows {
+            let (bino, hit) = row.map_err(internal)?;
+            if results.last().is_none_or(|r| r.bino.path != bino.path) {
+                if results.len() == BINI_PER_RICERCA {
+                    break;
+                }
+                results.push(SearchResult {
+                    bino,
+                    frasi: Vec::new(),
+                });
+            }
+            if let (Some(hit), Some(result)) = (hit, results.last_mut()) {
+                result.frasi.push(hit);
+            }
+        }
+        Ok(results)
     }
 
     /// La cartella in cui va un Bino nuovo della Raccolta `raccolta`: la sua, o la radice per
@@ -384,6 +542,25 @@ pub fn trash(path: &Path) -> Result<(), AppError> {
         )));
     }
     Ok(())
+}
+
+/// L'estratto di una Frase; se le parole sono nel nome del Parlante, il nome prima del testo.
+fn estratto(testo: String, parlante: Option<String>) -> String {
+    match parlante {
+        Some(nome) if nome.contains(MARK_START) => format!("{nome}: {testo}"),
+        _ => testo,
+    }
+}
+
+/// La query FTS5 per le parole di `query`: ognuna tra virgolette (così i caratteri speciali di FTS5
+/// non contano) e come prefisso, unite in AND. `None` se non c'è nessuna parola.
+fn match_query(query: &str) -> Option<String> {
+    let words: Vec<String> = query
+        .split_whitespace()
+        .filter(|w| w.chars().any(char::is_alphanumeric))
+        .map(|w| format!("\"{}\"*", w.replace('"', "\"\"")))
+        .collect();
+    (!words.is_empty()).then(|| words.join(" "))
 }
 
 fn connect(path: &Path) -> rusqlite::Result<Connection> {
@@ -875,6 +1052,248 @@ pub(crate) mod tests {
             library.trash_bino(&path).unwrap_err(),
             AppError::BinoNotFound(_)
         ));
+    }
+
+    /// Un Bino vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
+    fn bino_with(path: &Path, frasi: &[(&str, Option<u32>)], parlanti: &[(&str, &str)]) {
+        bino_at(path, 1000);
+        let mut document = bino::read(path).unwrap();
+        document.frasi = frasi
+            .iter()
+            .zip(0..)
+            .map(|(&(testo, parlante), id)| bino::Frase {
+                id,
+                inizio_ms: id * 1000,
+                fine_ms: id * 1000 + 900,
+                testo: testo.into(),
+                ingresso: Ingresso::Mix,
+                parlante,
+            })
+            .collect();
+        document.parlanti = parlanti
+            .iter()
+            .map(|&(k, v)| (k.into(), v.into()))
+            .collect();
+        bino::rewrite(path, &document).unwrap();
+    }
+
+    /// Una Libreria di prova per la ricerca, già allineata.
+    fn searchable(name: &str) -> (PathBuf, Library) {
+        let (root, mut library) = library(name);
+        bino_with(
+            &root.join("Ferrara Quarzi").join("Call di lunedì.bino"),
+            &[
+                ("Buongiorno a tutti.", Some(1)),
+                ("Parliamo del preventivo per l'impianto.", Some(2)),
+                ("Il PREVENTIVO arriva entro venerdì.", Some(1)),
+                ("Perché la qualità è importante.", Some(2)),
+            ],
+            &[("mix:2", "Giulia Ferrara")],
+        );
+        bino_with(
+            &root.join("Acme").join("Riunione Acme.bino"),
+            &[("Il preventivo di Acme è pronto.", None)],
+            &[],
+        );
+        bino_with(
+            &root.join("Sciolto.bino"),
+            &[("Nessun preventivo qui, solo saluti.", None)],
+            &[],
+        );
+        library.sync().unwrap();
+        (root, library)
+    }
+
+    /// I titoli dei Bini trovati, nell'ordine, ognuno con gli id delle Frasi trovate.
+    fn found(library: &Library, query: &str, raccolta: Option<&str>) -> Vec<(String, Vec<u32>)> {
+        library
+            .search(query, raccolta)
+            .unwrap()
+            .into_iter()
+            .map(|r| {
+                (
+                    r.bino.titolo,
+                    r.frasi.into_iter().map(|f| f.phrase_id).collect(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn la_ricerca_ignora_maiuscole_e_accenti_e_trova_i_prefissi() {
+        let (_, library) = searchable("ricerca-parole");
+        let ferrara = Some("Ferrara Quarzi");
+        assert_eq!(
+            found(&library, "preventivo", ferrara),
+            [("Call di lunedì".to_string(), vec![1, 2])]
+        );
+        assert_eq!(
+            found(&library, "PREV", ferrara),
+            found(&library, "preventivo", ferrara)
+        );
+        assert_eq!(
+            found(&library, "qualita", ferrara),
+            [("Call di lunedì".to_string(), vec![3])]
+        );
+        assert_eq!(
+            found(&library, "perche", ferrara),
+            found(&library, "Perché", ferrara)
+        );
+        // Più parole: tutte nella stessa Frase.
+        assert_eq!(
+            found(&library, "preventivo venerdì", ferrara),
+            [("Call di lunedì".to_string(), vec![2])]
+        );
+        assert_eq!(found(&library, "preventivo saluti", ferrara), []);
+        assert_eq!(found(&library, "", None), []);
+        assert_eq!(found(&library, "   ", None), []);
+    }
+
+    #[test]
+    fn la_ricerca_trova_i_titoli_e_i_nomi_dei_parlanti() {
+        let (root, library) = searchable("ricerca-titoli");
+        let mut library = library;
+        // Solo il titolo: il Bino senza Frasi.
+        assert_eq!(
+            found(&library, "lunedi", None),
+            [("Call di lunedì".to_string(), vec![])]
+        );
+        // Il nome del Parlante 2 vale per le sue Frasi.
+        assert_eq!(
+            found(&library, "giulia", None),
+            [("Call di lunedì".to_string(), vec![1, 3])]
+        );
+        // La rinomina riscrive il Bino: dopo l'allineamento il nome nuovo si trova.
+        let path = root.join("Ferrara Quarzi").join("Call di lunedì.bino");
+        let mut document = bino::read(&path).unwrap();
+        document
+            .parlanti
+            .insert("mix:1".into(), "Marco Rossi".into());
+        bino::rewrite(&path, &document).unwrap();
+        library.sync().unwrap();
+        assert_eq!(
+            found(&library, "rossi", None),
+            [("Call di lunedì".to_string(), vec![0, 2])]
+        );
+        // Un Bino rinominato si trova con il titolo nuovo e non con il vecchio.
+        library.rename_bino(&path, "Call di martedì").unwrap();
+        assert_eq!(found(&library, "lunedi", None), []);
+        assert_eq!(
+            found(&library, "martedi", None),
+            [("Call di martedì".to_string(), vec![])]
+        );
+    }
+
+    #[test]
+    fn la_ricerca_vale_per_la_raccolta_scelta_o_per_tutta_la_libreria() {
+        let (root, library) = searchable("ricerca-ambito");
+        let mut all: Vec<_> = found(&library, "preventivo", None)
+            .into_iter()
+            .map(|(titolo, _)| titolo)
+            .collect();
+        all.sort();
+        assert_eq!(all, ["Call di lunedì", "Riunione Acme", "Sciolto"]);
+        assert_eq!(
+            found(&library, "preventivo", Some("Acme")),
+            [("Riunione Acme".to_string(), vec![0])]
+        );
+        assert_eq!(
+            found(&library, "preventivo", Some("")),
+            [("Sciolto".to_string(), vec![0])]
+        );
+        let results = library.search("preventivo", Some("Acme")).unwrap();
+        let acme = &results[0];
+        assert_eq!(
+            acme.bino.path,
+            root.join("Acme")
+                .join("Riunione Acme.bino")
+                .display()
+                .to_string()
+        );
+        assert_eq!(acme.bino.raccolta.as_deref(), Some("Acme"));
+        assert_eq!(acme.frasi[0].ingresso, Ingresso::Mix);
+        assert_eq!(acme.frasi[0].inizio_ms, 0);
+    }
+
+    #[test]
+    fn i_risultati_sono_per_pertinenza_con_l_estratto_segnato() {
+        let (_, library) = searchable("ricerca-estratto");
+        // Il Bino con più Frasi sulla parola viene prima.
+        assert_eq!(found(&library, "preventivo", None)[0].0, "Call di lunedì");
+        let results = library.search("prev", Some("Acme")).unwrap();
+        assert_eq!(
+            results[0].frasi[0].estratto,
+            format!("Il {MARK_START}preventivo{MARK_END} di Acme è pronto.")
+        );
+        // Trovata per il nome del Parlante: il nome, poi il testo.
+        let results = library.search("giulia", None).unwrap();
+        assert_eq!(
+            results[0].frasi[0].estratto,
+            format!(
+                "{MARK_START}Giulia{MARK_END} Ferrara: Parliamo del preventivo per l'impianto."
+            )
+        );
+    }
+
+    #[test]
+    fn i_caratteri_speciali_della_query_non_danno_errori() {
+        let (_, library) = searchable("ricerca-speciali");
+        for query in [
+            "\"",
+            "\"preventivo",
+            "preventivo*",
+            "(preventivo",
+            "AND",
+            "preventivo OR",
+            "NOT preventivo",
+            "pre-ventivo",
+            "col:preventivo",
+            "^preventivo",
+            "+ - * : ( ) { } ^ \"",
+            "NEAR(preventivo acme)",
+            "l'impianto",
+        ] {
+            assert!(library.search(query, None).is_ok(), "{query:?}");
+        }
+        assert_eq!(
+            found(&library, "\"preventivo", Some("Acme")),
+            [("Riunione Acme".to_string(), vec![0])]
+        );
+        assert_eq!(
+            found(&library, "l'impianto", None),
+            [("Call di lunedì".to_string(), vec![1])]
+        );
+    }
+
+    #[test]
+    fn un_indice_ricostruito_da_gli_stessi_risultati() {
+        let dir = temp_dir("libreria-ricerca-ricostruita");
+        let root = dir.join("Sbobino");
+        let db = db_path(&dir.join("indice"), &root);
+        bino_with(
+            &root.join("Acme").join("Uno.bino"),
+            &[("Il preventivo è pronto.", None)],
+            &[],
+        );
+        bino_with(
+            &root.join("Due.bino"),
+            &[("Preventivo rifiutato.", None)],
+            &[],
+        );
+        let searched = |db: &Path| {
+            let mut library = Library::open(&root, db).unwrap();
+            library.sync().unwrap();
+            library.search("preventivo", None).unwrap()
+        };
+        let before = searched(&db);
+        assert_eq!(before.len(), 2);
+        std::fs::remove_file(&db).unwrap();
+        assert_eq!(searched(&db), before);
+        Connection::open(&db)
+            .unwrap()
+            .pragma_update(None, "user_version", 1)
+            .unwrap();
+        assert_eq!(searched(&db), before);
     }
 
     #[test]

@@ -61,12 +61,23 @@ pub enum Ingresso {
 impl Ingresso {
     /// La chiave del Parlante `n` di questo Ingresso tra i nomi dei Parlanti: `sistema:2`.
     pub fn parlante_key(self, n: u32) -> String {
-        let ingresso = match self {
+        format!("{}:{n}", self.key())
+    }
+
+    /// Il nome nel Bino e nelle chiavi: `mix`, `microfono`, `sistema`.
+    pub fn key(self) -> &'static str {
+        match self {
             Self::Mix => "mix",
             Self::Microfono => "microfono",
             Self::Sistema => "sistema",
-        };
-        format!("{ingresso}:{n}")
+        }
+    }
+
+    /// L'Ingresso di `key`.
+    pub fn from_key(key: &str) -> Option<Self> {
+        [Self::Mix, Self::Microfono, Self::Sistema]
+            .into_iter()
+            .find(|i| i.key() == key)
     }
 }
 

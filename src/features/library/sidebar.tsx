@@ -1,4 +1,11 @@
-import { FolderPen, FolderX, Library, ListIcon, Settings } from "lucide-react";
+import {
+  FolderPen,
+  FolderX,
+  Library,
+  ListIcon,
+  Search,
+  Settings,
+} from "lucide-react";
 import { type ChangeEvent, type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -9,11 +16,14 @@ import {
   type LibraryList,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { biniOf, clockText, groupByDate } from "@/features/library/library";
 import { SELECT } from "@/features/library/move-select";
 import { NameInput } from "@/features/library/name-input";
+import { SearchResults } from "@/features/library/search-results";
 import { elapsedText } from "@/features/recording/recording";
 import { folderOf } from "@/features/source/file-name";
+import type { PhraseRef } from "@/features/transcription/phrases";
 
 /** I valori del selettore che non sono Raccolte: nessuna Raccolta inizia con un punto. */
 const ALL = ".all";
@@ -21,8 +31,8 @@ const NEW = ".new";
 
 /**
  * La barra laterale: `actions` (Registra, Apri file) in cima, l'Attività in corso, il selettore
- * della Raccolta con le sue operazioni, i Bini della Raccolta per data e in fondo l'elenco completo
- * e Impostazioni.
+ * della Raccolta con le sue operazioni, la ricerca, i Bini della Raccolta per data (o i risultati
+ * della ricerca) e in fondo l'elenco completo e Impostazioni.
  */
 export function Sidebar({
   actions,
@@ -45,7 +55,8 @@ export function Sidebar({
   onError: (error: AppError) => void;
   /** Una Raccolta rinominata: la cartella vecchia e quella nuova. */
   onMoved: (from: string, to: string) => void;
-  onOpen: (path: string) => void;
+  /** Un Bino della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
+  onOpen: (path: string, phrase?: PhraseRef) => void;
   onRaccolta: (raccolta: string | null) => void;
   onShowAll: () => void;
   /** `null` Tutta la Libreria, `""` Senza raccolta. */
@@ -56,6 +67,13 @@ export function Sidebar({
   const { i18n, t } = useTranslation();
   // La Raccolta che si sta creando (`""`) o rinominando.
   const [naming, setNaming] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const searching = query.trim() !== "";
+
+  const typeQuery = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
+    []
+  );
 
   const choose = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {
@@ -199,30 +217,57 @@ export function Sidebar({
           />
         )}
       </div>
+      <div className="relative">
+        <Search
+          aria-hidden
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          aria-label={t("library.search")}
+          className="pl-8"
+          onChange={typeQuery}
+          placeholder={t("library.search")}
+          type="search"
+          value={query}
+        />
+      </div>
       <nav className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
-        {groups.length === 0 ? (
-          <p className="px-2 text-muted-foreground text-sm">
-            {t("library.empty")}
-          </p>
-        ) : null}
-        {groups.map((group) => (
-          <section className="mb-3" key={group.key}>
-            <h2 className="px-2 pb-1 font-medium text-muted-foreground text-xs first-letter:uppercase">
-              {groupLabel(group.key)}
-            </h2>
-            <ul>
-              {group.bini.map((bino) => (
-                <li key={bino.path}>
-                  <BinoItem
-                    bino={bino}
-                    onOpen={onOpen}
-                    selected={bino.path === selected}
-                  />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {searching ? (
+          <SearchResults
+            key={raccolta ?? ALL}
+            onError={onError}
+            onOpen={onOpen}
+            query={query}
+            raccolta={raccolta}
+            selected={selected}
+          />
+        ) : (
+          <>
+            {groups.length === 0 ? (
+              <p className="px-2 text-muted-foreground text-sm">
+                {t("library.empty")}
+              </p>
+            ) : null}
+            {groups.map((group) => (
+              <section className="mb-3" key={group.key}>
+                <h2 className="px-2 pb-1 font-medium text-muted-foreground text-xs first-letter:uppercase">
+                  {groupLabel(group.key)}
+                </h2>
+                <ul>
+                  {group.bini.map((bino) => (
+                    <li key={bino.path}>
+                      <BinoItem
+                        bino={bino}
+                        onOpen={onOpen}
+                        selected={bino.path === selected}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </>
+        )}
       </nav>
       <div className="flex flex-col gap-1 border-t pt-2">
         <Button className="justify-start" onClick={onShowAll} variant="ghost">

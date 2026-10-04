@@ -233,6 +233,9 @@
     "renameRaccolta": "Renombrar la Colección",
     "deleteRaccolta": "Eliminar la Colección (solo si está vacía)",
     "empty": "No hay Bini aquí",
+    "search": "Buscar",
+    "searchAll": "Buscar en toda la Biblioteca",
+    "noResults": "Sin resultados",
     "groups": {
       "today": "Hoy",
       "yesterday": "Ayer",
