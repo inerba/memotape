@@ -232,7 +232,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 **The Dot-Only Voices Rule.** I colori dei Parlanti compaiono solo nel pallino: mai su testo, fondi di turno o bordi.
 
-**The Token-Only Rule.** Nei componenti si usano solo i token (`bg-background`, `text-destructive`, `bg-play`…), mai colori fissi; l'unica eccezione è `close`, che è già un token.
+**The Token-Only Rule.** Nei componenti si usano solo i token (`bg-background`, `text-destructive`, `bg-play`…), mai colori fissi; le eccezioni sono `close`, che è già un token, e il logo (`BrandMark`), che ha i colori fissi del marchio in entrambi i temi: salvia `#576b3c`, inchiostro `#241e1a`, carta `#fcfaf6` (`docs/brand/LINEE-GUIDA.md`).
 
 ## Typography
 
@@ -244,7 +244,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 ### Hierarchy
 - **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Bino nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso serif a 2.5rem.
-- **Wordmark** (500, 1.375rem, −0.01em): "Sbobino" nella barra laterale; Impostazioni usa lo stesso serif a 1.25rem per il titolo della pagina.
+- **Wordmark** (500, 1.375rem, −0.01em): "sbobino" in minuscolo, come nel logo, nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Sbobino"; Impostazioni usa lo stesso serif a 1.25rem per il titolo della pagina.
 - **Reading** (400, 1.0625rem, 1.7): il testo dei turni, nella colonna da 46rem (circa 70 caratteri a riga dopo il rientro).
 - **Meta** (400, 1.0625rem, cifre tabulari, `ink-muted`): la riga data · ora · durata sotto il titolo e il sottotitolo del benvenuto (con interlinea rilassata).
 - **Body** (400, 0.875rem): l'interfaccia: voci di menu, breadcrumb, ricerca, chip, tempi dei turni, testi d'aiuto.
@@ -281,7 +281,7 @@ Sistema piatto su carta, con un solo livello sospeso. La profondità di base vie
 
 ## Shapes
 
-Angoli morbidi su una base di 10 px (`--radius: 0.625rem`): 6 px per le piccole superfici incise (evidenziazioni, tasti), 8 px per pulsanti, campi, select e voci di menu, 10 px per chip, ricerca e voci della barra laterale, 14 px per i menu, gli avvisi e lo sfondo dei turni, 16 px per player e dock. Il cerchio pieno è per il Play, i pallini, l'interruttore, le barre di avanzamento e la pillola di ritorno. Ogni bordo è un filo da 1 px del colore `rule` (nel tema scuro carta chiara al 10%). L'unica geometria ricorrente oltre ai rettangoli morbidi è la barra verticale dell'audio: nel marchio (un'onda che diventa una riga di testo), nella forma d'onda del player e nelle tre barre del turno in ascolto.
+Angoli morbidi su una base di 10 px (`--radius: 0.625rem`): 6 px per le piccole superfici incise (evidenziazioni, tasti), 8 px per pulsanti, campi, select e voci di menu, 10 px per chip, ricerca e voci della barra laterale, 14 px per i menu, gli avvisi e lo sfondo dei turni, 16 px per player e dock. Il cerchio pieno è per il Play, i pallini, l'interruttore, le barre di avanzamento e la pillola di ritorno. Ogni bordo è un filo da 1 px del colore `rule` (nel tema scuro carta chiara al 10%). L'unica geometria ricorrente oltre ai rettangoli morbidi è la barra verticale dell'audio: nella forma d'onda del player e nelle tre barre del turno in ascolto. Il marchio è a parte: una musicassetta, le due bobine unite dal nastro in inchiostro con i mozzi color carta su un quadrato salvia (`components/brand-mark.tsx`; a 28 px nella barra laterale con la versione piccola senza denti, a 64 px in Informazioni con i mozzi dentati).
 
 ## Components
 
@@ -313,7 +313,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 
 ### Navigation
-- **Barra laterale:** marchio, pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
+- **Barra laterale:** marchio (simbolo e "sbobino"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
 - **Breadcrumb:** Raccolta / Bino a 14 px, la Raccolta in `ink-muted` e cliccabile, il Bino in inchiostro; separatore `/` tenue.
 - **Schede:** Trascrizione e Parlanti a 44 px, peso 500, `ink-muted`; la scelta passa all'inchiostro con un trattino inferiore da 2 px a capi tondi, sopra il filo della barra. Il conteggio accanto è in cifre tabulari tenui.
 - **Menu a comparsa:** popover nativo ancorato (`position-area`), largo almeno 240 px, voci da 32 px con icona tenue a sinistra, divisori da 1 px e titoletti a 12 px; Elimina in mattone, in fondo.
@@ -334,7 +334,7 @@ Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** usare solo i token di `global.css`; ogni nuovo colore nasce lì, con il suo gemello scuro.
+- **Do** usare solo i token di `global.css`; ogni nuovo colore nasce lì, con il suo gemello scuro. Il logo è l'unica eccezione.
 - **Do** riservare la salvia (`play`, `play-soft`) all'audio e alle conferme, e tenere l'inchiostro per il pulsante pieno.
 - **Do** mettere ogni nuovo testo lungo nella colonna da 46rem, in Inter 1.0625rem con interlinea 1.7.
 - **Do** usare `shadow-float` e il foglio per ogni nuovo strato sospeso (menu, avvisi, pillole), con 14–16 px di angolo.

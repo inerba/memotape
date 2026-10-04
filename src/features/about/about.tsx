@@ -1,6 +1,7 @@
 import { type SyntheticEvent, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
+import { BrandMark } from "@/components/brand-mark";
 import { CREDITS, type Credit } from "@/features/about/credits";
 
 const DIR = "../../../src-tauri/resources/licenses";
@@ -12,7 +13,7 @@ const LICENSE_TEXTS = import.meta.glob<string>(
   { import: "default", query: "?raw" }
 );
 
-/** Impostazioni → Informazioni: la versione dell'app e le licenze dei componenti. */
+/** Impostazioni → Informazioni: il logo con la versione dell'app e le licenze dei componenti. */
 export function About() {
   const { t } = useTranslation();
   const [version, setVersion] = useState("");
@@ -23,9 +24,19 @@ export function About() {
 
   return (
     <div className="flex max-w-3xl flex-col gap-3">
-      {version ? (
-        <p className="text-sm">{t("about.version", { version })}</p>
-      ) : null}
+      <div className="mb-3 flex items-center gap-4">
+        <BrandMark className="size-16" />
+        <div>
+          <p className="font-display font-medium text-[1.75rem] leading-tight tracking-[-0.01em]">
+            sbobino
+          </p>
+          {version ? (
+            <p className="text-muted-foreground text-sm">
+              {t("about.version", { version })}
+            </p>
+          ) : null}
+        </div>
+      </div>
       <ul className="flex flex-col divide-y rounded-md border">
         {CREDITS.map((credit) => (
           <CreditRow credit={credit} key={credit.name} />

@@ -18,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import type { AppError, BinoEntry, LibraryList } from "@/bindings";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { clockText, groupByDate } from "@/features/library/library";
 import { SearchResults } from "@/features/library/search-results";
@@ -119,12 +120,12 @@ export function Sidebar({
         className="flex h-14 shrink-0 items-center gap-2.5 px-5"
         data-tauri-drag-region
       >
-        <BrandMark />
+        <BrandMark className="size-7" small />
         <span
           className="pointer-events-none font-display font-medium text-[1.375rem] tracking-[-0.01em]"
           data-tauri-drag-region
         >
-          Sbobino
+          sbobino
         </span>
       </div>
       <div className="flex flex-col gap-1 px-3 pt-1">
@@ -260,24 +261,6 @@ function SectionTitle({
     >
       {children}
     </h2>
-  );
-}
-
-/** Il segno di Sbobino: un'onda che diventa una riga di testo. */
-function BrandMark() {
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none size-6 text-foreground"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M3 10v4M6.5 6.5v11M10 3.5v17M13.5 8.5v7" />
-      <path d="M17 12h4" />
-    </svg>
   );
 }
 
