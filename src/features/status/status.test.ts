@@ -3,6 +3,7 @@ import "@/lib/i18n";
 import i18n from "i18next";
 import {
   afterTranscription,
+  bannerOf,
   needsSettings,
   type Status,
   statusText,
@@ -198,4 +199,32 @@ test("un Bino aperto spostato o rinominato resta nella status bar con il percors
   expect(withMovedSource({ phase: "noSpeech" }, from, to)).toEqual({
     phase: "noSpeech",
   });
+});
+
+test("l'avviso dice errori ed esiti, non la fase di un'Attività in corso", () => {
+  expect(bannerOf({ phase: "idle", source: null }, t)).toBeNull();
+  expect(bannerOf({ percent: 10, phase: "transcribing" }, t)).toBeNull();
+  expect(bannerOf({ paused: false, phase: "recording" }, t)).toBeNull();
+  expect(bannerOf({ phase: "noSpeech" }, t)).toEqual({
+    settings: false,
+    text: "Nessun parlato rilevato",
+    tone: "info",
+  });
+  const missing = bannerOf(
+    { error: { code: "modelMissing", detail: "Nemotron" }, phase: "failed" },
+    t
+  );
+  expect(missing?.tone).toBe("error");
+  expect(missing?.settings).toBe(true);
+  // La Trascrizione dal vivo si ferma, la Registrazione no: l'avviso porta alle Impostazioni.
+  const live = bannerOf(
+    {
+      liveError: { code: "liveTranscriptionUnavailable", detail: "Nemotron" },
+      paused: false,
+      phase: "recording",
+    },
+    t
+  );
+  expect(live?.tone).toBe("error");
+  expect(live?.settings).toBe(true);
 });

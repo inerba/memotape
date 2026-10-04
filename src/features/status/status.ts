@@ -143,3 +143,50 @@ export function failedStatus(error: AppError): Status {
     ? { phase: "cancelled" }
     : { error, phase: "failed" };
 }
+
+/** L'avviso in cima al pannello centrale per la fase: errori ed esiti, non l'avanzamento. */
+export interface Banner {
+  /** Serve il link alle Impostazioni, per scaricare o cambiare modello. */
+  settings: boolean;
+  text: string;
+  tone: "error" | "info";
+}
+
+/**
+ * L'avviso della fase `status`: l'errore (anche quello della Trascrizione dal vivo durante la
+ * Registrazione) o l'esito di un'Attività finita. `null` a riposo e durante un'Attività, la cui
+ * fase sta nella barra laterale.
+ */
+export function bannerOf(status: Status, t: TFunction): Banner | null {
+  switch (status.phase) {
+    case "failed":
+      return {
+        settings: needsSettings(status),
+        text: statusText(status, t),
+        tone: "error",
+      };
+    case "recording":
+      return status.liveError
+        ? {
+            settings: needsSettings(status),
+            text: statusText(status, t),
+            tone: "error",
+          }
+        : null;
+    case "finished":
+    case "recorded":
+    case "noSpeech":
+    case "cancelled":
+      return { settings: false, text: statusText(status, t), tone: "info" };
+    default:
+      return null;
+  }
+}
+
+/** La percentuale di una Trascrizione o del completamento dopo Stop; `null` se non è nota. */
+export function progressPercent(status: Status): number | null {
+  return (status.phase === "transcribing" || status.phase === "completing") &&
+    !status.diarizing
+    ? status.percent
+    : null;
+}

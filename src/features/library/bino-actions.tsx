@@ -1,40 +1,51 @@
-import { Ellipsis, FileDown, FolderOpen, Trash2 } from "lucide-react";
-import { useCallback } from "react";
+import {
+  Ellipsis,
+  FileDown,
+  FolderInput,
+  FolderOpen,
+  RefreshCcw,
+  Trash2,
+} from "lucide-react";
+import { type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands, type LibraryList } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
-import { Button } from "@/components/ui/button";
-import { entryOf } from "@/features/library/bino-header";
-import { MoveSelect } from "@/features/library/move-select";
-import { fileName } from "@/features/source/file-name";
-
-const EXTENSION = /\.bino$/i;
+import { entryOf, titleOf } from "@/features/library/bino-header";
+import { raccoltaLabel } from "@/features/library/library";
+import { TranscribeOptions } from "@/features/transcription/transcribe-menu";
 
 function closeMenu() {
   document.getElementById("menu-more")?.hidePopover();
 }
 
+export const MENU_ITEM =
+  "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground";
+
 /**
- * Esporta Markdown…, Mostra in Esplora file e "…" con Sposta in… ed Elimina; per un Bino fuori dalla
- * Libreria, Aggiungi alla Libreria….
+ * "…" del Bino aperto, con le azioni meno frequenti: Esporta Markdown…, Mostra in Esplora file,
+ * Sposta in… (o Aggiungi alla Libreria… per un Bino da fuori), Trascrivi di nuovo con le sue scelte
+ * (se `onTranscribe`) ed Elimina.
  */
-export function BinoActions({
+export function BinoMenu({
   disabled,
   library,
   onError,
   onExported,
   onMove,
   onReveal,
+  onTranscribe,
   onTrash,
   path,
 }: {
-  /** Ci lavora l'Attività in corso: niente spostamento né Cestino. */
+  /** Ci lavora l'Attività in corso: niente spostamento, Trascrivi né Cestino. */
   disabled: boolean;
   library: LibraryList;
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
   onReveal: (path: string) => void;
+  /** Trascrivi di nuovo; assente se il Bino non è la Sorgente o un'Attività è in corso. */
+  onTranscribe?: () => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
   path: string;
 }) {
@@ -42,8 +53,11 @@ export function BinoActions({
   const entry = entryOf(library, path);
   // `null`: fuori dalla Libreria.
   const raccolta = entry ? (entry.raccolta ?? "") : null;
+  // Dove si può spostare: Senza raccolta e le Raccolte, tranne dove sta già.
+  const targets = ["", ...library.raccolte].filter((r) => r !== raccolta);
 
   const exportMarkdown = useCallback(async () => {
+    closeMenu();
     const result = await commands.exportMarkdown(path);
     if (result.status === "error") {
       onError(result.error);
@@ -51,7 +65,10 @@ export function BinoActions({
       onExported(result.data);
     }
   }, [onError, onExported, path]);
-  const reveal = useCallback(() => onReveal(path), [onReveal, path]);
+  const reveal = useCallback(() => {
+    closeMenu();
+    onReveal(path);
+  }, [onReveal, path]);
   const move = useCallback(
     (to: string) => {
       closeMenu();
@@ -59,50 +76,114 @@ export function BinoActions({
     },
     [onMove, path]
   );
+  const transcribe = useCallback(() => {
+    closeMenu();
+    onTranscribe?.();
+  }, [onTranscribe]);
   const trash = useCallback(() => {
     closeMenu();
-    onTrash({
-      path,
-      titolo: entry?.titolo ?? fileName(path).replace(EXTENSION, ""),
-    });
-  }, [entry, onTrash, path]);
+    onTrash({ path, titolo: titleOf(library, path) });
+  }, [library, onTrash, path]);
 
   return (
-    <>
-      <Button onClick={exportMarkdown} variant="outline">
-        <FileDown />
+    <PopoverMenu
+      className="size-8"
+      icon={<Ellipsis />}
+      id="more"
+      label={t("library.more")}
+      variant="ghost"
+    >
+      <MenuItem icon={<FileDown />} onClick={exportMarkdown}>
         {t("transcription.export")}
-      </Button>
-      <Button
-        aria-label={t("library.reveal")}
-        onClick={reveal}
-        size="icon"
-        title={t("library.reveal")}
-        variant="ghost"
-      >
-        <FolderOpen />
-      </Button>
-      <PopoverMenu
-        disabled={disabled}
-        icon={<Ellipsis />}
-        id="more"
-        label={t("library.more")}
-      >
-        <MoveSelect
-          current={raccolta ?? undefined}
-          label={
-            raccolta === null ? t("library.addToLibrary") : t("library.moveTo")
-          }
-          onMove={move}
-          raccolte={library.raccolte}
-        />
-        {raccolta === null ? null : (
-          <Button onClick={trash} variant="outline">
-            <Trash2 />
+      </MenuItem>
+      <MenuItem icon={<FolderOpen />} onClick={reveal}>
+        {t("library.reveal")}
+      </MenuItem>
+      {targets.length > 0 ? (
+        <>
+          <hr className="my-1" />
+          <p className="px-2 pt-1 pb-0.5 text-muted-foreground text-xs">
+            {raccolta === null
+              ? t("library.addToLibrary")
+              : t("library.moveTo")}
+          </p>
+          {targets.map((target) => (
+            <MoveItem
+              disabled={disabled}
+              key={target}
+              onMove={move}
+              target={target}
+            />
+          ))}
+        </>
+      ) : null}
+      {onTranscribe ? (
+        <>
+          <hr className="my-1" />
+          <TranscribeOptions onError={onError} />
+          <MenuItem icon={<RefreshCcw />} onClick={transcribe}>
+            {t("transcription.again")}
+          </MenuItem>
+        </>
+      ) : null}
+      {raccolta === null ? null : (
+        <>
+          <hr className="my-1" />
+          <MenuItem
+            className="text-destructive [&_svg]:text-destructive"
+            disabled={disabled}
+            icon={<Trash2 />}
+            onClick={trash}
+          >
             {t("library.delete")}
-          </Button>
-        )}
-      </PopoverMenu>
-    </>
+          </MenuItem>
+        </>
+      )}
+    </PopoverMenu>
+  );
+}
+
+/** Una Raccolta di destinazione di Sposta in…. */
+function MoveItem({
+  disabled,
+  onMove,
+  target,
+}: {
+  disabled: boolean;
+  onMove: (raccolta: string) => void;
+  target: string;
+}) {
+  const { t } = useTranslation();
+  const move = useCallback(() => onMove(target), [onMove, target]);
+  return (
+    <MenuItem disabled={disabled} icon={<FolderInput />} onClick={move}>
+      <span className="truncate">{raccoltaLabel(target, t)}</span>
+    </MenuItem>
+  );
+}
+
+export function MenuItem({
+  children,
+  className = "",
+  disabled,
+  icon,
+  onClick,
+}: {
+  children: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  icon: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`${MENU_ITEM} ${className}`}
+      disabled={disabled}
+      onClick={onClick}
+      type="button"
+    >
+      {icon}
+      {children}
+    </button>
   );
 }

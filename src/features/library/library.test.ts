@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
-import type { BinoEntry, BinoInfo } from "@/bindings";
+import type { BinoEntry } from "@/bindings";
 import {
   biniOf,
   chosenRaccolta,
   clockText,
+  dayText,
   groupByDate,
-  infoParts,
   nameProblem,
   sortBini,
 } from "./library";
@@ -166,42 +166,13 @@ test("validazione dei nomi, come in Rust", () => {
   expect(nameProblem("Acme Srl", ["Acme", "Beta"])).toBeNull();
 });
 
-describe("informazioni di un Bino", () => {
+test("il giorno del titolo dice Oggi e Ieri, e l'anno solo se non è quello in corso", () => {
   const t = i18n.t.bind(i18n);
-  const info: BinoInfo = {
-    completa: true,
-    creato: new Date(2026, 9, 3, 17, 5).toISOString(),
-    durataMs: 754_000,
-    ingressiSeparati: false,
-    linguaParlato: "it",
-    modello: "Nemotron",
-    origine: null,
-  };
-
-  test("data e ora, durata, Raccolta, modello e Lingua del parlato", () => {
-    const [date, ...rest] = infoParts(info, "Acme", t, "it");
-    expect(date).toContain("17:05");
-    expect(date).toContain("2026");
-    expect(rest).toEqual(["12:34", "Acme", "Nemotron", "Italiano"]);
-  });
-
-  test("Senza raccolta, fuori dalla Libreria, Ingressi separati, incompleto e file d'origine", () => {
-    const all = {
-      ...info,
-      completa: false,
-      ingressiSeparati: true,
-      linguaParlato: "auto" as const,
-      modello: null,
-      origine: "Call Teams.mp4",
-    };
-    expect(infoParts(all, null, t, "it").slice(1)).toEqual([
-      "12:34",
-      "Senza raccolta",
-      "Automatica",
-      "Ingressi separati",
-      "incompleto",
-      "dal file Call Teams.mp4",
-    ]);
-    expect(infoParts(info, undefined, t, "it")[2]).toBe("fuori dalla Libreria");
-  });
+  const today = new Date(2026, 9, 4, 18, 0);
+  const at = (y: number, m: number, d: number) =>
+    new Date(y, m, d, 10, 30).toISOString();
+  expect(dayText(at(2026, 9, 4), today, t, "it")).toBe("Oggi, 4 ottobre");
+  expect(dayText(at(2026, 9, 3), today, t, "it")).toBe("Ieri, 3 ottobre");
+  expect(dayText(at(2026, 8, 28), today, t, "it")).toBe("28 settembre");
+  expect(dayText(at(2025, 11, 31), today, t, "it")).toBe("31 dicembre 2025");
 });

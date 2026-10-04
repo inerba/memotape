@@ -163,6 +163,18 @@ pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError>
     .await
 }
 
+/// La forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
+/// più corto di `count` × 20 ms.
+#[tauri::command]
+#[specta::specta]
+pub async fn bino_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
+    let path = bino_path(&path)?;
+    blocking(app, move |_| {
+        crate::audio_toolkit::decode::peaks(&path, count as usize)
+    })
+    .await
+}
+
 /// Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
 /// `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
 #[tauri::command]

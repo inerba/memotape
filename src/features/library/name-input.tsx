@@ -15,12 +15,15 @@ import { nameProblem } from "@/features/library/library";
  * l'uscita dal campo annullano. Sotto, perché il nome non va.
  */
 export function NameInput({
+  className = "h-8",
   initial,
   label,
   onCancel,
   onSubmit,
   taken,
 }: {
+  /** Le classi del campo. */
+  className?: string;
   initial: string;
   label: string;
   onCancel: () => void;
@@ -59,7 +62,7 @@ export function NameInput({
       <Input
         aria-invalid={problem !== null}
         aria-label={label}
-        className="h-8"
+        className={className}
         onBlur={onCancel}
         onChange={change}
         onKeyDown={keyDown}

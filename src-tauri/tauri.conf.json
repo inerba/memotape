@@ -35,8 +35,11 @@
     "windows": [
       {
         "title": "Sbobino",
-        "width": 1000,
-        "height": 700,
+        "width": 1200,
+        "height": 800,
+        "minWidth": 880,
+        "minHeight": 600,
+        "decorations": false,
         "dragDropEnabled": false
       }
     ]

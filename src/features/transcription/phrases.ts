@@ -273,3 +273,44 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
   }
   return turns;
 }
+
+/** Quanti colori hanno le voci: oltre, si ricomincia dal primo. */
+export const VOICE_COLORS = 6;
+
+/**
+ * Il colore (da 0) di ogni etichetta dei turni, per ordine di comparsa: una voce rinominata resta
+ * nello stesso posto, quindi tiene il suo colore.
+ */
+export function voiceColors(turns: Turn[]): Map<string, number> {
+  const colors = new Map<string, number>();
+  for (const { label } of turns) {
+    if (label !== null && !colors.has(label)) {
+      colors.set(label, colors.size % VOICE_COLORS);
+    }
+  }
+  return colors;
+}
+
+/** Quanto ha parlato un Parlante: i suoi turni, la somma delle sue Frasi e quando compare. */
+export interface ParlanteStats {
+  firstMs: number;
+  talkMs: number;
+  turns: number;
+}
+
+export function parlanteStats(
+  conversation: Conversation,
+  turns: Turn[],
+  { ingresso, parlante }: Parlante
+): ParlanteStats {
+  const own = conversation.phrases.filter(
+    (p) => p.ingresso === ingresso && p.parlante === parlante
+  );
+  return {
+    firstMs: Math.min(...own.map((p) => p.inizioMs)),
+    talkMs: own.reduce((sum, p) => sum + p.fineMs - p.inizioMs, 0),
+    turns: turns.filter(
+      (t) => t.ingresso === ingresso && t.parlante === parlante
+    ).length,
+  };
+}

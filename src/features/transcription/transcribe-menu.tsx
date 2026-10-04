@@ -1,46 +1,42 @@
-import { ChevronDown } from "lucide-react";
-import { type ChangeEvent, useCallback } from "react";
+import { Captions, ChevronDown } from "lucide-react";
+import { type ChangeEvent, useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppError } from "@/bindings";
+import { NativeSelect } from "@/components/native-select";
 import { PopoverMenu } from "@/components/popover-menu";
 import { Button } from "@/components/ui/button";
-import { SELECT } from "@/features/library/move-select";
 import { useModels } from "@/features/models/use-models";
 import { SettingCheckbox } from "@/features/settings/setting-checkbox";
 import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 
-/**
- * Trascrivi ▾: il pulsante dice la Lingua del parlato scelta, il menu sceglie modello, Lingua del
- * parlato e Riconosci i parlanti. Durante la Trascrizione c'è Annulla.
- */
-export function TranscribeMenu({
-  busy,
-  canTranscribe,
-  cancelling,
-  onCancel,
+/** La Lingua del parlato scelta, come si mostra: "Automatica" o il nome della lingua. */
+function useSpeechLanguage() {
+  const { t } = useTranslation();
+  const { settings } = useSettings();
+  const models = useModels();
+  const modelLanguages =
+    models.find((m) => m.id === settings.model)?.languages ?? null;
+  const choice = speechLanguageChoice(modelLanguages, settings.speechLanguage);
+  const name =
+    choice.value === "auto"
+      ? t("speechLanguage.auto")
+      : t(`speechLanguage.languages.${choice.value}`);
+  return { ...choice, name };
+}
+
+/** Le scelte della prossima Trascrizione: modello, Lingua del parlato e Riconosci i parlanti. */
+export function TranscribeOptions({
   onError,
-  onTranscribe,
-  running,
 }: {
-  busy: boolean;
-  canTranscribe: boolean;
-  cancelling: boolean;
-  /** `null` se non c'è niente da annullare. */
-  onCancel: (() => void) | null;
   onError: (error: AppError) => void;
-  onTranscribe: () => void;
-  running: boolean;
 }) {
   const { t } = useTranslation();
   const { save, settings } = useSettings();
   const models = useModels();
-  const modelLanguages =
-    models.find((m) => m.id === settings.model)?.languages ?? null;
-  const { options: languages, value: language } = speechLanguageChoice(
-    modelLanguages,
-    settings.speechLanguage
-  );
+  const { options: languages, value: language } = useSpeechLanguage();
+  const modelId = useId();
+  const languageId = useId();
   // Quelli scaricati, più quello scelto anche se non lo è: Trascrivi dirà che manca.
   const transcribers = models.filter(
     (m) =>
@@ -69,62 +65,88 @@ export function TranscribeMenu({
     [choose, languages]
   );
 
-  const languageName =
-    language === "auto"
-      ? t("speechLanguage.auto")
-      : t(`speechLanguage.languages.${language}`);
   return (
-    <div className="flex items-center gap-1">
-      <Button disabled={!canTranscribe} onClick={onTranscribe}>
-        {running
-          ? t("transcription.running")
-          : t("transcription.startWith", { language: languageName })}
+    <div className="flex flex-col gap-3 px-2 py-2">
+      <div className="flex flex-col gap-1.5">
+        <label className="text-muted-foreground text-xs" htmlFor={modelId}>
+          {t("models.choose")}
+        </label>
+        <NativeSelect
+          id={modelId}
+          onChange={chooseModel}
+          value={settings.model}
+        >
+          {transcribers.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-muted-foreground text-xs" htmlFor={languageId}>
+          {t("speechLanguage.label")}
+        </label>
+        <NativeSelect
+          id={languageId}
+          onChange={chooseLanguage}
+          value={language}
+        >
+          <option value="auto">{t("speechLanguage.auto")}</option>
+          {languages.map((l) => (
+            <option key={l} value={l}>
+              {t(`speechLanguage.languages.${l}`)}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      <SettingCheckbox
+        label={t("transcription.parlanti")}
+        name="parlantiFile"
+        note={t("transcription.parlantiNote")}
+        onError={onError}
+      />
+    </div>
+  );
+}
+
+/**
+ * Trascrivi ▾ per una Sorgente ancora senza testo: il pulsante dice la Lingua del parlato scelta, il
+ * menu sceglie modello, Lingua del parlato e Riconosci i parlanti.
+ */
+export function TranscribeMenu({
+  busy,
+  canTranscribe,
+  onError,
+  onTranscribe,
+}: {
+  busy: boolean;
+  canTranscribe: boolean;
+  onError: (error: AppError) => void;
+  onTranscribe: () => void;
+}) {
+  const { t } = useTranslation();
+  const { name } = useSpeechLanguage();
+  return (
+    <div className="flex">
+      <Button
+        className="h-10 rounded-r-none px-4"
+        disabled={!canTranscribe}
+        onClick={onTranscribe}
+      >
+        <Captions />
+        {t("transcription.startWith", { language: name })}
       </Button>
       <PopoverMenu
+        className="h-10 w-9 rounded-l-none border-primary-foreground/15 border-l"
         disabled={busy}
         icon={<ChevronDown />}
         id="transcribe"
         label={t("transcription.options")}
+        variant="default"
       >
-        <label className="flex flex-col gap-1">
-          {t("models.choose")}
-          <select
-            className={SELECT}
-            onChange={chooseModel}
-            value={settings.model}
-          >
-            {transcribers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          {t("speechLanguage.label")}
-          <select className={SELECT} onChange={chooseLanguage} value={language}>
-            <option value="auto">{t("speechLanguage.auto")}</option>
-            {languages.map((l) => (
-              <option key={l} value={l}>
-                {t(`speechLanguage.languages.${l}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <SettingCheckbox
-          label={t("transcription.parlanti")}
-          name="parlantiFile"
-          note={t("transcription.parlantiNote")}
-          onError={onError}
-        />
+        <TranscribeOptions onError={onError} />
       </PopoverMenu>
-      {onCancel ? (
-        <Button disabled={cancelling} onClick={onCancel} variant="outline">
-          {cancelling
-            ? t("transcription.cancelling")
-            : t("transcription.cancel")}
-        </Button>
-      ) : null}
     </div>
   );
 }

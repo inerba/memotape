@@ -1,6 +1,5 @@
 import type { TFunction } from "i18next";
-import type { BinoEntry, BinoInfo } from "@/bindings";
-import { elapsedText } from "@/features/recording/recording";
+import type { BinoEntry } from "@/bindings";
 
 /**
  * Un gruppo della barra laterale: `today`, `yesterday`, `week` (il resto della settimana, da
@@ -129,35 +128,24 @@ export function nameProblem(
 }
 
 /**
- * La riga di informazioni di un Bino: data e ora (nel formato di `locale`), durata, Raccolta
- * (`null` Senza raccolta, `undefined` fuori dalla Libreria), modello, Lingua del parlato, Ingressi
- * separati, incompleto e il file d'origine, quando ci sono.
+ * Il giorno di un Bino per il suo titolo: "Oggi, 4 ottobre", "Ieri, 3 ottobre", senza l'anno se è
+ * quello di `today`, altrimenti la data intera.
  */
-export function infoParts(
-  info: BinoInfo,
-  raccolta: string | null | undefined,
+export function dayText(
+  creato: string,
+  today: Date,
   t: TFunction,
   locale: string
-): string[] {
-  const language =
-    info.linguaParlato === "auto"
-      ? t("speechLanguage.auto")
-      : t(`speechLanguage.languages.${info.linguaParlato}`);
-  return [
-    new Date(info.creato).toLocaleString(locale, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }),
-    elapsedText(info.durataMs),
-    raccolta === undefined
-      ? t("library.info.outside")
-      : raccoltaLabel(raccolta ?? "", t),
-    info.modello,
-    language,
-    info.ingressiSeparati
-      ? t("settings.recording.liveModes.ingressiSeparati")
-      : null,
-    info.completa ? null : t("library.info.incomplete"),
-    info.origine ? t("library.info.origine", { name: info.origine }) : null,
-  ].filter((part) => part !== null);
+): string {
+  const date = new Date(creato);
+  const sameYear = date.getFullYear() === today.getFullYear();
+  const day = date.toLocaleDateString(locale, {
+    day: "numeric",
+    month: "long",
+    year: sameYear ? undefined : "numeric",
+  });
+  const key = groupKey(date, today);
+  return key === "today" || key === "yesterday"
+    ? `${t(`library.groups.${key}`)}, ${day}`
+    : day;
 }

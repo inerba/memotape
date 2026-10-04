@@ -50,6 +50,11 @@ export const commands = {
 	/**  Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
 	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
 	/**
+	 *  La forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
+	 *  più corto di `count` × 20 ms.
+	 */
+	binoPeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("bino_peaks", { path, count })),
+	/**
 	 *  Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
 	 *  `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
 	 */

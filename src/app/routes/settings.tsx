@@ -178,14 +178,22 @@ export function SettingsPage() {
 
   return (
     <div className="fixed inset-0 z-10 flex flex-col bg-background">
-      <header className="flex items-center gap-3 border-b px-6 py-3">
+      <header
+        className="flex h-14 shrink-0 items-center gap-3 border-b pr-[150px] pl-4"
+        data-tauri-drag-region
+      >
         <Button asChild size="sm" variant="ghost">
           <Link to="/">
             <ArrowLeft />
             {t("settings.back")}
           </Link>
         </Button>
-        <h1 className="font-semibold text-lg">{t("settings.title")}</h1>
+        <h1
+          className="pointer-events-none font-display font-medium text-xl"
+          data-tauri-drag-region
+        >
+          {t("settings.title")}
+        </h1>
       </header>
       <main className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto p-6">
         {error ? (

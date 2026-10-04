@@ -1,8 +1,17 @@
-import { useCallback, useState } from "react";
+import type { TFunction } from "i18next";
+import {
+  AlertTriangle,
+  AudioLines,
+  FileAudio,
+  Languages,
+  Users,
+} from "lucide-react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { BinoInfo, LibraryList } from "@/bindings";
-import { infoParts } from "@/features/library/library";
+import { dayText } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
+import { elapsedText } from "@/features/recording/recording";
 import { fileName, folderOf } from "@/features/source/file-name";
 
 const EXTENSION = /\.bino$/i;
@@ -13,12 +22,23 @@ export function entryOf(library: LibraryList, path: string) {
   return library.bini.find((b) => b.path.toLowerCase() === lower);
 }
 
-/** Il titolo del Bino `path`, che un clic rinomina, e la riga delle sue informazioni. */
+/** Il titolo del Bino `path`: quello della Libreria, o il nome del file. */
+export function titleOf(library: LibraryList, path: string): string {
+  return (
+    entryOf(library, path)?.titolo ?? fileName(path).replace(EXTENSION, "")
+  );
+}
+
+/**
+ * La testata del documento di un Bino: il titolo grande, che un clic rinomina, il giorno, l'ora e la
+ * durata, e le informazioni essenziali come etichette.
+ */
 export function BinoHeader({
   disabled,
   info,
   library,
   onRename,
+  parlanti,
   path,
 }: {
   /** Ci lavora l'Attività in corso: niente rinomina. */
@@ -26,12 +46,14 @@ export function BinoHeader({
   info: BinoInfo | null;
   library: LibraryList;
   onRename: (path: string, titolo: string) => void;
+  /** Quanti Parlanti ha il testo. */
+  parlanti: number;
   path: string;
 }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const entry = entryOf(library, path);
-  const titolo = entry?.titolo ?? fileName(path).replace(EXTENSION, "");
+  const titolo = titleOf(library, path);
   const folder = folderOf(path.toLowerCase());
   const siblings = library.bini
     .filter((b) => b !== entry && folderOf(b.path.toLowerCase()) === folder)
@@ -48,57 +70,153 @@ export function BinoHeader({
   );
 
   return (
-    <section className="flex min-w-0 flex-col gap-1">
-      {renaming ? (
-        <NameInput
-          initial={titolo}
-          label={t("library.renameName")}
-          onCancel={cancel}
-          onSubmit={submit}
-          taken={siblings}
-        />
-      ) : (
-        <button
-          className="block max-w-full cursor-text truncate rounded-sm text-left font-medium text-lg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:no-underline"
-          disabled={disabled}
-          onClick={start}
-          title={t("library.rename")}
-          type="button"
-        >
-          {titolo}
-        </button>
-      )}
-      {info ? (
-        <InfoLine
-          info={info}
-          inLibrary={entry !== undefined}
-          raccolta={entry?.raccolta}
-        />
-      ) : null}
-    </section>
+    <DocumentHeader
+      chips={
+        info ? (
+          <InfoChips
+            info={info}
+            inLibrary={entry !== undefined}
+            parlanti={parlanti}
+          />
+        ) : null
+      }
+      meta={
+        info
+          ? [
+              dayText(info.creato, new Date(), t, i18n.language),
+              new Date(info.creato).toLocaleTimeString(i18n.language, {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              elapsedText(info.durataMs),
+            ].join(" · ")
+          : null
+      }
+      title={
+        renaming ? (
+          <NameInput
+            className="h-auto py-1 font-display text-[2.5rem] leading-tight md:text-[2.5rem]"
+            initial={titolo}
+            label={t("library.renameName")}
+            onCancel={cancel}
+            onSubmit={submit}
+            taken={siblings}
+          />
+        ) : (
+          <button
+            className="block max-w-full cursor-text text-balance rounded-md text-left decoration-2 decoration-muted-foreground/30 underline-offset-8 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
+            disabled={disabled}
+            onClick={start}
+            title={t("library.rename")}
+            type="button"
+          >
+            {titolo}
+          </button>
+        )
+      }
+    />
   );
 }
 
-/** Le informazioni in una riga, intere nel tooltip. */
-function InfoLine({
+/**
+ * Da dove viene il Bino: il file d'origine, o per una Registrazione con gli Ingressi separati
+ * microfono e audio di sistema. Del mix di una Registrazione gli ingressi non si sanno.
+ */
+function sourceText(info: BinoInfo, t: TFunction): string {
+  if (info.origine) {
+    return t("bino.file", { name: info.origine });
+  }
+  return info.ingressiSeparati ? t("bino.ingressi") : t("bino.recording");
+}
+
+/** Le informazioni essenziali di un Bino come etichette. */
+function InfoChips({
   inLibrary,
   info,
-  raccolta,
+  parlanti,
 }: {
   inLibrary: boolean;
   info: BinoInfo;
-  raccolta?: string | null;
+  parlanti: number;
 }) {
-  const { i18n, t } = useTranslation();
-  const text = infoParts(
-    info,
-    inLibrary ? (raccolta ?? null) : undefined,
-    t,
-    i18n.language
-  ).join(" · ");
+  const { t } = useTranslation();
+  const language =
+    info.linguaParlato === "auto"
+      ? t("speechLanguage.auto")
+      : t(`speechLanguage.languages.${info.linguaParlato}`);
   return (
-    <p className="truncate text-muted-foreground text-sm" title={text}>
-      {text}
-    </p>
+    <>
+      <Chip
+        icon={info.origine ? <FileAudio /> : <AudioLines />}
+        title={info.origine ?? undefined}
+      >
+        {sourceText(info, t)}
+      </Chip>
+      {parlanti > 0 ? (
+        <Chip icon={<Users />}>{t("bino.parlanti", { count: parlanti })}</Chip>
+      ) : null}
+      {/* Senza modello il Bino non ha testo: niente modello, lingua né "incompleto". */}
+      {info.modello ? (
+        <Chip icon={<Languages />}>{`${info.modello} · ${language}`}</Chip>
+      ) : null}
+      {info.modello && !info.completa ? (
+        <Chip icon={<AlertTriangle />} tone="warning">
+          {t("library.info.incomplete")}
+        </Chip>
+      ) : null}
+      {inLibrary ? null : <Chip>{t("library.info.outside")}</Chip>}
+    </>
+  );
+}
+
+/** La testata di un documento: titolo, riga del giorno e della durata, etichette. */
+export function DocumentHeader({
+  chips,
+  meta,
+  title,
+}: {
+  chips?: ReactNode;
+  meta?: string | null;
+  title: ReactNode;
+}) {
+  return (
+    <header className="flex flex-col gap-2 pt-12 pb-6">
+      <h1 className="font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em] [font-optical-sizing:auto]">
+        {title}
+      </h1>
+      {meta ? (
+        <p className="text-[1.0625rem] text-muted-foreground tabular-nums">
+          {meta}
+        </p>
+      ) : null}
+      {chips ? <div className="mt-2 flex flex-wrap gap-2">{chips}</div> : null}
+    </header>
+  );
+}
+
+/** Un'informazione breve accanto al titolo. */
+export function Chip({
+  children,
+  icon,
+  title,
+  tone,
+}: {
+  children: ReactNode;
+  icon?: ReactNode;
+  title?: string;
+  tone?: "warning";
+}) {
+  let className =
+    "inline-flex max-w-full items-center gap-1.5 truncate rounded-lg border px-2.5 py-1 text-sm [&_svg]:size-3.5 [&_svg]:shrink-0";
+  if (tone === "warning") {
+    className += " border-destructive/30 text-destructive";
+  } else {
+    className += " bg-card text-foreground/85";
+  }
+  return (
+    <span className={className} title={title}>
+      {icon}
+      <span className="truncate">{children}</span>
+    </span>
   );
 }

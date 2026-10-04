@@ -45,7 +45,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 ## Operating Context
 
 - Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Bino (doppio clic apre Sbobino).
-- Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la status bar dice sempre la fase.
+- Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la sezione Attività della barra laterale dice sempre la fase.
 - Il testo di un Bino si legge a turni e si corregge Frase per Frase; Copia testo ed Esporta Markdown… sono le uscite.
 
 ## Capabilities and Constraints
@@ -72,7 +72,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 1. L'audio resta sul PC: nessuna funzione chiede account, chiavi o servizi di terzi.
 2. Il lavoro dell'utente non si perde: conferma prima di sostituire il testo, nessuna sovrascrittura, la Registrazione si salva anche quando qualcosa si guasta.
-3. La finestra mostra solo ciò che serve all'Attività in corso, e lo stato si legge sempre nella status bar.
+3. La finestra mostra solo ciò che serve all'Attività in corso: la fase si legge sempre nella sezione Attività della barra laterale, errori ed esiti in un avviso.
 4. Si comporta come un'app Windows: tema, lingua, Esplora file e dialog di sistema.
 5. Parole sobrie e coerenti con il glossario, uguali nelle sei lingue.
 
@@ -84,7 +84,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 2. Come utente, voglio che il dialog proponga solo le estensioni accettate (MP3, WAV, M4A, FLAC, OGG, OPUS, WEBM, MPGA, MPEG, AIFF, MP4, MKV, MOV, M4V), così non scelgo file inutili.
 3. Come utente, voglio vedere il nome della Sorgente nella finestra, così so su cosa sto lavorando.
 4. Come utente, voglio cliccare il nome della Sorgente e aprirla con il programma associato, così la ascolto o la guardo prima di trascrivere.
-5. Come utente, voglio vedere il percorso completo della Sorgente nella status bar, così so dove si trova.
+5. Come utente, voglio vedere il percorso completo della Sorgente passando il mouse sul suo nome, così so dove si trova.
 6. Come utente, voglio che dopo la scelta di un file mi venga proposta l'azione Trascrivi, così so cosa posso fare.
 7. Come utente, voglio un errore dedicato se il file contiene un codec audio non supportato (per esempio AC-3 dentro un MKV o un `.mpeg` che è un video MPEG-PS), così capisco che il problema è il formato e non l'app.
 8. Come utente, voglio un errore dedicato se il file non esiste più o non è leggibile, così so che va scelto di nuovo.
@@ -96,10 +96,10 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 11. Come utente, voglio il testo a turni, con le Frasi di un turno una dopo l'altra, così si legge facilmente.
 12. Come utente con Nemotron, voglio vedere il Parziale della Frase in corso mentre viene riconosciuta, così seguo il lavoro in tempo reale.
 13. Come utente con Whisper o Parakeet, voglio vedere ogni Frase appena è conclusa, così vedo comunque l'avanzamento.
-14. Come utente, voglio la percentuale di avanzamento nella status bar quando la durata è nota, così so quanto manca.
+14. Come utente, voglio la percentuale di avanzamento nella sezione Attività e in fondo alla vista quando la durata è nota, così so quanto manca.
 15. Come utente, voglio un avanzamento senza percentuale quando la durata non è nota, così so comunque che l'app sta lavorando.
-16. Come utente, voglio che Trascrivi su un file audio o video crei `<nome del file>.bino` nella Raccolta scelta (" 2", " 3"… se esiste già), con l'audio in Opus alle impostazioni di Registrazione e il testo con i tempi, così ritrovo la trascrizione nella Libreria e il file originale resta com'è. Se la Trascrizione non trova parlato il Bino non si crea e la status bar mostra "Nessun parlato rilevato".
-17. Come utente, voglio che a fine Trascrizione il Bino diventi la Sorgente e la status bar mostri il suo percorso, così so dove trovarlo.
+16. Come utente, voglio che Trascrivi su un file audio o video crei `<nome del file>.bino` nella Raccolta scelta (" 2", " 3"… se esiste già), con l'audio in Opus alle impostazioni di Registrazione e il testo con i tempi, così ritrovo la trascrizione nella Libreria e il file originale resta com'è. Se la Trascrizione non trova parlato il Bino non si crea e un avviso dice "Nessun parlato rilevato".
+17. Come utente, voglio che a fine Trascrizione il Bino diventi la Sorgente e un avviso mostri il suo percorso, così so dove trovarlo.
 18. Come utente, voglio un pulsante "Copia testo" che copi negli appunti il testo del Bino aperto, con le correzioni e i nomi dei Parlanti, o quello della Trascrizione in corso, in testo semplice o in Markdown secondo le Impostazioni, così incollo il testo altrove.
 19. Come utente, voglio una conferma prima che Trascrivi su un Bino ne sostituisca il testo, correzioni comprese, così non lo perdo per errore.
 20. Come utente, voglio un pulsante "Annulla" durante la Trascrizione, così fermo un lavoro lungo avviato per sbaglio.
@@ -110,7 +110,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 25. Come utente, voglio che la Trascrizione funzioni senza rete una volta scaricato il modello, così lavoro anche offline.
 26. Come utente, voglio che senza un modello scaricato Trascrivi mostri un errore dedicato con un link a Impostazioni → Trascrizione, così so cosa fare.
 27. Come utente, voglio che mentre una Trascrizione è in corso Registra e Sfoglia siano disabilitati, così non avvio due Attività insieme.
-28. Come utente, voglio che una Trascrizione che fallisce mostri un errore dedicato nella status bar, così capisco cosa è successo.
+28. Come utente, voglio che una Trascrizione che fallisce mostri un errore dedicato in un avviso, così capisco cosa è successo.
 
 ### Modelli
 
@@ -139,7 +139,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 48. Come utente, voglio che se quel nome esiste già venga aggiunto " 2", " 3"…, così nulla viene mai sovrascritto.
 49. Come utente, voglio che dopo Stop la Registrazione diventi la Sorgente, così posso subito premere Trascrivi.
 50. Come utente, voglio che con l'Audio di sistema la registrazione continui anche quando il PC è in silenzio, inserendo silenzio nel file, così timer e audio restano allineati.
-51. Come utente, voglio che se un dispositivo si scollega durante la Registrazione questa si fermi come con Stop, salvando quanto registrato, e la status bar mostri un errore con il nome del dispositivo, così non perdo nulla.
+51. Come utente, voglio che se un dispositivo si scollega durante la Registrazione questa si fermi come con Stop, salvando quanto registrato, e un avviso mostri l'errore con il nome del dispositivo, così non perdo nulla.
 52. Come utente, voglio che la Registrazione usi il bitrate, i canali e la frequenza delle Impostazioni, così controllo qualità e dimensione.
 53. Come utente, voglio che durante una Registrazione Sfoglia e Trascrivi siano disabilitati, così non avvio due Attività insieme.
 
@@ -158,8 +158,8 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ### Finestra e aggiornamenti
 
-64. Come utente, voglio una barra laterale sempre visibile con la Libreria e un'area principale le cui sezioni seguono l'Attività (Sorgente, Registrazione, Trascrizione), così la finestra mostra solo ciò che serve.
-65. Come utente, voglio che la status bar mostri sempre la fase in corso, la percentuale quando c'è e gli errori con messaggi dedicati, così so sempre cosa succede.
+64. Come utente, voglio una barra laterale sempre visibile (Nuova registrazione, Importa un file, ricerca, Attività, Recenti, Libreria, Impostazioni) e un pannello centrale che mostra il Bino aperto come un documento, la Registrazione in corso o la Libreria, così la finestra mostra solo ciò che serve.
+65. Come utente, voglio che la sezione Attività mostri sempre la fase in corso e la percentuale quando c'è, e che errori ed esiti compaiano in un avviso con messaggi dedicati, così so sempre cosa succede.
 66. Come utente, voglio che all'avvio, se c'è connessione, l'app controlli se esiste una versione più recente e mi proponga il link per scaricarla, così resto aggiornato.
 67. Come utente offline, voglio che il controllo aggiornamenti fallisca in silenzio, così non vedo errori inutili.
 68. Come utente, voglio che il tema chiaro o scuro segua quello di Windows, così l'app si integra con il sistema.
@@ -291,6 +291,16 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Ogni Frase ha il pulsante del suo tempo (`12:34`), visibile passando il mouse, con il focus da tastiera, per la Frase in riproduzione e all'inizio di ogni turno: porta il player all'inizio della Frase senza cambiare Play/Pausa. Il clic sul testo serve solo a correggerlo. I tempi non entrano in Copia testo né nel Markdown.
   - Il clic su una Frase trovata con la ricerca porta lì anche il player, in pausa.
   - Correzioni e rinomine dei Parlanti si salvano anche mentre il player suona: il Bino non resta aperto tra una lettura dell'audio e l'altra.
+- **V12, ridisegno della finestra (contratto in `.impeccable/surfaces/src-app-routes-home-tsx.md`)**: cambiano le storie 5, 14, 16, 17, 28, 51, 64 e 65. Dove le voci precedenti dicono "status bar", da qui vale la sezione Attività per la fase e l'avviso per errori ed esiti.
+  - Aspetto chiaro e caldo (carta tiepida, inchiostro bruno, salvia per l'audio in ascolto) e una variante scura calda; segue sempre il tema di Windows. Titoli in serif (Source Serif 4), testo in Inter.
+  - La finestra non ha la cornice di Windows: Riduci a icona, Ingrandisci e Chiudi sono disegnati nell'app, e si trascina dalla barra in alto e dal marchio. Il riquadro di Snap Layouts sul pulsante Ingrandisci non c'è.
+  - Barra laterale: Nuova registrazione ▾ (Trascrivi dal vivo e Riconosci i parlanti nel menu), Importa un file, ricerca in tutta la Libreria (Ctrl+K, Esc la svuota), Attività (con l'avanzamento, un clic riporta alla sua vista), Recenti di tutta la Libreria per giorno, in fondo Libreria con il numero dei Bini, Impostazioni e "Solo sul tuo PC".
+  - Niente status bar: la fase sta in Attività e in fondo alla vista (avanzamento con Annulla); errori ed esiti compaiono in un avviso sopra il pannello centrale, con il link alle Impostazioni quando serve. Gli esiti spariscono da soli dopo qualche secondo, gli errori restano finché non si chiudono.
+  - Le Raccolte stanno nella Libreria: Tutta la Libreria, Senza raccolta, le Raccolte e Nuova Raccolta, con Rinomina ed Elimina di quella scelta. La Raccolta scelta è anche quella in cui vanno le Registrazioni e i file importati, e la Libreria lo dice. In alto il percorso "Raccolta / titolo" porta alla Libreria su quella Raccolta.
+  - Un Bino si legge come un documento: titolo grande (un clic lo rinomina), giorno, ora e durata, etichette (file d'origine o Registrazione, Parlanti, modello e Lingua del parlato, incompleto, fuori dalla Libreria). In alto Copia testo e "…" con Esporta Markdown…, Mostra in Esplora file, Sposta in…, Trascrivi di nuovo con le sue scelte ed Elimina.
+  - Schede Trascrizione e Parlanti. Ogni turno ha il pallino del colore della voce, il nome (un clic lo rinomina sul posto), il tempo (porta lì il player) e ▶ (lo avvia da lì). Il tempo di ogni altra Frase compare sopra di lei passando il mouse. La scheda Parlanti elenca ogni Parlante con il colore, il tempo di parola, i turni e ▶ sul primo intervento.
+  - Il player sta in fondo: ±10 s, Play/Pausa, tempo, forma d'onda del mix che fa da barra di avanzamento (la parte ascoltata in salvia), durata, velocità e volume (ricordato su questo PC). Il turno in ascolto ha il fondo salvia, le barre che si muovono e Riascolta; la Frase in ascolto è evidenziata. "Segui l'audio" è un interruttore sopra il testo; scorrendo a mano si spegne e compare "Torna al punto in ascolto", con la freccia verso la Frase.
+  - Senza Sorgente il pannello centrale invita a registrare o importare un file. Un Bino senza testo dice che va trascritto e offre Trascrivi ▾. Durante la Registrazione il documento "Nuova registrazione" cresce con il testo dal vivo e in fondo c'è la barra con timer, livelli, Pausa e Stop.
 
 ## Fuori dal perimetro
 

@@ -3,7 +3,8 @@
     "browse": "Abrir archivo",
     "filter": "Audio, vídeo y Bino",
     "none": "Ningún archivo seleccionado",
-    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)"
+    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)",
+    "ready": "Listo para transcribir"
   },
   "transcription": {
     "start": "Transcribir",
@@ -29,7 +30,8 @@
     "options": "Opciones de transcripción",
     "edit": "Haz clic para corregir: Intro guarda, Esc cancela",
     "export": "Exportar Markdown…",
-    "exported": "Exportado a {{path}}"
+    "exported": "Exportado a {{path}}",
+    "again": "Transcribir de nuevo"
   },
   "player": {
     "label": "Reproductor",
@@ -40,7 +42,15 @@
     "position": "Posición",
     "rate": "Velocidad",
     "follow": "Seguir el audio",
-    "jump": "Escuchar desde aquí"
+    "jump": "Escuchar desde aquí",
+    "backToAudio": "Volver a lo que suena",
+    "playTurn": "Escuchar este turno",
+    "replay": "Volver a escuchar",
+    "volume": "Volumen",
+    "mute": "Silenciar",
+    "unmute": "Activar el sonido",
+    "recording": "Audio de la grabación · mezcla",
+    "file": "Audio de {{name}}"
   },
   "status": {
     "idle": "Abre un archivo de audio, vídeo o Bino, o elige un Bino de la Biblioteca",
@@ -224,7 +234,8 @@
       "engine": "Ejecución de los modelos de transcripción",
       "onnx": "Ejecución de Silero VAD",
       "vadRs": "Enlace entre Silero VAD y Rust",
-      "diarization": "Reconocimiento de hablantes"
+      "diarization": "Reconocimiento de hablantes",
+      "font": "Tipografía de la interfaz"
     }
   },
   "transcript": {
@@ -277,6 +288,64 @@
       "incomplete": "incompleto",
       "origine": "del archivo {{name}}",
       "outside": "fuera de la Biblioteca"
-    }
+    },
+    "destination": "Las nuevas grabaciones y los archivos importados van a: {{raccolta}}"
+  },
+  "app": {
+    "whereAmI": "Dónde estás",
+    "dismiss": "Cerrar el aviso"
+  },
+  "window": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Cerrar"
+  },
+  "sidebar": {
+    "newRecording": "Nueva grabación",
+    "importFile": "Importar un archivo",
+    "search": "Buscar en la Biblioteca",
+    "activity": "Actividad",
+    "noActivity": "Ninguna actividad en curso",
+    "recents": "Recientes",
+    "results": "Resultados",
+    "noRecents": "Tus grabaciones y archivos transcritos aparecerán aquí.",
+    "localOnly": "Solo en tu PC",
+    "localOnlyNote": "El audio y el texto se quedan en este ordenador: sin cuenta ni servidor."
+  },
+  "welcome": {
+    "title": "Graba o importa un archivo para transcribir",
+    "description": "El texto aparece mientras trabajas y se guarda en la Biblioteca. Todo se queda en tu PC, sin cuenta y, una vez descargado el modelo, sin red."
+  },
+  "live": {
+    "recording": "Grabación en curso",
+    "title": "Nueva grabación",
+    "on": "Transcripción en directo activada",
+    "waiting": "El texto aparecerá aquí mientras hablas.",
+    "off": "La transcripción en directo está desactivada: después de Detener podrás transcribir la grabación."
+  },
+  "bino": {
+    "recording": "Grabación",
+    "file": "Archivo {{name}}",
+    "parlanti_one": "{{count}} hablante",
+    "parlanti_many": "{{count}} hablantes",
+    "parlanti_other": "{{count}} hablantes",
+    "noText": "Este Bino aún no tiene texto",
+    "noTextDescription": "Transcríbelo para leer, buscar y volver a escuchar lo que se dijo.",
+    "ingressi": "Micrófono + audio del sistema"
+  },
+  "tabs": {
+    "label": "Vistas del Bino",
+    "transcript": "Transcripción",
+    "parlanti": "Hablantes"
+  },
+  "parlantiTab": {
+    "empty": "Ningún hablante reconocido",
+    "emptyDescription": "Activa Reconocer hablantes y vuelve a transcribir para saber quién dijo qué.",
+    "talk": "{{time}} hablando",
+    "turns_one": "{{count}} turno",
+    "turns_many": "{{count}} turnos",
+    "turns_other": "{{count}} turnos",
+    "first": "Escuchar su primera intervención"
   }
 }

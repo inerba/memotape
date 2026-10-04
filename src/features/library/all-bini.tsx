@@ -1,70 +1,243 @@
-import { Trash2 } from "lucide-react";
-import { type ChangeEvent, useCallback, useState } from "react";
+import { AudioLines, FolderPen, FolderX, Plus, Trash2 } from "lucide-react";
+import { type ChangeEvent, useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { BinoEntry } from "@/bindings";
+import {
+  type AppError,
+  type BinoEntry,
+  commands,
+  type LibraryList,
+} from "@/bindings";
+import { NativeSelect } from "@/components/native-select";
 import { Button } from "@/components/ui/button";
-import { type BinoOrder, sortBini } from "@/features/library/library";
-import { MoveSelect, SELECT } from "@/features/library/move-select";
+import { DocumentHeader } from "@/features/library/bino-header";
+import {
+  type BinoOrder,
+  biniOf,
+  raccoltaLabel,
+  sortBini,
+} from "@/features/library/library";
+import { MoveSelect } from "@/features/library/move-select";
+import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
+import { folderOf } from "@/features/source/file-name";
 
-/** L'elenco completo dei Bini di una Raccolta, ordinabile, con Sposta in… ed Elimina. */
+const PILL =
+  "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground [&_svg]:size-3.5";
+
+/**
+ * La Libreria completa: le Raccolte (Tutta la Libreria, Senza raccolta, le altre e Nuova Raccolta,
+ * con rinomina ed eliminazione di quella scelta) e i suoi Bini, ordinabili, con Sposta in… ed
+ * Elimina. La Raccolta scelta è anche quella in cui finiscono le Registrazioni e i file nuovi.
+ */
 export function AllBini({
-  bini,
+  list,
+  onError,
   onMove,
+  onMoved,
   onOpen,
+  onRaccolta,
   onTrash,
-  raccolte,
-  title,
+  raccolta,
 }: {
-  bini: BinoEntry[];
+  list: LibraryList;
+  onError: (error: AppError) => void;
   onMove: (path: string, raccolta: string) => void;
+  /** Una Raccolta rinominata: la cartella vecchia e quella nuova. */
+  onMoved: (from: string, to: string) => void;
   onOpen: (path: string) => void;
+  onRaccolta: (raccolta: string | null) => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
-  raccolte: string[];
-  /** Il nome della Raccolta mostrata. */
-  title: string;
+  /** `null` Tutta la Libreria, `""` Senza raccolta. */
+  raccolta: string | null;
 }) {
   const { i18n, t } = useTranslation();
   const [order, setOrder] = useState<BinoOrder>("date");
+  const orderId = useId();
+  // La Raccolta che si sta creando (`""`) o rinominando.
+  const [naming, setNaming] = useState<string | null>(null);
   const changeOrder = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
       setOrder(e.target.value === "title" ? "title" : "date"),
     []
   );
+
+  const submitName = useCallback(
+    async (nome: string) => {
+      const renaming = naming;
+      setNaming(null);
+      if (!renaming) {
+        const result = await commands.createRaccolta(nome);
+        if (result.status === "error") {
+          onError(result.error);
+        } else {
+          onRaccolta(nome);
+        }
+        return;
+      }
+      const result = await commands.renameRaccolta(renaming, nome);
+      if (result.status === "error") {
+        onError(result.error);
+        return;
+      }
+      // Il Bino aperto in quella Raccolta resta aperto, nella cartella nuova.
+      onMoved(`${folderOf(result.data)}\\${renaming}`, result.data);
+      onRaccolta(nome);
+    },
+    [naming, onError, onMoved, onRaccolta]
+  );
+  const cancelName = useCallback(() => setNaming(null), []);
+  const startCreate = useCallback(() => setNaming(""), []);
+  const startRename = useCallback(() => setNaming(raccolta), [raccolta]);
+  const remove = useCallback(async () => {
+    if (!raccolta) {
+      return;
+    }
+    const result = await commands.deleteRaccolta(raccolta);
+    if (result.status === "error") {
+      onError(result.error);
+    } else {
+      onRaccolta(null);
+    }
+  }, [onError, onRaccolta, raccolta]);
+
   const dateFormat = new Intl.DateTimeFormat(i18n.language, {
     dateStyle: "medium",
     timeStyle: "short",
   });
+  const bini = biniOf(list.bini, raccolta);
+  const scopes: (string | null)[] = [null, "", ...list.raccolte];
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <h1 className="min-w-0 flex-1 truncate font-medium text-lg">{title}</h1>
-        <label className="flex items-center gap-2 text-sm">
-          {t("library.sortBy")}
-          <select className={SELECT} onChange={changeOrder} value={order}>
-            <option value="date">{t("library.sortDate")}</option>
-            <option value="title">{t("library.sortTitle")}</option>
-          </select>
-        </label>
-      </div>
-      {bini.length === 0 ? (
-        <p className="text-muted-foreground text-sm">{t("library.empty")}</p>
-      ) : (
-        <ul className="min-h-0 flex-1 divide-y overflow-y-auto rounded-md border">
-          {sortBini(bini, order).map((bino) => (
-            <BinoRow
-              bino={bino}
-              dateFormat={dateFormat}
-              key={bino.path}
-              onMove={onMove}
-              onOpen={onOpen}
-              onTrash={onTrash}
-              raccolte={raccolte}
+    <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+      <div className="mx-auto flex w-full max-w-[60rem] flex-col px-10 pb-12">
+        <DocumentHeader
+          meta={t("library.destination", {
+            // Tutta la Libreria non è una cartella: le cose nuove vanno nella radice.
+            raccolta: raccoltaLabel(raccolta ?? "", t),
+          })}
+          title={t("library.title")}
+        />
+        <div
+          aria-label={t("library.raccolte")}
+          className="flex flex-wrap items-center gap-2"
+          role="toolbar"
+        >
+          {scopes.map((scope) => (
+            <ScopePill
+              key={scope ?? ".all"}
+              onChoose={onRaccolta}
+              scope={scope}
+              selected={scope === raccolta}
             />
           ))}
-        </ul>
-      )}
+          {naming === "" ? (
+            <NameInput
+              className="h-8 w-48 rounded-full"
+              initial=""
+              label={t("library.newRaccoltaName")}
+              onCancel={cancelName}
+              onSubmit={submitName}
+              taken={list.raccolte}
+            />
+          ) : (
+            <button
+              className={`${PILL} border-dashed text-muted-foreground`}
+              onClick={startCreate}
+              type="button"
+            >
+              <Plus />
+              {t("library.newRaccolta")}
+            </button>
+          )}
+        </div>
+        {raccolta ? (
+          <div className="mt-3 flex items-center gap-1">
+            {naming === raccolta ? (
+              <NameInput
+                className="h-8 w-56"
+                initial={raccolta}
+                label={t("library.renameRaccolta")}
+                onCancel={cancelName}
+                onSubmit={submitName}
+                taken={list.raccolte.filter((r) => r !== raccolta)}
+              />
+            ) : (
+              <Button
+                className="text-muted-foreground"
+                onClick={startRename}
+                size="sm"
+                variant="ghost"
+              >
+                <FolderPen />
+                {t("library.renameRaccolta")}
+              </Button>
+            )}
+            <Button
+              className="text-muted-foreground"
+              onClick={remove}
+              size="sm"
+              variant="ghost"
+            >
+              <FolderX />
+              {t("library.deleteRaccolta")}
+            </Button>
+          </div>
+        ) : null}
+        <div className="mt-8 flex items-center justify-between gap-3 border-b pb-2">
+          <h2 className="font-medium">{raccoltaLabel(raccolta, t)}</h2>
+          <div className="flex items-center gap-2">
+            <label className="text-muted-foreground text-sm" htmlFor={orderId}>
+              {t("library.sortBy")}
+            </label>
+            <NativeSelect id={orderId} onChange={changeOrder} value={order}>
+              <option value="date">{t("library.sortDate")}</option>
+              <option value="title">{t("library.sortTitle")}</option>
+            </NativeSelect>
+          </div>
+        </div>
+        {bini.length === 0 ? (
+          <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
+        ) : (
+          <ul className="flex flex-col divide-y">
+            {sortBini(bini, order).map((bino) => (
+              <BinoRow
+                bino={bino}
+                dateFormat={dateFormat}
+                key={bino.path}
+                onMove={onMove}
+                onOpen={onOpen}
+                onTrash={onTrash}
+                raccolte={list.raccolte}
+                showRaccolta={raccolta === null}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
+  );
+}
+
+function ScopePill({
+  onChoose,
+  scope,
+  selected,
+}: {
+  onChoose: (raccolta: string | null) => void;
+  scope: string | null;
+  selected: boolean;
+}) {
+  const { t } = useTranslation();
+  const choose = useCallback(() => onChoose(scope), [onChoose, scope]);
+  return (
+    <button
+      aria-pressed={selected}
+      className={PILL}
+      onClick={choose}
+      type="button"
+    >
+      {raccoltaLabel(scope, t)}
+    </button>
   );
 }
 
@@ -75,6 +248,7 @@ function BinoRow({
   onOpen,
   onTrash,
   raccolte,
+  showRaccolta,
 }: {
   bino: BinoEntry;
   dateFormat: Intl.DateTimeFormat;
@@ -82,6 +256,7 @@ function BinoRow({
   onOpen: (path: string) => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
   raccolte: string[];
+  showRaccolta: boolean;
 }) {
   const { t } = useTranslation();
   const open = useCallback(() => onOpen(bino.path), [bino.path, onOpen]);
@@ -91,39 +266,51 @@ function BinoRow({
   );
   const trash = useCallback(() => onTrash(bino), [bino, onTrash]);
   return (
-    <li className="flex items-center gap-3 px-3 py-2">
+    <li className="group flex items-center gap-4 py-2.5">
       <button
-        className="min-w-0 flex-1 truncate text-left text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
         onClick={open}
         title={bino.path}
         type="button"
       >
-        {bino.titolo}
+        <AudioLines
+          aria-hidden
+          className="size-4 shrink-0 text-muted-foreground"
+        />
+        <span className="truncate decoration-muted-foreground/50 underline-offset-4 group-hover:underline">
+          {bino.titolo}
+        </span>
       </button>
-      <span className="w-28 shrink-0 truncate text-muted-foreground text-xs">
-        {bino.raccolta ?? t("library.none")}
-      </span>
-      <span className="w-40 shrink-0 text-muted-foreground text-xs tabular-nums">
+      {showRaccolta ? (
+        <span className="w-32 shrink-0 truncate text-muted-foreground text-sm">
+          {bino.raccolta ?? t("library.none")}
+        </span>
+      ) : null}
+      <span className="w-40 shrink-0 text-muted-foreground text-sm tabular-nums">
         {dateFormat.format(new Date(bino.creato))}
       </span>
-      <span className="w-16 shrink-0 text-right text-muted-foreground text-xs tabular-nums">
+      <span className="w-16 shrink-0 text-right text-muted-foreground text-sm tabular-nums">
         {bino.durataMs === null ? "" : elapsedText(bino.durataMs)}
       </span>
-      <MoveSelect
-        current={bino.raccolta ?? ""}
-        label={t("library.moveTo")}
-        onMove={move}
-        raccolte={raccolte}
-      />
-      <Button
-        aria-label={t("library.delete")}
-        onClick={trash}
-        size="icon"
-        title={t("library.delete")}
-        variant="ghost"
-      >
-        <Trash2 />
-      </Button>
+      {/* Le azioni della riga compaiono passandoci sopra o con il focus: pochi comandi in vista. */}
+      <span className="flex items-center gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
+        <MoveSelect
+          current={bino.raccolta ?? ""}
+          label={t("library.moveTo")}
+          onMove={move}
+          raccolte={raccolte}
+        />
+        <Button
+          aria-label={t("library.delete")}
+          className="text-muted-foreground hover:text-destructive"
+          onClick={trash}
+          size="icon-sm"
+          title={t("library.delete")}
+          variant="ghost"
+        >
+          <Trash2 />
+        </Button>
+      </span>
     </li>
   );
 }

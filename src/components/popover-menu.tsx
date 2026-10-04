@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -26,33 +26,38 @@ const ANCHORS = {
  */
 export function PopoverMenu({
   children,
+  className = "",
   disabled,
   icon,
   id,
   label,
+  variant = "outline",
 }: {
   children: ReactNode;
+  /** Le classi del pulsante. */
+  className?: string;
   disabled?: boolean;
   icon: ReactNode;
   id: keyof typeof ANCHORS;
   label: string;
+  variant?: ComponentProps<typeof Button>["variant"];
 }) {
   const { anchor, popover } = ANCHORS[id];
   return (
     <>
       <Button
         aria-label={label}
-        className={anchor}
+        className={`${anchor} ${className}`}
         disabled={disabled}
         popoverTarget={`menu-${id}`}
         size="icon"
         title={label}
-        variant="outline"
+        variant={variant}
       >
         {icon}
       </Button>
       <div
-        className={`${popover} inset-auto m-0 mt-1 hidden min-w-56 flex-col gap-3 rounded-md border bg-popover p-3 text-popover-foreground text-sm shadow-md [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex`}
+        className={`${popover} inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex`}
         id={`menu-${id}`}
         popover="auto"
       >

@@ -3,7 +3,8 @@
     "browse": "Otwórz plik",
     "filter": "Audio, wideo i Bino",
     "none": "Nie wybrano pliku",
-    "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)"
+    "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)",
+    "ready": "Gotowe do transkrypcji"
   },
   "transcription": {
     "start": "Transkrybuj",
@@ -29,7 +30,8 @@
     "options": "Opcje transkrypcji",
     "edit": "Kliknij, aby poprawić: Enter zapisuje, Esc anuluje",
     "export": "Eksportuj Markdown…",
-    "exported": "Wyeksportowano do {{path}}"
+    "exported": "Wyeksportowano do {{path}}",
+    "again": "Transkrybuj ponownie"
   },
   "player": {
     "label": "Odtwarzacz",
@@ -40,7 +42,15 @@
     "position": "Pozycja",
     "rate": "Prędkość",
     "follow": "Śledź dźwięk",
-    "jump": "Słuchaj od tego miejsca"
+    "jump": "Słuchaj od tego miejsca",
+    "backToAudio": "Wróć do odtwarzanego miejsca",
+    "playTurn": "Odsłuchaj tę wypowiedź",
+    "replay": "Odsłuchaj ponownie",
+    "volume": "Głośność",
+    "mute": "Wycisz",
+    "unmute": "Włącz dźwięk",
+    "recording": "Dźwięk nagrania · miks",
+    "file": "Dźwięk z {{name}}"
   },
   "status": {
     "idle": "Otwórz plik audio, wideo lub Bino albo wybierz Bino z Biblioteki",
@@ -224,7 +234,8 @@
       "engine": "Uruchamianie modeli transkrypcji",
       "onnx": "Uruchamianie Silero VAD",
       "vadRs": "Łącznik między Silero VAD a Rustem",
-      "diarization": "Rozpoznawanie mówców"
+      "diarization": "Rozpoznawanie mówców",
+      "font": "Krój pisma interfejsu"
     }
   },
   "transcript": {
@@ -277,6 +288,66 @@
       "incomplete": "niekompletny",
       "origine": "z pliku {{name}}",
       "outside": "poza Biblioteką"
-    }
+    },
+    "destination": "Nowe nagrania i zaimportowane pliki trafiają do: {{raccolta}}"
+  },
+  "app": {
+    "whereAmI": "Gdzie jesteś",
+    "dismiss": "Zamknij komunikat"
+  },
+  "window": {
+    "minimize": "Minimalizuj",
+    "maximize": "Maksymalizuj",
+    "restore": "Przywróć",
+    "close": "Zamknij"
+  },
+  "sidebar": {
+    "newRecording": "Nowe nagranie",
+    "importFile": "Importuj plik",
+    "search": "Szukaj w Bibliotece",
+    "activity": "Aktywność",
+    "noActivity": "Brak trwającej aktywności",
+    "recents": "Ostatnie",
+    "results": "Wyniki",
+    "noRecents": "Tutaj pojawią się Twoje nagrania i transkrybowane pliki.",
+    "localOnly": "Tylko na Twoim PC",
+    "localOnlyNote": "Dźwięk i tekst zostają na tym komputerze: bez konta i bez serwera."
+  },
+  "welcome": {
+    "title": "Nagraj lub zaimportuj plik do transkrypcji",
+    "description": "Tekst pojawia się w trakcie pracy i zapisuje się w Bibliotece. Wszystko zostaje na Twoim PC, bez konta i, po pobraniu modelu, bez sieci."
+  },
+  "live": {
+    "recording": "Trwa nagrywanie",
+    "title": "Nowe nagranie",
+    "on": "Transkrypcja na żywo włączona",
+    "waiting": "Tekst pojawi się tutaj, gdy będziesz mówić.",
+    "off": "Transkrypcja na żywo jest wyłączona: po Zatrzymaj możesz transkrybować nagranie."
+  },
+  "bino": {
+    "recording": "Nagranie",
+    "file": "Plik {{name}}",
+    "parlanti_one": "{{count}} mówca",
+    "parlanti_few": "{{count}} mówców",
+    "parlanti_many": "{{count}} mówców",
+    "parlanti_other": "{{count}} mówcy",
+    "noText": "Ten Bino nie ma jeszcze tekstu",
+    "noTextDescription": "Transkrybuj go, aby czytać, wyszukiwać i ponownie odsłuchać, co zostało powiedziane.",
+    "ingressi": "Mikrofon + dźwięk systemowy"
+  },
+  "tabs": {
+    "label": "Widoki Bino",
+    "transcript": "Transkrypcja",
+    "parlanti": "Mówcy"
+  },
+  "parlantiTab": {
+    "empty": "Nie rozpoznano mówców",
+    "emptyDescription": "Włącz Rozpoznawanie mówców i transkrybuj ponownie, aby wiedzieć, kto co powiedział.",
+    "talk": "{{time}} mówienia",
+    "turns_one": "{{count}} wypowiedź",
+    "turns_few": "{{count}} wypowiedzi",
+    "turns_many": "{{count}} wypowiedzi",
+    "turns_other": "{{count}} wypowiedzi",
+    "first": "Odsłuchaj pierwszą wypowiedź"
   }
 }

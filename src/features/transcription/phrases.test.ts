@@ -5,8 +5,11 @@ import {
   type Conversation,
   EMPTY_CONVERSATION,
   nomeTaken,
+  parlanteStats,
   parlantiOf,
   turnsOf,
+  VOICE_COLORS,
+  voiceColors,
   withNome,
   withoutPartials,
   withParlanti,
@@ -305,4 +308,50 @@ test("senza etichette un turno si spezza dopo oltre 2 s di silenzio, come nel Ma
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   expect(render(c)).toBe("Uno.\nDue.\n\nTre.\nQuattro.");
   expect(turnsOf(c, t).map((turn) => turn.key)).toEqual(["mix:0", "mix:2"]);
+});
+
+test("ogni voce ha il suo colore per ordine di comparsa, anche rinominata", () => {
+  const colors = voiceColors(turnsOf(diarized(), t));
+  expect([...colors]).toEqual([
+    ["Microfono · Parlante 1", 0],
+    ["Audio di sistema · Parlante 1", 1],
+    ["Audio di sistema · Parlante 2", 2],
+  ]);
+  const renamed = voiceColors(
+    turnsOf(withNome(diarized(), "sistema", 2, "Lucia"), t)
+  );
+  expect(renamed.get("Audio di sistema · Lucia")).toBe(2);
+  // Il mix senza Parlanti non ha etichette, quindi nemmeno colori.
+  const mix = [phrase(0, 0, "Ciao.")].reduce(withPhrase, EMPTY_CONVERSATION);
+  expect(voiceColors(turnsOf(mix, t)).size).toBe(0);
+  // Oltre i colori disponibili si ricomincia dal primo.
+  const many = withParlanti(
+    Array.from({ length: VOICE_COLORS + 1 }, (_, i) =>
+      phrase(i, i * 1000, `${i}.`)
+    ).reduce(withPhrase, EMPTY_CONVERSATION),
+    Array.from({ length: VOICE_COLORS + 1 }, (_, i) => ({
+      ingresso: "mix" as const,
+      parlante: i + 1,
+      phraseId: i,
+    }))
+  );
+  expect(
+    voiceColors(turnsOf(many, t)).get(`Parlante ${VOICE_COLORS + 1}`)
+  ).toBe(0);
+});
+
+test("di un Parlante si contano turni, tempo di parola e prima comparsa", () => {
+  const c = diarized();
+  const turns = turnsOf(c, t);
+  const [microfono1, , sistema2] = parlantiOf(c, t);
+  expect(parlanteStats(c, turns, microfono1)).toEqual({
+    firstMs: 0,
+    talkMs: 1800,
+    turns: 2,
+  });
+  expect(parlanteStats(c, turns, sistema2)).toEqual({
+    firstMs: 2000,
+    talkMs: 900,
+    turns: 1,
+  });
 });

@@ -54,21 +54,23 @@ export function RecordingPanel({
   return (
     <section
       aria-label={t("recording.title")}
-      className="flex items-center gap-4 rounded-md border px-4 py-3"
+      className="mx-auto flex w-full max-w-[52rem] items-center gap-5 rounded-2xl border bg-card px-5 py-3.5 shadow-float"
     >
-      <Circle
-        aria-hidden
-        className={
-          paused
-            ? "size-3 shrink-0 fill-muted-foreground text-muted-foreground"
-            : "size-3 shrink-0 animate-pulse fill-destructive text-destructive"
-        }
-      />
-      <span className="font-medium text-lg tabular-nums">
-        <span className="sr-only">{t("recording.elapsed")} </span>
-        {elapsedText(tick.elapsedMs)}
+      <span className="flex items-center gap-3">
+        <Circle
+          aria-hidden
+          className={
+            paused
+              ? "size-3 shrink-0 fill-muted-foreground text-muted-foreground"
+              : "size-3 shrink-0 animate-pulse fill-destructive text-destructive"
+          }
+        />
+        <span className="w-[4.5rem] font-medium text-2xl tabular-nums">
+          <span className="sr-only">{t("recording.elapsed")} </span>
+          {elapsedText(tick.elapsedMs)}
+        </span>
       </span>
-      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
+      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
         {meters(tick.levels).map(({ input, percent }) => (
           <Fragment key={input}>
             <span aria-hidden className="text-muted-foreground text-xs">
@@ -79,7 +81,7 @@ export function RecordingPanel({
               aria-label={t("recording.level", {
                 input: t(`recording.levels.${input}`),
               })}
-              className="h-3 w-full min-w-0"
+              className="h-2 w-full min-w-0"
               high={95}
               low={75}
               max={100}
@@ -90,12 +92,17 @@ export function RecordingPanel({
           </Fragment>
         ))}
       </div>
-      <Button disabled={stopping} onClick={togglePause} variant="outline">
+      <Button
+        className="h-10"
+        disabled={stopping}
+        onClick={togglePause}
+        variant="outline"
+      >
         {paused ? <Play /> : <Pause />}
         {paused ? t("recording.resume") : t("recording.pause")}
       </Button>
-      <Button disabled={stopping} onClick={stop}>
-        <Square />
+      <Button className="h-10" disabled={stopping} onClick={stop}>
+        <Square className="fill-current" />
         {stopping ? t("recording.stopping") : t("recording.stop")}
       </Button>
     </section>

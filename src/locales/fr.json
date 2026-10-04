@@ -3,7 +3,8 @@
     "browse": "Ouvrir un fichier",
     "filter": "Audio, vidéo et Bino",
     "none": "Aucun fichier choisi",
-    "open": "{{path}} (cliquez pour l'ouvrir avec l'application associée)"
+    "open": "{{path}} (cliquez pour l'ouvrir avec l'application associée)",
+    "ready": "Prêt à transcrire"
   },
   "transcription": {
     "start": "Transcrire",
@@ -29,7 +30,8 @@
     "options": "Options de transcription",
     "edit": "Cliquez pour corriger : Entrée enregistre, Échap annule",
     "export": "Exporter en Markdown…",
-    "exported": "Exporté dans {{path}}"
+    "exported": "Exporté dans {{path}}",
+    "again": "Transcrire à nouveau"
   },
   "player": {
     "label": "Lecteur",
@@ -40,7 +42,15 @@
     "position": "Position",
     "rate": "Vitesse",
     "follow": "Suivre l'audio",
-    "jump": "Écouter à partir d'ici"
+    "jump": "Écouter à partir d'ici",
+    "backToAudio": "Revenir à l'écoute",
+    "playTurn": "Écouter ce tour",
+    "replay": "Réécouter",
+    "volume": "Volume",
+    "mute": "Couper le son",
+    "unmute": "Rétablir le son",
+    "recording": "Audio de l'enregistrement · mixage",
+    "file": "Audio de {{name}}"
   },
   "status": {
     "idle": "Ouvrez un fichier audio, vidéo ou Bino, ou choisissez un Bino de la Bibliothèque",
@@ -224,7 +234,8 @@
       "engine": "Exécution des modèles de transcription",
       "onnx": "Exécution de Silero VAD",
       "vadRs": "Liaison entre Silero VAD et Rust",
-      "diarization": "Reconnaissance des intervenants"
+      "diarization": "Reconnaissance des intervenants",
+      "font": "Police de l'interface"
     }
   },
   "transcript": {
@@ -277,6 +288,64 @@
       "incomplete": "incomplet",
       "origine": "depuis {{name}}",
       "outside": "hors de la Bibliothèque"
-    }
+    },
+    "destination": "Les nouveaux enregistrements et fichiers importés vont dans : {{raccolta}}"
+  },
+  "app": {
+    "whereAmI": "Où vous êtes",
+    "dismiss": "Fermer l'avis"
+  },
+  "window": {
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "restore": "Restaurer",
+    "close": "Fermer"
+  },
+  "sidebar": {
+    "newRecording": "Nouvel enregistrement",
+    "importFile": "Importer un fichier",
+    "search": "Rechercher dans la Bibliothèque",
+    "activity": "Activité",
+    "noActivity": "Aucune activité en cours",
+    "recents": "Récents",
+    "results": "Résultats",
+    "noRecents": "Vos enregistrements et fichiers transcrits apparaîtront ici.",
+    "localOnly": "Uniquement sur votre PC",
+    "localOnlyNote": "L'audio et le texte restent sur cet ordinateur : ni compte, ni serveur."
+  },
+  "welcome": {
+    "title": "Enregistrez ou importez un fichier à transcrire",
+    "description": "Le texte apparaît pendant que vous travaillez et s'enregistre dans la Bibliothèque. Tout reste sur votre PC, sans compte et, une fois le modèle téléchargé, sans réseau."
+  },
+  "live": {
+    "recording": "Enregistrement en cours",
+    "title": "Nouvel enregistrement",
+    "on": "Transcription en direct activée",
+    "waiting": "Le texte apparaîtra ici pendant que vous parlez.",
+    "off": "La transcription en direct est désactivée : après Stop, vous pourrez transcrire l'enregistrement."
+  },
+  "bino": {
+    "recording": "Enregistrement",
+    "file": "Fichier {{name}}",
+    "parlanti_one": "{{count}} intervenant",
+    "parlanti_many": "{{count}} intervenants",
+    "parlanti_other": "{{count}} intervenants",
+    "noText": "Ce Bino n'a pas encore de texte",
+    "noTextDescription": "Transcrivez-le pour lire, rechercher et réécouter ce qui a été dit.",
+    "ingressi": "Micro + audio système"
+  },
+  "tabs": {
+    "label": "Vues du Bino",
+    "transcript": "Transcription",
+    "parlanti": "Intervenants"
+  },
+  "parlantiTab": {
+    "empty": "Aucun intervenant reconnu",
+    "emptyDescription": "Activez Reconnaître les intervenants et transcrivez à nouveau pour savoir qui a dit quoi.",
+    "talk": "{{time}} de parole",
+    "turns_one": "{{count}} tour",
+    "turns_many": "{{count}} tours",
+    "turns_other": "{{count}} tours",
+    "first": "Écouter sa première intervention"
   }
 }

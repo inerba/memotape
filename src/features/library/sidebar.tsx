@@ -1,132 +1,101 @@
 import {
-  FolderPen,
-  FolderX,
+  AudioLines,
+  FileUp,
   Library,
-  ListIcon,
+  Lock,
   Search,
   Settings,
 } from "lucide-react";
-import { type ChangeEvent, type ReactNode, useCallback, useState } from "react";
+import {
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import {
-  type AppError,
-  type BinoEntry,
-  commands,
-  type LibraryList,
-} from "@/bindings";
+import type { AppError, BinoEntry, LibraryList } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { biniOf, clockText, groupByDate } from "@/features/library/library";
-import { SELECT } from "@/features/library/move-select";
-import { NameInput } from "@/features/library/name-input";
+import { clockText, groupByDate } from "@/features/library/library";
 import { SearchResults } from "@/features/library/search-results";
 import { elapsedText } from "@/features/recording/recording";
-import { folderOf } from "@/features/source/file-name";
 import type { PhraseRef } from "@/features/transcription/phrases";
 
-/** I valori del selettore che non sono Raccolte: nessuna Raccolta inizia con un punto. */
-const ALL = ".all";
-const NEW = ".new";
+/** L'Attività in corso in breve: il testo, l'avanzamento se c'è e se è una Registrazione. */
+export interface ActivitySummary {
+  percent: number | null;
+  recording: boolean;
+  text: string;
+}
 
 /**
- * La barra laterale: `actions` (Registra, Apri file) in cima, l'Attività in corso, il selettore
- * della Raccolta con le sue operazioni, la ricerca, i Bini della Raccolta per data (o i risultati
- * della ricerca) e in fondo l'elenco completo e Impostazioni.
+ * La barra laterale: il marchio, Nuova registrazione (`record`) e Importa un file, la ricerca
+ * (Ctrl+K), l'Attività in corso, i Bini recenti di tutta la Libreria per giorno (o i risultati della
+ * ricerca) e in fondo la Libreria completa, Impostazioni e la promessa che tutto resta sul PC.
  */
 export function Sidebar({
-  actions,
   activity,
+  busy,
   list,
   onActivity,
   onError,
-  onMoved,
+  onImport,
   onOpen,
-  onRaccolta,
   onShowAll,
-  raccolta,
+  record,
   selected,
+  showingAll,
 }: {
-  actions: ReactNode;
-  /** Lo stato in breve dell'Attività in corso, se c'è. */
-  activity: string | null;
+  /** L'Attività in corso, se c'è. */
+  activity: ActivitySummary | null;
+  /** Un'Attività in corso: niente Importa un file. */
+  busy: boolean;
   list: LibraryList;
   onActivity: () => void;
   onError: (error: AppError) => void;
-  /** Una Raccolta rinominata: la cartella vecchia e quella nuova. */
-  onMoved: (from: string, to: string) => void;
+  onImport: () => void;
   /** Un Bino della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: PhraseRef) => void;
-  onRaccolta: (raccolta: string | null) => void;
   onShowAll: () => void;
-  /** `null` Tutta la Libreria, `""` Senza raccolta. */
-  raccolta: string | null;
+  record: ReactNode;
   /** Il Bino aperto. */
   selected: string | null;
+  /** La Libreria completa è aperta. */
+  showingAll: boolean;
 }) {
   const { i18n, t } = useTranslation();
-  // La Raccolta che si sta creando (`""`) o rinominando.
-  const [naming, setNaming] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const searching = query.trim() !== "";
+  const search = useRef<HTMLInputElement>(null);
+
+  // Ctrl+K porta alla ricerca da qualunque punto della finestra.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        search.current?.focus();
+        search.current?.select();
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
 
   const typeQuery = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
     []
   );
-
-  const choose = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) => {
-      const { value } = e.target;
-      if (value === NEW) {
-        setNaming("");
-      } else {
-        onRaccolta(value === ALL ? null : value);
+  const clearOnEscape = useCallback(
+    (e: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Escape") {
+        setQuery("");
       }
     },
-    [onRaccolta]
+    []
   );
-
-  const submitName = useCallback(
-    async (nome: string) => {
-      const renaming = naming;
-      setNaming(null);
-      if (!renaming) {
-        const result = await commands.createRaccolta(nome);
-        if (result.status === "error") {
-          onError(result.error);
-        } else {
-          onRaccolta(nome);
-        }
-        return;
-      }
-      const result = await commands.renameRaccolta(renaming, nome);
-      if (result.status === "error") {
-        onError(result.error);
-        return;
-      }
-      // Il Bino aperto in quella Raccolta resta aperto, nella cartella nuova.
-      onMoved(`${folderOf(result.data)}\\${renaming}`, result.data);
-      onRaccolta(nome);
-    },
-    [naming, onError, onMoved, onRaccolta]
-  );
-
-  const cancelName = useCallback(() => setNaming(null), []);
-
-  const startRename = useCallback(() => setNaming(raccolta), [raccolta]);
-
-  const remove = useCallback(async () => {
-    if (!raccolta) {
-      return;
-    }
-    const result = await commands.deleteRaccolta(raccolta);
-    if (result.status === "error") {
-      onError(result.error);
-    } else {
-      onRaccolta(null);
-    }
-  }, [onError, onRaccolta, raccolta]);
 
   const monthFormat = new Intl.DateTimeFormat(i18n.language, {
     month: "long",
@@ -139,149 +108,231 @@ export function Sidebar({
     const [year, month] = key.split("-").map(Number);
     return monthFormat.format(new Date(year ?? 0, (month ?? 1) - 1, 1));
   };
-  const groups = groupByDate(biniOf(list.bini, raccolta), new Date());
+  const groups = groupByDate(list.bini, new Date());
 
   return (
     <aside
       aria-label={t("library.title")}
-      className="flex w-72 shrink-0 flex-col gap-3 border-r bg-muted/30 p-3"
+      className="flex w-72 shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground"
     >
-      <div className="flex flex-col gap-2">{actions}</div>
-      {activity ? (
-        <Button
-          className="justify-start"
-          onClick={onActivity}
-          title={t("library.activity")}
-          variant="secondary"
+      <div
+        className="flex h-14 shrink-0 items-center gap-2.5 px-5"
+        data-tauri-drag-region
+      >
+        <BrandMark />
+        <span
+          className="pointer-events-none font-display font-medium text-[1.375rem] tracking-[-0.01em]"
+          data-tauri-drag-region
         >
-          <span className="size-2 shrink-0 animate-pulse rounded-full bg-destructive" />
-          <span className="truncate">{activity}</span>
-        </Button>
-      ) : null}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <Library aria-hidden className="size-4 shrink-0" />
-          <select
-            aria-label={t("library.raccolta")}
-            className={`${SELECT} flex-1`}
-            onChange={choose}
-            value={raccolta ?? ALL}
-          >
-            <option value={ALL}>{t("library.all")}</option>
-            <option value="">{t("library.none")}</option>
-            {list.raccolte.length > 0 ? (
-              <optgroup label={t("library.raccolte")}>
-                {list.raccolte.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </optgroup>
-            ) : null}
-            <option value={NEW}>{t("library.newRaccolta")}</option>
-          </select>
-          {raccolta ? (
-            <>
-              <Button
-                aria-label={t("library.renameRaccolta")}
-                onClick={startRename}
-                size="icon"
-                title={t("library.renameRaccolta")}
-                variant="ghost"
-              >
-                <FolderPen />
-              </Button>
-              <Button
-                aria-label={t("library.deleteRaccolta")}
-                onClick={remove}
-                size="icon"
-                title={t("library.deleteRaccolta")}
-                variant="ghost"
-              >
-                <FolderX />
-              </Button>
-            </>
-          ) : null}
-        </div>
-        {naming === null ? null : (
-          <NameInput
-            initial={naming}
-            label={
-              naming
-                ? t("library.renameRaccolta")
-                : t("library.newRaccoltaName")
-            }
-            onCancel={cancelName}
-            onSubmit={submitName}
-            taken={list.raccolte.filter((r) => r !== naming)}
-          />
-        )}
+          Sbobino
+        </span>
       </div>
-      <div className="relative">
+      <div className="flex flex-col gap-1 px-3 pt-1">
+        {record}
+        <Button
+          className="h-9 justify-start gap-2.5 px-3.5 font-normal text-sidebar-foreground/85"
+          disabled={busy}
+          onClick={onImport}
+          variant="ghost"
+        >
+          <FileUp />
+          {t("sidebar.importFile")}
+        </Button>
+      </div>
+      <label className="relative mx-3 mt-3 block">
+        <span className="sr-only">{t("sidebar.search")}</span>
         <Search
           aria-hidden
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
         />
-        <Input
-          aria-label={t("library.search")}
-          className="pl-8"
+        <input
+          className="h-9 w-full rounded-lg border border-sidebar-border bg-background/70 pr-14 pl-9 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/25 [&::-webkit-search-cancel-button]:hidden"
           onChange={typeQuery}
-          placeholder={t("library.search")}
+          onKeyDown={clearOnEscape}
+          placeholder={t("sidebar.search")}
+          ref={search}
           type="search"
           value={query}
         />
-      </div>
-      <nav className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
-        {searching ? (
-          <SearchResults
-            key={raccolta ?? ALL}
-            onError={onError}
-            onOpen={onOpen}
-            query={query}
-            raccolta={raccolta}
-            selected={selected}
-          />
-        ) : (
-          <>
-            {groups.length === 0 ? (
-              <p className="px-2 text-muted-foreground text-sm">
-                {t("library.empty")}
-              </p>
-            ) : null}
-            {groups.map((group) => (
-              <section className="mb-3" key={group.key}>
-                <h2 className="px-2 pb-1 font-medium text-muted-foreground text-xs first-letter:uppercase">
-                  {groupLabel(group.key)}
-                </h2>
-                <ul>
-                  {group.bini.map((bino) => (
-                    <li key={bino.path}>
-                      <BinoItem
-                        bino={bino}
-                        onOpen={onOpen}
-                        selected={bino.path === selected}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </>
-        )}
+        <kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 rounded border border-sidebar-border bg-sidebar px-1.5 py-0.5 font-sans text-[0.6875rem] text-muted-foreground">
+          Ctrl K
+        </kbd>
+      </label>
+      <section aria-labelledby="sidebar-activity" className="mt-5 px-3">
+        <SectionTitle id="sidebar-activity">
+          {t("sidebar.activity")}
+        </SectionTitle>
+        <ActivityCard activity={activity} onActivity={onActivity} />
+      </section>
+      <nav
+        aria-labelledby="sidebar-recents"
+        className="mt-5 flex min-h-0 flex-1 flex-col"
+      >
+        <SectionTitle className="mx-3" id="sidebar-recents">
+          {searching ? t("sidebar.results") : t("sidebar.recents")}
+        </SectionTitle>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+          {searching ? (
+            <SearchResults
+              onError={onError}
+              onOpen={onOpen}
+              query={query}
+              raccolta={null}
+              selected={selected}
+            />
+          ) : (
+            <>
+              {groups.length === 0 ? (
+                <p className="px-2 text-muted-foreground text-sm">
+                  {t("sidebar.noRecents")}
+                </p>
+              ) : null}
+              {groups.map((group) => (
+                <section className="mb-3" key={group.key}>
+                  <h3 className="px-2 pt-1 pb-1.5 text-muted-foreground text-xs first-letter:uppercase">
+                    {groupLabel(group.key)}
+                  </h3>
+                  <ul className="flex flex-col gap-0.5">
+                    {group.bini.map((bino) => (
+                      <li key={bino.path}>
+                        <BinoItem
+                          bino={bino}
+                          onOpen={onOpen}
+                          selected={bino.path === selected}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </>
+          )}
+        </div>
       </nav>
-      <div className="flex flex-col gap-1 border-t pt-2">
-        <Button className="justify-start" onClick={onShowAll} variant="ghost">
-          <ListIcon />
-          {t("library.showAll")}
+      <div className="flex flex-col gap-0.5 border-sidebar-border border-t px-3 py-2.5">
+        <Button
+          aria-current={showingAll ? "page" : undefined}
+          className="h-9 justify-start gap-2.5 px-2.5 font-normal aria-[current=page]:bg-sidebar-accent"
+          onClick={onShowAll}
+          variant="ghost"
+        >
+          <Library />
+          <span className="flex-1 text-left">{t("library.title")}</span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {list.bini.length}
+          </span>
         </Button>
-        <Button asChild className="justify-start" variant="ghost">
+        <Button
+          asChild
+          className="h-9 justify-start gap-2.5 px-2.5 font-normal"
+          variant="ghost"
+        >
           <Link to="/settings">
             <Settings />
             {t("settings.open")}
           </Link>
         </Button>
+        <p
+          className="flex items-center gap-2.5 px-2.5 pt-1.5 text-muted-foreground text-xs"
+          title={t("sidebar.localOnlyNote")}
+        >
+          <Lock aria-hidden className="size-3.5" />
+          {t("sidebar.localOnly")}
+        </p>
       </div>
     </aside>
+  );
+}
+
+function SectionTitle({
+  children,
+  className = "",
+  id,
+}: {
+  children: ReactNode;
+  className?: string;
+  id: string;
+}) {
+  return (
+    <h2
+      className={`px-2 pb-1.5 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-[0.07em] ${className}`}
+      id={id}
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** Il segno di Sbobino: un'onda che diventa una riga di testo. */
+function BrandMark() {
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none size-6 text-foreground"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 10v4M6.5 6.5v11M10 3.5v17M13.5 8.5v7" />
+      <path d="M17 12h4" />
+    </svg>
+  );
+}
+
+/**
+ * L'Attività in corso: un clic riporta alla sua vista. Senza Attività lo dice, così la sezione non
+ * sparisce e non sposta i Recenti.
+ */
+function ActivityCard({
+  activity,
+  onActivity,
+}: {
+  activity: ActivitySummary | null;
+  onActivity: () => void;
+}) {
+  const { t } = useTranslation();
+  if (!activity) {
+    return (
+      <p className="px-2 text-muted-foreground text-sm">
+        {t("sidebar.noActivity")}
+      </p>
+    );
+  }
+  return (
+    <button
+      className="flex w-full flex-col gap-2 rounded-lg border border-sidebar-border bg-background/70 px-3 py-2.5 text-left text-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      onClick={onActivity}
+      title={t("library.activity")}
+      type="button"
+    >
+      <span className="flex items-center gap-2.5">
+        <span
+          aria-hidden
+          className={
+            activity.recording
+              ? "size-2 shrink-0 animate-pulse rounded-full bg-destructive"
+              : "size-2 shrink-0 animate-pulse rounded-full bg-play"
+          }
+        />
+        <span className="min-w-0 flex-1 truncate tabular-nums">
+          {activity.text}
+        </span>
+      </span>
+      {activity.recording ? null : (
+        <span className="relative h-1 overflow-hidden rounded-full bg-play-soft">
+          {activity.percent === null ? (
+            <span className="absolute inset-y-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-play" />
+          ) : (
+            <span
+              className="absolute inset-y-0 left-0 rounded-full bg-play transition-[width] duration-300"
+              style={{ width: `${activity.percent}%` }}
+            />
+          )}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -298,15 +349,23 @@ function BinoItem({
   return (
     <button
       aria-current={selected ? "page" : undefined}
-      className="flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent aria-[current=page]:font-medium"
+      className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
       onClick={open}
       title={bino.path}
       type="button"
     >
-      <span className="min-w-0 flex-1 truncate">{bino.titolo}</span>
-      <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-        {clockText(bino.creato)}
-        {bino.durataMs === null ? "" : ` · ${elapsedText(bino.durataMs)}`}
+      <AudioLines
+        aria-hidden
+        className="size-4 shrink-0 text-muted-foreground group-aria-[current=page]:text-foreground"
+      />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-sm group-aria-[current=page]:font-medium">
+          {bino.titolo}
+        </span>
+        <span className="text-muted-foreground text-xs tabular-nums">
+          {clockText(bino.creato)}
+          {bino.durataMs === null ? "" : ` · ${elapsedText(bino.durataMs)}`}
+        </span>
       </span>
     </button>
   );

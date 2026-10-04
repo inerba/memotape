@@ -67,7 +67,7 @@ export function SearchResults({
   const widen = useCallback(() => setWide(true), []);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {results?.length === 0 ? (
         <p className="px-2 text-muted-foreground text-sm">
           {t("library.noResults")}
@@ -109,7 +109,7 @@ function ResultItem({
     <section>
       <button
         aria-current={selected ? "page" : undefined}
-        className="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left font-medium text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[current=page]:bg-accent"
+        className="flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left font-medium text-sm transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
         onClick={open}
         title={bino.path}
         type="button"
@@ -147,7 +147,7 @@ function HitItem({
   );
   return (
     <button
-      className="flex w-full gap-2 rounded-md px-2 py-1 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex w-full gap-2 rounded-lg px-2 py-1 text-left text-xs leading-relaxed transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
       onClick={open}
       type="button"
     >
@@ -158,7 +158,7 @@ function HitItem({
         {markedParts(hit.estratto).map((part, i) =>
           part.mark ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: le parti non cambiano ordine
-            <mark className="rounded-sm bg-primary/15 text-foreground" key={i}>
+            <mark className="rounded-sm bg-play-soft text-foreground" key={i}>
               {part.text}
             </mark>
           ) : (

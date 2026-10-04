@@ -1,9 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/source-serif-4/opsz.css";
 
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  /* Solo per i titoli: l'asse ottico dà il taglio da display alle misure grandi. */
+  --font-display: "Source Serif 4 Variable", ui-serif, Georgia, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -39,80 +42,117 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  /* L'audio in ascolto: l'unico accento dell'app. */
+  --color-play: var(--play);
+  --color-play-foreground: var(--play-foreground);
+  --color-play-soft: var(--play-soft);
+  /* I Parlanti, ognuno con il suo colore tenue. */
+  --color-voice-1: var(--voice-1);
+  --color-voice-2: var(--voice-2);
+  --color-voice-3: var(--voice-3);
+  --color-voice-4: var(--voice-4);
+  --color-voice-5: var(--voice-5);
+  --color-voice-6: var(--voice-6);
+  /* Il rosso di Chiudi nella barra del titolo di Windows, uguale nei due temi. */
+  --color-close: #c42b1c;
+  /* L'unica ombra: menu e player, sospesi sopra la carta. */
+  --shadow-float:
+    0 12px 32px -14px var(--float-shadow), 0 2px 6px -2px var(--float-shadow);
 }
 
+/* Carta tiepida, inchiostro bruno e salvia per l'audio. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --background: oklch(0.985 0.006 85);
+  --foreground: oklch(0.24 0.012 60);
+  --card: oklch(0.995 0.004 85);
+  --card-foreground: oklch(0.24 0.012 60);
+  --popover: oklch(0.995 0.004 85);
+  --popover-foreground: oklch(0.24 0.012 60);
+  --primary: oklch(0.27 0.012 60);
+  --primary-foreground: oklch(0.975 0.007 85);
+  --secondary: oklch(0.95 0.009 80);
+  --secondary-foreground: oklch(0.27 0.012 60);
+  --muted: oklch(0.955 0.008 80);
+  --muted-foreground: oklch(0.5 0.016 65);
+  --accent: oklch(0.935 0.012 80);
+  --accent-foreground: oklch(0.24 0.012 60);
+  --destructive: oklch(0.55 0.17 30);
+  --border: oklch(0.905 0.011 75);
+  --input: oklch(0.875 0.013 75);
+  --ring: oklch(0.55 0.07 128);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.958 0.009 80);
+  --sidebar-foreground: oklch(0.24 0.012 60);
+  --sidebar-primary: oklch(0.27 0.012 60);
+  --sidebar-primary-foreground: oklch(0.975 0.007 85);
+  --sidebar-accent: oklch(0.915 0.02 105);
+  --sidebar-accent-foreground: oklch(0.24 0.012 60);
+  --sidebar-border: oklch(0.9 0.011 75);
+  --sidebar-ring: oklch(0.55 0.07 128);
+  --play: oklch(0.5 0.075 128);
+  --play-foreground: oklch(0.985 0.006 85);
+  --play-soft: oklch(0.935 0.03 118);
+  --voice-1: oklch(0.76 0.07 15);
+  --voice-2: oklch(0.74 0.055 245);
+  --voice-3: oklch(0.77 0.085 75);
+  --voice-4: oklch(0.72 0.065 150);
+  --voice-5: oklch(0.7 0.06 305);
+  --voice-6: oklch(0.72 0.05 200);
+  --float-shadow: oklch(0.3 0.03 60 / 0.22);
   /* Controlli nativi (select, scrollbar, progress) nel tema giusto. */
   color-scheme: light dark;
 }
 
 /* Il tema segue Windows: la WebView2 riporta il tema di sistema in `prefers-color-scheme`, che è
-   anche la variante `dark:` predefinita di Tailwind 4. */
+   anche la variante `dark:` predefinita di Tailwind 4. La stessa carta, di sera. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --background: oklch(0.205 0.008 65);
+    --foreground: oklch(0.93 0.01 80);
+    --card: oklch(0.235 0.009 65);
+    --card-foreground: oklch(0.93 0.01 80);
+    --popover: oklch(0.245 0.009 65);
+    --popover-foreground: oklch(0.93 0.01 80);
+    --primary: oklch(0.92 0.012 80);
+    --primary-foreground: oklch(0.22 0.01 65);
+    --secondary: oklch(0.27 0.01 65);
+    --secondary-foreground: oklch(0.93 0.01 80);
+    --muted: oklch(0.255 0.01 65);
+    --muted-foreground: oklch(0.71 0.015 75);
+    --accent: oklch(0.285 0.012 70);
+    --accent-foreground: oklch(0.93 0.01 80);
+    --destructive: oklch(0.7 0.16 28);
+    --border: oklch(0.95 0.02 80 / 10%);
+    --input: oklch(0.95 0.02 80 / 16%);
+    --ring: oklch(0.7 0.08 125);
     --chart-1: oklch(0.488 0.243 264.376);
     --chart-2: oklch(0.696 0.17 162.48);
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --sidebar: oklch(0.178 0.008 65);
+    --sidebar-foreground: oklch(0.93 0.01 80);
+    --sidebar-primary: oklch(0.92 0.012 80);
+    --sidebar-primary-foreground: oklch(0.22 0.01 65);
+    --sidebar-accent: oklch(0.275 0.022 110);
+    --sidebar-accent-foreground: oklch(0.93 0.01 80);
+    --sidebar-border: oklch(0.95 0.02 80 / 9%);
+    --sidebar-ring: oklch(0.7 0.08 125);
+    --play: oklch(0.74 0.085 125);
+    --play-foreground: oklch(0.2 0.01 65);
+    --play-soft: oklch(0.3 0.035 118);
+    --voice-1: oklch(0.72 0.08 15);
+    --voice-2: oklch(0.72 0.065 245);
+    --voice-3: oklch(0.76 0.09 75);
+    --voice-4: oklch(0.7 0.075 150);
+    --voice-5: oklch(0.7 0.07 305);
+    --voice-6: oklch(0.72 0.06 200);
+    --float-shadow: oklch(0.05 0.01 60 / 0.6);
   }
 }
 
@@ -127,7 +167,55 @@
     /* Disable overscroll/bouncing */
     @apply h-full overscroll-none;
   }
+  /* Barre di scorrimento sottili, color carta, senza frecce. Niente `scrollbar-color` né
+     `scrollbar-width`: in Chromium prevalgono e tornano le frecce di Windows. */
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--input) padding-box;
+    border: 4px solid transparent;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground) padding-box;
+  }
+  ::-webkit-scrollbar-button {
+    display: none;
+  }
   body {
-    @apply bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    caret-color: var(--play);
+    @apply bg-background text-foreground antialiased;
+  }
+  ::selection {
+    color: var(--foreground);
+    background: var(--play-soft);
+  }
+}
+
+/* L'avanzamento senza percentuale: un tratto che scorre. */
+@keyframes indeterminate {
+  from {
+    left: -33%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+/* Le tre barre del turno in ascolto. */
+@keyframes equalizer {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }

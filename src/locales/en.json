@@ -3,7 +3,8 @@
     "browse": "Open file",
     "filter": "Audio, video and Bino",
     "none": "No file selected",
-    "open": "{{path}} (click to open with the default app)"
+    "open": "{{path}} (click to open with the default app)",
+    "ready": "Ready to transcribe"
   },
   "transcription": {
     "start": "Transcribe",
@@ -29,7 +30,8 @@
     "options": "Transcription options",
     "edit": "Click to correct: Enter saves, Esc cancels",
     "export": "Export Markdown…",
-    "exported": "Exported to {{path}}"
+    "exported": "Exported to {{path}}",
+    "again": "Transcribe again"
   },
   "player": {
     "label": "Player",
@@ -40,7 +42,15 @@
     "position": "Position",
     "rate": "Speed",
     "follow": "Follow the audio",
-    "jump": "Listen from here"
+    "jump": "Listen from here",
+    "backToAudio": "Back to what's playing",
+    "playTurn": "Play this turn",
+    "replay": "Replay",
+    "volume": "Volume",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "recording": "Recording audio · mix",
+    "file": "Audio from {{name}}"
   },
   "status": {
     "idle": "Open an audio, video or Bino file, or choose a Bino from the Library",
@@ -224,7 +234,8 @@
       "engine": "Runs the transcription models",
       "onnx": "Runs Silero VAD",
       "vadRs": "Bridge between Silero VAD and Rust",
-      "diarization": "Speaker recognition"
+      "diarization": "Speaker recognition",
+      "font": "Interface typeface"
     }
   },
   "transcript": {
@@ -277,6 +288,62 @@
       "incomplete": "incomplete",
       "origine": "from {{name}}",
       "outside": "outside the Library"
-    }
+    },
+    "destination": "New recordings and imported files go to: {{raccolta}}"
+  },
+  "app": {
+    "whereAmI": "Where you are",
+    "dismiss": "Dismiss"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
+  "sidebar": {
+    "newRecording": "New recording",
+    "importFile": "Import a file",
+    "search": "Search the Library",
+    "activity": "Activity",
+    "noActivity": "Nothing in progress",
+    "recents": "Recent",
+    "results": "Results",
+    "noRecents": "Your recordings and transcribed files will appear here.",
+    "localOnly": "Only on your PC",
+    "localOnlyNote": "Audio and text stay on this computer: no account, no server."
+  },
+  "welcome": {
+    "title": "Record, or import a file to transcribe",
+    "description": "The text appears as you work and is saved in the Library. Everything stays on your PC, with no account and, once the model is downloaded, no network."
+  },
+  "live": {
+    "recording": "Recording in progress",
+    "title": "New recording",
+    "on": "Live transcription on",
+    "waiting": "The text will appear here as you speak.",
+    "off": "Live transcription is off: after Stop you can transcribe the recording."
+  },
+  "bino": {
+    "recording": "Recording",
+    "file": "File {{name}}",
+    "parlanti_one": "{{count}} speaker",
+    "parlanti_other": "{{count}} speakers",
+    "noText": "This Bino has no text yet",
+    "noTextDescription": "Transcribe it to read, search and listen back to what was said.",
+    "ingressi": "Microphone + system audio"
+  },
+  "tabs": {
+    "label": "Bino views",
+    "transcript": "Transcript",
+    "parlanti": "Speakers"
+  },
+  "parlantiTab": {
+    "empty": "No speakers recognized",
+    "emptyDescription": "Turn on Recognize speakers and transcribe again to know who said what.",
+    "talk": "{{time}} speaking",
+    "turns_one": "{{count}} turn",
+    "turns_other": "{{count}} turns",
+    "first": "Listen to their first turn"
   }
 }

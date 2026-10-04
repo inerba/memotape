@@ -17,6 +17,7 @@ export interface Credit {
     | "decoder"
     | "diarization"
     | "engine"
+    | "font"
     | "model"
     | "onnx"
     | "vad"
@@ -115,5 +116,21 @@ export const CREDITS: Credit[] = [
     name: "vad-rs",
     role: "vadRs",
     url: "https://github.com/cjpais/vad-rs",
+  },
+  {
+    author: "Rasmus Andersson",
+    file: "inter.txt",
+    license: "OFL-1.1",
+    name: "Inter",
+    role: "font",
+    url: "https://github.com/rsms/inter",
+  },
+  {
+    author: "Adobe (Frank Grießhammer)",
+    file: "source-serif-4.txt",
+    license: "OFL-1.1",
+    name: "Source Serif 4",
+    role: "font",
+    url: "https://github.com/adobe-fonts/source-serif",
   },
 ];

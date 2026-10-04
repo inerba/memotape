@@ -8,6 +8,7 @@ import type {
 } from "@/bindings";
 import {
   failedStatus,
+  progressPercent,
   type Status,
   statusText,
 } from "@/features/status/status";
@@ -119,4 +120,23 @@ export function activityText(
     default:
       return null;
   }
+}
+
+/**
+ * L'Attività in corso per la barra laterale: il testo di `activityText`, l'avanzamento (`null` se
+ * non è noto) e se è una Registrazione. `null` senza Attività.
+ */
+export function activitySummary(
+  status: Status,
+  elapsedMs: number,
+  t: TFunction
+): { percent: number | null; recording: boolean; text: string } | null {
+  const text = activityText(status, elapsedMs, t);
+  return text
+    ? {
+        percent: progressPercent(status),
+        recording: status.phase === "recording",
+        text,
+      }
+    : null;
 }

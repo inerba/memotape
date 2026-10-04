@@ -29,6 +29,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::rename_parlante,
             commands::edit_frase,
             commands::bino_text,
+            commands::bino_peaks,
             commands::export_markdown,
             commands::take_pending_bino,
             commands::list_models,

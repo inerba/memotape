@@ -3,7 +3,8 @@
     "browse": "Datei öffnen",
     "filter": "Audio, Video und Bino",
     "none": "Keine Datei ausgewählt",
-    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)"
+    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)",
+    "ready": "Bereit zum Transkribieren"
   },
   "transcription": {
     "start": "Transkribieren",
@@ -29,7 +30,8 @@
     "options": "Transkriptionsoptionen",
     "edit": "Zum Korrigieren klicken: Eingabe speichert, Esc bricht ab",
     "export": "Markdown exportieren…",
-    "exported": "Exportiert nach {{path}}"
+    "exported": "Exportiert nach {{path}}",
+    "again": "Erneut transkribieren"
   },
   "player": {
     "label": "Player",
@@ -40,7 +42,15 @@
     "position": "Position",
     "rate": "Geschwindigkeit",
     "follow": "Dem Audio folgen",
-    "jump": "Ab hier anhören"
+    "jump": "Ab hier anhören",
+    "backToAudio": "Zurück zur Wiedergabe",
+    "playTurn": "Diesen Beitrag anhören",
+    "replay": "Erneut anhören",
+    "volume": "Lautstärke",
+    "mute": "Stumm",
+    "unmute": "Ton an",
+    "recording": "Audio der Aufnahme · Mix",
+    "file": "Audio aus {{name}}"
   },
   "status": {
     "idle": "Öffne eine Audio-, Video- oder Bino-Datei oder wähle einen Bino aus der Bibliothek",
@@ -224,7 +234,8 @@
       "engine": "Ausführung der Transkriptionsmodelle",
       "onnx": "Ausführung von Silero VAD",
       "vadRs": "Verbindung zwischen Silero VAD und Rust",
-      "diarization": "Sprechererkennung"
+      "diarization": "Sprechererkennung",
+      "font": "Schrift der Oberfläche"
     }
   },
   "transcript": {
@@ -277,6 +288,62 @@
       "incomplete": "unvollständig",
       "origine": "aus {{name}}",
       "outside": "außerhalb der Bibliothek"
-    }
+    },
+    "destination": "Neue Aufnahmen und importierte Dateien landen in: {{raccolta}}"
+  },
+  "app": {
+    "whereAmI": "Wo du bist",
+    "dismiss": "Hinweis schließen"
+  },
+  "window": {
+    "minimize": "Minimieren",
+    "maximize": "Maximieren",
+    "restore": "Wiederherstellen",
+    "close": "Schließen"
+  },
+  "sidebar": {
+    "newRecording": "Neue Aufnahme",
+    "importFile": "Datei importieren",
+    "search": "In der Bibliothek suchen",
+    "activity": "Aktivität",
+    "noActivity": "Keine laufende Aktivität",
+    "recents": "Zuletzt",
+    "results": "Ergebnisse",
+    "noRecents": "Deine Aufnahmen und transkribierten Dateien erscheinen hier.",
+    "localOnly": "Nur auf deinem PC",
+    "localOnlyNote": "Audio und Text bleiben auf diesem Computer: kein Konto, kein Server."
+  },
+  "welcome": {
+    "title": "Nimm auf oder importiere eine Datei zum Transkribieren",
+    "description": "Der Text erscheint, während du arbeitest, und wird in der Bibliothek gespeichert. Alles bleibt auf deinem PC, ohne Konto und, sobald das Modell heruntergeladen ist, ohne Netzwerk."
+  },
+  "live": {
+    "recording": "Aufnahme läuft",
+    "title": "Neue Aufnahme",
+    "on": "Live-Transkription an",
+    "waiting": "Der Text erscheint hier, während du sprichst.",
+    "off": "Die Live-Transkription ist aus: Nach Stopp kannst du die Aufnahme transkribieren."
+  },
+  "bino": {
+    "recording": "Aufnahme",
+    "file": "Datei {{name}}",
+    "parlanti_one": "{{count}} Sprecher",
+    "parlanti_other": "{{count}} Sprecher",
+    "noText": "Dieser Bino hat noch keinen Text",
+    "noTextDescription": "Transkribiere ihn, um das Gesagte zu lesen, zu durchsuchen und erneut anzuhören.",
+    "ingressi": "Mikrofon + Systemaudio"
+  },
+  "tabs": {
+    "label": "Ansichten des Bino",
+    "transcript": "Transkript",
+    "parlanti": "Sprecher"
+  },
+  "parlantiTab": {
+    "empty": "Keine Sprecher erkannt",
+    "emptyDescription": "Aktiviere Sprecher erkennen und transkribiere erneut, um zu wissen, wer was gesagt hat.",
+    "talk": "{{time}} Redezeit",
+    "turns_one": "{{count}} Beitrag",
+    "turns_other": "{{count}} Beiträge",
+    "first": "Ersten Beitrag anhören"
   }
 }

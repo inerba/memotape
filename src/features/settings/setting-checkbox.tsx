@@ -1,5 +1,6 @@
-import { type ChangeEvent, useCallback } from "react";
+import { useCallback, useId } from "react";
 import type { AppError } from "@/bindings";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { ParlantiRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 
@@ -17,10 +18,11 @@ export function SettingCheckbox({
   note?: string;
   onError: (error: AppError) => void;
 }) {
+  const id = useId();
   const { save, settings } = useSettings();
   const change = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const error = await save({ ...settings, [name]: e.target.checked });
+    async (checked: boolean | "indeterminate") => {
+      const error = await save({ ...settings, [name]: checked === true });
       if (error) {
         onError(error);
       }
@@ -29,15 +31,15 @@ export function SettingCheckbox({
   );
   return (
     <label
-      className="flex shrink-0 items-center gap-2 text-sm has-[:disabled]:opacity-50"
+      className="flex shrink-0 cursor-pointer items-center gap-2 text-sm has-[:disabled]:cursor-default has-[:disabled]:opacity-50"
+      htmlFor={id}
       title={note}
     >
-      <input
+      <Checkbox
         checked={settings[name] ?? false}
-        className="size-4 accent-primary"
         disabled={disabled}
-        onChange={change}
-        type="checkbox"
+        id={id}
+        onCheckedChange={change}
       />
       {label}
     </label>

@@ -144,6 +144,41 @@ impl Block {
     }
 }
 
+/// Quanto audio riassume un picco prima del raggruppamento finale.
+const PEAK_WINDOW_MS: u32 = 20;
+
+/// La forma d'onda di `path` (di un Bino, il mix): `count` picchi (0–1) dall'inizio alla fine,
+/// ciascuno il massimo assoluto della sua parte di audio. Meno di `count` se l'audio dura meno di
+/// `count` × 20 ms.
+pub fn peaks(path: &Path, count: usize) -> Result<Vec<f32>, AppError> {
+    let mut decoder = Decoder::open(path)?;
+    let mut windows = Vec::new();
+    let (mut peak, mut filled) = (0f32, 0usize);
+    while let Some(block) = decoder.next_block()? {
+        let size = (block.rate * PEAK_WINDOW_MS / 1000).max(1) as usize * block.channels;
+        for sample in block.samples {
+            peak = peak.max(sample.abs());
+            filled += 1;
+            if filled == size {
+                windows.push(peak.min(1.0));
+                (peak, filled) = (0.0, 0);
+            }
+        }
+    }
+    if filled > 0 {
+        windows.push(peak.min(1.0));
+    }
+    if windows.len() <= count {
+        return Ok(windows);
+    }
+    Ok((0..count)
+        .map(|i| {
+            let range = i * windows.len() / count..(i + 1) * windows.len() / count;
+            windows[range].iter().copied().fold(0.0, f32::max)
+        })
+        .collect())
+}
+
 impl MediaSource for bino::Mix {
     fn is_seekable(&self) -> bool {
         true
@@ -151,5 +186,25 @@ impl MediaSource for bino::Mix {
 
     fn byte_len(&self) -> Option<u64> {
         Some(self.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn la_forma_d_onda_ha_i_picchi_chiesti_e_segue_il_parlato() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parlato-it.wav");
+        let peaks = peaks(&path, 120).unwrap();
+        assert_eq!(peaks.len(), 120);
+        assert!(peaks.iter().all(|p| (0.0..=1.0).contains(p)));
+        // Il parlato c'è, e non dappertutto alla stessa altezza.
+        let max = peaks.iter().copied().fold(0.0, f32::max);
+        let min = peaks.iter().copied().fold(1.0, f32::min);
+        assert!(max > 0.1 && min < max / 2.0, "{min}..{max}");
+        // Un audio più corto dei picchi chiesti ne dà uno ogni 20 ms.
+        let fine = super::peaks(&path, 1_000_000).unwrap();
+        assert!(fine.len() > 120 && fine.len() < 1_000_000);
     }
 }
