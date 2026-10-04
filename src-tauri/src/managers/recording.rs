@@ -265,6 +265,8 @@ struct Recorded {
     durata_ms: u32,
     /// Perché si è fermata da sola, se non è stato Stop.
     error: Option<AppError>,
+    /// La Forma d'onda del mix.
+    forma_onda: Vec<f32>,
 }
 
 impl Recorded {
@@ -299,7 +301,7 @@ fn save_bino(
         .iter()
         .map(|(ingresso, ogg)| (*ingresso, ogg.as_path()))
         .collect();
-    bino::write(&path, &audio, document)?;
+    bino::write(&path, &audio, document, Some(&recorded.forma_onda))?;
     for (_, ogg) in &recorded.oggs {
         if let Err(e) = std::fs::remove_file(ogg) {
             log::warn!("{} non cancellato: {e}", ogg.display());
@@ -530,6 +532,7 @@ fn run(
     mixer.finish(stop, &mut out);
     let durata_ms = mixer.elapsed_ms();
     let mut oggs = Vec::new();
+    let mut forma_onda = Vec::new();
     for (output, audio) in outputs
         .into_iter()
         .zip(std::iter::once(&mut out).chain(mixer.tracks()))
@@ -540,7 +543,12 @@ fn run(
             mut writer,
             feed,
         } = output;
-        if let Err(e) = writer.write(audio).and_then(|()| writer.finish().map(drop)) {
+        let written = writer.write(audio);
+        // Anche se la scrittura non è riuscita: è quella dell'audio arrivato al writer.
+        if ingresso == Ingresso::Mix {
+            forma_onda = writer.forma_onda();
+        }
+        if let Err(e) = written.and_then(|()| writer.finish().map(drop)) {
             log::warn!("chiusura della Registrazione: {e}");
             error.get_or_insert(e);
         }
@@ -556,6 +564,7 @@ fn run(
         start,
         durata_ms,
         error,
+        forma_onda,
     })
 }
 
@@ -665,6 +674,7 @@ mod tests {
                 start,
                 durata_ms: 100,
                 error: None,
+                forma_onda: vec![0.5, 0.25],
             }
         };
         let document = bino::Document::new(
@@ -685,6 +695,7 @@ mod tests {
             ))
         );
         assert_eq!(bino::read(&path).unwrap(), document);
+        assert_eq!(bino::forma_onda(&path), Some(vec![0.5, 0.25]));
         // L'Ogg temporaneo stava nella radice, e la cartella nascosta se ne va con lui.
         assert!(!folder.join(TEMP_FOLDER).exists());
         let sparita = folder.join("Sparita");

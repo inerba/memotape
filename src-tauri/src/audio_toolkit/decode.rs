@@ -11,6 +11,7 @@ use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
 
+use crate::audio_toolkit::forma_onda::Picchi;
 use crate::bino;
 use crate::error::AppError;
 
@@ -144,39 +145,20 @@ impl Block {
     }
 }
 
-/// Quanto audio riassume un picco prima del raggruppamento finale.
-const PEAK_WINDOW_MS: u32 = 20;
-
-/// La forma d'onda di `path` (di un Bino, il mix): `count` picchi (0–1) dall'inizio alla fine,
+/// La Forma d'onda di `path` (di un Bino, il mix): `count` picchi (0–1) dall'inizio alla fine,
 /// ciascuno il massimo assoluto della sua parte di audio. Meno di `count` se l'audio dura meno di
 /// `count` × 20 ms.
 pub fn peaks(path: &Path, count: usize) -> Result<Vec<f32>, AppError> {
     let mut decoder = Decoder::open(path)?;
-    let mut windows = Vec::new();
-    let (mut peak, mut filled) = (0f32, 0usize);
+    let mut picchi = None;
     while let Some(block) = decoder.next_block()? {
-        let size = (block.rate * PEAK_WINDOW_MS / 1000).max(1) as usize * block.channels;
-        for sample in block.samples {
-            peak = peak.max(sample.abs());
-            filled += 1;
-            if filled == size {
-                windows.push(peak.min(1.0));
-                (peak, filled) = (0.0, 0);
-            }
-        }
+        // ponytail: frequenza e canali fissati dal primo blocco, come per la Trascrizione; un
+        // `Picchi::new` a ogni cambio se arrivano file con flussi che cambiano formato.
+        picchi
+            .get_or_insert_with(|| Picchi::new(block.rate, block.channels))
+            .push(&block.samples);
     }
-    if filled > 0 {
-        windows.push(peak.min(1.0));
-    }
-    if windows.len() <= count {
-        return Ok(windows);
-    }
-    Ok((0..count)
-        .map(|i| {
-            let range = i * windows.len() / count..(i + 1) * windows.len() / count;
-            windows[range].iter().copied().fold(0.0, f32::max)
-        })
-        .collect())
+    Ok(picchi.map_or_else(Vec::new, |p| p.values(count)))
 }
 
 impl MediaSource for bino::Mix {

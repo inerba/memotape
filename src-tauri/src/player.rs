@@ -1,13 +1,16 @@
 //! Il protocollo `bino` del player: serve il `mix.ogg` di un Bino al tag `<audio>`, con le richieste
 //! `Range` per lo spostamento. L'URL è `http://bino.localhost/<percorso del Bino>` (`convertFileSrc`).
+//! E la Forma d'onda che fa da barra di avanzamento.
 
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use tauri::http::{Request, Response, header};
 
+use crate::audio_toolkit::{decode, forma_onda};
 use crate::bino::{self, Mix};
 use crate::error::AppError;
+use crate::managers::activity::Activity;
 
 /// Il massimo di byte di una risposta: wry passa il corpo intero in memoria.
 const MAX_LEN: u64 = 1024 * 1024;
@@ -87,6 +90,23 @@ pub fn read(path: &Path, range: Option<&str>) -> Result<(Window, Vec<u8>), AppEr
         .and_then(|_| mix.read_exact(&mut bytes))
         .map_err(|e| AppError::UnreadableFile(format!("{}: {e}", path.display())))?;
     Ok((window, bytes))
+}
+
+/// La Forma d'onda del Bino `path` in `count` valori. Un Bino che non la ha la calcola dal mix e
+/// prova una volta a salvarla, se `activity` non lavora su quel Bino; se non riesce, la ricalcolerà
+/// alla prossima apertura (ADR-0010).
+pub fn forma_onda(path: &Path, count: usize, activity: &Activity) -> Result<Vec<f32>, AppError> {
+    if let Some(values) = bino::forma_onda(path) {
+        return Ok(forma_onda::regroup(&values, count));
+    }
+    let values = decode::peaks(path, forma_onda::VALORI)?;
+    let saved = activity
+        .write(path)
+        .and_then(|_writing| bino::save_forma_onda(path, &values));
+    if let Err(e) = saved {
+        log::warn!("Forma d'onda non salvata in {}: {e}", path.display());
+    }
+    Ok(forma_onda::regroup(&values, count))
 }
 
 /// La risposta del protocollo a `request`: serve solo il mix di un `.bino`.
@@ -222,7 +242,7 @@ mod tests {
             true,
             &[],
         );
-        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document).unwrap();
+        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         (path, std::fs::read(&ogg).unwrap())
     }
 
@@ -246,6 +266,24 @@ mod tests {
         let (beyond, bytes) = read(&path, Some(&format!("bytes={total}-"))).unwrap();
         assert_eq!(beyond.status, 416);
         assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn la_forma_d_onda_si_calcola_una_volta_e_poi_si_legge_dal_bino() {
+        let (path, _) = bino_with_mix("player-forma-onda");
+        let activity = Activity::default();
+        // Durante un'Attività su quel Bino si calcola ma non si salva.
+        let guard = activity.begin(Some(path.clone()), || {}).unwrap();
+        let computed = forma_onda(&path, 30, &activity).unwrap();
+        assert_eq!(computed.len(), 30);
+        assert_eq!(bino::forma_onda(&path), None);
+        drop(guard);
+        assert_eq!(forma_onda(&path, 30, &activity).unwrap(), computed);
+        let saved = bino::forma_onda(&path).unwrap();
+        // 3 s sono 150 picchi da 20 ms, meno dei valori salvati.
+        assert_eq!(saved.len(), 150);
+        assert_eq!(forma_onda::regroup(&saved, 30), computed);
+        assert_eq!(forma_onda(&path, 3, &activity).unwrap().len(), 3);
     }
 
     #[test]

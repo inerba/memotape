@@ -2,6 +2,7 @@
 
 pub mod capture;
 pub mod decode;
+pub mod forma_onda;
 pub mod mixer;
 pub mod ogg_opus;
 pub mod resample;

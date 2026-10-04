@@ -55,8 +55,8 @@ export const commands = {
 	/**  Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
 	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
 	/**
-	 *  La forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
-	 *  più corto di `count` × 20 ms.
+	 *  La Forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
+	 *  più corto di `count` × 20 ms. Salvata nel Bino; se manca si calcola e si prova a salvarla.
 	 */
 	binoPeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("bino_peaks", { path, count })),
 	/**

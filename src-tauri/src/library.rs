@@ -725,7 +725,7 @@ pub(crate) mod tests {
                 parlante: None,
             }],
         );
-        bino::write(path, &[(Ingresso::Mix, &ogg)], &document).unwrap();
+        bino::write(path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         std::fs::remove_file(ogg).unwrap();
     }
 

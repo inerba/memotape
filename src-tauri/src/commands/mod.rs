@@ -163,14 +163,14 @@ pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError>
     .await
 }
 
-/// La forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
-/// più corto di `count` × 20 ms.
+/// La Forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
+/// più corto di `count` × 20 ms. Salvata nel Bino; se manca si calcola e si prova a salvarla.
 #[tauri::command]
 #[specta::specta]
 pub async fn bino_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
     let path = bino_path(&path)?;
-    blocking(app, move |_| {
-        crate::audio_toolkit::decode::peaks(&path, count as usize)
+    blocking(app, move |app| {
+        crate::player::forma_onda(&path, count as usize, &app.state::<Activity>())
     })
     .await
 }

@@ -31,8 +31,12 @@ Il microfono o l'audio di sistema (loopback del dispositivo di uscita) catturati
 _Avoid_: sorgente (è la Sorgente), input
 
 **Bino**:
-Il file `.bino` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati) e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
+Il file `.bino` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
 _Avoid_: progetto, archivio, pacchetto
+
+**Forma d'onda**:
+L'andamento del volume del mix di un Bino, dall'inizio alla fine, che il player mostra come barra di avanzamento; sta dentro il Bino, così riaprirlo non la ricalcola.
+_Avoid_: waveform, picchi, cache
 
 **Libreria**:
 La cartella in cui Sbobino salva i Bini e li tiene per ritrovarli, cercarli e riascoltarli: un Bino ne fa parte se sta lì dentro, e uno altrove si apre ma non compare.

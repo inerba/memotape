@@ -3,11 +3,13 @@
 
 use std::fs::File;
 use std::io::Write;
+use std::sync::{Arc, OnceLock};
 
 use ogg::writing::{PacketWriteEndInfo, PacketWriter};
 use opus::{Application, Bitrate, Channels, Encoder};
 
 use crate::audio_toolkit::decode::Block;
+use crate::audio_toolkit::forma_onda::{self, Picchi};
 use crate::audio_toolkit::mixer::downmix;
 use crate::audio_toolkit::resample::Resampler;
 use crate::error::AppError;
@@ -37,6 +39,8 @@ pub struct OggOpusWriter<W: Write> {
     frames_in: u64,
     packets: u64,
     packet: Vec<u8>,
+    /// La Forma d'onda dell'audio ricevuto, senza il silenzio che completa l'ultimo frame.
+    picchi: Picchi,
 }
 
 impl<W: Write> OggOpusWriter<W> {
@@ -67,6 +71,7 @@ impl<W: Write> OggOpusWriter<W> {
             frames_in: 0,
             packets: 0,
             packet: vec![0; MAX_PACKET],
+            picchi: Picchi::new(rate, channels),
         };
         let mut head = b"OpusHead".to_vec();
         head.push(1); // versione
@@ -88,6 +93,7 @@ impl<W: Write> OggOpusWriter<W> {
     /// Accoda campioni interleaved e codifica i frame da 20 ms completi.
     pub fn write(&mut self, samples: &[f32]) -> Result<(), AppError> {
         self.frames_in += (samples.len() / self.channels) as u64;
+        self.picchi.push(samples);
         self.pending.extend_from_slice(samples);
         let mut start = 0;
         while self.pending.len() - start >= self.frame_len {
@@ -97,6 +103,12 @@ impl<W: Write> OggOpusWriter<W> {
         }
         self.pending.drain(..start);
         Ok(())
+    }
+
+    /// La Forma d'onda dell'audio scritto finora, in `forma_onda::VALORI` valori: quella del Bino,
+    /// senza decodificare il file.
+    pub fn forma_onda(&self) -> Vec<f32> {
+        self.picchi.values(forma_onda::VALORI)
     }
 
     /// Codifica il resto completato con silenzio, chiude il flusso (`EndStream`) con la granule
@@ -164,6 +176,8 @@ pub struct OggCopy {
     resampler: Option<Resampler>,
     converted: Vec<f32>,
     resampled: Vec<f32>,
+    /// La Forma d'onda del mix, a copia finita.
+    forma_onda: Arc<OnceLock<Vec<f32>>>,
 }
 
 impl OggCopy {
@@ -180,7 +194,14 @@ impl OggCopy {
             resampler: None,
             converted: Vec::new(),
             resampled: Vec::new(),
+            forma_onda: Arc::default(),
         })
+    }
+
+    /// Dove arriva la Forma d'onda quando la copia finisce: chi crea la copia la passa alla
+    /// Trascrizione, che la chiude.
+    pub fn forma_onda(&self) -> Arc<OnceLock<Vec<f32>>> {
+        Arc::clone(&self.forma_onda)
     }
 
     /// Scrive un blocco decodificato, con i canali scesi o duplicati come nel mixer.
@@ -201,14 +222,17 @@ impl OggCopy {
         self.writer.write(&self.resampled)
     }
 
-    /// Svuota il resampler e chiude il flusso.
+    /// Svuota il resampler, chiude il flusso e consegna la Forma d'onda.
     pub fn finish(mut self) -> Result<(), AppError> {
         if let Some(resampler) = &mut self.resampler {
             self.resampled.clear();
             resampler.finish(&mut self.resampled);
             self.writer.write(&self.resampled)?;
         }
-        self.writer.finish().map(drop)
+        let forma_onda = self.writer.forma_onda();
+        self.writer.finish()?;
+        let _ = self.forma_onda.set(forma_onda);
+        Ok(())
     }
 }
 
@@ -300,6 +324,31 @@ pub(crate) mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn la_forma_d_onda_del_writer_e_quella_del_file_riletto() {
+        let dir = temp_dir("ogg-opus-forma-onda");
+        let path = dir.join("forma.ogg");
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(&path).unwrap(), 48_000, 2, 64).unwrap();
+        // 30 s: sinusoide, silenzio, sinusoide, a blocchi qualsiasi.
+        let mut audio = sine(48_000, 2, 10.0);
+        audio.extend(vec![0.0; 48_000 * 2 * 10]);
+        audio.extend(sine(48_000, 2, 10.0));
+        for block in audio.chunks(4_801) {
+            writer.write(block).unwrap();
+        }
+        let scritta = writer.forma_onda();
+        writer.finish().unwrap();
+        let riletta = crate::audio_toolkit::decode::peaks(&path, forma_onda::VALORI).unwrap();
+        assert_eq!(scritta.len(), forma_onda::VALORI);
+        assert_eq!(riletta.len(), forma_onda::VALORI);
+        // Opus non restituisce i campioni identici: si confrontano le altezze.
+        for (i, (s, r)) in scritta.iter().zip(&riletta).enumerate() {
+            assert!((s - r).abs() < 0.1, "{i}: {s} contro {r}");
+        }
+        assert!(scritta[500] < 0.01 && scritta[100] > 0.4, "{scritta:?}");
     }
 
     #[test]

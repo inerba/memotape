@@ -369,6 +369,7 @@ fn file_to_bino(
         channel_count(settings.channels),
         settings.bitrate_kbps,
     )?;
+    let forma_onda = copy.forma_onda();
     let document = transcribe(copy)?;
     if document.frasi.is_empty() {
         return Ok(None);
@@ -379,7 +380,12 @@ fn file_to_bino(
         library
     };
     let path = numbered(folder, &title_of(source), "bino", Path::exists);
-    bino::write(&path, &[(Ingresso::Mix, &ogg)], &document)?;
+    bino::write(
+        &path,
+        &[(Ingresso::Mix, &ogg)],
+        &document,
+        forma_onda.get().map(Vec::as_slice),
+    )?;
     Ok(Some(path))
 }
 
@@ -1113,7 +1119,7 @@ mod tests {
         document.origine = Some("Call.mp4".into());
         document.parlanti.insert("sistema:2".into(), "Lucia".into());
         let path = dir.join("Call.bino");
-        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document).unwrap();
+        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         let opened = open_bino(&path).unwrap();
         assert_eq!(
             opened.info,
@@ -1285,6 +1291,17 @@ mod tests {
                 opus_head(&path),
                 (channel_count(channels) as u8, rate),
                 "{name}"
+            );
+            // La Forma d'onda c'è già, uguale a quella ricalcolata dal mix.
+            let forma_onda = bino::forma_onda(&path).unwrap();
+            let decoded = crate::audio_toolkit::decode::peaks(&path, 1000).unwrap();
+            assert_eq!(forma_onda.len(), decoded.len(), "{name}");
+            assert!(
+                forma_onda
+                    .iter()
+                    .zip(&decoded)
+                    .all(|(f, d)| (f - d).abs() < 0.1),
+                "{name}: {forma_onda:?} contro {decoded:?}"
             );
             let document = bino::read(&path).unwrap();
             assert!(!document.frasi.is_empty(), "{name}");
