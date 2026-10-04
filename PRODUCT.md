@@ -15,6 +15,66 @@ Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
 
+<!-- impeccable:product-schema 1 -->
+
+Le sezioni da "Platform" a "Product Principles" sono il contesto di prodotto per il lavoro di design (skill impeccable): i titoli restano in inglese perché lo strumento li riconosce per nome.
+
+## Platform
+
+web
+
+L'interfaccia è HTML/React dentro la WebView2 di un'app desktop Tauri, solo Windows 10/11 x64; non è un sito e non ha una versione mobile.
+
+## Users
+
+- **Professionisti** che sbobinano riunioni e videochiamate: registrano microfono e audio di sistema insieme e vogliono sapere chi ha detto cosa (Parlanti).
+- **Studenti** che trascrivono lezioni registrate o seguite dal vivo.
+- **Pubblico generico**: chiunque abbia un file audio o video da trasformare in testo, senza competenze tecniche.
+
+Nessuna priorità stabilita tra i tre gruppi.
+
+## Product Purpose
+
+Trasformare in testo un file audio o video, o una Registrazione fatta nell'app, tutto sul PC dell'utente. Successo: il testo compare mentre si registra (con Trascrivi dal vivo) o appena finisce la Trascrizione di un file, si salva in un Markdown accanto alla Sorgente e si copia altrove, senza account, chiavi né rete una volta scaricato il modello.
+
+## Positioning
+
+Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il download del modello funziona offline. È la prima differenza rispetto ai servizi online; la Registrazione di voce e audio di sistema con il testo dal vivo viene dopo.
+
+## Operating Context
+
+- Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Bino (doppio clic apre Sbobino).
+- Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la status bar dice sempre la fase.
+- Il testo nell'area si legge e si corregge a mano; Copia testo e il Markdown sono le uscite.
+
+## Capabilities and Constraints
+
+- Le funzioni sono le storie utente qui sotto; i termini sono quelli di `CONTEXT.md` (Sorgente, Attività, Frase, Parziale, Parlante, Bino…) e vanno usati uguali nell'interfaccia.
+- Sei lingue dell'interfaccia (it di riferimento, en, fr, es, de, pl): le etichette devono reggere i testi più lunghi di tedesco e polacco.
+- Tema chiaro o scuro da Windows; dialog di sistema nativi per file e cartelle.
+- La rete serve solo per scaricare i modelli e per il controllo aggiornamenti.
+- Da decidere: editore dell'installer (oggi "EDITORE DA DEFINIRE"), firma dell'installer, licenza e modalità di distribuzione dell'app.
+
+## Brand Commitments
+
+- Nome **Sbobino**, da "sbobinare"; il file delle Registrazioni è il **Bino** (`.bino`, tipo "Bino (Sbobino)" in Esplora file).
+- Icona dell'app in `src-tauri/icons/`, usata anche per i Bino.
+- Voce sobria e chiara: frasi brevi e precise, senza battute, anche negli errori e nelle conferme.
+
+## Evidence on Hand
+
+- Audio di prova in `src-tauri/tests/fixtures/` (sintesi vocale, non materiale pubblicabile).
+- Le misure di velocità in `AGENTS.md` sono di una sola macchina di sviluppo: non sono benchmark da mostrare.
+- Non esistono testimonianze, clienti, numeri d'uso o recensioni: non vanno inventati.
+
+## Product Principles
+
+1. L'audio resta sul PC: nessuna funzione chiede account, chiavi o servizi di terzi.
+2. Il lavoro dell'utente non si perde: conferma prima di sostituire il testo, nessuna sovrascrittura, la Registrazione si salva anche quando qualcosa si guasta.
+3. La finestra mostra solo ciò che serve all'Attività in corso, e lo stato si legge sempre nella status bar.
+4. Si comporta come un'app Windows: tema, lingua, Esplora file e dialog di sistema.
+5. Parole sobrie e coerenti con il glossario, uguali nelle sei lingue.
+
 ## Storie utente
 
 ### Sorgente
