@@ -31,6 +31,17 @@
     "export": "Eksportuj Markdown…",
     "exported": "Wyeksportowano do {{path}}"
   },
+  "player": {
+    "label": "Odtwarzacz",
+    "play": "Odtwórz (Spacja)",
+    "pause": "Pauza (Spacja)",
+    "back": "10 s do tyłu",
+    "forward": "10 s do przodu",
+    "position": "Pozycja",
+    "rate": "Prędkość",
+    "follow": "Śledź dźwięk",
+    "jump": "Słuchaj od tego miejsca"
+  },
   "status": {
     "idle": "Otwórz plik audio, wideo lub Bino albo wybierz Bino z Biblioteki",
     "recording": "Trwa nagrywanie…",

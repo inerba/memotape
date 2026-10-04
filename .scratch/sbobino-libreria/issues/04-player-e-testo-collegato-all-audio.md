@@ -11,16 +11,16 @@ Il testo segue l'audio:
 
 **Blocked by:** 03; anche 02, per il salto dai risultati di ricerca, se è già fatto.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Finestra sul mix, una funzione pura:
+- [x] Finestra sul mix, una funzione pura:
   - riceve una richiesta `Range` (assente, `a-b`, `a-`, `-n` oppure oltre la fine) più offset e lunghezza della voce `mix.ogg`;
   - restituisce lo stato (200/206/416), le intestazioni (`Content-Range`, `Content-Length`, `Accept-Ranges: bytes`, `Content-Type: audio/ogg`) e i byte da leggere;
-  - ogni risposta è limitata a circa 1 MB.
-- [ ] Protocollo personalizzato con `register_asynchronous_uri_scheme_protocol`, sul modello di `examples/streaming` di Tauri e del crate `http-range`:
+  - ogni risposta parziale è limitata a 1 MB. Senza `Range` (o con una non capita) risponde 200 con il mix intero, come il protocollo `asset`: `<audio>` manda sempre `Range`.
+- [x] Protocollo personalizzato con `register_asynchronous_uri_scheme_protocol`, sul modello di `examples/streaming` di Tauri (senza `http-range`: un intervallo solo si legge in poche righe):
   - serve solo il `mix.ogg` di un `.bino`;
   - apre il file a ogni richiesta e non lo tiene aperto, così correzioni, rinomina e Cestino non lo trovano bloccato.
-- [ ] Player con `<audio>`:
+- [x] Player con `<audio>`:
   - Play/Pausa;
   - posizione e durata (`m:ss` / `h:mm:ss`);
   - barra di avanzamento;
@@ -29,33 +29,34 @@ Il testo segue l'audio:
   - Spazio, quando il focus non è in un campo di testo.
 
   È disabilitato durante una Registrazione e si ferma quando si apre un altro Bino. I file non trascritti non hanno player.
-- [ ] Evidenziazione:
+- [x] Evidenziazione:
   - la Frase che contiene la posizione, `fine_ms` esclusa;
   - nel silenzio, la Frase precedente;
   - con Frasi sovrapposte (Ingressi separati), tutte, e lo scorrimento segue quella iniziata prima;
   - si aggiorna anche spostando la barra.
-- [ ] "Segui l'audio", una macchina a stati `following`/`free`:
+- [x] "Segui l'audio", una macchina a stati `following`/`free`:
   - lo scorrimento manuale passa a `free` e mostra il comando. Si riconosce da `wheel`, dai tasti e dal trascinamento della barra di scorrimento, non dall'evento `scroll`;
   - il comando, il pulsante del tempo e la barra del player tornano a `following`;
   - durante la correzione di una Frase lo scorrimento automatico è sospeso.
-- [ ] Pulsante del tempo accanto a ogni Frase:
+- [x] Pulsante del tempo accanto a ogni Frase:
   - si vede al passaggio del mouse, e sempre per la Frase in riproduzione e all'inizio di ogni turno;
   - si raggiunge con Tab;
   - porta `currentTime` a `inizio_ms` senza cambiare Play/Pausa;
   - i tempi non entrano in Copia testo né nel Markdown.
-- [ ] Il clic su un risultato di ricerca (ticket 02) porta anche il player alla Frase, in pausa.
-- [ ] Test Rust: le richieste `Range` alla finestra danno gli stessi byte di `mix.ogg` estratto.
-- [ ] Test frontend:
+- [x] Il clic su un risultato di ricerca (ticket 02) porta anche il player alla Frase, in pausa.
+- [x] Test Rust: le richieste `Range` alla finestra danno gli stessi byte di `mix.ogg` estratto.
+- [x] Test frontend:
   - Frasi da evidenziare: posizione dentro una Frase, sul confine, nel silenzio, prima della prima, dopo l'ultima, con Frasi sovrapposte;
   - la sequenza di "Segui l'audio";
   - il formato dei tempi.
-- [ ] Etichette nuove nelle sei lingue.
-- [ ] Verifica in `bun tauri dev` via CDP:
+- [x] Etichette nuove nelle sei lingue.
+- [x] Verifica in `bun tauri dev` via CDP:
   - riproduzione e spostamento su Bini veri a 16 e 48 kHz, mono e stereo, misurando la precisione dello spostamento;
   - salto a una Frase in pausa e in riproduzione;
   - scorrimento automatico e "Segui l'audio";
   - correzione e rinomina mentre il player suona.
-- [ ] Riporta in `docs/research/` le verifiche su WebView2, protocollo e rusqlite delle "Further Notes" della spec, con l'esito delle misure.
+- [x] Riporta in `docs/research/` le verifiche su WebView2, protocollo e rusqlite delle "Further Notes" della spec, con l'esito delle misure.
+  Esito in `docs/research/libreria-e-player.md`, "Player": spostamento entro 2 ms a 16 e 48 kHz, mono e stereo.
 
 ## Note per chi lo implementa
 - Leggi prima:

@@ -5,6 +5,7 @@ mod engine;
 mod error;
 mod library;
 mod managers;
+mod player;
 mod transcript;
 
 use tauri::Manager;
@@ -86,6 +87,12 @@ pub fn run() {
         .manage(managers::pending_bino::PendingBino::default())
         .manage(managers::library::LibraryState::default())
         .invoke_handler(builder.invoke_handler())
+        // Il mix di un Bino per il player, un tratto alla volta, letto fuori dal thread della finestra.
+        .register_asynchronous_uri_scheme_protocol("bino", |_, request, responder| {
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(player::respond(&request));
+            });
+        })
         // Quello che l'utente ha fatto in Esplora file si vede appena torna all'app.
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Focused(true) = event {

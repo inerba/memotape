@@ -189,6 +189,11 @@ export interface PhraseRef {
   phraseId: number;
 }
 
+/** Ingresso e id: identifica una Frase tra quelle di tutti gli Ingressi. */
+export function phraseKey(p: PhraseRef): string {
+  return `${p.ingresso}:${p.phraseId}`;
+}
+
 /** La correzione del testo di una Frase; tempi e Parlante restano. Una Frase svuotata resta. */
 export function withTesto(
   conversation: Conversation,
@@ -259,7 +264,7 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
       last = {
         ingresso: item.ingresso,
         items: [item],
-        key: `${item.ingresso}:${item.phraseId}${partial ? ":parziale" : ""}`,
+        key: `${phraseKey(item)}${partial ? ":parziale" : ""}`,
         label,
         parlante,
       };

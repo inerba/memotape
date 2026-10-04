@@ -31,6 +31,7 @@ import {
 import { Sidebar } from "@/features/library/sidebar";
 import { useBinoOperations } from "@/features/library/use-bino-operations";
 import { useLibrary } from "@/features/library/use-library";
+import { Player, usePlayer } from "@/features/player/player";
 import { RecordMenu } from "@/features/recording/record-menu";
 import { activityText, afterRecording } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
@@ -314,6 +315,8 @@ export function HomePage() {
   // "Attività in corso" riporta alla sua vista.
   const showActivity = useCallback(() => {
     setBrowsed(null);
+    // La Frase trovata era del Bino consultato.
+    setHighlight(null);
     setListOpen(false);
   }, []);
 
@@ -591,6 +594,7 @@ export function HomePage() {
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
       own={own}
+      recording={recording}
       renaming={renaming}
       running={running}
       view={view}
@@ -726,8 +730,9 @@ export function HomePage() {
 }
 
 /**
- * La vista di un Bino: titolo, informazioni, azioni, Parlanti e trascrizione a turni. `editable`: non
- * ci lavora l'Attività in corso; `own`: è la Sorgente, che Trascrivi trascrive.
+ * La vista di un Bino: titolo, informazioni, azioni, Parlanti, trascrizione a turni e player.
+ * `editable`: non ci lavora l'Attività in corso; `own`: è la Sorgente, che Trascrivi trascrive;
+ * `recording`: il player è disabilitato.
  */
 function BinoPane({
   busy,
@@ -750,6 +755,7 @@ function BinoPane({
   onTranscribe,
   onTrash,
   own,
+  recording,
   renaming,
   running,
   view: { conversation, info, path },
@@ -774,6 +780,7 @@ function BinoPane({
   onTranscribe: () => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
   own: boolean;
+  recording: boolean;
   renaming: Parlante | null;
   running: boolean;
   view: BinoView;
@@ -781,6 +788,23 @@ function BinoPane({
   const { t } = useTranslation();
   const parlanti = editable ? parlantiOf(conversation, t) : [];
   const transcribing = own && running;
+  const player = usePlayer(info?.durataMs ?? 0);
+  // La Frase di un risultato della ricerca porta lì il player, senza avviarlo.
+  const phrases = useRef(conversation.phrases);
+  useEffect(() => {
+    phrases.current = conversation.phrases;
+  }, [conversation.phrases]);
+  const { audio, move } = player;
+  useEffect(() => {
+    const found = phrases.current.find(
+      (p) =>
+        p.ingresso === highlight?.ingresso && p.phraseId === highlight.phraseId
+    );
+    if (found) {
+      audio.current?.pause();
+      move(found.inizioMs, "jump");
+    }
+  }, [audio, highlight, move]);
   const copy = useCallback(() => onCopy(path), [onCopy, path]);
   const rename = useCallback(
     (voce: Parlante, nome: string) => onRenameParlante(path, voce, nome),
@@ -828,13 +852,18 @@ function BinoPane({
         onRename={rename}
       />
       {transcribing ? null : (
-        <TranscriptView
-          conversation={conversation}
-          highlight={highlight}
-          onEdit={editable ? edit : undefined}
-          onRename={onRenaming}
-          parlanti={parlanti}
-        />
+        <>
+          <TranscriptView
+            conversation={conversation}
+            highlight={highlight}
+            onEdit={editable ? edit : undefined}
+            onRename={onRenaming}
+            parlanti={parlanti}
+            // Durante una Registrazione niente salti né evidenziazione: il player è disabilitato.
+            player={recording ? undefined : player}
+          />
+          <Player disabled={recording} path={path} player={player} />
+        </>
       )}
     </>
   );

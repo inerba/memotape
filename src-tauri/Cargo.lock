@@ -3669,6 +3669,7 @@ dependencies = [
  "log",
  "ogg",
  "opus",
+ "percent-encoding",
  "reqwest",
  "rubato",
  "rusqlite",

@@ -31,6 +31,17 @@
     "export": "Markdown exportieren…",
     "exported": "Exportiert nach {{path}}"
   },
+  "player": {
+    "label": "Player",
+    "play": "Abspielen (Leertaste)",
+    "pause": "Pause (Leertaste)",
+    "back": "10 s zurück",
+    "forward": "10 s vor",
+    "position": "Position",
+    "rate": "Geschwindigkeit",
+    "follow": "Dem Audio folgen",
+    "jump": "Ab hier anhören"
+  },
   "status": {
     "idle": "Öffne eine Audio-, Video- oder Bino-Datei oder wähle einen Bino aus der Bibliothek",
     "recording": "Aufnahme läuft…",

@@ -31,6 +31,17 @@
     "export": "Exporter en Markdown…",
     "exported": "Exporté dans {{path}}"
   },
+  "player": {
+    "label": "Lecteur",
+    "play": "Lire (Espace)",
+    "pause": "Pause (Espace)",
+    "back": "Reculer de 10 s",
+    "forward": "Avancer de 10 s",
+    "position": "Position",
+    "rate": "Vitesse",
+    "follow": "Suivre l'audio",
+    "jump": "Écouter à partir d'ici"
+  },
   "status": {
     "idle": "Ouvrez un fichier audio, vidéo ou Bino, ou choisissez un Bino de la Bibliothèque",
     "recording": "Enregistrement en cours…",

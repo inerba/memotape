@@ -285,13 +285,19 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Un clic su una Frase la rende modificabile: Invio o l'uscita dalla Frase salvano nel Bino (i tempi, i Parlanti e l'audio restano), Esc ripristina il testo. Una Frase svuotata resta. Se il salvataggio non riesce il testo resta scritto e la status bar dice l'errore. La correzione si ritrova riaprendo il Bino e si trova subito con la ricerca. Su un Bino di un'ora il salvataggio dura circa 50 ms. Il testo non si corregge durante l'Attività che lo produce; gli altri Bini sì.
   - Trascrivi ▾ sceglie modello, Lingua del parlato e Riconosci i parlanti, e il pulsante dice la Lingua scelta ("Trascrivi · Italiano"); Registra ▾ sceglie Trascrivi dal vivo e Riconosci i parlanti della Registrazione. La conferma di Trascrivi si chiede solo su un Bino e avvisa che correzioni e nomi dei Parlanti si perdono; aprire un Bino o registrare non chiedono più conferma, perché non c'è più testo modificato a mano da perdere.
   - Copia testo copia sempre le Frasi: del Bino aperto, con correzioni e nomi, oppure della Trascrizione in corso o appena annullata.
+- **V11, Player e testo collegato all'audio (ticket libreria/04)**: storie 75–99 della spec v3; della 17 il player di un Bino fuori dalla Libreria, della 41 il player portato alla Frase trovata.
+  - In fondo alla vista di un Bino c'è un player che riproduce il mix, anche con gli Ingressi separati: Play/Pausa, indietro e avanti di 10 s, posizione, durata, barra di avanzamento e velocità 1×, 1,25×, 1,5× e 2×. Spazio fa Play/Pausa quando non si scrive. Il player è disabilitato durante una Registrazione e si ferma aprendo un altro Bino; un file audio o video non trascritto non ce l'ha. Lo spostamento arriva al punto chiesto entro 2 ms, con il mix a 16 e 48 kHz, mono e stereo.
+  - Durante l'ascolto la Frase in riproduzione si evidenzia (più di una se si sovrappongono, con gli Ingressi separati) e resta in vista; nel silenzio resta la precedente. Scorrendo il testo a mano lo scorrimento si ferma e compare "Segui l'audio", che lo riprende; lo riprendono anche la barra del player e il salto a una Frase. Mentre si corregge una Frase il testo non scorre da solo.
+  - Ogni Frase ha il pulsante del suo tempo (`12:34`), visibile passando il mouse, con il focus da tastiera, per la Frase in riproduzione e all'inizio di ogni turno: porta il player all'inizio della Frase senza cambiare Play/Pausa. Il clic sul testo serve solo a correggerlo. I tempi non entrano in Copia testo né nel Markdown.
+  - Il clic su una Frase trovata con la ricerca porta lì anche il player, in pausa.
+  - Correzioni e rinomine dei Parlanti si salvano anche mentre il player suona: il Bino non resta aperto tra una lettura dell'audio e l'altra.
 
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
-- Timestamp nel testo, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
+- Timestamp nel testo copiato o esportato, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.
