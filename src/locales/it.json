@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "Generale",
-      "description": "La Cartella della Libreria, il formato di Copia testo e la Lingua dell'interfaccia.",
+      "description": "La Cartella della Libreria, il formato di Copia testo, il tema e la Lingua dell'interfaccia.",
       "folder": "Cartella della Libreria",
       "folderDescription": "Dove Sbobino salva i Bini: le sue cartelle sono le Raccolte. Se non esiste viene creata; cambiarla non sposta i Bini della cartella precedente.",
       "choose": "Scegli…",
       "reset": "Usa Documenti\\Sbobino",
       "language": "Lingua dell'interfaccia",
+      "theme": "Tema",
+      "themes": {
+        "sistema": "Come Windows",
+        "chiaro": "Chiaro",
+        "scuro": "Scuro"
+      },
       "languageRestart": "La nuova lingua si applica al prossimo avvio di Sbobino.",
       "copyAs": "Copia testo come",
       "copyFormats": {

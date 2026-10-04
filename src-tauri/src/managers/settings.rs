@@ -61,6 +61,43 @@ pub struct Settings {
     /// altrimenti il nome. Manca nei file salvati prima che esistesse: allora è Tutta la Libreria.
     #[serde(default)]
     pub raccolta: Option<String>,
+    /// Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows.
+    #[serde(default)]
+    pub tema: Tema,
+}
+
+/// Il tema dell'interfaccia: quello di Windows o uno fisso.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum Tema {
+    #[default]
+    Sistema,
+    Chiaro,
+    Scuro,
+}
+
+impl Tema {
+    /// Il tema della finestra; `None` segue Windows.
+    pub fn theme(self) -> Option<tauri::Theme> {
+        match self {
+            Self::Sistema => None,
+            Self::Chiaro => Some(tauri::Theme::Light),
+            Self::Scuro => Some(tauri::Theme::Dark),
+        }
+    }
+
+    /// Lo applica alla finestra principale: barra del titolo e `prefers-color-scheme` della
+    /// WebView2, quindi i token scuri di `global.css` e la variante `dark:` lo seguono.
+    pub fn apply(self, app: &tauri::AppHandle) {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("main")
+            && let Err(e) = window.set_theme(self.theme())
+        {
+            log::warn!("tema non applicato: {e}");
+        }
+    }
 }
 
 #[derive(
@@ -185,6 +222,7 @@ impl Default for Settings {
             parlanti_microfono: false,
             parlanti_sistema: false,
             raccolta: None,
+            tema: Tema::Sistema,
         }
     }
 }
@@ -420,6 +458,7 @@ mod tests {
             !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
         );
         assert_eq!(settings.raccolta, None);
+        assert_eq!(settings.tema, Tema::Sistema);
     }
 
     #[test]
@@ -507,6 +546,7 @@ mod tests {
         object.remove("parlantiMix");
         object.remove("parlantiMicrofono");
         object.remove("parlantiSistema");
+        object.remove("tema");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
@@ -518,6 +558,14 @@ mod tests {
             !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
         );
         assert_eq!(settings.raccolta, None);
+        assert_eq!(settings.tema, Tema::Sistema);
+    }
+
+    #[test]
+    fn sistema_lascia_il_tema_a_windows_chiaro_e_scuro_lo_fissano() {
+        assert_eq!(Tema::Sistema.theme(), None);
+        assert_eq!(Tema::Chiaro.theme(), Some(tauri::Theme::Light));
+        assert_eq!(Tema::Scuro.theme(), Some(tauri::Theme::Dark));
     }
 
     #[test]
@@ -594,6 +642,7 @@ mod tests {
             parlanti_microfono: false,
             parlanti_sistema: true,
             raccolta: Some("Ferrara Quarzi".into()),
+            tema: Tema::Scuro,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

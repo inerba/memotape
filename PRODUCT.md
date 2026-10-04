@@ -52,7 +52,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 - Le funzioni sono le storie utente qui sotto; i termini sono quelli di `CONTEXT.md` (Sorgente, Attività, Frase, Parziale, Parlante, Bino…) e vanno usati uguali nell'interfaccia.
 - Sei lingue dell'interfaccia (it di riferimento, en, fr, es, de, pl): le etichette devono reggere i testi più lunghi di tedesco e polacco.
-- Tema chiaro o scuro da Windows; dialog di sistema nativi per file e cartelle.
+- Tema chiaro o scuro da Windows, oppure scelto in Impostazioni; dialog di sistema nativi per file e cartelle.
 - La rete serve solo per scaricare i modelli e per il controllo aggiornamenti.
 - Da decidere: editore dell'installer (oggi "EDITORE DA DEFINIRE"), firma dell'installer, licenza e modalità di distribuzione dell'app.
 
@@ -162,7 +162,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 65. Come utente, voglio che la sezione Attività mostri sempre la fase in corso e la percentuale quando c'è, e che errori ed esiti compaiano in un avviso con messaggi dedicati, così so sempre cosa succede.
 66. Come utente, voglio che all'avvio, se c'è connessione, l'app controlli se esiste una versione più recente e mi proponga il link per scaricarla, così resto aggiornato.
 67. Come utente offline, voglio che il controllo aggiornamenti fallisca in silenzio, così non vedo errori inutili.
-68. Come utente, voglio che il tema chiaro o scuro segua quello di Windows, così l'app si integra con il sistema.
+68. Come utente, voglio che il tema chiaro o scuro segua quello di Windows, così l'app si integra con il sistema; in Impostazioni → Generale posso invece sceglierlo chiaro o scuro, e la scelta si applica subito.
 
 ### Sviluppo e distribuzione
 

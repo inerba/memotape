@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "Allgemein",
-      "description": "Der Bibliotheksordner, das Format von Text kopieren und die Sprache der Oberfläche.",
+      "description": "Der Bibliotheksordner, das Format von Text kopieren, das Design und die Sprache der Oberfläche.",
       "folder": "Bibliotheksordner",
       "folderDescription": "Hier speichert Sbobino die Bini: Seine Ordner sind die Sammlungen. Der Ordner wird angelegt, falls er nicht existiert; ein Wechsel verschiebt die Bini des vorherigen Ordners nicht.",
       "choose": "Auswählen…",
       "reset": "Dokumente\\Sbobino verwenden",
       "language": "Sprache der Oberfläche",
+      "theme": "Design",
+      "themes": {
+        "sistema": "Wie Windows",
+        "chiaro": "Hell",
+        "scuro": "Dunkel"
+      },
       "languageRestart": "Die neue Sprache gilt ab dem nächsten Start von Sbobino.",
       "copyAs": "Text kopieren als",
       "copyFormats": {

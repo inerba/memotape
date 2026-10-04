@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "Général",
-      "description": "Le dossier de la Bibliothèque, le format de Copier le texte et la langue de l'interface.",
+      "description": "Le dossier de la Bibliothèque, le format de Copier le texte, le thème et la langue de l'interface.",
       "folder": "Dossier de la Bibliothèque",
       "folderDescription": "Où Sbobino enregistre les Bini : ses dossiers sont les Collections. Il est créé s'il n'existe pas ; le changer ne déplace pas les Bini du dossier précédent.",
       "choose": "Choisir…",
       "reset": "Utiliser Documents\\Sbobino",
       "language": "Langue de l'interface",
+      "theme": "Thème",
+      "themes": {
+        "sistema": "Comme Windows",
+        "chiaro": "Clair",
+        "scuro": "Sombre"
+      },
       "languageRestart": "La nouvelle langue s'applique au prochain démarrage de Sbobino.",
       "copyAs": "Copier le texte en",
       "copyFormats": {

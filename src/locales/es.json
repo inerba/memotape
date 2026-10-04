@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "General",
-      "description": "La carpeta de la Biblioteca, el formato de Copiar texto y el idioma de la interfaz.",
+      "description": "La carpeta de la Biblioteca, el formato de Copiar texto, el tema y el idioma de la interfaz.",
       "folder": "Carpeta de la Biblioteca",
       "folderDescription": "Donde Sbobino guarda los Bini: sus carpetas son las Colecciones. Si no existe, se crea; cambiarla no mueve los Bini de la carpeta anterior.",
       "choose": "Elegir…",
       "reset": "Usar Documentos\\Sbobino",
       "language": "Idioma de la interfaz",
+      "theme": "Tema",
+      "themes": {
+        "sistema": "Como Windows",
+        "chiaro": "Claro",
+        "scuro": "Oscuro"
+      },
       "languageRestart": "El nuevo idioma se aplica la próxima vez que se inicie Sbobino.",
       "copyAs": "Copiar texto como",
       "copyFormats": {

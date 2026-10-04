@@ -18,6 +18,7 @@ import {
   type ModalitaDalVivo,
   type RecordingSource,
   type Settings,
+  type Tema,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import { About } from "@/features/about/about";
@@ -40,6 +41,7 @@ const SELECT =
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
 const LIVE_MODES: ModalitaDalVivo[] = ["mix", "ingressiSeparati"];
+const TEMI: Tema[] = ["sistema", "chiaro", "scuro"];
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
   const { save, settings } = useSettings();
@@ -136,6 +138,12 @@ export function SettingsPage() {
           COPY_FORMATS.find((f) => f === e.target.value) ?? settings.copiaCome,
       }),
     [choose, settings.copiaCome]
+  );
+  // Si applica subito: lo fa Rust al salvataggio.
+  const chooseTema = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({ tema: TEMI.find((m) => m === e.target.value) ?? settings.tema }),
+    [choose, settings.tema]
   );
   const resetFolder = useCallback(
     () => choose({ recordingsFolder: null }),
@@ -401,6 +409,23 @@ export function SettingsPage() {
               {COPY_FORMATS.map((value) => (
                 <option key={value} value={value}>
                   {t(`settings.general.copyFormats.${value}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex max-w-xl flex-col gap-2">
+            <label className="text-sm" htmlFor="tema">
+              {t("settings.general.theme")}
+            </label>
+            <select
+              className={`${SELECT} self-start`}
+              id="tema"
+              onChange={chooseTema}
+              value={settings.tema ?? "sistema"}
+            >
+              {TEMI.map((value) => (
+                <option key={value} value={value}>
+                  {t(`settings.general.themes.${value}`)}
                 </option>
               ))}
             </select>

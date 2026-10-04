@@ -189,7 +189,7 @@ components:
 
 Un Bino si legge come un documento e si ascolta come un nastro, e le due cose sono collegate. Il testo sta al centro, su un foglio di carta tiepida, in una colonna da lettura; i comandi stanno ai margini (barra laterale, riga del titolo, player sospeso in basso) e compaiono solo dove servono. Rifiuta l'impianto da pannello di controllo: niente fila di pulsanti sopra un'area di testo, niente status bar.
 
-La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema segue Windows con `prefers-color-scheme`, senza interruttore.
+La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema segue Windows con `prefers-color-scheme`; in Impostazioni → Generale si può fissarlo chiaro o scuro.
 
 Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tiene preciso con la tipografia (serif solo per i titoli, sans leggibile per tutto il resto, cifre tabulari per i tempi), con il ritmo della colonna e con l'accento usato con parsimonia.
 
@@ -350,4 +350,4 @@ Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato 
 - **Don't** segnare il turno o la Frase in ascolto con una barra colorata sul bordo sinistro: si usa il fondo salvia tenue.
 - **Don't** usare l'etichetta di gruppo maiuscola e spaziata fuori dalla barra laterale, e mai come occhiello sopra un titolo.
 - **Don't** reintrodurre una status bar o una fila di pulsanti sopra il testo: fase e avanzamento stanno nella barra laterale e nel dock, gli esiti negli avvisi.
-- **Don't** usare un colore fisso o una classe `.dark`: lo scuro arriva solo da `prefers-color-scheme`.
+- **Don't** usare un colore fisso o una classe `.dark`: lo scuro arriva solo da `prefers-color-scheme`, che la scelta del tema pilota da Rust (`Tema::apply`).

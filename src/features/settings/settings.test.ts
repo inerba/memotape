@@ -29,6 +29,8 @@ test("i predefiniti sono quelli di Rust", () => {
     defaults.parlantiMicrofono,
     defaults.parlantiSistema,
   ]).toEqual([false, false, false]);
+  // Il tema segue Windows finché l'utente non ne sceglie uno.
+  expect(defaults.tema).toBe("sistema");
 });
 
 test("Riconosci i parlanti delle Registrazioni ha una casella per Ingresso solo con gli Ingressi separati", () => {

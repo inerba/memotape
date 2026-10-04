@@ -110,9 +110,9 @@ pub fn run() {
                 .expect("export di src/bindings.ts fallito");
             builder.mount_events(app);
             let data = app.path().app_data_dir()?;
-            app.manage(managers::settings::SettingsStore::load(
-                data.join("settings.json"),
-            ));
+            let settings = managers::settings::SettingsStore::load(data.join("settings.json"));
+            settings.get().tema.apply(app.handle());
+            app.manage(settings);
             app.manage(managers::models::Models::new(data.join("models"))?);
             managers::transcription::preload(app.handle());
             managers::library::sync_in_background(app.handle());

@@ -108,8 +108,9 @@
   color-scheme: light dark;
 }
 
-/* Il tema segue Windows: la WebView2 riporta il tema di sistema in `prefers-color-scheme`, che è
-   anche la variante `dark:` predefinita di Tailwind 4. La stessa carta, di sera. */
+/* La WebView2 riporta in `prefers-color-scheme` il tema di Windows, o quello scelto nelle
+   impostazioni (`Tema::apply` in Rust); è anche la variante `dark:` predefinita di Tailwind 4.
+   La stessa carta, di sera. */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: oklch(0.205 0.008 65);

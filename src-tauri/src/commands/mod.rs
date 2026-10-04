@@ -323,7 +323,8 @@ pub fn system_language() -> Language {
 }
 
 /// Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
-/// sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background.
+/// sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background; se
+/// cambia il tema, lo applica subito.
 #[tauri::command]
 #[specta::specta]
 pub fn set_settings(
@@ -338,6 +339,9 @@ pub fn set_settings(
     }
     if previous.recordings_folder != saved.recordings_folder {
         managers::library::sync_in_background(&app);
+    }
+    if previous.tema != saved.tema {
+        saved.tema.apply(&app);
     }
     Ok(saved)
 }

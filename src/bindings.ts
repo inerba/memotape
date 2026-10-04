@@ -90,7 +90,8 @@ export const commands = {
 	getSettings: () => typedError<Settings, AppError>(__TAURI_INVOKE("get_settings")),
 	/**
 	 *  Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
-	 *  sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background.
+	 *  sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background; se
+	 *  cambia il tema, lo applica subito.
 	 */
 	setSettings: (settings: Settings) => typedError<Settings, AppError>(__TAURI_INVOKE("set_settings", { settings })),
 	/**
@@ -453,6 +454,8 @@ export type Settings = {
 	 *  altrimenti il nome. Manca nei file salvati prima che esistesse: allora è Tutta la Libreria.
 	 */
 	raccolta?: string | null,
+	/**  Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows. */
+	tema?: Tema,
 };
 
 export type SpeakerAssignment = {
@@ -471,6 +474,9 @@ export type SpeakersAssigned = {
 
 /**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
 export type SpeechLanguage = "auto" | "it" | "en" | "fr" | "es" | "de" | "pl";
+
+/**  Il tema dell'interfaccia: quello di Windows o uno fisso. */
+export type Tema = "sistema" | "chiaro" | "scuro";
 
 /**
  *  Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e

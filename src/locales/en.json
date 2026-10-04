@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "General",
-      "description": "The Library folder, the Copy text format and the interface language.",
+      "description": "The Library folder, the Copy text format, the theme and the interface language.",
       "folder": "Library folder",
       "folderDescription": "Where Sbobino saves Bini: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Bini of the previous folder.",
       "choose": "Choose…",
       "reset": "Use Documents\\Sbobino",
       "language": "Interface language",
+      "theme": "Theme",
+      "themes": {
+        "sistema": "Same as Windows",
+        "chiaro": "Light",
+        "scuro": "Dark"
+      },
       "languageRestart": "The new language takes effect the next time Sbobino starts.",
       "copyAs": "Copy text as",
       "copyFormats": {

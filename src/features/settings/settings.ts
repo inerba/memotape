@@ -59,6 +59,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recordingsFolder: null,
   sampleRate: 48_000,
   speechLanguage: "auto",
+  tema: "sistema",
   trascrizioneDalVivo: false,
 };
 
@@ -90,6 +91,8 @@ export const settingsSchema = z.object({
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),
   speechLanguage: z.enum(["auto", ...LANGUAGES]),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  tema: z.enum(["sistema", "chiaro", "scuro"]).optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   trascrizioneDalVivo: z.boolean().optional(),
 }) satisfies z.ZodType<Settings>;

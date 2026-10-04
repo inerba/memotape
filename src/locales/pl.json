@@ -147,12 +147,18 @@
     },
     "general": {
       "title": "Ogólne",
-      "description": "Folder Biblioteki, format Kopiuj tekst i język interfejsu.",
+      "description": "Folder Biblioteki, format Kopiuj tekst, motyw i język interfejsu.",
       "folder": "Folder Biblioteki",
       "folderDescription": "Tu Sbobino zapisuje pliki Bino: jego foldery to Kolekcje. Jeśli nie istnieje, zostanie utworzony; zmiana nie przenosi plików Bino z poprzedniego folderu.",
       "choose": "Wybierz…",
       "reset": "Użyj Dokumenty\\Sbobino",
       "language": "Język interfejsu",
+      "theme": "Motyw",
+      "themes": {
+        "sistema": "Jak w systemie Windows",
+        "chiaro": "Jasny",
+        "scuro": "Ciemny"
+      },
       "languageRestart": "Nowy język zostanie zastosowany przy następnym uruchomieniu Sbobino.",
       "copyAs": "Kopiuj tekst jako",
       "copyFormats": {
