@@ -14,10 +14,8 @@
     "cancel": "Anuluj",
     "cancelling": "Anulowanie…",
     "replace": {
-      "title": "Zastąpić tekst?",
-      "description": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony nową transkrypcją. Zapisane już pliki Markdown pozostaną.",
-      "descriptionBino": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony nową transkrypcją, także w pliku Bino. Zapisane już pliki Markdown pozostaną.",
-      "descriptionOpen": "Tekst w polu, łącznie z Twoimi zmianami, zostanie zastąpiony tekstem z pliku Bino.",
+      "title": "Transkrybować Bino ponownie?",
+      "description": "Tekst Bino zostanie zastąpiony nową transkrypcją: poprawki i nazwy mówców zostaną utracone.",
       "keep": "Zachowaj tekst",
       "confirm": "Zastąp"
     },
@@ -26,7 +24,12 @@
     "parlantiList": "Mówcy:",
     "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
     "renameName": "Nowa nazwa dla {{label}}",
-    "renameTaken": "Inny mówca ma już tę nazwę"
+    "renameTaken": "Inny mówca ma już tę nazwę",
+    "startWith": "Transkrybuj · {{language}}",
+    "options": "Opcje transkrypcji",
+    "edit": "Kliknij, aby poprawić: Enter zapisuje, Esc anuluje",
+    "export": "Eksportuj Markdown…",
+    "exported": "Wyeksportowano do {{path}}"
   },
   "status": {
     "idle": "Otwórz plik audio, wideo lub Bino albo wybierz Bino z Biblioteki",
@@ -38,12 +41,9 @@
     "completing": "Kończenie transkrypcji…",
     "completingPercent": "Kończenie transkrypcji… {{percent}}%",
     "progress": "Postęp transkrypcji",
-    "finished_one": "Transkrypcja zakończona: zapisano {{count, number}} znak w pliku {{path}}",
-    "finished_few": "Transkrypcja zakończona: zapisano {{count, number}} znaki w pliku {{path}}",
-    "finished_many": "Transkrypcja zakończona: zapisano {{count, number}} znaków w pliku {{path}}",
-    "finished_other": "Transkrypcja zakończona: zapisano {{count, number}} znaku w pliku {{path}}",
+    "finished": "Transkrypcja zapisana w {{path}}",
     "noSpeech": "Nie wykryto mowy",
-    "cancelled": "Transkrypcja anulowana: nie zapisano pliku Markdown",
+    "cancelled": "Transkrypcja anulowana",
     "openModels": "Otwórz Ustawienia → Transkrypcja",
     "diarizing": "Rozpoznawanie mówców…"
   },
@@ -195,7 +195,8 @@
       "microphone": "Mikrofon",
       "system": "System"
     },
-    "level": "Poziom: {{input}}"
+    "level": "Poziom: {{input}}",
+    "options": "Opcje nagrywania"
   },
   "about": {
     "title": "Informacje",
@@ -259,6 +260,12 @@
     "names": {
       "invalidName": "Niedozwolone znaki (< > : \" / \\ | ? *), nazwa zastrzeżona, kropka na początku albo kropka lub spacja na końcu",
       "nameTaken": "Ta nazwa jest już używana"
+    },
+    "more": "Więcej działań",
+    "info": {
+      "incomplete": "niekompletny",
+      "origine": "z pliku {{name}}",
+      "outside": "poza Biblioteką"
     }
   }
 }

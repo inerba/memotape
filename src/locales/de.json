@@ -14,10 +14,8 @@
     "cancel": "Abbrechen",
     "cancelling": "Wird abgebrochen…",
     "replace": {
-      "title": "Text ersetzen?",
-      "description": "Der Text im Feld wird einschließlich deiner Änderungen durch die neue Transkription ersetzt. Bereits gespeicherte Markdown-Dateien bleiben erhalten.",
-      "descriptionBino": "Der Text im Feld wird samt deinen Änderungen durch die neue Transkription ersetzt, auch im Bino. Bereits gespeicherte Markdown-Dateien bleiben erhalten.",
-      "descriptionOpen": "Der Text im Feld wird samt deinen Änderungen durch den Text des Bino ersetzt.",
+      "title": "Bino erneut transkribieren?",
+      "description": "Der Text des Bino wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren.",
       "keep": "Text behalten",
       "confirm": "Ersetzen"
     },
@@ -26,7 +24,12 @@
     "parlantiList": "Sprecher:",
     "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
     "renameName": "Neuer Name für {{label}}",
-    "renameTaken": "Ein anderer Sprecher hat diesen Namen schon"
+    "renameTaken": "Ein anderer Sprecher hat diesen Namen schon",
+    "startWith": "Transkribieren · {{language}}",
+    "options": "Transkriptionsoptionen",
+    "edit": "Zum Korrigieren klicken: Eingabe speichert, Esc bricht ab",
+    "export": "Markdown exportieren…",
+    "exported": "Exportiert nach {{path}}"
   },
   "status": {
     "idle": "Öffne eine Audio-, Video- oder Bino-Datei oder wähle einen Bino aus der Bibliothek",
@@ -38,10 +41,9 @@
     "completing": "Transkription wird abgeschlossen…",
     "completingPercent": "Transkription wird abgeschlossen… {{percent}} %",
     "progress": "Fortschritt der Transkription",
-    "finished_one": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
-    "finished_other": "Transkription abgeschlossen: {{count, number}} Zeichen gespeichert unter {{path}}",
+    "finished": "Transkription gespeichert in {{path}}",
     "noSpeech": "Keine Sprache erkannt",
-    "cancelled": "Transkription abgebrochen: keine Markdown-Datei gespeichert",
+    "cancelled": "Transkription abgebrochen",
     "openModels": "Einstellungen → Transkription öffnen",
     "diarizing": "Sprecher werden erkannt…"
   },
@@ -193,7 +195,8 @@
       "microphone": "Mikrofon",
       "system": "System"
     },
-    "level": "Pegel: {{input}}"
+    "level": "Pegel: {{input}}",
+    "options": "Aufnahmeoptionen"
   },
   "about": {
     "title": "Info",
@@ -257,6 +260,12 @@
     "names": {
       "invalidName": "Unzulässige Zeichen (< > : \" / \\ | ? *), reservierter Name, Punkt am Anfang oder Punkt bzw. Leerzeichen am Ende",
       "nameTaken": "Dieser Name wird bereits verwendet"
+    },
+    "more": "Weitere Aktionen",
+    "info": {
+      "incomplete": "unvollständig",
+      "origine": "aus {{name}}",
+      "outside": "außerhalb der Bibliothek"
     }
   }
 }

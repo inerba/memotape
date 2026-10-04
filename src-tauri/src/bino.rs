@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 
 use chrono::{DateTime, Local};
 use zip::write::SimpleFileOptions;
@@ -45,6 +46,9 @@ pub struct Document {
     /// I nomi dati ai Parlanti, per chiave `<ingresso>:<n>`.
     pub parlanti: BTreeMap<String, String>,
     pub frasi: Vec<Frase>,
+    /// Il nome del file audio o video da cui è stato trascritto il Bino; manca in una Registrazione.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origine: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -110,6 +114,7 @@ impl Document {
                     parlante: phrase.parlante,
                 })
                 .collect(),
+            origine: None,
         }
     }
 }
@@ -188,6 +193,59 @@ pub fn rewrite(path: &Path, document: &Document) -> Result<(), AppError> {
         let _ = std::fs::remove_file(&temp);
     }
     written
+}
+
+/// Corregge il testo della Frase `id` di `ingresso` e riscrive il Bino: tempi, Parlanti, nomi e audio
+/// restano come sono.
+pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Result<(), AppError> {
+    update(path, |document| {
+        let frase = document
+            .frasi
+            .iter_mut()
+            .find(|f| f.ingresso == ingresso && f.id == id)
+            .ok_or_else(|| {
+                AppError::Internal(format!(
+                    "{}: Frase {ingresso:?} {id} assente",
+                    path.display()
+                ))
+            })?;
+        testo.clone_into(&mut frase.testo);
+        Ok(())
+    })
+}
+
+/// Dà il nome `nome` (senza spazi in testa e in coda, non vuoto) al Parlante `parlante` di `ingresso`,
+/// per tutte le sue Frasi, e riscrive il Bino.
+pub fn rename_parlante(
+    path: &Path,
+    ingresso: Ingresso,
+    parlante: u32,
+    nome: &str,
+) -> Result<(), AppError> {
+    let nome = nome.trim();
+    if nome.is_empty() {
+        return Err(AppError::Internal("nome del Parlante vuoto".into()));
+    }
+    update(path, |document| {
+        document
+            .parlanti
+            .insert(ingresso.parlante_key(parlante), nome.into());
+        Ok(())
+    })
+}
+
+/// Legge, cambia e riscrive il documento. Due modifiche dello stesso Bino non si sovrappongono: altrimenti
+/// l'ultima cancellerebbe la prima e scriverebbero lo stesso `.tmp`.
+// ponytail: un solo lock per tutti i Bini; una mappa per percorso se le scritture diventano lente.
+fn update(
+    path: &Path,
+    change: impl FnOnce(&mut Document) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    static WRITING: Mutex<()> = Mutex::new(());
+    let _writing = WRITING.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut document = read(path)?;
+    change(&mut document)?;
+    rewrite(path, &document)
 }
 
 /// L'audio di `mix.ogg`, letto direttamente dentro lo zip: la voce non è compressa.
@@ -321,6 +379,7 @@ mod tests {
                     parlante: Some(1),
                 })
                 .collect(),
+            origine: None,
         }
     }
 
@@ -500,6 +559,95 @@ mod tests {
         drop(lock);
         assert_eq!(std::fs::read(&path).unwrap(), before);
         assert!(!dir.join("Registrazione.bino.tmp").exists());
+    }
+
+    #[test]
+    fn origine_si_rilegge_e_un_bino_senza_origine_si_legge_come_prima() {
+        let dir = temp_dir("bino-origine");
+        let path = dir.join("Call.bino");
+        let written = Document {
+            origine: Some("Call Teams.mp4".into()),
+            ..document(&["Ciao."])
+        };
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &written).unwrap();
+        assert_eq!(read(&path).unwrap(), written);
+        // Senza origine il campo non si scrive, e un Bino di prima si legge con `None`.
+        let json = serde_json::to_value(document(&["Ciao."])).unwrap();
+        assert!(json.get("origine").is_none(), "{json}");
+        let old = dir.join("Vecchio.bino");
+        bino_with(&old, &json.to_string());
+        assert_eq!(read(&old).unwrap().origine, None);
+    }
+
+    #[test]
+    fn la_correzione_cambia_solo_il_testo_di_quella_frase() {
+        let dir = temp_dir("bino-correzione");
+        let mix = ogg(&dir);
+        let path = dir.join("Call.bino");
+        let mut before = document(&["Buongiorno.", "Inizziamo.", "Bene."]);
+        before.origine = Some("Call.mp4".into());
+        before.frasi[2].ingresso = Ingresso::Sistema;
+        before.frasi[2].id = 1;
+        write(&path, &[(Ingresso::Mix, &mix)], &before).unwrap();
+        edit_frase(&path, Ingresso::Mix, 1, "Iniziamo.").unwrap();
+        let mut expected = before.clone();
+        expected.frasi[1].testo = "Iniziamo.".into();
+        assert_eq!(read(&path).unwrap(), expected);
+        // Lo stesso id in un altro Ingresso è un'altra Frase; una Frase svuotata resta.
+        edit_frase(&path, Ingresso::Sistema, 1, "").unwrap();
+        expected.frasi[2].testo = String::new();
+        assert_eq!(read(&path).unwrap(), expected);
+        let mut audio = Vec::new();
+        Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
+        assert_eq!(audio, std::fs::read(&mix).unwrap());
+        // Una Frase che non c'è non cambia nulla.
+        assert!(edit_frase(&path, Ingresso::Microfono, 0, "x").is_err());
+        assert_eq!(read(&path).unwrap(), expected);
+    }
+
+    #[test]
+    fn correzioni_contemporanee_dello_stesso_bino_restano_tutte() {
+        let dir = temp_dir("bino-correzioni-contemporanee");
+        let path = dir.join("Call.bino");
+        let testi: Vec<String> = (0..8).map(|i| format!("Frase {i}.")).collect();
+        let refs: Vec<&str> = testi.iter().map(String::as_str).collect();
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &document(&refs)).unwrap();
+        std::thread::scope(|scope| {
+            for id in 0..8 {
+                let path = &path;
+                scope.spawn(move || edit_frase(path, Ingresso::Mix, id, "corretta").unwrap());
+            }
+            scope.spawn(|| rename_parlante(&path, Ingresso::Mix, 2, "Lucia").unwrap());
+        });
+        let after = read(&path).unwrap();
+        assert!(
+            after.frasi.iter().all(|f| f.testo == "corretta"),
+            "{after:?}"
+        );
+        assert_eq!(
+            after.parlanti.get("mix:2").map(String::as_str),
+            Some("Lucia")
+        );
+    }
+
+    #[test]
+    fn la_rinomina_di_un_parlante_si_salva_nel_bino() {
+        let dir = temp_dir("bino-rinomina");
+        let path = dir.join("Call.bino");
+        let before = document(&["Ciao.", "Salve."]);
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before).unwrap();
+        rename_parlante(&path, Ingresso::Sistema, 2, "  Lucia ").unwrap();
+        // Un nome vuoto si rifiuta e non cambia nulla.
+        assert!(rename_parlante(&path, Ingresso::Mix, 1, "  ").is_err());
+        let after = read(&path).unwrap();
+        assert_eq!(
+            after.parlanti,
+            BTreeMap::from([
+                ("mix:1".to_string(), "Mario".to_string()),
+                ("sistema:2".to_string(), "Lucia".to_string()),
+            ])
+        );
+        assert_eq!(after.frasi, before.frasi);
     }
 
     #[test]

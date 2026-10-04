@@ -60,21 +60,6 @@ test("ogni lingua ha le chiavi dell'italiano, con le forme plurali della lingua"
   }
 });
 
-test("il polacco usa le sue forme plurali", () => {
-  const finished = (count: number) =>
-    i18n.t("status.finished", { count, lng: "pl", path: "a.txt" });
-  const fill = (text: string, count: number) =>
-    text
-      .replace("{{count, number}}", String(count))
-      .replace("{{path}}", "a.txt");
-  // 1 → one, 2 e 22 → few, 5 e 12 → many (CLDR).
-  expect(finished(1)).toBe(fill(pl.status.finished_one, 1));
-  expect(finished(2)).toBe(fill(pl.status.finished_few, 2));
-  expect(finished(22)).toBe(fill(pl.status.finished_few, 22));
-  expect(finished(5)).toBe(fill(pl.status.finished_many, 5));
-  expect(finished(12)).toBe(fill(pl.status.finished_many, 12));
-});
-
 test("l'interfaccia parte in italiano e interpola senza escape", () => {
   expect(i18n.language).toBe("it");
   expect(i18n.t("about.version", { version: "0.1.0 <dev>" })).toBe(

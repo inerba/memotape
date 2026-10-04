@@ -1,10 +1,15 @@
-//! Writer Ogg/Opus (RFC 7845) per le Registrazioni: libopus via `opus`, pagine con `ogg`.
+//! Writer Ogg/Opus (RFC 7845) per le Registrazioni e, con `OggCopy`, per il mix del Bino di un file
+//! trascritto: libopus via `opus`, pagine con `ogg`.
 
+use std::fs::File;
 use std::io::Write;
 
 use ogg::writing::{PacketWriteEndInfo, PacketWriter};
 use opus::{Application, Bitrate, Channels, Encoder};
 
+use crate::audio_toolkit::decode::Block;
+use crate::audio_toolkit::mixer::downmix;
+use crate::audio_toolkit::resample::Resampler;
 use crate::error::AppError;
 
 /// Pacchetti da 20 ms: 960 campioni a 48 kHz, l'unità della granule position.
@@ -149,6 +154,64 @@ impl<W: Write> OggOpusWriter<W> {
     }
 }
 
+/// L'audio di un file portato ai canali e alla frequenza della Registrazione e scritto in Ogg/Opus:
+/// il `mix.ogg` del Bino di un file trascritto.
+pub struct OggCopy {
+    writer: OggOpusWriter<File>,
+    rate: u32,
+    channels: usize,
+    /// Creato al primo blocco, alla frequenza del file.
+    resampler: Option<Resampler>,
+    converted: Vec<f32>,
+    resampled: Vec<f32>,
+}
+
+impl OggCopy {
+    pub fn new(
+        file: File,
+        rate: u32,
+        channels: usize,
+        bitrate_kbps: u32,
+    ) -> Result<Self, AppError> {
+        Ok(Self {
+            writer: OggOpusWriter::new(file, rate, channels, bitrate_kbps)?,
+            rate,
+            channels,
+            resampler: None,
+            converted: Vec::new(),
+            resampled: Vec::new(),
+        })
+    }
+
+    /// Scrive un blocco decodificato, con i canali scesi o duplicati come nel mixer.
+    pub fn push(&mut self, block: &Block) -> Result<(), AppError> {
+        self.converted.clear();
+        for frame in block.samples.chunks_exact(block.channels) {
+            downmix(frame, self.channels, &mut self.converted);
+        }
+        let resampler = match &mut self.resampler {
+            Some(resampler) => resampler,
+            // ponytail: frequenza fissata dal primo blocco, come per la Trascrizione.
+            None => self
+                .resampler
+                .insert(Resampler::new(block.rate, self.rate, self.channels)?),
+        };
+        self.resampled.clear();
+        resampler.push(&self.converted, &mut self.resampled);
+        self.writer.write(&self.resampled)
+    }
+
+    /// Svuota il resampler e chiude il flusso.
+    pub fn finish(mut self) -> Result<(), AppError> {
+        if let Some(resampler) = &mut self.resampler {
+            self.resampled.clear();
+            resampler.finish(&mut self.resampled);
+            self.writer.write(&self.resampled)?;
+        }
+        self.writer.finish().map(drop)
+    }
+}
+
 fn random_serial() -> u32 {
     use std::hash::{BuildHasher, RandomState};
     RandomState::new().hash_one(std::time::SystemTime::now()) as u32
@@ -184,8 +247,8 @@ pub(crate) mod tests {
     pub fn decoded_seconds(path: &Path) -> f64 {
         let mut decoder = Decoder::open(path).unwrap();
         let mut seconds = 0.0;
-        while let Some((mono, rate)) = decoder.next_mono().unwrap() {
-            seconds += mono.len() as f64 / f64::from(rate);
+        while let Some(block) = decoder.next_block().unwrap() {
+            seconds += (block.samples.len() / block.channels) as f64 / f64::from(block.rate);
         }
         seconds
     }

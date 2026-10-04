@@ -166,23 +166,6 @@ export function parlantiOf(
   return found;
 }
 
-/** La riga di `text` in cui cade la posizione `at`. */
-function lineAt(text: string, at: number): string {
-  const start = text.lastIndexOf("\n", at - 1) + 1;
-  const end = text.indexOf("\n", at);
-  return text.slice(start, end === -1 ? undefined : end);
-}
-
-/** Il Parlante della riga di etichetta (`Parlante 1:`) su cui si è cliccato, se lo è. */
-export function parlanteAt(
-  text: string,
-  at: number,
-  list: Parlante[]
-): Parlante | null {
-  const line = lineAt(text, at);
-  return list.find((s) => line === `${s.label}:`) ?? null;
-}
-
 /**
  * Se `nome` è già il nome di un altro Parlante dello stesso Ingresso: i loro turni si unirebbero e le
  * etichette non si distinguerebbero più.
@@ -200,109 +183,88 @@ export function nomeTaken(
   );
 }
 
-/**
- * Il testo modificato a mano con le righe di etichetta di `voce` che hanno il nome `nome`. Il nome è
- * sempre in fondo all'etichetta (`voiceLabel`), dopo l'Ingresso.
- */
-export function relabeled(text: string, voce: Parlante, nome: string): string {
-  const from = voce.label;
-  const to = from.slice(0, from.length - voce.nome.length) + nome;
-  return text
-    .split("\n")
-    .map((line) => (line === `${from}:` ? `${to}:` : line))
-    .join("\n");
-}
-
-/**
- * Cosa mostra l'area. Durante la Trascrizione di un file (`running`) niente: il testo compare solo
- * alla fine (ADR-0007). Mentre il testo arriva dal vivo (`writing`) la conversazione con i
- * Parziali; poi `text`, che si modifica a mano.
- */
-export function shownText(
-  running: boolean,
-  writing: boolean,
-  conversation: Conversation,
-  text: string,
-  t: TFunction
-): string {
-  if (running) {
-    return "";
-  }
-  return writing ? conversationText(conversation, t) : text;
-}
-
-/** Copia testo copia il testo delle Frasi, e niente durante la Trascrizione di un file. */
-export function copyable(running: boolean, text: string): boolean {
-  return !running && text !== "";
-}
-
-/**
- * Il testo dell'area: una Frase per riga in ordine di inizio, con i Parziali al loro posto. Con gli
- * Ingressi separati o i Parlanti è una conversazione: ogni turno di una voce comincia con la sua
- * etichetta (`Microfono:`, `Parlante 1:`) su una riga, dopo una riga vuota.
- */
-export function conversationText(
-  conversation: Conversation,
-  t: TFunction
-): string {
-  const lines: string[] = [];
-  let previous: string | null = null;
-  for (const item of conversation.partials.reduce<
-    (TranscriptPhrase | TranscriptPartial)[]
-  >(byStart, conversation.phrases)) {
-    const label = voiceLabel(
-      conversation,
-      item.ingresso,
-      "parlante" in item ? item.parlante : null,
-      t
-    );
-    if (label !== previous) {
-      if (lines.length > 0) {
-        lines.push("");
-      }
-      if (label) {
-        lines.push(`${label}:`);
-      }
-    }
-    previous = label;
-    lines.push(item.text);
-  }
-  return lines.join("\n");
-}
-
 /** Una Frase di un Bino, come nei `TranscriptPhrase`. */
 export interface PhraseRef {
   ingresso: Ingresso;
   phraseId: number;
 }
 
-/**
- * Dove sta nel testo dell'area la Frase `phrase`: nel testo delle Frasi la sua
- * riga, in un testo modificato a mano la prima occorrenza del suo testo. `null` se non c'è.
- */
-export function phraseRange(
-  text: string,
+/** La correzione del testo di una Frase; tempi e Parlante restano. Una Frase svuotata resta. */
+export function withTesto(
   conversation: Conversation,
   { ingresso, phraseId }: PhraseRef,
-  t: TFunction
-): { end: number; start: number } | null {
-  const at = conversation.phrases.findIndex(
-    (p) => p.ingresso === ingresso && p.phraseId === phraseId
+  text: string
+): Conversation {
+  return {
+    ...conversation,
+    phrases: conversation.phrases.map((p) =>
+      p.ingresso === ingresso && p.phraseId === phraseId ? { ...p, text } : p
+    ),
+  };
+}
+
+/** Un turno di una voce: le sue Frasi (e Parziali) consecutive, con l'etichetta della voce. */
+export interface Turn {
+  ingresso: Ingresso;
+  items: (TranscriptPhrase | TranscriptPartial)[];
+  /** Ingresso e id del primo elemento: resta lo stesso mentre il turno cresce. */
+  key: string;
+  /** `Microfono · Parlante 2`, `Microfono`, `Parlante 2`; `null` senza etichetta (il mix). */
+  label: string | null;
+  parlante: number | null;
+}
+
+/** Oltre questo silenzio, senza etichette, comincia un paragrafo nuovo: come `transcript::render`. */
+const PARAGRAPH_PAUSE_MS = 2000;
+/** Hangover e prefill del segmentatore, compresi nei tempi delle due Frasi ai lati di un silenzio. */
+const HANGOVER_PREFILL_MS = 1000;
+
+/** Il silenzio reale tra due Frasi, come `transcript::silence_ms`; contigue (tagliate a 18 s) è 0. */
+function silenceMs(
+  previous: { fineMs: number },
+  next: { inizioMs: number }
+): number {
+  const gap = Math.max(0, next.inizioMs - previous.fineMs);
+  return gap === 0 ? 0 : gap + HANGOVER_PREFILL_MS;
+}
+
+/**
+ * La conversazione a turni, in ordine di inizio con i Parziali al loro posto: un turno nuovo a ogni
+ * cambio di etichetta (Ingresso o Parlante) o, senza etichette, dopo una pausa: come nel Markdown.
+ */
+export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
+  // Senza etichette i turni sono i paragrafi del Markdown, separati dalle pause.
+  const labeled = conversation.phrases.some(
+    (p) => voiceLabel(conversation, p.ingresso, p.parlante, t) !== null
   );
-  const phrase = conversation.phrases[at];
-  if (!phrase) {
-    return null;
+  const turns: Turn[] = [];
+  let last: Turn | undefined;
+  for (const item of conversation.partials.reduce<
+    (TranscriptPhrase | TranscriptPartial)[]
+  >(byStart, conversation.phrases)) {
+    const partial = conversation.partials.includes(item as TranscriptPartial);
+    const parlante = partial
+      ? null
+      : ((item as TranscriptPhrase).parlante ?? null);
+    const label = voiceLabel(conversation, item.ingresso, parlante, t);
+    const previous = last?.items[last.items.length - 1];
+    if (
+      last &&
+      previous &&
+      last.label === label &&
+      (labeled || silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
+    ) {
+      last.items.push(item);
+    } else {
+      last = {
+        ingresso: item.ingresso,
+        items: [item],
+        key: `${item.ingresso}:${item.phraseId}${partial ? ":parziale" : ""}`,
+        label,
+        parlante,
+      };
+      turns.push(last);
+    }
   }
-  const until = conversationText(
-    {
-      ...conversation,
-      partials: [],
-      phrases: conversation.phrases.slice(0, at + 1),
-    },
-    t
-  );
-  const start = text.startsWith(until)
-    ? until.length - phrase.text.length
-    : text.indexOf(phrase.text);
-  return start === -1 ? null : { end: start + phrase.text.length, start };
+  return turns;
 }

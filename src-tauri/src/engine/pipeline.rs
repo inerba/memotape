@@ -1,7 +1,7 @@
 //! Pipeline di Trascrizione: frame a 16 kHz → VAD → segmentatore → motore. La fonte dei frame può
 //! essere un file (`transcribe_file`, Frasi intere senza Parziali, con decodifica e VAD in un thread
 //! a parte) o qualunque altro flusso (`transcribe`, a trazione, con i Parziali). Gira alla velocità
-//! del calcolo e non sa nulla di Tauri né dei file salvati.
+//! del calcolo e non sa nulla di Tauri; di un file può scrivere una copia dell'audio in Ogg/Opus.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -14,6 +14,7 @@ use transcribe_cpp::CancelToken;
 
 use super::TranscriptionEngine;
 use crate::audio_toolkit::decode::Decoder;
+use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::resample::FrameResampler;
 use crate::audio_toolkit::segmenter::{Event, FRAME_MS, Params, Segmenter};
 use crate::audio_toolkit::vad::VoiceDetector;
@@ -182,17 +183,23 @@ impl Shared {
 /// Parziali: ogni Frase arriva al motore intera. Decodifica e VAD girano in un thread a parte e
 /// tengono pronte fino a `PHRASES_AHEAD` Frasi mentre il motore trascrive, quindi il progresso
 /// può anticipare il motore di altrettanto. Se c'è, `audio` riceve tutti i frame dati alla
-/// pipeline (la Diarizzazione vuole l'audio intero).
+/// pipeline (la Diarizzazione vuole l'audio intero). Se c'è, `copy` riceve tutto l'audio decodificato
+/// e si chiude a fine file, prima della fine della Trascrizione.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "le due destinazioni dell'audio decodificato sono facoltative e indipendenti"
+)]
 pub fn transcribe_file(
     source: &Path,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
     language: Option<&str>,
     audio: Option<&mut Vec<f32>>,
+    copy: Option<OggCopy>,
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
-    let frames = FileFrames::open(source)?;
+    let frames = FileFrames::open(source, copy)?;
     let progress = frames.progress;
     on_event(PipelineEvent::Progress(progress));
     let shared = Shared {
@@ -360,6 +367,7 @@ fn to_ms(frames: usize) -> u32 {
 /// I frame di un file, decodificati e ricampionati un blocco alla volta.
 struct FileFrames {
     decoder: Decoder,
+    copy: Option<OggCopy>,
     resampler: Option<FrameResampler>,
     /// L'ultimo progresso emesso.
     progress: Option<u8>,
@@ -368,11 +376,12 @@ struct FileFrames {
 }
 
 impl FileFrames {
-    fn open(path: &Path) -> Result<Self, AppError> {
+    fn open(path: &Path, copy: Option<OggCopy>) -> Result<Self, AppError> {
         let decoder = Decoder::open(path)?;
         Ok(Self {
             progress: decoder.progress(),
             decoder,
+            copy,
             resampler: None,
             ready: VecDeque::new(),
             decoded_all: false,
@@ -381,8 +390,11 @@ impl FileFrames {
 
     /// Decodifica il blocco successivo in `ready`.
     fn decode(&mut self) -> Result<(), AppError> {
-        let frames = match self.decoder.next_mono()? {
-            Some((mono, rate)) => {
+        let frames = match self.decoder.next_block()? {
+            Some(block) => {
+                if let Some(copy) = &mut self.copy {
+                    copy.push(&block)?;
+                }
                 let progress = self.decoder.progress();
                 if progress != self.progress {
                     self.progress = progress;
@@ -391,12 +403,15 @@ impl FileFrames {
                 let resampler = match &mut self.resampler {
                     Some(resampler) => resampler,
                     // ponytail: frequenza fissata dal primo blocco; i file che la cambiano a metà non sono gestiti.
-                    None => self.resampler.insert(FrameResampler::new(rate)?),
+                    None => self.resampler.insert(FrameResampler::new(block.rate)?),
                 };
-                resampler.push(&mono)
+                resampler.push(&block.mono())
             }
             None => {
                 self.decoded_all = true;
+                if let Some(copy) = self.copy.take() {
+                    copy.finish()?;
+                }
                 self.resampler
                     .as_mut()
                     .map(FrameResampler::finish)
@@ -630,11 +645,11 @@ pub(crate) mod tests {
         path
     }
 
-    fn wav(name: &str, rate: u32, channels: u16, parts: &[(f32, bool)]) -> PathBuf {
+    pub(crate) fn wav(name: &str, rate: u32, channels: u16, parts: &[(f32, bool)]) -> PathBuf {
         write(&format!("{name}.wav"), &wav_bytes(rate, channels, parts))
     }
 
-    fn fixture(name: &str) -> PathBuf {
+    pub(crate) fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures")
             .join(name)
@@ -651,6 +666,7 @@ pub(crate) mod tests {
             path,
             engine,
             &mut EnergyDetector,
+            None,
             None,
             None,
             &cancel,
@@ -692,6 +708,7 @@ pub(crate) mod tests {
             &mut EnergyDetector,
             None,
             Some(&mut audio),
+            None,
             &CancelToken::new(),
             &mut |_| {},
         )
@@ -889,6 +906,7 @@ pub(crate) mod tests {
             &mut CountingDetector(vad_seen),
             None,
             None,
+            None,
             &CancelToken::new(),
             &mut drop,
         )
@@ -926,6 +944,7 @@ pub(crate) mod tests {
             &mut FailingDetector(100),
             None,
             None,
+            None,
             &CancelToken::new(),
             &mut drop,
         )
@@ -948,6 +967,7 @@ pub(crate) mod tests {
             &path,
             &mut engine,
             &mut EnergyDetector,
+            None,
             None,
             None,
             &cancel,
@@ -975,6 +995,7 @@ pub(crate) mod tests {
             &path,
             &mut engine,
             &mut EnergyDetector,
+            None,
             None,
             None,
             &cancel,
@@ -1198,6 +1219,7 @@ pub(crate) mod tests {
                     &mut engine,
                     &mut detector,
                     language,
+                    None,
                     None,
                     &cancel,
                     &mut |event| match event {

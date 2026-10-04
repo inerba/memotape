@@ -32,3 +32,11 @@ Legenda: **[F]** = verificato sulla fonte o con una build; **[I]** = inferenza, 
 - **[F]** Il protocollo `asset` gestisce `Range` ma solo su file interi, quindi non va bene per una voce dello zip.
 - **[I]** Il protocollo deve aprire il Bino a ogni richiesta e non tenerlo aperto: su Windows un file aperto bloccherebbe la
   riscrittura (correzioni, rinomina dei Parlanti), la rinomina e il Cestino mentre il player lo usa.
+
+## Correzione per Frase (ticket 03)
+
+- **[F]** `bino::edit_frase` (lettura del documento, `bino::rewrite` con `raw_copy_file` del mix) su un Bino di un'ora,
+  14 MB di mix e 600 Frasi, su SSD NVMe: 45 ms in release, 130 ms in debug. Sotto qualche centinaio di ms: la correzione si
+  salva subito, senza stato di salvataggio nella Frase.
+- **[F]** Il `mix.ogg` di un file trascritto (`OggCopy`: downmix, `Resampler`, `OggOpusWriter`) ha la durata dell'originale
+  entro 0,1 ms, per `parlato-it.wav` (16 kHz mono → 48 kHz stereo) e `parlato-it.mp4` (AAC → 16 kHz mono).

@@ -152,6 +152,7 @@ mod tests {
             &mut detector,
             Some("it"),
             Some(&mut audio),
+            None,
             &cancel,
             &mut |event| {
                 if let PipelineEvent::Phrase {

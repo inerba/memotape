@@ -129,6 +129,13 @@ export type ParlantiRegistrazione =
   | "parlantiMicrofono"
   | "parlantiSistema";
 
+/** L'etichetta di ogni casella di Riconosci i parlanti delle Registrazioni. */
+export const PARLANTI_LABELS: Record<ParlantiRegistrazione, string> = {
+  parlantiMicrofono: "settings.recording.inputs.mic",
+  parlantiMix: "settings.recording.parlantiMix",
+  parlantiSistema: "settings.recording.inputs.system",
+};
+
 /**
  * Le caselle di Riconosci i parlanti delle Registrazioni da mostrare: con gli Ingressi separati
  * (registrando da Entrambi) una per Ingresso, altrimenti una per il mix. È la scelta degli Ingressi

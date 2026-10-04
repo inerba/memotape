@@ -1,4 +1,4 @@
-//! Decodifica dei file con Symphonia (+ libopus per Opus) in blocchi di campioni mono.
+//! Decodifica dei file con Symphonia (+ libopus per Opus) in blocchi di campioni interleaved.
 
 use std::path::Path;
 use std::sync::LazyLock;
@@ -25,7 +25,6 @@ pub struct Decoder {
     format: Box<dyn FormatReader>,
     decoder: Box<dyn AudioDecoder>,
     track_id: u32,
-    interleaved: Vec<f32>,
     /// Frame dichiarati dal container (`n_frames`), se li conosce.
     total_frames: Option<u64>,
     decoded_frames: u64,
@@ -75,7 +74,6 @@ impl Decoder {
             format,
             decoder,
             track_id,
-            interleaved: Vec::new(),
             total_frames,
             decoded_frames: 0,
         })
@@ -87,8 +85,8 @@ impl Decoder {
             .map(|total| (self.decoded_frames.saturating_mul(100) / total).min(100) as u8)
     }
 
-    /// Il prossimo blocco decodificato, mixato in mono, con la sua frequenza. `None` a fine file.
-    pub fn next_mono(&mut self) -> Result<Option<(Vec<f32>, u32)>, AppError> {
+    /// Il prossimo blocco decodificato, con i suoi canali e la sua frequenza. `None` a fine file.
+    pub fn next_block(&mut self) -> Result<Option<Block>, AppError> {
         loop {
             let packet = match self.format.next_packet() {
                 Ok(Some(packet)) => packet,
@@ -117,15 +115,32 @@ impl Decoder {
             };
             let channels = decoded.spec().channels().count().max(1);
             let rate = decoded.spec().rate();
-            decoded.copy_to_vec_interleaved(&mut self.interleaved);
-            let mono: Vec<f32> = self
-                .interleaved
-                .chunks_exact(channels)
-                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
-                .collect();
-            self.decoded_frames += mono.len() as u64;
-            return Ok(Some((mono, rate)));
+            let mut samples = Vec::new();
+            decoded.copy_to_vec_interleaved(&mut samples);
+            self.decoded_frames += (samples.len() / channels) as u64;
+            return Ok(Some(Block {
+                samples,
+                channels,
+                rate,
+            }));
         }
+    }
+}
+
+/// Un blocco decodificato: campioni interleaved.
+pub struct Block {
+    pub samples: Vec<f32>,
+    pub channels: usize,
+    pub rate: u32,
+}
+
+impl Block {
+    /// I campioni mixati in mono.
+    pub fn mono(&self) -> Vec<f32> {
+        self.samples
+            .chunks_exact(self.channels)
+            .map(|frame| frame.iter().sum::<f32>() / self.channels as f32)
+            .collect()
     }
 }
 

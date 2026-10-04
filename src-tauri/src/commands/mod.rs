@@ -1,6 +1,6 @@
 //! Comandi Tauri: validano gli argomenti e delegano ai manager.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -74,22 +74,31 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     opened.map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
-/// Trascrizione, e i nomi dei Parlanti. `unsupportedBino` se viene da una versione più nuova
-/// dell'app.
+/// Apre un Bino scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
+/// informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
 #[tauri::command]
 #[specta::specta]
 pub fn open_bino(
     app: AppHandle,
     source: String,
 ) -> Result<managers::transcription::OpenedBino, AppError> {
-    let path = Path::new(&source);
-    if !bino::is_bino(path) {
-        return Err(AppError::Internal(format!("non è un Bino: {source}")));
-    }
+    let path = bino_path(&source)?;
     // Un Bino sparito o cambiato in Esplora file si vede anche nella barra laterale.
     managers::library::sync(&app);
-    managers::transcription::open_bino(&app, path)
+    managers::transcription::open_bino(&path)
+}
+
+/// `path` se è un Bino: i comandi che leggono o scrivono un Bino non toccano altri file.
+fn bino_path(path: &str) -> Result<PathBuf, AppError> {
+    let path = PathBuf::from(path);
+    if bino::is_bino(&path) {
+        Ok(path)
+    } else {
+        Err(AppError::Internal(format!(
+            "non è un Bino: {}",
+            path.display()
+        )))
+    }
 }
 
 /// Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
@@ -100,8 +109,9 @@ pub fn take_pending_bino(pending: State<'_, PendingBino>) -> Option<String> {
     pending.take()
 }
 
-/// Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel
-/// Markdown.
+/// Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
+/// Bino nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Bino si
+/// riscrive il testo.
 /// Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 /// `cancel_transcription`.
 #[tauri::command]
@@ -110,10 +120,15 @@ pub async fn transcribe(
     app: AppHandle,
     activity: State<'_, Activity>,
     source: String,
+    raccolta: Option<String>,
 ) -> Result<managers::transcription::TranscriptionOutcome, AppError> {
-    let outcome =
-        managers::transcription::transcribe(app.clone(), &activity, PathBuf::from(source)).await;
-    // Su un Bino la Trascrizione l'ha riscritto.
+    let outcome = managers::transcription::transcribe(
+        app.clone(),
+        &activity,
+        PathBuf::from(source),
+        raccolta,
+    )
+    .await;
     managers::library::sync(&app);
     outcome
 }
@@ -125,8 +140,8 @@ pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
     activity.cancel()
 }
 
-/// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o Markdown, secondo
-/// `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
+/// Il testo di Copia testo della Trascrizione in corso o appena finita senza Bino: in testo semplice
+/// o Markdown, secondo `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 #[tauri::command]
 #[specta::specta]
 pub fn transcript_text(
@@ -136,30 +151,104 @@ pub fn transcript_text(
     managers::transcription::transcript_text(&last, &settings.get())
 }
 
-/// Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione, nel Bino che la contiene
-/// e nel Markdown che ha prodotto. Rifiuta un nome vuoto, e con `activityInProgress` durante
-/// un'Attività.
+/// Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`.
 #[tauri::command]
 #[specta::specta]
-pub fn rename_parlante(
+pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError> {
+    let path = bino_path(&path)?;
+    blocking(app, move |app| {
+        let settings = app.state::<SettingsStore>().get();
+        managers::transcription::bino_text(&path, &settings, settings.copia_come)
+    })
+    .await
+}
+
+/// Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
+/// `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
+#[tauri::command]
+#[specta::specta]
+pub async fn export_markdown(app: AppHandle, path: String) -> Result<Option<String>, AppError> {
+    let path = bino_path(&path)?;
+    blocking(app, move |app| {
+        let settings = app.state::<SettingsStore>().get();
+        let markdown = managers::transcription::bino_text(
+            &path,
+            &settings,
+            managers::settings::CopiaCome::Markdown,
+        )?;
+        let title = path.file_stem().unwrap_or_default().to_string_lossy();
+        let Some(picked) = app
+            .dialog()
+            .file()
+            .set_file_name(format!("{title}.md"))
+            .add_filter("Markdown", &["md"])
+            .blocking_save_file()
+        else {
+            return Ok(None);
+        };
+        let target = picked
+            .into_path()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        std::fs::write(&target, markdown)
+            .map_err(|e| AppError::UnwritableFolder(format!("{}: {e}", target.display())))?;
+        Ok(Some(target.display().to_string()))
+    })
+    .await
+}
+
+/// Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Bino `path`. Rifiuta un nome vuoto, e
+/// con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_parlante(
     app: AppHandle,
     activity: State<'_, Activity>,
-    last: State<'_, managers::transcription::LastTranscript>,
-    settings: State<'_, SettingsStore>,
+    path: String,
     ingresso: Ingresso,
     parlante: u32,
     nome: String,
 ) -> Result<(), AppError> {
-    let _activity = activity.begin(None, || {})?;
-    let renamed = managers::transcription::rename_parlante(
-        &last,
-        ingresso,
-        parlante,
-        &nome,
-        &managers::transcription::labels(&settings.get()),
-    );
-    managers::library::sync(&app);
-    renamed
+    write_bino(app, &activity, bino_path(&path)?, move |path| {
+        bino::rename_parlante(path, ingresso, parlante, &nome)
+    })
+    .await
+}
+
+/// Corregge il testo della Frase `phrase_id` di `ingresso` nel Bino `path`; tempi, Parlanti e audio
+/// restano com'erano. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn edit_frase(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    ingresso: Ingresso,
+    phrase_id: u32,
+    testo: String,
+) -> Result<(), AppError> {
+    write_bino(app, &activity, bino_path(&path)?, move |path| {
+        bino::edit_frase(path, ingresso, phrase_id, &testo)
+    })
+    .await
+}
+
+/// Riscrive il Bino `path` con `write`, tenendo l'Attività solo per la scrittura, poi riallinea
+/// l'indice: la modifica si trova subito con la ricerca.
+async fn write_bino(
+    app: AppHandle,
+    activity: &Activity,
+    path: PathBuf,
+    write: impl FnOnce(&std::path::Path) -> Result<(), AppError> + Send + 'static,
+) -> Result<(), AppError> {
+    {
+        let _writing = activity.write(&path)?;
+        blocking(app.clone(), move |_| write(&path)).await?;
+    }
+    blocking(app, |app| {
+        managers::library::sync(app);
+        Ok(())
+    })
+    .await
 }
 
 /// I modelli del catalogo con il loro stato.
@@ -367,9 +456,9 @@ pub async fn rename_raccolta(
 ) -> Result<String, AppError> {
     let _writing = activity.write(&raccolta_path(&app, &nome)?)?;
     blocking(app, move |app| {
-        let (from, to) =
+        let (_, to) =
             managers::library::change(app, |library| library.rename_raccolta(&nome, &nuovo))?;
-        Ok(moved(app, &from, &to))
+        Ok(to.display().to_string())
     })
     .await
 }
@@ -403,7 +492,7 @@ pub async fn rename_bino(
     let _writing = activity.write(&from)?;
     blocking(app, move |app| {
         let to = managers::library::change(app, |library| library.rename_bino(&from, &titolo))?;
-        Ok(moved(app, &from, &to))
+        Ok(to.display().to_string())
     })
     .await
 }
@@ -424,7 +513,7 @@ pub async fn move_bino(
         let to = managers::library::change(app, |library| {
             library.move_bino(&from, raccolta.as_deref())
         })?;
-        Ok(moved(app, &from, &to))
+        Ok(to.display().to_string())
     })
     .await
 }
@@ -443,13 +532,6 @@ pub async fn trash_bino(
         managers::library::change(app, |library| library.trash_bino(&path))
     })
     .await
-}
-
-/// Il Bino o la Raccolta `from` ora è `to`: lo segue anche l'ultima Trascrizione. Restituisce `to`.
-fn moved(app: &AppHandle, from: &Path, to: &Path) -> String {
-    app.state::<managers::transcription::LastTranscript>()
-        .moved(from, to);
-    to.display().to_string()
 }
 
 fn raccolta_path(app: &AppHandle, nome: &str) -> Result<PathBuf, AppError> {

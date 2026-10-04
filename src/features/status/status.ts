@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { AppError, commands, TranscriptionOutcome } from "@/bindings";
+import type { AppError, commands } from "@/bindings";
 import { movedPath } from "@/features/source/file-name";
 
 /** Cosa mostra la status bar: la fase dell'Attività, o l'errore. */
@@ -9,7 +9,7 @@ export type Status =
   | { phase: "completing"; percent: number | null; diarizing?: boolean }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
-  | { phase: "finished"; mdPath: string; chars: number }
+  | { phase: "finished"; path: string }
   | { phase: "noSpeech" }
   | { phase: "cancelled" }
   | { phase: "failed"; error: AppError };
@@ -42,10 +42,7 @@ export function statusText(status: Status, t: TFunction): string {
         ? t("status.transcribing")
         : t("status.transcribingPercent", { percent: status.percent });
     case "finished":
-      return t("status.finished", {
-        count: status.chars,
-        path: status.mdPath,
-      });
+      return t("status.finished", { path: status.path });
     case "noSpeech":
       return t("status.noSpeech");
     case "cancelled":
@@ -132,18 +129,12 @@ type TranscribeResult = Awaited<ReturnType<typeof commands.transcribe>>;
 
 /** La status bar alla fine di `transcribe`: Annulla e "nessun parlato" non sono errori. */
 export function afterTranscription(result: TranscribeResult): Status {
-  return result.status === "error"
-    ? failedStatus(result.error)
-    : outcomeStatus(result.data);
-}
-
-/** La status bar per l'esito di una Trascrizione arrivata alla fine, anche dal vivo. */
-export function outcomeStatus(outcome: TranscriptionOutcome): Status {
-  if (outcome.outcome === "noSpeech") {
-    return { phase: "noSpeech" };
+  if (result.status === "error") {
+    return failedStatus(result.error);
   }
-  const { chars, mdPath } = outcome;
-  return { chars, mdPath, phase: "finished" };
+  return result.data.outcome === "saved"
+    ? { path: result.data.path, phase: "finished" }
+    : { phase: "noSpeech" };
 }
 
 /** La status bar per una Trascrizione fallita: Annulla non è un errore. */

@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
-import type { BinoEntry } from "@/bindings";
+import type { BinoEntry, BinoInfo } from "@/bindings";
+import { elapsedText } from "@/features/recording/recording";
 
 /**
  * Un gruppo della barra laterale: `today`, `yesterday`, `week` (il resto della settimana, da
@@ -125,4 +126,38 @@ export function nameProblem(
   }
   const lower = name.toLowerCase();
   return taken.some((t) => t.toLowerCase() === lower) ? "nameTaken" : null;
+}
+
+/**
+ * La riga di informazioni di un Bino: data e ora (nel formato di `locale`), durata, Raccolta
+ * (`null` Senza raccolta, `undefined` fuori dalla Libreria), modello, Lingua del parlato, Ingressi
+ * separati, incompleto e il file d'origine, quando ci sono.
+ */
+export function infoParts(
+  info: BinoInfo,
+  raccolta: string | null | undefined,
+  t: TFunction,
+  locale: string
+): string[] {
+  const language =
+    info.linguaParlato === "auto"
+      ? t("speechLanguage.auto")
+      : t(`speechLanguage.languages.${info.linguaParlato}`);
+  return [
+    new Date(info.creato).toLocaleString(locale, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }),
+    elapsedText(info.durataMs),
+    raccolta === undefined
+      ? t("library.info.outside")
+      : raccoltaLabel(raccolta ?? "", t),
+    info.modello,
+    language,
+    info.ingressiSeparati
+      ? t("settings.recording.liveModes.ingressiSeparati")
+      : null,
+    info.completa ? null : t("library.info.incomplete"),
+    info.origine ? t("library.info.origine", { name: info.origine }) : null,
+  ].filter((part) => part !== null);
 }

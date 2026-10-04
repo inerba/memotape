@@ -8,7 +8,6 @@ import type {
 } from "@/bindings";
 import {
   failedStatus,
-  outcomeStatus,
   type Status,
   statusText,
 } from "@/features/status/status";
@@ -90,9 +89,14 @@ function recordedStatus(
   if (!transcription) {
     return { path, phase: "recorded" };
   }
-  return transcription.outcome === "failed"
-    ? failedStatus(transcription.error)
-    : outcomeStatus(transcription);
+  switch (transcription.outcome) {
+    case "failed":
+      return failedStatus(transcription.error);
+    case "noSpeech":
+      return { phase: "noSpeech" };
+    default:
+      return { path, phase: "finished" };
+  }
 }
 
 /**

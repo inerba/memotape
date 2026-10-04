@@ -54,11 +54,6 @@ impl Activity {
         self.begin(Some(path.to_path_buf()), || {}).map(Some)
     }
 
-    /// Se c'è un'Attività in corso.
-    pub fn is_running(&self) -> bool {
-        self.current().is_some()
-    }
-
     /// Ferma l'Attività in corso. Restituisce `false` se non ce n'era una.
     pub fn cancel(&self) -> bool {
         let current = self.current();
@@ -132,7 +127,6 @@ mod tests {
         assert!(Activity::default().write(altro).unwrap().is_some());
         let activity = Activity::default();
         let guard = activity.begin(Some(bino.clone()), || {}).unwrap();
-        assert!(activity.is_running());
         assert!(matches!(
             activity.write(&bino),
             Err(AppError::ActivityInProgress)
@@ -151,7 +145,6 @@ mod tests {
         ));
         assert!(activity.write(altro).unwrap().is_none());
         drop(guard);
-        assert!(!activity.is_running());
         let writing = activity.write(altro).unwrap();
         assert!(writing.is_some());
         assert!(matches!(

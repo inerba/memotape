@@ -133,7 +133,7 @@ impl Input {
 /// l'ordine di WASAPI (FL, FR, FC, LFE, BL, BR, SL, SR): centrale e surround vanno a sinistra e a
 /// destra a -3 dB, il subwoofer no; in mono si fa la media di sinistra e destra.
 /// ponytail: l'ordine si assume, non si legge dalla maschera dei canali (un quad lo sbaglia).
-fn downmix(frame: &[f32], out_channels: usize, out: &mut Vec<f32>) {
+pub(crate) fn downmix(frame: &[f32], out_channels: usize, out: &mut Vec<f32>) {
     let (left, right) = match frame {
         [] => return,
         [mono] => (*mono, *mono),

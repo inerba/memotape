@@ -1,50 +1,40 @@
-import { FolderOpen, Trash2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { LibraryList } from "@/bindings";
-import { Button } from "@/components/ui/button";
-import { MoveSelect } from "@/features/library/move-select";
+import type { BinoInfo, LibraryList } from "@/bindings";
+import { infoParts } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
 import { fileName, folderOf } from "@/features/source/file-name";
 
 const EXTENSION = /\.bino$/i;
 
-/**
- * Il titolo del Bino `path`, che un clic rinomina, con Mostra in Esplora file, Sposta in… ed
- * Elimina; per un Bino fuori dalla Libreria, Aggiungi alla Libreria….
- */
+/** La voce del Bino `path` nella Libreria, se ci sta, senza distinguere maiuscole e minuscole. */
+export function entryOf(library: LibraryList, path: string) {
+  const lower = path.toLowerCase();
+  return library.bini.find((b) => b.path.toLowerCase() === lower);
+}
+
+/** Il titolo del Bino `path`, che un clic rinomina, e la riga delle sue informazioni. */
 export function BinoHeader({
   disabled,
+  info,
   library,
-  onMove,
   onRename,
-  onReveal,
-  onTrash,
   path,
 }: {
-  /** Ci lavora l'Attività in corso: niente rinomina, spostamento né Cestino. */
+  /** Ci lavora l'Attività in corso: niente rinomina. */
   disabled: boolean;
+  info: BinoInfo | null;
   library: LibraryList;
-  onMove: (path: string, raccolta: string) => void;
   onRename: (path: string, titolo: string) => void;
-  onReveal: (path: string) => void;
-  onTrash: (bino: { path: string; titolo: string }) => void;
   path: string;
 }) {
   const { t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
-  const lower = path.toLowerCase();
-  const entry = library.bini.find((b) => b.path.toLowerCase() === lower);
+  const entry = entryOf(library, path);
   const titolo = entry?.titolo ?? fileName(path).replace(EXTENSION, "");
-  // `null`: fuori dalla Libreria.
-  const raccolta = entry ? (entry.raccolta ?? "") : null;
-  const folder = folderOf(lower);
+  const folder = folderOf(path.toLowerCase());
   const siblings = library.bini
-    .filter(
-      (b) =>
-        b.path.toLowerCase() !== lower &&
-        folderOf(b.path.toLowerCase()) === folder
-    )
+    .filter((b) => b !== entry && folderOf(b.path.toLowerCase()) === folder)
     .map((b) => b.titolo);
 
   const start = useCallback(() => setRenaming(true), []);
@@ -56,66 +46,59 @@ export function BinoHeader({
     },
     [onRename, path]
   );
-  const move = useCallback((to: string) => onMove(path, to), [onMove, path]);
-  const reveal = useCallback(() => onReveal(path), [onReveal, path]);
-  const trash = useCallback(
-    () => onTrash({ path, titolo }),
-    [onTrash, path, titolo]
-  );
 
   return (
-    <section className="flex items-center gap-2">
-      <div className="min-w-0 flex-1">
-        {renaming ? (
-          <NameInput
-            initial={titolo}
-            label={t("library.renameName")}
-            onCancel={cancel}
-            onSubmit={submit}
-            taken={siblings}
-          />
-        ) : (
-          <button
-            className="block max-w-full cursor-text truncate rounded-sm text-left font-medium text-lg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:no-underline"
-            disabled={disabled}
-            onClick={start}
-            title={t("library.rename")}
-            type="button"
-          >
-            {titolo}
-          </button>
-        )}
-      </div>
-      <Button
-        aria-label={t("library.reveal")}
-        onClick={reveal}
-        size="icon"
-        title={t("library.reveal")}
-        variant="ghost"
-      >
-        <FolderOpen />
-      </Button>
-      <MoveSelect
-        current={raccolta ?? undefined}
-        disabled={disabled}
-        label={
-          raccolta === null ? t("library.addToLibrary") : t("library.moveTo")
-        }
-        onMove={move}
-        raccolte={library.raccolte}
-      />
-      {raccolta === null ? null : (
-        <Button
-          aria-label={t("library.delete")}
+    <section className="flex min-w-0 flex-col gap-1">
+      {renaming ? (
+        <NameInput
+          initial={titolo}
+          label={t("library.renameName")}
+          onCancel={cancel}
+          onSubmit={submit}
+          taken={siblings}
+        />
+      ) : (
+        <button
+          className="block max-w-full cursor-text truncate rounded-sm text-left font-medium text-lg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:no-underline"
           disabled={disabled}
-          onClick={trash}
-          size="icon"
-          title={t("library.delete")}
-          variant="ghost"
+          onClick={start}
+          title={t("library.rename")}
+          type="button"
         >
-          <Trash2 />
-        </Button>
+          {titolo}
+        </button>
       )}
+      {info ? (
+        <InfoLine
+          info={info}
+          inLibrary={entry !== undefined}
+          raccolta={entry?.raccolta}
+        />
+      ) : null}
     </section>
+  );
+}
+
+/** Le informazioni in una riga, intere nel tooltip. */
+function InfoLine({
+  inLibrary,
+  info,
+  raccolta,
+}: {
+  inLibrary: boolean;
+  info: BinoInfo;
+  raccolta?: string | null;
+}) {
+  const { i18n, t } = useTranslation();
+  const text = infoParts(
+    info,
+    inLibrary ? (raccolta ?? null) : undefined,
+    t,
+    i18n.language
+  ).join(" · ");
+  return (
+    <p className="truncate text-muted-foreground text-sm" title={text}>
+      {text}
+    </p>
   );
 }

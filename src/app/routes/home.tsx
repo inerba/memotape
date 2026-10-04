@@ -1,18 +1,14 @@
-import { Circle, FolderOpen } from "lucide-react";
-import {
-  type ChangeEvent,
-  type MouseEvent,
-  type ReactNode,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { FolderOpen } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
-import { type AppError, commands, events } from "@/bindings";
+import {
+  type AppError,
+  type BinoInfo,
+  commands,
+  events,
+  type LibraryList,
+} from "@/bindings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,22 +20,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { AllBini } from "@/features/library/all-bini";
+import { BinoActions } from "@/features/library/bino-actions";
 import { BinoHeader } from "@/features/library/bino-header";
 import {
   biniOf,
   chosenRaccolta,
   raccoltaLabel,
 } from "@/features/library/library";
-import { SELECT } from "@/features/library/move-select";
 import { Sidebar } from "@/features/library/sidebar";
 import { useBinoOperations } from "@/features/library/use-bino-operations";
 import { useLibrary } from "@/features/library/use-library";
-import { useModels } from "@/features/models/use-models";
+import { RecordMenu } from "@/features/recording/record-menu";
 import { activityText, afterRecording } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
-import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { fileName, isBino, movedPath } from "@/features/source/file-name";
 import {
@@ -56,57 +50,59 @@ import {
 import { ParlantiBar } from "@/features/transcription/parlanti-bar";
 import {
   type Conversation,
-  conversationText,
-  copyable,
   EMPTY_CONVERSATION,
   type Parlante,
   type PhraseRef,
-  parlanteAt,
   parlantiOf,
-  phraseRange,
-  relabeled,
-  shownText,
   withNome,
   withoutPartials,
   withParlanti,
   withPartial,
   withPhrase,
+  withTesto,
 } from "@/features/transcription/phrases";
-import {
-  type ReplaceAction,
-  replaceDescription,
-  transcribeNeedsConfirm,
-} from "@/features/transcription/replace";
+import { TranscribeMenu } from "@/features/transcription/transcribe-menu";
+import { TranscriptView } from "@/features/transcription/transcript-view";
 
 const COPIED_MS = 2000;
-/** Quanto resta nella status bar l'errore di un'operazione sulla Libreria. */
+/** Quanto resta nella status bar un errore di un'operazione sulla Libreria, o un avviso. */
 const NOTICE_MS = 6000;
 
-/** Il tratto dell'area da selezionare, appena l'area mostra lì `text`: la Frase di un risultato. */
-interface Selection {
-  end: number;
-  start: number;
-  text: string;
+/** Un Bino aperto: le Frasi e le informazioni. */
+interface BinoView {
+  conversation: Conversation;
+  info: BinoInfo | null;
+  path: string;
 }
 
-/** Un Bino aperto durante un'Attività: si consulta senza toccare la vista dell'Attività. */
-interface Browsed {
-  conversation: Conversation;
-  path: string;
+/** Il Bino evidenziato nella barra laterale: quello mostrato nell'area principale. */
+function selectedBino(
+  listOpen: boolean,
+  browsed: BinoView | null,
+  recording: boolean,
+  source: string | null
+): string | null {
+  if (listOpen) {
+    return null;
+  }
+  return browsed?.path ?? (recording ? null : source);
+}
+
+function internalError(e: unknown): AppError {
+  return { code: "internal", detail: String(e) };
 }
 
 export function HomePage() {
   const { t } = useTranslation();
   const [source, setSource] = useState<string | null>(null);
-  const [text, setText] = useState("");
-  // Le Frasi dell'ultima Trascrizione (o del Bino aperto) e i Parziali in corso (Nemotron), uno per
-  // Ingresso: l'area li mostra mentre arrivano, poi il testo resta modificabile.
+  // Le Frasi della Sorgente: quelle del Bino aperto, o quelle che arrivano da un'Attività con i
+  // Parziali in corso (Nemotron), uno per Ingresso.
   const [conversation, setConversation] =
     useState<Conversation>(EMPTY_CONVERSATION);
-  // Gli eventi possono arrivare dopo la risposta di `transcribe`: un Parziale tardivo si ignora.
+  // Le informazioni del Bino aperto come Sorgente.
+  const [info, setInfo] = useState<BinoInfo | null>(null);
+  // Gli eventi possono arrivare dopo la risposta di `record`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
-  // Il testo è stato modificato a mano dopo l'ultima Trascrizione: Copia testo lo copia com'è.
-  const edited = useRef<boolean>(false);
   const { loadError, save, settings } = useSettings();
   // Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro da mostrare.
   const [status, setStatus] = useState<Status>(() =>
@@ -114,27 +110,24 @@ export function HomePage() {
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null }
   );
-  // L'errore di un'operazione sulla Libreria: la status bar lo mostra per un po' sopra la fase, che
-  // durante un'Attività non deve cambiare.
+  // L'errore di un'operazione su un Bino o sulla Libreria, o un avviso (il Markdown esportato): la
+  // status bar lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  // Cosa aspetta la conferma prima di sostituire il testo nell'area: un'Attività o l'apertura di
-  // un Bino.
-  const [confirmReplace, setConfirmReplace] = useState<{
-    action: ReplaceAction;
-    path?: string;
-    phrase?: PhraseRef;
-  } | null>(null);
-  // La Frase di un risultato della ricerca da evidenziare nell'area, appena la mostra.
-  const [selection, setSelection] = useState<Selection | null>(null);
-  const area = useRef<HTMLTextAreaElement>(null);
+  // Trascrivi su un Bino aspetta la conferma: il testo e le correzioni si sostituiscono.
+  const [confirmTranscribe, setConfirmTranscribe] = useState(false);
+  // La Frase di un risultato della ricerca, evidenziata nel Bino aperto.
+  const [highlight, setHighlight] = useState<PhraseRef | null>(null);
+  // Cambia per riaprire il Bino già aperto dall'inizio del testo.
+  const [revision, setRevision] = useState(0);
   // Il Bino del doppio clic in Esplora file, finché non si può aprire.
   const [pendingBino, setPendingBino] = useState<string | null>(null);
   // Il Parlante di cui si sta scrivendo il nome nuovo.
   const [renaming, setRenaming] = useState<Parlante | null>(null);
   // Il Bino aperto dalla barra laterale durante un'Attività.
-  const [browsed, setBrowsed] = useState<Browsed | null>(null);
+  const [browsed, setBrowsed] = useState<BinoView | null>(null);
   // L'elenco completo dei Bini della Raccolta nell'area principale.
   const [listOpen, setListOpen] = useState(false);
   // Il timer della Registrazione per la barra laterale.
@@ -146,19 +139,9 @@ export function HomePage() {
   const paused = status.phase === "recording" && status.paused;
   // Una Attività alla volta: durante l'una, l'altra e Apri file sono disabilitate.
   const busy = running || recording || completing;
-  const live = settings.trascrizioneDalVivo ?? false;
-  // Il testo arriva dalla pipeline: non si modifica finché non è finita.
-  const writing = running || completing || (recording && live);
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
   const navigate = useNavigate();
-  const models = useModels();
-  const modelLanguages =
-    models.find((m) => m.id === settings.model)?.languages ?? null;
-  const { options: languages, value: language } = speechLanguageChoice(
-    modelLanguages,
-    settings.speechLanguage
-  );
   const library = useLibrary(setNotice);
   const raccolta = chosenRaccolta(settings.raccolta, library.raccolte);
 
@@ -209,16 +192,6 @@ export function HomePage() {
     };
   }, []);
 
-  // Il testo dell'area segue le Frasi che arrivano, una per riga (con gli Ingressi separati come
-  // conversazione), e i nomi dei Parlanti; dopo si può modificare, e un testo modificato a mano non
-  // si rigenera.
-  const { parlanti, phrases } = conversation;
-  useEffect(() => {
-    if (!edited.current) {
-      setText(conversationText({ parlanti, partials: [], phrases }, t));
-    }
-  }, [parlanti, phrases, t]);
-
   useEffect(() => {
     if (!copied) {
       return;
@@ -228,61 +201,66 @@ export function HomePage() {
   }, [copied]);
 
   useEffect(() => {
-    if (!notice) {
+    if (!(notice || message)) {
       return;
     }
-    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    const timer = setTimeout(() => {
+      setNotice(null);
+      setMessage(null);
+    }, NOTICE_MS);
     return () => clearTimeout(timer);
-  }, [notice]);
+  }, [notice, message]);
 
-  // Il tratto di `value` (il testo dell'area) con la Frase `phrase` di `of`, da evidenziare.
-  const selectionOf = useCallback(
-    (value: string, of: Conversation, phrase?: PhraseRef) => {
-      const range = phrase && phraseRange(value, of, phrase, t);
-      return range
-        ? { ...range, text: value.slice(range.start, range.end) }
-        : null;
-    },
-    [t]
-  );
+  // Il Bino diventa la Sorgente, con il suo testo, senza ritrascrivere; da un risultato della
+  // ricerca con la Frase trovata evidenziata. Restituisce l'errore, se non si apre.
+  const loadBino = useCallback(async (path: string, phrase?: PhraseRef) => {
+    const result = await commands.openBino(path);
+    if (result.status === "error") {
+      return result.error;
+    }
+    const { info: opened, parlanti, phrases } = result.data;
+    setSource(path);
+    setConversation({ ...EMPTY_CONVERSATION, parlanti, phrases });
+    setInfo(opened);
+    setHighlight(phrase ?? null);
+    setRenaming(null);
+    return null;
+  }, []);
 
-  // Un Bino si apre con il testo che contiene, senza ritrascrivere; da un risultato della ricerca
-  // con la Frase trovata evidenziata.
   const openBino = useCallback(
     async (path: string, phrase?: PhraseRef) => {
-      const result = await commands.openBino(path);
-      if (result.status === "error") {
-        setStatus({ error: result.error, phase: "failed" });
-        return;
-      }
-      const opened = { ...EMPTY_CONVERSATION, ...result.data };
-      setSource(path);
-      edited.current = false;
-      setConversation(opened);
-      setSelection(selectionOf(conversationText(opened, t), opened, phrase));
-      setStatus({ phase: "idle", source: path });
+      const error = await loadBino(path, phrase);
+      setStatus(
+        error ? { error, phase: "failed" } : { phase: "idle", source: path }
+      );
     },
-    [selectionOf, t]
+    [loadBino]
   );
 
   // Durante un'Attività un Bino della Libreria si consulta accanto, senza toccarla; quello su cui
   // lavora l'Attività riporta alla sua vista.
   const browse = useCallback(
     async (path: string, phrase?: PhraseRef) => {
-      if (path === source) {
+      setHighlight(phrase ?? null);
+      setRenaming(null);
+      // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Bino come gli altri.
+      if (path === source && running) {
         setBrowsed(null);
         return;
       }
       const result = await commands.openBino(path);
       if (result.status === "error") {
         setNotice(result.error);
-      } else {
-        const opened = { ...EMPTY_CONVERSATION, ...result.data };
-        setBrowsed({ conversation: opened, path });
-        setSelection(selectionOf(conversationText(opened, t), opened, phrase));
+        return;
       }
+      const { info: opened, parlanti, phrases } = result.data;
+      setBrowsed({
+        conversation: { ...EMPTY_CONVERSATION, parlanti, phrases },
+        info: opened,
+        path,
+      });
     },
-    [selectionOf, source, t]
+    [running, source]
   );
 
   // Finita l'Attività torna la sua vista, con il suo esito aperto (il Bino di una Registrazione).
@@ -292,20 +270,20 @@ export function HomePage() {
     }
   }, [busy]);
 
-  // Una Sorgente scelta con Apri file o con il doppio clic su un Bino in Esplora file. Un testo
-  // modificato a mano si sostituisce solo dopo conferma.
+  // Una Sorgente scelta con Apri file o con il doppio clic su un Bino in Esplora file.
   const openPath = useCallback(
     (path: string, phrase?: PhraseRef) => {
-      if (!isBino(path)) {
-        setSource(path);
-        setStatus({ phase: "idle", source: path });
-      } else if (edited.current && text.trim()) {
-        setConfirmReplace({ action: "open", path, phrase });
-      } else {
+      if (isBino(path)) {
         openBino(path, phrase);
+        return;
       }
+      setSource(path);
+      setConversation(EMPTY_CONVERSATION);
+      setInfo(null);
+      setHighlight(null);
+      setStatus({ phase: "idle", source: path });
     },
-    [openBino, text]
+    [openBino]
   );
 
   const pickFile = useCallback(async () => {
@@ -320,19 +298,17 @@ export function HomePage() {
   const openFromLibrary = useCallback(
     (path: string, phrase?: PhraseRef) => {
       setListOpen(false);
-      setSelection(null);
       if (busy) {
         browse(path, phrase);
-      } else if (path !== source) {
-        openPath(path, phrase);
-      } else if (phrase) {
-        setSelection(selectionOf(text, conversation, phrase));
+      } else if (path === source) {
+        // Il Bino già aperto: torna alla Frase trovata, o all'inizio del testo.
+        setHighlight(phrase ?? null);
+        setRevision((n) => n + 1);
       } else {
-        // Il titolo del Bino già aperto: torna all'inizio del testo.
-        area.current?.scrollTo({ top: 0 });
+        openPath(path, phrase);
       }
     },
-    [browse, busy, conversation, openPath, selectionOf, source, text]
+    [browse, busy, openPath, source]
   );
 
   // "Attività in corso" riporta alla sua vista.
@@ -370,8 +346,8 @@ export function HomePage() {
       if (path === source) {
         setSource(null);
         if (!busy) {
-          edited.current = false;
           setConversation(EMPTY_CONVERSATION);
+          setInfo(null);
           setStatus({ phase: "idle", source: null });
         }
       }
@@ -387,16 +363,16 @@ export function HomePage() {
     });
 
   // Un Bino arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
-  // intanto è disabilitata) e che si chiuda una conferma aperta, che altrimenti cambierebbe azione.
-  // Si apre sulla finestra principale, anche se c'era Impostazioni sopra.
+  // intanto è disabilitata) e che si chiuda la conferma di Trascrivi. Si apre sulla finestra
+  // principale, anche se c'era Impostazioni sopra.
   useEffect(() => {
-    if (pendingBino && !busy && !confirmReplace) {
+    if (pendingBino && !busy && !confirmTranscribe) {
       setPendingBino(null);
       setListOpen(false);
       navigate("/");
       openPath(pendingBino);
     }
-  }, [busy, confirmReplace, navigate, openPath, pendingBino]);
+  }, [busy, confirmTranscribe, navigate, openPath, pendingBino]);
 
   const open = useCallback(async () => {
     if (!source) {
@@ -408,34 +384,41 @@ export function HomePage() {
     }
   }, [source]);
 
+  // Un file diventa un Bino nella Raccolta scelta; un Bino si ritrascrive. Finita (o annullata) la
+  // Trascrizione, il Bino si rilegge dal disco.
   const transcribe = useCallback(async () => {
     if (!source) {
       return;
     }
-    // Le Frasi di un file arrivano senza Parziali e l'area le mostra solo alla fine.
-    setText("");
     setConversation(EMPTY_CONVERSATION);
-    edited.current = false;
+    setHighlight(null);
+    setRenaming(null);
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
-      setStatus(afterTranscription(await commands.transcribe(source)));
+      const result = await commands.transcribe(source, raccolta);
+      let opened: string | null = isBino(source) ? source : null;
+      if (result.status === "ok" && result.data.outcome === "saved") {
+        opened = result.data.path;
+      }
+      const error = opened ? await loadBino(opened) : null;
+      setStatus(
+        error ? { error, phase: "failed" } : afterTranscription(result)
+      );
     } catch (e) {
       // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
-      setStatus({
-        error: { code: "internal", detail: String(e) },
-        phase: "failed",
-      });
+      setStatus({ error: internalError(e), phase: "failed" });
     }
-  }, [source]);
+  }, [loadBino, raccolta, source]);
 
+  // Il Bino della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
   const record = useCallback(async () => {
-    if (live) {
-      setText("");
-      setConversation(EMPTY_CONVERSATION);
-      acceptPartials.current = true;
-      edited.current = false;
-    }
+    const before = source;
+    setConversation(EMPTY_CONVERSATION);
+    setInfo(null);
+    setHighlight(null);
+    setRenaming(null);
+    acceptPartials.current = settings.trascrizioneDalVivo ?? false;
     setCancelling(false);
     setElapsedMs(0);
     setListOpen(false);
@@ -444,20 +427,27 @@ export function HomePage() {
       const after = afterRecording(
         await commands.record(t("recording.prefix"), raccolta)
       );
-      if (after.source) {
-        setSource(after.source);
-      }
-      setStatus(after.status);
-    } catch (e) {
-      setStatus({
-        error: { code: "internal", detail: String(e) },
-        phase: "failed",
-      });
-    } finally {
       acceptPartials.current = false;
       setConversation(withoutPartials);
+      const opened = after.source ?? before;
+      let error: AppError | null = null;
+      if (opened && isBino(opened)) {
+        error = await loadBino(opened);
+      } else if (after.source) {
+        // Il Bino non si è scritto: la Sorgente è l'Ogg, con il testo dal vivo.
+        setSource(after.source);
+      }
+      setStatus(
+        error && after.status.phase !== "failed"
+          ? { error, phase: "failed" }
+          : after.status
+      );
+    } catch (e) {
+      setStatus({ error: internalError(e), phase: "failed" });
+    } finally {
+      acceptPartials.current = false;
     }
-  }, [live, raccolta, t]);
+  }, [loadBino, raccolta, settings.trascrizioneDalVivo, source, t]);
 
   const setPaused = useCallback((value: boolean) => {
     setStatus((current) =>
@@ -465,40 +455,20 @@ export function HomePage() {
     );
   }, []);
 
-  // Il testo nell'area, anche se modificato a mano, e quello dentro un Bino si sostituiscono solo
-  // dopo conferma.
+  // Ritrascrivere un Bino ne sostituisce il testo, correzioni comprese: prima si conferma.
   const requestTranscription = useCallback(() => {
-    if (transcribeNeedsConfirm(text, source)) {
-      setConfirmReplace({ action: "transcribe" });
+    if (source && isBino(source)) {
+      setConfirmTranscribe(true);
     } else {
       transcribe();
     }
-  }, [source, text, transcribe]);
-
-  // Con Trascrivi dal vivo la Registrazione sostituisce il testo: anche lei chiede conferma.
-  const requestRecording = useCallback(() => {
-    if (live && text.trim()) {
-      setConfirmReplace({ action: "record" });
-    } else {
-      record();
-    }
-  }, [live, record, text]);
+  }, [source, transcribe]);
 
   const closeConfirm = useCallback((opened: boolean) => {
     if (!opened) {
-      setConfirmReplace(null);
+      setConfirmTranscribe(false);
     }
   }, []);
-
-  const replace = useCallback(() => {
-    if (confirmReplace?.action === "record") {
-      record();
-    } else if (confirmReplace?.action === "open" && confirmReplace.path) {
-      openBino(confirmReplace.path, confirmReplace.phrase);
-    } else {
-      transcribe();
-    }
-  }, [confirmReplace, openBino, record, transcribe]);
 
   const failed = useCallback(
     (error: AppError) => setStatus({ error, phase: "failed" }),
@@ -515,124 +485,119 @@ export function HomePage() {
     }
   }, []);
 
-  // Il documento dell'ultima Trascrizione, in testo semplice o Markdown secondo le impostazioni;
-  // il testo modificato a mano si copia com'è, e quello di un Bino consultato durante un'Attività
-  // come lo mostra l'area.
-  const copy = useCallback(async () => {
+  // Il documento del Bino `path`, o senza Bino quello della Trascrizione in corso o appena finita,
+  // in testo semplice o Markdown secondo le impostazioni.
+  const copy = useCallback(async (path: string | null) => {
     try {
-      let rendered: string | null = null;
-      if (browsed) {
-        rendered = conversationText(browsed.conversation, t);
-      } else if (!edited.current) {
-        rendered = await commands.transcriptText();
+      let text: string | null;
+      if (path) {
+        const result = await commands.binoText(path);
+        if (result.status === "error") {
+          setNotice(result.error);
+          return;
+        }
+        text = result.data;
+      } else {
+        text = await commands.transcriptText();
       }
-      await navigator.clipboard.writeText(rendered ?? text);
+      await navigator.clipboard.writeText(text ?? "");
       setCopied(true);
     } catch (e) {
-      setNotice({ code: "internal", detail: String(e) });
+      setNotice(internalError(e));
     }
-  }, [browsed, t, text]);
-
-  const chooseLanguage = useCallback(
-    async (e: ChangeEvent<HTMLSelectElement>) => {
-      const { value } = e.target;
-      const speechLanguage = languages.find((l) => l === value) ?? "auto";
-      const error = await save({ ...settings, speechLanguage });
-      if (error) {
-        setStatus({ error, phase: "failed" });
-      }
-    },
-    [languages, save, settings]
-  );
-
-  const edit = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
-    edited.current = true;
-    setText(e.target.value);
   }, []);
 
-  // I Parlanti si rinominano a Trascrizione finita.
-  const parlantiList = useMemo(
-    () => (busy ? [] : parlantiOf(conversation, t)),
-    [busy, conversation, t]
+  const exported = useCallback(
+    (path: string) => setMessage(t("transcription.exported", { path })),
+    [t]
   );
 
-  // Il clic sull'etichetta di un Parlante nell'area apre la sua rinomina.
-  const clickText = useCallback(
-    (e: MouseEvent<HTMLTextAreaElement>) => {
-      const { selectionEnd, selectionStart, value } = e.currentTarget;
-      const voce =
-        selectionStart === selectionEnd
-          ? parlanteAt(value, selectionStart, parlantiList)
-          : null;
-      if (voce) {
-        setRenaming(voce);
+  // Una correzione o un nome salvati nel Bino `path` valgono per la sua vista.
+  const updateView = useCallback(
+    (path: string, change: (c: Conversation) => Conversation) => {
+      setBrowsed((current) =>
+        current?.path === path
+          ? { ...current, conversation: change(current.conversation) }
+          : current
+      );
+      if (path === source) {
+        setConversation(change);
       }
     },
-    [parlantiList]
+    [source]
   );
 
-  // Il nome vale per l'area, Copia testo, il Bino e il Markdown; nel testo modificato a mano cambiano
-  // solo le righe delle sue etichette.
-  const rename = useCallback(async (voce: Parlante, nome: string) => {
-    setRenaming(null);
-    const result = await commands.renameParlante(
-      voce.ingresso,
-      voce.parlante,
-      nome
-    );
-    if (result.status === "error") {
-      setStatus({ error: result.error, phase: "failed" });
-      return;
-    }
-    if (edited.current) {
-      setText((current) => relabeled(current, voce, nome));
-    }
-    setConversation((current) =>
-      withNome(current, voce.ingresso, voce.parlante, nome)
-    );
-  }, []);
-
-  // Il titolo di un Bino con le sue operazioni. `active`: ci lavora la Trascrizione in corso.
-  const header = useCallback(
-    (path: string, active: boolean) => (
-      <BinoHeader
-        disabled={active}
-        library={library}
-        onMove={moveBino}
-        onRename={renameBino}
-        onReveal={reveal}
-        onTrash={requestTrash}
-        path={path}
-      />
-    ),
-    [library, moveBino, renameBino, requestTrash, reveal]
+  const rename = useCallback(
+    async (path: string, voce: Parlante, nome: string) => {
+      setRenaming(null);
+      const result = await commands.renameParlante(
+        path,
+        voce.ingresso,
+        voce.parlante,
+        nome
+      );
+      if (result.status === "error") {
+        setNotice(result.error);
+        return;
+      }
+      updateView(path, (c) => withNome(c, voce.ingresso, voce.parlante, nome));
+    },
+    [updateView]
   );
 
-  // La Frase di un risultato si seleziona e si porta in vista appena l'area mostra il suo testo.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: si riprova a ogni cambio di vista o testo
-  useEffect(() => {
-    const el = area.current;
-    if (
-      !(selection && el) ||
-      el.value.slice(selection.start, selection.end) !== selection.text
-    ) {
-      return;
-    }
-    setSelection(null);
-    // Il cursore all'inizio della Frase, che `focus()` porta in vista; poi la Frase selezionata.
-    el.blur();
-    el.setSelectionRange(selection.start, selection.start);
-    el.focus();
-    el.setSelectionRange(selection.start, selection.end);
-  }, [selection, text, browsed, listOpen]);
+  // Una correzione non salvata resta scritta nella Frase, con l'errore nella status bar.
+  const edit = useCallback(
+    async (path: string, phrase: PhraseRef, text: string) => {
+      const result = await commands.editFrase(
+        path,
+        phrase.ingresso,
+        phrase.phraseId,
+        text
+      );
+      if (result.status === "error") {
+        setNotice(result.error);
+        return false;
+      }
+      updateView(path, (c) => withTesto(c, phrase, text));
+      return true;
+    },
+    [updateView]
+  );
 
-  // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
-  // o se c'è testo.
-  const showTranscription =
-    writing || status.phase === "finished" || text !== "";
-  const shown = shownText(running, writing, conversation, text, t);
+  const copyActivity = useCallback(() => copy(null), [copy]);
 
-  let mainView: ReactNode;
+  // La vista di un Bino; `own`: è la Sorgente, che Trascrivi trascrive.
+  const binoPane = (view: BinoView, own: boolean) => (
+    <BinoPane
+      busy={busy}
+      cancelling={cancelling}
+      copied={copied}
+      // Non ci lavora l'Attività in corso.
+      editable={!(own && busy)}
+      highlight={highlight}
+      key={`${view.path}:${revision}`}
+      library={library}
+      onCancel={cancel}
+      onCopy={copy}
+      onEdit={edit}
+      onError={setNotice}
+      onExported={exported}
+      onFailed={failed}
+      onMove={moveBino}
+      onRenameParlante={rename}
+      onRenameTitle={renameBino}
+      onRenaming={setRenaming}
+      onReveal={reveal}
+      onTranscribe={requestTranscription}
+      onTrash={requestTrash}
+      own={own}
+      renaming={renaming}
+      running={running}
+      view={view}
+    />
+  );
+
+  let mainView: React.ReactNode;
   if (listOpen) {
     mainView = (
       <AllBini
@@ -645,68 +610,50 @@ export function HomePage() {
       />
     );
   } else if (browsed) {
-    mainView = (
-      <BrowsedView
-        area={area}
-        copied={copied}
-        header={header(browsed.path, false)}
-        key={browsed.path}
-        onCopy={copy}
-        text={conversationText(browsed.conversation, t)}
-      />
-    );
-  } else {
+    mainView = binoPane(browsed, false);
+  } else if (recording || completing) {
+    // La Registrazione, con il testo dal vivo.
     mainView = (
       <>
-        <SourceTitle
-          header={header}
-          onOpen={open}
-          running={running}
-          source={source}
-        />
-        <TranscribeBar
-          busy={busy}
-          cancelling={cancelling}
-          canTranscribe={source !== null && !busy}
-          language={language}
-          languages={languages}
-          onCancel={running || completing ? cancel : null}
-          onError={failed}
-          onLanguage={chooseLanguage}
-          onTranscribe={requestTranscription}
-          running={running}
-        />
         {recording ? (
           <RecordingPanel onPausedChange={setPaused} paused={paused} />
         ) : null}
-        {showTranscription ? (
-          <section className="flex min-h-0 flex-1 flex-col gap-2">
-            <Textarea
-              aria-label={t("transcription.text")}
-              className="flex-1 resize-none"
-              // Un altro Bino riparte dall'inizio del testo.
-              key={source}
-              onChange={edit}
-              onClick={clickText}
-              readOnly={writing}
-              ref={area}
-              value={shown}
-            />
-            <div className="flex items-start justify-between gap-3">
-              <ParlantiBar
-                editing={renaming}
-                list={parlantiList}
-                onEdit={setRenaming}
-                onRename={rename}
-              />
-              <CopyButton
-                copied={copied}
-                disabled={!copyable(running, text)}
-                onCopy={copy}
-              />
-            </div>
-          </section>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <CopyButton
+            copied={copied}
+            disabled={conversation.phrases.length === 0}
+            onCopy={copyActivity}
+          />
+        </div>
+        <TranscriptView conversation={conversation} parlanti={[]} />
+      </>
+    );
+  } else if (source && isBino(source)) {
+    mainView = binoPane({ conversation, info, path: source }, true);
+  } else {
+    // Un file audio o video: il nome e Trascrivi; dopo una Trascrizione annullata, le sue Frasi.
+    mainView = (
+      <>
+        <SourceTitle onOpen={open} source={source} />
+        <div className="flex items-center gap-2">
+          <TranscribeMenu
+            busy={busy}
+            cancelling={cancelling}
+            canTranscribe={source !== null && !busy}
+            onCancel={running ? cancel : null}
+            onError={failed}
+            onTranscribe={requestTranscription}
+            running={running}
+          />
+          <CopyButton
+            copied={copied}
+            disabled={running || conversation.phrases.length === 0}
+            onCopy={copyActivity}
+          />
+        </div>
+        {running ? null : (
+          <TranscriptView conversation={conversation} parlanti={[]} />
+        )}
       </>
     );
   }
@@ -716,34 +663,18 @@ export function HomePage() {
       <div className="flex h-screen" inert={settingsPage !== null}>
         <Sidebar
           actions={
-            <>
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={requestRecording}
-                  variant="outline"
-                >
-                  <Circle className="fill-destructive text-destructive" />
-                  {t("recording.start")}
-                </Button>
-                <Button
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={pickFile}
-                  variant="outline"
-                >
-                  <FolderOpen />
-                  {t("source.browse")}
-                </Button>
-              </div>
-              <SettingCheckbox
+            <div className="flex gap-2">
+              <RecordMenu disabled={busy} onError={failed} onRecord={record} />
+              <Button
+                className="flex-1"
                 disabled={busy}
-                label={t("recording.live")}
-                name="trascrizioneDalVivo"
-                onError={failed}
-              />
-            </>
+                onClick={pickFile}
+                variant="outline"
+              >
+                <FolderOpen />
+                {t("source.browse")}
+              </Button>
+            </div>
           }
           activity={activityText(status, elapsedMs, t)}
           list={library}
@@ -754,30 +685,35 @@ export function HomePage() {
           onRaccolta={chooseRaccolta}
           onShowAll={showAll}
           raccolta={raccolta}
-          selected={listOpen ? null : (browsed?.path ?? source)}
+          selected={selectedBino(
+            listOpen,
+            browsed,
+            recording || completing,
+            source
+          )}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
             {mainView}
           </main>
-          <StatusBar notice={notice} status={status} />
+          <StatusBar message={message} notice={notice} status={status} />
         </div>
       </div>
-      <AlertDialog onOpenChange={closeConfirm} open={confirmReplace !== null}>
+      <AlertDialog onOpenChange={closeConfirm} open={confirmTranscribe}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("transcription.replace.title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t(replaceDescription(confirmReplace?.action, source))}
+              {t("transcription.replace.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>
               {t("transcription.replace.keep")}
             </AlertDialogCancel>
-            <AlertDialogAction onClick={replace}>
+            <AlertDialogAction onClick={transcribe}>
               {t("transcription.replace.confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -789,98 +725,117 @@ export function HomePage() {
   );
 }
 
-/** Lingua del parlato, Riconosci i parlanti, Trascrivi e, durante l'Attività, Annulla. */
-function TranscribeBar({
+/**
+ * La vista di un Bino: titolo, informazioni, azioni, Parlanti e trascrizione a turni. `editable`: non
+ * ci lavora l'Attività in corso; `own`: è la Sorgente, che Trascrivi trascrive.
+ */
+function BinoPane({
   busy,
-  canTranscribe,
   cancelling,
-  language,
-  languages,
+  copied,
+  editable,
+  highlight,
+  library,
   onCancel,
+  onCopy,
+  onEdit,
   onError,
-  onLanguage,
+  onExported,
+  onFailed,
+  onMove,
+  onRenameParlante,
+  onRenameTitle,
+  onRenaming,
+  onReveal,
   onTranscribe,
+  onTrash,
+  own,
+  renaming,
   running,
+  view: { conversation, info, path },
 }: {
   busy: boolean;
-  canTranscribe: boolean;
   cancelling: boolean;
-  language: string;
-  languages: string[];
-  /** `null` se non c'è niente da annullare. */
-  onCancel: (() => void) | null;
-  onError: (error: AppError) => void;
-  onLanguage: (e: ChangeEvent<HTMLSelectElement>) => void;
-  onTranscribe: () => void;
-  running: boolean;
-}) {
-  const { t } = useTranslation();
-  return (
-    <section className="flex items-center justify-end gap-3">
-      <select
-        aria-label={t("speechLanguage.label")}
-        className={SELECT}
-        disabled={busy}
-        onChange={onLanguage}
-        title={t("speechLanguage.label")}
-        value={language}
-      >
-        <option value="auto">{t("speechLanguage.auto")}</option>
-        {languages.map((l) => (
-          <option key={l} value={l}>
-            {t(`speechLanguage.languages.${l}`)}
-          </option>
-        ))}
-      </select>
-      <SettingCheckbox
-        disabled={busy}
-        label={t("transcription.parlanti")}
-        name="parlantiFile"
-        note={t("transcription.parlantiNote")}
-        onError={onError}
-      />
-      <Button disabled={!canTranscribe} onClick={onTranscribe}>
-        {running ? t("transcription.running") : t("transcription.start")}
-      </Button>
-      {onCancel ? (
-        <Button disabled={cancelling} onClick={onCancel} variant="outline">
-          {cancelling
-            ? t("transcription.cancelling")
-            : t("transcription.cancel")}
-        </Button>
-      ) : null}
-    </section>
-  );
-}
-
-/** Il testo di un Bino consultato durante un'Attività, in sola lettura, con Copia testo. */
-function BrowsedView({
-  area,
-  copied,
-  header,
-  onCopy,
-  text,
-}: {
-  area: RefObject<HTMLTextAreaElement | null>;
   copied: boolean;
-  header: ReactNode;
-  onCopy: () => void;
-  text: string;
+  editable: boolean;
+  highlight: PhraseRef | null;
+  library: LibraryList;
+  onCancel: () => void;
+  onCopy: (path: string) => void;
+  onEdit: (path: string, phrase: PhraseRef, text: string) => Promise<boolean>;
+  onError: (error: AppError) => void;
+  onExported: (path: string) => void;
+  onFailed: (error: AppError) => void;
+  onMove: (path: string, raccolta: string) => void;
+  onRenameParlante: (path: string, voce: Parlante, nome: string) => void;
+  onRenameTitle: (path: string, titolo: string) => void;
+  onRenaming: (voce: Parlante | null) => void;
+  onReveal: (path: string) => void;
+  onTranscribe: () => void;
+  onTrash: (bino: { path: string; titolo: string }) => void;
+  own: boolean;
+  renaming: Parlante | null;
+  running: boolean;
+  view: BinoView;
 }) {
   const { t } = useTranslation();
+  const parlanti = editable ? parlantiOf(conversation, t) : [];
+  const transcribing = own && running;
+  const copy = useCallback(() => onCopy(path), [onCopy, path]);
+  const rename = useCallback(
+    (voce: Parlante, nome: string) => onRenameParlante(path, voce, nome),
+    [onRenameParlante, path]
+  );
+  const edit = useCallback(
+    (phrase: PhraseRef, text: string) => onEdit(path, phrase, text),
+    [onEdit, path]
+  );
   return (
     <>
-      {header}
-      <section className="flex min-h-0 flex-1 flex-col gap-2">
-        <Textarea
-          aria-label={t("transcription.text")}
-          className="flex-1 resize-none"
-          readOnly
-          ref={area}
-          value={text}
+      <BinoHeader
+        disabled={!editable}
+        info={info}
+        library={library}
+        onRename={onRenameTitle}
+        path={path}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <TranscribeMenu
+          busy={busy}
+          cancelling={cancelling}
+          canTranscribe={own && !busy}
+          onCancel={transcribing ? onCancel : null}
+          onError={onFailed}
+          onTranscribe={onTranscribe}
+          running={transcribing}
         />
-        <CopyButton copied={copied} disabled={false} onCopy={onCopy} />
-      </section>
+        <CopyButton copied={copied} disabled={transcribing} onCopy={copy} />
+        <BinoActions
+          disabled={!editable}
+          library={library}
+          onError={onError}
+          onExported={onExported}
+          onMove={onMove}
+          onReveal={onReveal}
+          onTrash={onTrash}
+          path={path}
+        />
+      </div>
+      <ParlantiBar
+        editing={renaming}
+        list={parlanti}
+        onEdit={onRenaming}
+        onRename={rename}
+      />
+      {transcribing ? null : (
+        <TranscriptView
+          conversation={conversation}
+          highlight={highlight}
+          onEdit={editable ? edit : undefined}
+          onRename={onRenaming}
+          parlanti={parlanti}
+        />
+      )}
     </>
   );
 }
@@ -897,38 +852,21 @@ function CopyButton({
 }) {
   const { t } = useTranslation();
   return (
-    <Button
-      className="ml-auto shrink-0"
-      disabled={disabled}
-      onClick={onCopy}
-      size="sm"
-      variant="outline"
-    >
+    <Button disabled={disabled} onClick={onCopy} variant="outline">
       {copied ? t("transcription.copied") : t("transcription.copy")}
     </Button>
   );
 }
 
-/**
- * Il titolo della Sorgente: per un Bino `header`, con le sue operazioni (non sul Bino che la
- * Trascrizione in corso sta riscrivendo); per un file audio o video il nome, che un clic apre con il
- * programma associato.
- */
+/** Il nome del file audio o video, che un clic apre con il programma associato. */
 function SourceTitle({
-  header,
   onOpen,
-  running,
   source,
 }: {
-  header: (path: string, active: boolean) => ReactNode;
   onOpen: () => void;
-  running: boolean;
   source: string | null;
 }) {
   const { t } = useTranslation();
-  if (source && isBino(source)) {
-    return header(source, running);
-  }
   return (
     <section className="min-w-0">
       {source ? (
@@ -949,61 +887,25 @@ function SourceTitle({
   );
 }
 
-/** Una casella che salva subito un'impostazione; un errore va nella status bar. */
-function SettingCheckbox({
-  disabled,
-  label,
-  name,
-  note,
-  onError,
-}: {
-  disabled: boolean;
-  label: string;
-  name: "parlantiFile" | "trascrizioneDalVivo";
-  note?: string;
-  onError: (error: AppError) => void;
-}) {
-  const { save, settings } = useSettings();
-  const change = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const error = await save({ ...settings, [name]: e.target.checked });
-      if (error) {
-        onError(error);
-      }
-    },
-    [name, onError, save, settings]
-  );
-  return (
-    <label
-      className="flex shrink-0 items-center gap-2 text-sm has-[:disabled]:opacity-50"
-      title={note}
-    >
-      <input
-        checked={settings[name] ?? false}
-        className="size-4 accent-primary"
-        disabled={disabled}
-        onChange={change}
-        type="checkbox"
-      />
-      {label}
-    </label>
-  );
-}
-
 /**
- * La status bar: il messaggio (o per un po' l'errore di un'operazione sulla Libreria), il link alle
- * Impostazioni quando serve e l'avanzamento.
+ * La status bar: il messaggio (o per un po' l'errore di un'operazione su un Bino o un avviso), il
+ * link alle Impostazioni quando serve e l'avanzamento.
  */
 function StatusBar({
+  message,
   notice,
   status,
 }: {
+  message: string | null;
   notice: AppError | null;
   status: Status;
 }) {
   const { t } = useTranslation();
-  const message = notice ? errorText(notice, t) : statusText(status, t);
-  const failed = notice !== null || status.phase === "failed";
+  let text = message ?? statusText(status, t);
+  if (notice) {
+    text = errorText(notice, t);
+  }
+  const failed = notice !== null || (!message && status.phase === "failed");
   return (
     <footer
       aria-live="polite"
@@ -1016,9 +918,9 @@ function StatusBar({
             ? "min-w-0 flex-1 truncate text-destructive"
             : "min-w-0 flex-1 truncate"
         }
-        title={message}
+        title={text}
       >
-        {message}
+        {text}
       </span>
       {needsSettings(status) ? (
         <Link

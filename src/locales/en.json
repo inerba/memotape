@@ -14,10 +14,8 @@
     "cancel": "Cancel",
     "cancelling": "Cancelling…",
     "replace": {
-      "title": "Replace the text?",
-      "description": "The text in the box, including your edits, will be replaced by the new transcription. Markdown files already saved are kept.",
-      "descriptionBino": "The text in the area, including your edits, will be replaced by the new transcription, also inside the Bino. Markdown files already saved are kept.",
-      "descriptionOpen": "The text in the area, including your edits, will be replaced by the one in the Bino.",
+      "title": "Transcribe the Bino again?",
+      "description": "The Bino's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
       "keep": "Keep the text",
       "confirm": "Replace"
     },
@@ -26,7 +24,12 @@
     "parlantiList": "Speakers:",
     "rename": "Click to rename: Enter confirms, Esc cancels",
     "renameName": "New name for {{label}}",
-    "renameTaken": "Another speaker already has this name"
+    "renameTaken": "Another speaker already has this name",
+    "startWith": "Transcribe · {{language}}",
+    "options": "Transcription options",
+    "edit": "Click to correct: Enter saves, Esc cancels",
+    "export": "Export Markdown…",
+    "exported": "Exported to {{path}}"
   },
   "status": {
     "idle": "Open an audio, video or Bino file, or choose a Bino from the Library",
@@ -38,10 +41,9 @@
     "completing": "Completing the transcription…",
     "completingPercent": "Completing the transcription… {{percent}}%",
     "progress": "Transcription progress",
-    "finished_one": "Transcription finished: {{count, number}} character saved to {{path}}",
-    "finished_other": "Transcription finished: {{count, number}} characters saved to {{path}}",
+    "finished": "Transcription saved in {{path}}",
     "noSpeech": "No speech detected",
-    "cancelled": "Transcription cancelled: no Markdown saved",
+    "cancelled": "Transcription cancelled",
     "openModels": "Open Settings → Transcription",
     "diarizing": "Recognizing speakers…"
   },
@@ -193,7 +195,8 @@
       "microphone": "Microphone",
       "system": "System"
     },
-    "level": "Level: {{input}}"
+    "level": "Level: {{input}}",
+    "options": "Recording options"
   },
   "about": {
     "title": "About",
@@ -257,6 +260,12 @@
     "names": {
       "invalidName": "Characters not allowed (< > : \" / \\ | ? *), reserved name, leading dot or trailing dot or space",
       "nameTaken": "This name is already used"
+    },
+    "more": "More actions",
+    "info": {
+      "incomplete": "incomplete",
+      "origine": "from {{name}}",
+      "outside": "outside the Library"
     }
   }
 }

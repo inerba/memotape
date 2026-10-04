@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import type { BinoEntry } from "@/bindings";
+import "@/lib/i18n";
+import i18n from "i18next";
+import type { BinoEntry, BinoInfo } from "@/bindings";
 import {
   biniOf,
   chosenRaccolta,
   clockText,
   groupByDate,
+  infoParts,
   nameProblem,
   sortBini,
 } from "./library";
@@ -161,4 +164,44 @@ test("validazione dei nomi, come in Rust", () => {
   }
   expect(nameProblem("acme", ["Acme", "Beta"])).toBe("nameTaken");
   expect(nameProblem("Acme Srl", ["Acme", "Beta"])).toBeNull();
+});
+
+describe("informazioni di un Bino", () => {
+  const t = i18n.t.bind(i18n);
+  const info: BinoInfo = {
+    completa: true,
+    creato: new Date(2026, 9, 3, 17, 5).toISOString(),
+    durataMs: 754_000,
+    ingressiSeparati: false,
+    linguaParlato: "it",
+    modello: "Nemotron",
+    origine: null,
+  };
+
+  test("data e ora, durata, Raccolta, modello e Lingua del parlato", () => {
+    const [date, ...rest] = infoParts(info, "Acme", t, "it");
+    expect(date).toContain("17:05");
+    expect(date).toContain("2026");
+    expect(rest).toEqual(["12:34", "Acme", "Nemotron", "Italiano"]);
+  });
+
+  test("Senza raccolta, fuori dalla Libreria, Ingressi separati, incompleto e file d'origine", () => {
+    const all = {
+      ...info,
+      completa: false,
+      ingressiSeparati: true,
+      linguaParlato: "auto" as const,
+      modello: null,
+      origine: "Call Teams.mp4",
+    };
+    expect(infoParts(all, null, t, "it").slice(1)).toEqual([
+      "12:34",
+      "Senza raccolta",
+      "Automatica",
+      "Ingressi separati",
+      "incompleto",
+      "dal file Call Teams.mp4",
+    ]);
+    expect(infoParts(info, undefined, t, "it")[2]).toBe("fuori dalla Libreria");
+  });
 });

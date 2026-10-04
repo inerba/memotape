@@ -14,10 +14,8 @@
     "cancel": "Annuler",
     "cancelling": "Annulation…",
     "replace": {
-      "title": "Remplacer le texte ?",
-      "description": "Le texte de la zone, y compris vos modifications, sera remplacé par la nouvelle transcription. Les fichiers Markdown déjà enregistrés sont conservés.",
-      "descriptionBino": "Le texte de la zone, y compris vos modifications, sera remplacé par la nouvelle transcription, y compris dans le Bino. Les fichiers Markdown déjà enregistrés sont conservés.",
-      "descriptionOpen": "Le texte de la zone, y compris vos modifications, sera remplacé par celui du Bino.",
+      "title": "Retranscrire le Bino ?",
+      "description": "Le texte du Bino sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus.",
       "keep": "Garder le texte",
       "confirm": "Remplacer"
     },
@@ -26,7 +24,12 @@
     "parlantiList": "Intervenants :",
     "rename": "Cliquez pour renommer : Entrée valide, Échap annule",
     "renameName": "Nouveau nom pour {{label}}",
-    "renameTaken": "Un autre intervenant porte déjà ce nom"
+    "renameTaken": "Un autre intervenant porte déjà ce nom",
+    "startWith": "Transcrire · {{language}}",
+    "options": "Options de transcription",
+    "edit": "Cliquez pour corriger : Entrée enregistre, Échap annule",
+    "export": "Exporter en Markdown…",
+    "exported": "Exporté dans {{path}}"
   },
   "status": {
     "idle": "Ouvrez un fichier audio, vidéo ou Bino, ou choisissez un Bino de la Bibliothèque",
@@ -38,11 +41,9 @@
     "completing": "Finalisation de la transcription…",
     "completingPercent": "Finalisation de la transcription… {{percent}} %",
     "progress": "Progression de la transcription",
-    "finished_one": "Transcription terminée : {{count, number}} caractère enregistré dans {{path}}",
-    "finished_many": "Transcription terminée : {{count, number}} de caractères enregistrés dans {{path}}",
-    "finished_other": "Transcription terminée : {{count, number}} caractères enregistrés dans {{path}}",
+    "finished": "Transcription enregistrée dans {{path}}",
     "noSpeech": "Aucune parole détectée",
-    "cancelled": "Transcription annulée : aucun Markdown enregistré",
+    "cancelled": "Transcription annulée",
     "openModels": "Ouvrir Paramètres → Transcription",
     "diarizing": "Reconnaissance des intervenants…"
   },
@@ -194,7 +195,8 @@
       "microphone": "Microphone",
       "system": "Système"
     },
-    "level": "Niveau : {{input}}"
+    "level": "Niveau : {{input}}",
+    "options": "Options d'enregistrement"
   },
   "about": {
     "title": "À propos",
@@ -258,6 +260,12 @@
     "names": {
       "invalidName": "Caractères interdits (< > : \" / \\ | ? *), nom réservé, point au début ou point ou espace à la fin",
       "nameTaken": "Ce nom est déjà utilisé"
+    },
+    "more": "Autres actions",
+    "info": {
+      "incomplete": "incomplet",
+      "origine": "depuis {{name}}",
+      "outside": "hors de la Bibliothèque"
     }
   }
 }

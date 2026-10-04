@@ -26,7 +26,7 @@ import {
   BITRATES_KBPS,
   LANGUAGE_NAMES,
   LANGUAGES,
-  type ParlantiRegistrazione,
+  PARLANTI_LABELS,
   parlantiRegistrazione,
   SAMPLE_RATES,
   settingsSchema,
@@ -40,12 +40,6 @@ const SELECT =
 const SOURCES: RecordingSource[] = ["mic", "system", "both"];
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
 const LIVE_MODES: ModalitaDalVivo[] = ["mix", "ingressiSeparati"];
-const PARLANTI_LABELS: Record<ParlantiRegistrazione, string> = {
-  parlantiMicrofono: "settings.recording.inputs.mic",
-  parlantiMix: "settings.recording.parlantiMix",
-  parlantiSistema: "settings.recording.inputs.system",
-};
-
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
   const { save, settings } = useSettings();

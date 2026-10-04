@@ -54,13 +54,10 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
   expect(withDiarizing(cancelled)).toBe(cancelled);
 });
 
-test("a fine Trascrizione mostra i caratteri e il percorso del Markdown", () => {
-  const mdPath = "C:\\Lezioni\\Lezione 1 trascrizione 1.md";
-  expect(statusText({ chars: 12_345, mdPath, phase: "finished" }, t)).toBe(
-    `Trascrizione finita: 12.345 caratteri salvati in ${mdPath}`
-  );
-  expect(statusText({ chars: 1, mdPath, phase: "finished" }, t)).toBe(
-    `Trascrizione finita: 1 carattere salvato in ${mdPath}`
+test("a fine Trascrizione mostra il Bino in cui è il testo", () => {
+  const path = String.raw`C:\Sbobino\Acme\Lezione 1.bino`;
+  expect(statusText({ path, phase: "finished" }, t)).toBe(
+    `Trascrizione salvata in ${path}`
   );
 });
 
@@ -95,11 +92,11 @@ test("il progresso aggiorna solo una Trascrizione in corso", () => {
     phase: "transcribing",
   });
   // Un evento in ritardo non riporta indietro una Trascrizione già finita.
-  const finished: Status = { chars: 3, mdPath: "a.md", phase: "finished" };
+  const finished: Status = { path: "a.bino", phase: "finished" };
   expect(withProgress(finished, 100)).toBe(finished);
 });
 
-test("una Trascrizione senza Frasi dice che non c'è parlato, senza Markdown", () => {
+test("una Trascrizione senza Frasi dice che non c'è parlato", () => {
   const status = afterTranscription({
     data: { outcome: "noSpeech" },
     status: "ok",
@@ -108,24 +105,22 @@ test("una Trascrizione senza Frasi dice che non c'è parlato, senza Markdown", (
   expect(statusText(status, t)).toBe("Nessun parlato rilevato");
 });
 
-test("una Trascrizione salvata porta caratteri e percorso del Markdown", () => {
+test("una Trascrizione salvata porta il percorso del Bino", () => {
   expect(
     afterTranscription({
-      data: { chars: 3, mdPath: "a.md", outcome: "saved" },
+      data: { outcome: "saved", path: "a.bino" },
       status: "ok",
     })
-  ).toEqual({ chars: 3, mdPath: "a.md", phase: "finished" });
+  ).toEqual({ path: "a.bino", phase: "finished" });
 });
 
-test("Annulla non è un errore: la status bar dice che il Markdown non c'è", () => {
+test("Annulla non è un errore", () => {
   const status = afterTranscription({
     error: { code: "cancelled" },
     status: "error",
   });
   expect(status).toEqual({ phase: "cancelled" });
-  expect(statusText(status, t)).toBe(
-    "Trascrizione annullata: nessun Markdown salvato"
-  );
+  expect(statusText(status, t)).toBe("Trascrizione annullata");
 });
 
 test("una seconda Attività è rifiutata con un messaggio dedicato", () => {

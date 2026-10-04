@@ -11,7 +11,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Bino con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
 - **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
-- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
+- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Bino nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Bino si legge a turni, si corregge Frase per Frase e si esporta in Markdown.
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -36,7 +36,7 @@ Nessuna priorità stabilita tra i tre gruppi.
 
 ## Product Purpose
 
-Trasformare in testo un file audio o video, o una Registrazione fatta nell'app, tutto sul PC dell'utente. Successo: il testo compare mentre si registra (con Trascrivi dal vivo) o appena finisce la Trascrizione di un file, si salva in un Markdown accanto alla Sorgente e si copia altrove, senza account, chiavi né rete una volta scaricato il modello.
+Trasformare in testo un file audio o video, o una Registrazione fatta nell'app, tutto sul PC dell'utente. Successo: il testo compare mentre si registra (con Trascrivi dal vivo) o appena finisce la Trascrizione di un file, si salva in un Bino nella Libreria e si copia o si esporta altrove, senza account, chiavi né rete una volta scaricato il modello.
 
 ## Positioning
 
@@ -46,7 +46,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 - Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Bino (doppio clic apre Sbobino).
 - Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la status bar dice sempre la fase.
-- Il testo nell'area si legge e si corregge a mano; Copia testo e il Markdown sono le uscite.
+- Il testo di un Bino si legge a turni e si corregge Frase per Frase; Copia testo ed Esporta Markdown… sono le uscite.
 
 ## Capabilities and Constraints
 
@@ -93,17 +93,17 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 9. Come utente, voglio premere Trascrivi su un file audio e vedere comparire il testo, così ottengo la sbobinatura.
 10. Come utente, voglio trascrivere anche un video MP4, MOV, M4V o MKV senza prima estrarne l'audio, così risparmio un passaggio.
-11. Come utente, voglio una Frase per riga nell'area di testo, così il testo si legge e si modifica facilmente.
+11. Come utente, voglio il testo a turni, con le Frasi di un turno una dopo l'altra, così si legge facilmente.
 12. Come utente con Nemotron, voglio vedere il Parziale della Frase in corso mentre viene riconosciuta, così seguo il lavoro in tempo reale.
 13. Come utente con Whisper o Parakeet, voglio vedere ogni Frase appena è conclusa, così vedo comunque l'avanzamento.
 14. Come utente, voglio la percentuale di avanzamento nella status bar quando la durata è nota, così so quanto manca.
 15. Come utente, voglio un avanzamento senza percentuale quando la durata non è nota, così so comunque che l'app sta lavorando.
-16. Come utente, voglio che a fine Trascrizione il testo venga salvato in `<nome Sorgente> trascrizione <N>.md` accanto alla Sorgente, con N il primo numero libero, così non perdo il risultato e non sovrascrivo trascrizioni precedenti. Se la Trascrizione non trova parlato il Markdown non si crea e la status bar mostra "Nessun parlato rilevato".
-17. Come utente, voglio che la status bar mostri a fine Trascrizione che è finita, il numero di caratteri e il percorso del Markdown, così so dove trovarlo.
-18. Come utente, voglio un pulsante "Copia testo" che copi negli appunti l'ultima Trascrizione, in testo semplice o in Markdown secondo le Impostazioni (il testo modificato a mano si copia com'è), così incollo il testo altrove.
-19. Come utente, voglio una conferma prima che una nuova Trascrizione sostituisca il testo già presente nell'area, così non lo perdo per errore.
+16. Come utente, voglio che Trascrivi su un file audio o video crei `<nome del file>.bino` nella Raccolta scelta (" 2", " 3"… se esiste già), con l'audio in Opus alle impostazioni di Registrazione e il testo con i tempi, così ritrovo la trascrizione nella Libreria e il file originale resta com'è. Se la Trascrizione non trova parlato il Bino non si crea e la status bar mostra "Nessun parlato rilevato".
+17. Come utente, voglio che a fine Trascrizione il Bino diventi la Sorgente e la status bar mostri il suo percorso, così so dove trovarlo.
+18. Come utente, voglio un pulsante "Copia testo" che copi negli appunti il testo del Bino aperto, con le correzioni e i nomi dei Parlanti, o quello della Trascrizione in corso, in testo semplice o in Markdown secondo le Impostazioni, così incollo il testo altrove.
+19. Come utente, voglio una conferma prima che Trascrivi su un Bino ne sostituisca il testo, correzioni comprese, così non lo perdo per errore.
 20. Come utente, voglio un pulsante "Annulla" durante la Trascrizione, così fermo un lavoro lungo avviato per sbaglio.
-21. Come utente, voglio che dopo Annulla il testo già comparso resti nell'area ma che nessun Markdown venga salvato, così il Markdown esiste solo per Trascrizioni complete.
+21. Come utente, voglio che dopo Annulla il testo già comparso di un file resti visibile ma che nessun Bino venga creato o cambiato, così un Bino ha solo Trascrizioni complete.
 22. Come utente, voglio scegliere la Lingua del parlato con un selettore accanto a Trascrivi, così aiuto il modello quando il riconoscimento automatico sbaglia.
 23. Come utente, voglio che il selettore della Lingua del parlato abbia "Automatica" come default e offra solo le lingue tra it, en, fr, es, de e pl supportate dal modello selezionato, così non scelgo combinazioni impossibili.
 24. Come utente, voglio che la Lingua del parlato scelta resti salvata tra un avvio e l'altro, così non la reimposto ogni volta.
@@ -278,6 +278,13 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - I risultati sono per Bino, prima quelli che parlano di più dell'argomento, ognuno con fino a cinque Frasi trovate: il tempo e un estratto con le parole evidenziate (con il nome del Parlante davanti se la parola è lì). Al massimo 50 Bini.
   - Il clic su una Frase apre il Bino, la seleziona nell'area e la porta in vista; il clic sul titolo apre il Bino dall'inizio. Durante un'Attività il Bino si consulta accanto, come dalla barra laterale.
   - Un Parlante rinominato si trova subito con il nome nuovo. L'indice resta sul PC, accanto a quello dei Bini, e se si perde si ricostruisce dai Bini.
+- **V10, Vista di un Bino e file in un Bino (ticket libreria/03)**: storie 46–74 della spec v3; della 17 consultare un Bino fuori dalla Libreria con il testo (il player arriva con il ticket libreria/04), della 20 e della 22 le azioni nella vista, della 43 la correzione del testo, della 101 correggere altri Bini durante un'Attività. Cambiano le storie 11, 16–19, 21 e 64, il punto di V6 sul Markdown riscritto alla rinomina e quello di V8 sulla conferma all'apertura.
+  - Trascrivi su un file audio o video crea `<nome del file>.bino` nella Raccolta scelta (con Tutta la Libreria in Senza raccolta), con " 2", " 3"… se c'è già: l'audio, ricodificato in Opus con bitrate, canali e frequenza delle Impostazioni di Registrazione, e il testo con i tempi delle Frasi. Il file originale non si tocca e il suo nome resta nelle informazioni. Finita la Trascrizione il Bino è la Sorgente. Annullata, guasta o senza parlato: nessun Bino.
+  - Il Markdown non si salva più da solo: "Esporta Markdown…" lo salva dove si sceglie con il dialog di sistema, proponendo `<titolo>.md`. Rinominare un Parlante non riscrive più nessun Markdown. Solo se il Bino di una Registrazione non si scrive, il Markdown della Trascrizione dal vivo si salva accanto all'Ogg, come prima.
+  - La vista di un Bino ha il titolo; una riga di informazioni (data e ora, durata, Raccolta o "fuori dalla Libreria", modello, Lingua del parlato, Ingressi separati, incompleto, il file d'origine); le azioni Trascrivi ▾, Copia testo, Esporta Markdown…, Mostra in Esplora file e "…" con Sposta in… (o Aggiungi alla Libreria…) ed Elimina; i Parlanti; il testo a turni, con l'etichetta del Parlante o dell'Ingresso a ogni turno, che un clic rinomina.
+  - Un clic su una Frase la rende modificabile: Invio o l'uscita dalla Frase salvano nel Bino (i tempi, i Parlanti e l'audio restano), Esc ripristina il testo. Una Frase svuotata resta. Se il salvataggio non riesce il testo resta scritto e la status bar dice l'errore. La correzione si ritrova riaprendo il Bino e si trova subito con la ricerca. Su un Bino di un'ora il salvataggio dura circa 50 ms. Il testo non si corregge durante l'Attività che lo produce; gli altri Bini sì.
+  - Trascrivi ▾ sceglie modello, Lingua del parlato e Riconosci i parlanti, e il pulsante dice la Lingua scelta ("Trascrivi · Italiano"); Registra ▾ sceglie Trascrivi dal vivo e Riconosci i parlanti della Registrazione. La conferma di Trascrivi si chiede solo su un Bino e avvisa che correzioni e nomi dei Parlanti si perdono; aprire un Bino o registrare non chiedono più conferma, perché non c'è più testo modificato a mano da perdere.
+  - Copia testo copia sempre le Frasi: del Bino aperto, con correzioni e nomi, oppure della Trascrizione in corso o appena annullata.
 
 ## Fuori dal perimetro
 

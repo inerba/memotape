@@ -3,20 +3,16 @@ import type { TFunction } from "i18next";
 import type { Ingresso } from "@/bindings";
 import {
   type Conversation,
-  conversationText,
-  copyable,
   EMPTY_CONVERSATION,
   nomeTaken,
-  parlanteAt,
   parlantiOf,
-  phraseRange,
-  relabeled,
-  shownText,
+  turnsOf,
   withNome,
   withoutPartials,
   withParlanti,
   withPartial,
   withPhrase,
+  withTesto,
 } from "@/features/transcription/phrases";
 
 const t = ((key: string, options?: { n?: number }) =>
@@ -40,7 +36,15 @@ const phrase = (
   text,
 });
 
-const render = (c: Conversation) => conversationText(c, t);
+/** I turni come testo: l'etichetta su una riga, una Frase per riga, una riga vuota tra i turni. */
+const render = (c: Conversation) =>
+  turnsOf(c, t)
+    .map((turn) =>
+      [turn.label && `${turn.label}:`, ...turn.items.map((i) => i.text)]
+        .filter((line) => line !== null)
+        .join("\n")
+    )
+    .join("\n\n");
 
 test("le Frasi del mix finiscono una per riga, senza etichette", () => {
   const c = [
@@ -48,22 +52,7 @@ test("le Frasi del mix finiscono una per riga, senza etichette", () => {
     phrase(1, 1500, "Oggi parliamo di trascrizione."),
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   expect(render(c)).toBe("Buongiorno a tutti.\nOggi parliamo di trascrizione.");
-  expect(conversationText(EMPTY_CONVERSATION, t)).toBe("");
-});
-
-test("durante la Trascrizione di un file l'area è vuota, dal vivo mostra la conversazione", () => {
-  let c = withPhrase(EMPTY_CONVERSATION, phrase(0, 0, "Buongiorno a tutti."));
-  c = withPartial(c, phrase(1, 1500, "Oggi parl"));
-  expect(shownText(true, true, c, "Buongiorno a tutti.", t)).toBe("");
-  expect(shownText(false, true, c, "", t)).toBe(
-    "Buongiorno a tutti.\nOggi parl"
-  );
-  // Finita l'Attività, il testo dell'area, anche modificato a mano.
-  expect(shownText(false, false, c, "testo mio", t)).toBe("testo mio");
-  // Copia testo: niente durante la Trascrizione di un file, né con solo un Parziale dal vivo.
-  expect(copyable(true, "Buongiorno a tutti.")).toBe(false);
-  expect(copyable(false, "")).toBe(false);
-  expect(copyable(false, "Buongiorno a tutti.")).toBe(true);
+  expect(turnsOf(EMPTY_CONVERSATION, t)).toEqual([]);
 });
 
 test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa", () => {
@@ -229,41 +218,6 @@ test("i Parlanti sono in ordine di comparsa, una volta sola, con etichetta e nom
   expect(parlantiOf(EMPTY_CONVERSATION, t)).toEqual([]);
 });
 
-test("il clic su una riga di etichetta trova il suo Parlante, altrove nessuno", () => {
-  const c = diarized();
-  const text = render(c);
-  const list = parlantiOf(c, t);
-  const at = (line: string) => parlanteAt(text, text.indexOf(line) + 2, list);
-  expect(at("Audio di sistema · Parlante 2:")).toEqual(list[2]);
-  expect(parlanteAt(text, 0, list)).toEqual(list[0]);
-  expect(at("Anch'io.")).toBeNull();
-  // Fine dell'etichetta: il cursore dopo i due punti è ancora sulla sua riga.
-  const end = text.indexOf("Audio di sistema · Parlante 1:") + 30;
-  expect(parlanteAt(text, end, list)).toEqual(list[1]);
-});
-
-test("nel testo modificato a mano la rinomina cambia solo le righe dell'etichetta", () => {
-  const voce = (label: string, nome: string) => ({
-    ingresso: "sistema" as const,
-    label,
-    nome,
-    parlante: 1,
-  });
-  const text =
-    "Parlante 1:\nCiao Parlante 1:\n\nParlante 10:\nNo.\n\nParlante 1:\nSì.";
-  expect(relabeled(text, voce("Parlante 1", "Parlante 1"), "Mario")).toBe(
-    "Mario:\nCiao Parlante 1:\n\nParlante 10:\nNo.\n\nMario:\nSì."
-  );
-  // Con l'Ingresso nell'etichetta cambia solo il nome.
-  expect(
-    relabeled(
-      "Audio di sistema · Mario:\nSì.",
-      voce("Audio di sistema · Mario", "Mario"),
-      "Lucia"
-    )
-  ).toBe("Audio di sistema · Lucia:\nSì.");
-});
-
 test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", () => {
   const list = parlantiOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
   const [microfono1, sistema1] = list;
@@ -274,47 +228,81 @@ test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", (
   expect(nomeTaken(list, microfono1, "Lucia")).toBe(false);
 });
 
-test("phraseRange trova la Frase nel testo dell'area", () => {
-  const conversation = {
-    ...EMPTY_CONVERSATION,
-    phrases: [
-      phrase(0, 0, "Ciao.", "microfono"),
-      phrase(0, 500, "Salve.", "sistema"),
-      phrase(1, 1000, "Come va?", "microfono"),
-    ],
-  };
-  const text = render(conversation);
-  const range = phraseRange(
-    text,
-    conversation,
-    { ingresso: "microfono", phraseId: 1 },
-    t
-  );
-  expect(range && text.slice(range.start, range.end)).toBe("Come va?");
+test("ogni turno ha la voce da rinominare e una chiave stabile", () => {
+  const turns = turnsOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
   expect(
-    phraseRange(text, conversation, { ingresso: "sistema", phraseId: 0 }, t)
-  ).toEqual({
-    end: text.indexOf("Salve.") + "Salve.".length,
-    start: text.indexOf("Salve."),
-  });
-  // Testo modificato a mano: la Frase si cerca per il suo testo.
-  const edited = `Premessa.\n${text}`;
-  const moved = phraseRange(
-    edited,
-    conversation,
-    { ingresso: "microfono", phraseId: 1 },
-    t
+    turns.map(({ ingresso, key, label, parlante }) => ({
+      ingresso,
+      key,
+      label,
+      parlante,
+    }))
+  ).toEqual([
+    {
+      ingresso: "microfono",
+      key: "microfono:0",
+      label: "Microfono · Parlante 1",
+      parlante: 1,
+    },
+    {
+      ingresso: "sistema",
+      key: "sistema:0",
+      label: "Audio di sistema · Parlante 1",
+      parlante: 1,
+    },
+    {
+      ingresso: "sistema",
+      key: "sistema:1",
+      label: "Audio di sistema · Lucia",
+      parlante: 2,
+    },
+    {
+      ingresso: "microfono",
+      key: "microfono:1",
+      label: "Microfono · Parlante 1",
+      parlante: 1,
+    },
+  ]);
+  // Un turno che comincia con un Parziale non si confonde con la Frase dello stesso id.
+  const live = withPartial(
+    withPhrase(EMPTY_CONVERSATION, phrase(0, 0, "Mi senti?", "microfono")),
+    phrase(0, 1000, "Sì", "sistema")
   );
-  expect(moved && edited.slice(moved.start, moved.end)).toBe("Come va?");
-  expect(
-    phraseRange(
-      "altro",
-      conversation,
-      { ingresso: "microfono", phraseId: 1 },
-      t
+  expect(turnsOf(live, t).map((turn) => turn.key)).toEqual([
+    "microfono:0",
+    "sistema:0:parziale",
+  ]);
+});
+
+test("la correzione cambia solo il testo della sua Frase", () => {
+  const c = diarized();
+  const corrected = withTesto(
+    c,
+    { ingresso: "sistema", phraseId: 1 },
+    "Anche io."
+  );
+  expect(corrected.phrases).toEqual(
+    c.phrases.map((p) =>
+      p.ingresso === "sistema" && p.phraseId === 1
+        ? { ...p, text: "Anche io." }
+        : p
     )
-  ).toBeNull();
-  expect(
-    phraseRange(text, conversation, { ingresso: "mix", phraseId: 7 }, t)
-  ).toBeNull();
+  );
+  expect(corrected.parlanti).toBe(c.parlanti);
+  // Una Frase svuotata resta al suo posto.
+  const emptied = withTesto(c, { ingresso: "microfono", phraseId: 0 }, "");
+  expect(emptied.phrases).toHaveLength(4);
+  expect(emptied.phrases[0]?.text).toBe("");
+});
+
+test("senza etichette un turno si spezza dopo oltre 2 s di silenzio, come nel Markdown", () => {
+  // Fine a +900 ms; il silenzio reale è il buco più hangover e prefill (1 s).
+  const c = [
+    phrase(0, 0, "Uno."),
+    phrase(1, 1900, "Due."),
+    phrase(2, 3900, "Tre."),
+    phrase(3, 4800, "Quattro."),
+  ].reduce(withPhrase, EMPTY_CONVERSATION);
+  expect(render(c)).toBe("Uno.\nDue.\n\nTre.\nQuattro.");
+  expect(turnsOf(c, t).map((turn) => turn.key)).toEqual(["mix:0", "mix:2"]);
 });

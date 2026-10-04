@@ -18,31 +18,42 @@ export const commands = {
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
-	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi, poi il testo si salva nel
-	 *  Markdown.
+	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
+	 *  Bino nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Bino si
+	 *  riscrive il testo.
 	 *  Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 	 *  `cancel_transcription`.
 	 */
-	transcribe: (source: string) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source })),
+	transcribe: (source: string, raccolta: string | null) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source, raccolta })),
 	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
 	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
 	/**
-	 *  Il testo di Copia testo: l'ultima Trascrizione in testo semplice o Markdown, secondo
-	 *  `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
+	 *  Il testo di Copia testo della Trascrizione in corso o appena finita senza Bino: in testo semplice
+	 *  o Markdown, secondo `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 	 */
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**
-	 *  Apre un Bino scelto come Sorgente: restituisce le sue Frasi, che diventano l'ultima
-	 *  Trascrizione, e i nomi dei Parlanti. `unsupportedBino` se viene da una versione più nuova
-	 *  dell'app.
+	 *  Apre un Bino scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
+	 *  informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
 	 */
 	openBino: (source: string) => typedError<OpenedBino, AppError>(__TAURI_INVOKE("open_bino", { source })),
 	/**
-	 *  Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione, nel Bino che la contiene
-	 *  e nel Markdown che ha prodotto. Rifiuta un nome vuoto, e con `activityInProgress` durante
-	 *  un'Attività.
+	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Bino `path`. Rifiuta un nome vuoto, e
+	 *  con `activityInProgress` il Bino su cui lavora l'Attività in corso.
 	 */
-	renameParlante: (ingresso: Ingresso, parlante: number, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { ingresso, parlante, nome })),
+	renameParlante: (path: string, ingresso: Ingresso, parlante: number, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { path, ingresso, parlante, nome })),
+	/**
+	 *  Corregge il testo della Frase `phrase_id` di `ingresso` nel Bino `path`; tempi, Parlanti e audio
+	 *  restano com'erano. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 */
+	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
+	/**  Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
+	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
+	/**
+	 *  Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
+	 *  `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
+	 */
+	exportMarkdown: (path: string) => typedError<string | null, AppError>(__TAURI_INVOKE("export_markdown", { path })),
 	/**
 	 *  Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
 	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
@@ -204,6 +215,20 @@ export type BinoEntry = {
 	durataMs: number | null,
 };
 
+/**  La riga di informazioni della vista di un Bino. */
+export type BinoInfo = {
+	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
+	creato: string,
+	durataMs: number,
+	/**  Il nome del modello; `null` se il testo non è stato trascritto. */
+	modello: string | null,
+	linguaParlato: SpeechLanguage,
+	ingressiSeparati: boolean,
+	completa: boolean,
+	/**  Il nome del file audio o video da cui viene. */
+	origine: string | null,
+};
+
 /**  È arrivato un Bino da aprire: la finestra lo prende con `take_pending_bino`. */
 export type BinoRequested = null;
 
@@ -244,15 +269,11 @@ export type LibraryList = {
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
 export type LiveTranscription = 
-/**  Il testo è salvato nel Markdown accanto alla Registrazione. */
-{
-	outcome: "saved",
-} & TranscriptionFinished | 
-/**  Nessuna Frase: il Markdown non si crea. */
-({ outcome: "noSpeech" }) & { error?: never } | 
+/**  Il testo è nel Bino o, se il Bino non si è scritto, nel Markdown accanto all'Ogg. */
+{ outcome: "saved" } | { outcome: "noSpeech" } | 
 /**
- *  Senza Markdown: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla
- *  (`cancelled`).
+ *  Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Bino ha
+ *  le Frasi arrivate, con il testo incompleto.
  */
 { outcome: "failed"; error: AppError };
 
@@ -327,11 +348,12 @@ export type ModelStateChanged = {
 	error: AppError | null,
 };
 
-/**  Un Bino aperto come Sorgente: le Frasi per l'area e i nomi dei Parlanti. */
+/**  Un Bino aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
 export type OpenedBino = {
 	phrases: TranscriptPhrase[],
 	/**  Per chiave `<ingresso>:<n>`, come nel Bino. */
 	parlanti: { [key in string]: string },
+	info: BinoInfo,
 };
 
 /**  La Registrazione salvata, che diventa la Sorgente. */
@@ -470,19 +492,14 @@ export type TranscriptPhrase = {
 	parlante: number | null,
 };
 
-/**  Dove è il Markdown salvato e quanti caratteri contiene. */
-export type TranscriptionFinished = {
-	mdPath: string,
-	chars: number,
-};
-
 /**  Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`. */
 export type TranscriptionOutcome = 
-/**  Il testo è salvato nel Markdown. */
-{
-	outcome: "saved",
-} & TranscriptionFinished | 
-/**  Nessuna Frase: il Markdown non si crea. */
+/**
+ *  Il testo è nel Bino `path`: quello nuovo di un file, o il Bino trascritto. Diventa la
+ *  Sorgente.
+ */
+{ outcome: "saved"; path: string } | 
+/**  Nessuna Frase: un file non diventa un Bino; un Bino resta senza Frasi. */
 { outcome: "noSpeech" };
 
 /**

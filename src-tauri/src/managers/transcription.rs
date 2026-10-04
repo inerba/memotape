@@ -1,8 +1,8 @@
 //! Trascrizione di una Sorgente, o dal vivo di una Registrazione (il mix, o con gli Ingressi separati
 //! ogni Ingresso con una sua pipeline): prende il motore del modello scelto (caricato una volta e
-//! tenuto tra una Trascrizione e l'altra), esegue la pipeline, la traduce in eventi e salva il
-//! Markdown accanto alla Sorgente; di un Bino riscrive anche il testo dentro il Bino. Tiene l'ultima
-//! Trascrizione per Copia testo e per la rinomina dei Parlanti.
+//! tenuto tra una Trascrizione e l'altra), esegue la pipeline e la traduce in eventi. Un file audio o
+//! video diventa un Bino nella Raccolta, di un Bino si riscrive il testo. Tiene l'ultima Trascrizione
+//! per Copia testo finché non c'è un Bino da cui copiare.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -14,6 +14,7 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
 
+use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::bino;
 use crate::engine::live::LiveFrames;
@@ -21,10 +22,13 @@ use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
-use crate::library;
+use crate::library::Library;
 use crate::managers::activity::Activity;
 use crate::managers::models::{self, DiarizerLease, Models};
-use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
+use crate::managers::recording::{
+    TEMP_FOLDER, channel_count, create_numbered, numbered, recordings_folder, temp_folder,
+};
+use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore, SpeechLanguage};
 use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
@@ -90,21 +94,14 @@ pub struct TranscriptionProgress {
     pub percent: Option<u8>,
 }
 
-/// Dove è il Markdown salvato e quanti caratteri contiene.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct TranscriptionFinished {
-    pub md_path: String,
-    pub chars: u32,
-}
-
 /// Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum TranscriptionOutcome {
-    /// Il testo è salvato nel Markdown.
-    Saved(TranscriptionFinished),
-    /// Nessuna Frase: il Markdown non si crea.
+    /// Il testo è nel Bino `path`: quello nuovo di un file, o il Bino trascritto. Diventa la
+    /// Sorgente.
+    Saved { path: String },
+    /// Nessuna Frase: un file non diventa un Bino; un Bino resta senza Frasi.
     NoSpeech,
 }
 
@@ -112,140 +109,65 @@ pub enum TranscriptionOutcome {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum LiveTranscription {
-    /// Il testo è salvato nel Markdown accanto alla Registrazione.
-    Saved(TranscriptionFinished),
-    /// Nessuna Frase: il Markdown non si crea.
+    /// Il testo è nel Bino o, se il Bino non si è scritto, nel Markdown accanto all'Ogg.
+    Saved,
     NoSpeech,
-    /// Senza Markdown: modello assente (`liveTranscriptionUnavailable`), guasto o Annulla
-    /// (`cancelled`).
-    Failed { error: AppError },
+    /// Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Bino ha
+    /// le Frasi arrivate, con il testo incompleto.
+    Failed {
+        error: AppError,
+    },
 }
 
-/// Un Bino aperto come Sorgente: le Frasi per l'area e i nomi dei Parlanti.
+/// Un Bino aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct OpenedBino {
     pub phrases: Vec<TranscriptPhrase>,
     /// Per chiave `<ingresso>:<n>`, come nel Bino.
     pub parlanti: BTreeMap<String, String>,
+    pub info: BinoInfo,
 }
 
-/// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende e i
-/// cui Parlanti si rinominano. Si riempie man mano che arrivano le Frasi. In `tauri::State`.
-#[derive(Default)]
-pub struct LastTranscript(Mutex<Last>);
-
-#[derive(Default)]
-struct Last {
-    transcript: Option<Transcript>,
-    /// Il Markdown prodotto con queste Frasi, che la rinomina riscrive.
-    md: Option<PathBuf>,
-    /// Il Bino che contiene queste Frasi, dove la rinomina salva i nomi.
-    bino: Option<PathBuf>,
+/// La riga di informazioni della vista di un Bino.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct BinoInfo {
+    /// Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso.
+    pub creato: String,
+    pub durata_ms: u32,
+    /// Il nome del modello; `null` se il testo non è stato trascritto.
+    pub modello: Option<String>,
+    pub lingua_parlato: SpeechLanguage,
+    pub ingressi_separati: bool,
+    pub completa: bool,
+    /// Il nome del file audio o video da cui viene.
+    pub origine: Option<String>,
 }
+
+/// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende
+/// finché non c'è un Bino aperto. Si riempie man mano che arrivano le Frasi. In `tauri::State`.
+#[derive(Default)]
+pub struct LastTranscript(Mutex<Option<Transcript>>);
 
 impl LastTranscript {
-    fn lock(&self) -> std::sync::MutexGuard<'_, Last> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<Transcript>> {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Modifica la Trascrizione tenuta, se c'è.
     fn update(&self, change: impl FnOnce(&mut Transcript)) {
-        if let Some(transcript) = self.lock().transcript.as_mut() {
+        if let Some(transcript) = self.lock().as_mut() {
             change(transcript);
         }
     }
 
-    /// Una Trascrizione nuova, ancora senza Markdown né Bino.
     fn set(&self, transcript: Transcript) {
-        *self.lock() = Last {
-            transcript: Some(transcript),
-            ..Last::default()
-        };
-    }
-
-    /// Dove sono finite le Frasi della Trascrizione tenuta: il Markdown e il Bino, se ci sono.
-    fn saved_in(&self, md: Option<PathBuf>, bino: Option<PathBuf>) {
-        let mut last = self.lock();
-        last.md = md;
-        last.bino = bino;
+        *self.lock() = Some(transcript);
     }
 
     fn get(&self) -> Option<Transcript> {
-        self.lock().transcript.clone()
+        self.lock().clone()
     }
-
-    /// Il Bino, o la Raccolta, `from` è stato spostato o rinominato in `to`: la rinomina dei
-    /// Parlanti cerca lì il Bino che contiene queste Frasi.
-    pub fn moved(&self, from: &Path, to: &Path) {
-        let mut last = self.lock();
-        if let Some(bino) = &last.bino
-            && library::inside(bino, from)
-        {
-            let rest = bino
-                .components()
-                .skip(from.components().count())
-                .collect::<PathBuf>();
-            last.bino = Some(to.join(rest));
-        }
-    }
-}
-
-/// Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione: il nome (senza spazi in
-/// testa e in coda, non vuoto) vale per tutte le sue Frasi, si salva nel Bino che le contiene e
-/// riscrive il Markdown che hanno prodotto, se c'è ancora.
-pub fn rename_parlante(
-    last: &LastTranscript,
-    ingresso: Ingresso,
-    parlante: u32,
-    nome: &str,
-    labels: &Labels,
-) -> Result<(), AppError> {
-    let nome = nome.trim();
-    if nome.is_empty() {
-        return Err(AppError::Internal("nome del Parlante vuoto".into()));
-    }
-    let mut last = last.lock();
-    let Last {
-        transcript: Some(transcript),
-        md,
-        bino,
-    } = &mut *last
-    else {
-        return Err(AppError::Internal(
-            "nessuna Trascrizione da rinominare".into(),
-        ));
-    };
-    let key = ingresso.parlante_key(parlante);
-    let mut renamed = transcript.clone();
-    renamed.parlanti.insert(key.clone(), nome.to_string());
-    if let Some(bino) = bino {
-        let mut document = bino::read(bino)?;
-        document.parlanti.insert(key, nome.to_string());
-        bino::rewrite(bino, &document)?;
-    }
-    // Il nome è salvato dove si rilegge: anche se il Markdown non si scrive, vale.
-    *transcript = renamed;
-    // Un Markdown cancellato nel frattempo non si ricrea.
-    match md {
-        Some(md) if md.exists() => replace_file(
-            md,
-            &transcript::render(transcript, labels, CopiaCome::Markdown),
-        ),
-        _ => Ok(()),
-    }
-}
-
-/// Sostituisce `path` con `text` scrivendo `<nome>.tmp` e rinominandolo sopra: a metà, il file
-/// resta com'era.
-fn replace_file(path: &Path, text: &str) -> Result<(), AppError> {
-    let mut temp = path.as_os_str().to_owned();
-    temp.push(".tmp");
-    let temp = PathBuf::from(temp);
-    let written = std::fs::write(&temp, text).and_then(|()| std::fs::rename(&temp, path));
-    if written.is_err() {
-        let _ = std::fs::remove_file(&temp);
-    }
-    written.map_err(|e| unwritable(path, &e))
 }
 
 /// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o in Markdown, come dicono le
@@ -253,6 +175,13 @@ fn replace_file(path: &Path, text: &str) -> Result<(), AppError> {
 pub fn transcript_text(last: &LastTranscript, settings: &Settings) -> Option<String> {
     last.get()
         .map(|t| transcript::render(&t, &labels(settings), settings.copia_come))
+}
+
+/// Il Bino `path` reso come documento, con le correzioni e i nomi dei Parlanti, in `format`: per
+/// Copia testo e per Esporta Markdown….
+pub fn bino_text(path: &Path, settings: &Settings, format: CopiaCome) -> Result<String, AppError> {
+    let transcript = bino_transcript(title_of(path), bino::read(path)?);
+    Ok(transcript::render(&transcript, &labels(settings), format))
 }
 
 /// I testi del documento nella Lingua dell'interfaccia.
@@ -288,16 +217,26 @@ fn title_of(source: &Path) -> String {
 
 /// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
 /// `transcript-phrase`; con Riconosci i parlanti poi diarizza (`diarization-started`,
-/// `speakers-assigned`). Infine salva il Markdown.
+/// `speakers-assigned`). Un file audio o video diventa un Bino nella Raccolta `raccolta` (la radice
+/// della Libreria per `None` o `""`); di un Bino si riscrive il testo.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
     activity: &Activity,
     source: PathBuf,
+    raccolta: Option<String>,
 ) -> Result<TranscriptionOutcome, AppError> {
+    let library = recordings_folder(&app)?;
+    let destination = Library::raccolta_dir(&library, raccolta.as_deref())?;
     let cancel = CancelToken::new();
-    // Su un Bino le scritture di altri comandi si rifiutano finché non è riscritto.
-    let _activity = activity.begin(bino::is_bino(&source).then(|| source.clone()), {
+    // Le scritture di altri comandi su quel Bino, o sulla Raccolta del Bino che nascerà, si
+    // rifiutano finché la Trascrizione non è finita.
+    let target = if bino::is_bino(&source) {
+        source.clone()
+    } else {
+        destination.clone()
+    };
+    let _activity = activity.begin(Some(target), {
         let cancel = cancel.clone();
         move || cancel.cancel()
     })?;
@@ -314,70 +253,148 @@ pub async fn transcribe(
         .then(|| app.state::<Models>().reserve_diarizer(&app))
         .transpose()?;
     let diarize = diarizer.is_some();
+    let started = chrono::Local::now();
     let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     tauri::async_runtime::spawn_blocking(move || {
-        let models = app.state::<Models>();
-        let mut engine = models.take(&app, || model.id.as_str())?;
-        let mut audio = Vec::new();
-        let transcribed = run_pipeline(
-            &app,
-            &mut engine,
-            &silero,
-            &cancel,
-            Ingresso::Mix,
-            &transcript,
-            |engine, detector, on_event| {
-                transcribe_file(
-                    &source,
-                    engine,
-                    detector,
-                    settings.speech_language.code(),
-                    diarize.then_some(&mut audio),
-                    &cancel,
-                    on_event,
-                )
-            },
-        );
-        models.release(&app, engine, keep_engine(&transcribed));
-        transcribed?;
-        let mut transcript = transcript
-            .into_inner()
-            .unwrap_or_else(PoisonError::into_inner);
-        if let Some(diarizer) = diarizer
-            && !cancel.is_cancelled()
-        {
-            diarize_phrases(
+        // La Trascrizione, con la Diarizzazione; `copy` riceve l'audio di un file.
+        let run = |copy: Option<OggCopy>| {
+            let models = app.state::<Models>();
+            let mut engine = models.take(&app, || model.id.as_str())?;
+            let mut audio = Vec::new();
+            let transcribed = run_pipeline(
                 &app,
-                &diarizer,
-                &[(Ingresso::Mix, audio)],
-                &mut transcript,
+                &mut engine,
+                &silero,
                 &cancel,
-            )?;
-        }
-        // Annulla premuto dopo l'ultima Frase: né il Bino né il Markdown cambiano.
-        if cancel.is_cancelled() {
-            return Err(AppError::Cancelled);
-        }
-        let rewritten = bino.is_some();
-        if let Some(old) = bino {
-            let document = bino::Document::new(
-                old.creato,
-                old.durata_ms,
+                Ingresso::Mix,
+                &transcript,
+                |engine, detector, on_event| {
+                    transcribe_file(
+                        &source,
+                        engine,
+                        detector,
+                        settings.speech_language.code(),
+                        diarize.then_some(&mut audio),
+                        copy,
+                        &cancel,
+                        on_event,
+                    )
+                },
+            );
+            models.release(&app, engine, keep_engine(&transcribed));
+            transcribed?;
+            let mut transcript = transcript
+                .into_inner()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(diarizer) = diarizer
+                && !cancel.is_cancelled()
+            {
+                diarize_phrases(
+                    &app,
+                    &diarizer,
+                    &[(Ingresso::Mix, audio)],
+                    &mut transcript,
+                    &cancel,
+                )?;
+            }
+            // Annulla premuto dopo l'ultima Frase: il Bino non cambia e non nasce.
+            if cancel.is_cancelled() {
+                return Err(AppError::Cancelled);
+            }
+            Ok(transcript)
+        };
+        let document = |creato, durata_ms, transcript: &Transcript| {
+            bino::Document::new(
+                creato,
+                durata_ms,
                 bino::Modalita::Mix,
                 Some(model.id.clone()),
                 settings.speech_language,
                 true,
                 &transcript.phrases,
-            );
-            bino::rewrite(&source, &document)?;
-        }
-        let outcome = save_transcript(&source, &transcript, &labels(&settings))?;
-        app.state::<LastTranscript>()
-            .saved_in(md_of(&outcome), rewritten.then_some(source));
-        Ok(outcome)
+            )
+        };
+        // Il Bino con le Frasi; anche senza parlato un Bino si riscrive.
+        let saved = match bino {
+            Some(old) => {
+                let transcript = run(None)?;
+                let rewritten = bino::Document {
+                    origine: old.origine,
+                    ..document(old.creato, old.durata_ms, &transcript)
+                };
+                bino::rewrite(&source, &rewritten)?;
+                (!transcript.phrases.is_empty()).then_some(source)
+            }
+            None => file_to_bino(&library, &destination, &source, &settings, |copy| {
+                let transcript = run(Some(copy))?;
+                Ok(bino::Document {
+                    origine: source.file_name().map(|n| n.to_string_lossy().into_owned()),
+                    ..document(
+                        bino::creato(started),
+                        transcript.durata_ms.unwrap_or_default(),
+                        &transcript,
+                    )
+                })
+            })?,
+        };
+        Ok(saved.map_or(TranscriptionOutcome::NoSpeech, |path| {
+            TranscriptionOutcome::Saved {
+                path: path.display().to_string(),
+            }
+        }))
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Il Bino `<nome del file>.bino` del file audio o video `source`, nella cartella `destination` (la
+/// radice della Libreria `library` se nel frattempo è sparita), con " 2", " 3"… se esiste già.
+/// `transcribe` riceve la copia dell'audio, scritta in un Ogg temporaneo nella cartella nascosta con
+/// il formato della Registrazione, e restituisce il documento. Annullata, guasta o senza Frasi
+/// (`None`): non restano né Bino né Ogg temporaneo.
+fn file_to_bino(
+    library: &Path,
+    destination: &Path,
+    source: &Path,
+    settings: &Settings,
+    transcribe: impl FnOnce(OggCopy) -> Result<bino::Document, AppError>,
+) -> Result<Option<PathBuf>, AppError> {
+    let temp = temp_folder(library)?;
+    let (ogg, file) = create_numbered(&temp, &title_of(source), "ogg")?;
+    let _temporary = Temporary(ogg.clone());
+    let copy = OggCopy::new(
+        file,
+        settings.sample_rate,
+        channel_count(settings.channels),
+        settings.bitrate_kbps,
+    )?;
+    let document = transcribe(copy)?;
+    if document.frasi.is_empty() {
+        return Ok(None);
+    }
+    let folder = if destination.is_dir() {
+        destination
+    } else {
+        library
+    };
+    let path = numbered(folder, &title_of(source), "bino", Path::exists);
+    bino::write(&path, &[(Ingresso::Mix, &ogg)], &document)?;
+    Ok(Some(path))
+}
+
+/// L'Ogg temporaneo del Bino di un file: al drop si cancella, e con lui la cartella nascosta se resta
+/// vuota.
+struct Temporary(PathBuf);
+
+impl Drop for Temporary {
+    fn drop(&mut self) {
+        if let Err(e) = std::fs::remove_file(&self.0) {
+            log::warn!("{} non cancellato: {e}", self.0.display());
+        }
+        if let Some(temp) = self.0.parent().filter(|p| p.ends_with(TEMP_FOLDER)) {
+            let _ = std::fs::remove_dir(temp);
+        }
+    }
 }
 
 /// Attribuisce ai Parlanti le Frasi di `transcript` con Sortformer sull'audio intero (a 16 kHz) di
@@ -609,8 +626,9 @@ fn live_failed(app: &AppHandle, error: &AppError, cancel: &CancelToken) {
 }
 
 /// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: il documento
-/// prende il nome del file e si salva nel Markdown accanto, a meno che la Trascrizione
-/// (`transcribed`) non sia stata annullata o guasta.
+/// prende il nome del file. Il testo è già nel Bino; se il Bino non si è scritto (`recording` è
+/// l'Ogg) si salva nel Markdown accanto, a meno che la Trascrizione (`transcribed`) non sia stata
+/// annullata o guasta.
 pub fn finish_live(
     app: &AppHandle,
     recording: &Path,
@@ -622,7 +640,7 @@ pub fn finish_live(
     app.state::<LastTranscript>()
         .update(|last| last.title.clone_from(&title));
     let settings = app.state::<SettingsStore>().get();
-    let live = save_live(
+    save_live(
         recording,
         &Transcript {
             title,
@@ -631,20 +649,11 @@ pub fn finish_live(
         transcribed,
         cancel,
         &labels(&settings),
-    );
-    let md = match &live {
-        LiveTranscription::Saved(finished) => Some(PathBuf::from(&finished.md_path)),
-        _ => None,
-    };
-    // Il Bino ha le Frasi anche se la Trascrizione è annullata o guasta.
-    app.state::<LastTranscript>().saved_in(
-        md,
-        bino::is_bino(recording).then(|| recording.to_path_buf()),
-    );
-    live
+    )
 }
 
-/// Salva il documento della Trascrizione dal vivo, se non è stata annullata o guasta.
+/// Com'è finita la Trascrizione dal vivo; senza Bino ne salva il documento nel Markdown accanto a
+/// `recording`, se non è stata annullata o guasta.
 fn save_live(
     recording: &Path,
     transcript: &Transcript,
@@ -653,26 +662,26 @@ fn save_live(
     labels: &Labels,
 ) -> LiveTranscription {
     let saved = transcribed.and_then(|()| {
-        // Annulla premuto dopo l'ultima Frase: il Markdown non si salva lo stesso.
+        // Annulla premuto dopo l'ultima Frase.
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        save_transcript(recording, transcript, labels)
+        if transcript.phrases.is_empty() {
+            return Ok(LiveTranscription::NoSpeech);
+        }
+        if !bino::is_bino(recording) {
+            let markdown = transcript::render(transcript, labels, CopiaCome::Markdown);
+            save_md(recording, &markdown)?;
+        }
+        Ok(LiveTranscription::Saved)
     });
-    match saved {
-        Ok(TranscriptionOutcome::Saved(finished)) => LiveTranscription::Saved(finished),
-        Ok(TranscriptionOutcome::NoSpeech) => LiveTranscription::NoSpeech,
-        Err(error) => LiveTranscription::Failed { error },
-    }
+    saved.unwrap_or_else(|error| LiveTranscription::Failed { error })
 }
 
-/// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione (se non c'è
-/// un'Attività in corso), senza ritrascrivere, e la rinomina dei Parlanti riscrive il Bino e il suo
-/// Markdown più recente.
-/// Restituisce le Frasi per l'area, come se arrivassero da una Trascrizione, e i nomi dei Parlanti.
-pub fn open_bino(app: &AppHandle, source: &Path) -> Result<OpenedBino, AppError> {
+/// Apre il Bino `source` come Sorgente, senza ritrascrivere: le Frasi, come se arrivassero da una
+/// Trascrizione, i nomi dei Parlanti e le informazioni.
+pub fn open_bino(source: &Path) -> Result<OpenedBino, AppError> {
     let document = bino::read(source)?;
-    let parlanti = document.parlanti.clone();
     let phrases = document
         .frasi
         .iter()
@@ -685,31 +694,24 @@ pub fn open_bino(app: &AppHandle, source: &Path) -> Result<OpenedBino, AppError>
             parlante: frase.parlante,
         })
         .collect();
-    // Durante un'Attività il Bino si consulta soltanto: l'ultima Trascrizione resta la sua.
-    if !app.state::<Activity>().is_running() {
-        let last = app.state::<LastTranscript>();
-        last.set(bino_transcript(title_of(source), document));
-        last.saved_in(latest_md(source), Some(source.to_path_buf()));
-    }
-    Ok(OpenedBino { phrases, parlanti })
+    Ok(OpenedBino {
+        phrases,
+        info: BinoInfo {
+            creato: document.creato.clone(),
+            durata_ms: document.durata_ms,
+            modello: document.modello.as_deref().map(model_name),
+            lingua_parlato: document.lingua_parlato,
+            ingressi_separati: document.modalita == bino::Modalita::IngressiSeparati,
+            completa: document.completa,
+            origine: document.origine,
+        },
+        parlanti: document.parlanti,
+    })
 }
 
-/// Il `<stem> trascrizione <N>.md` accanto alla Sorgente modificato per ultimo, se ce n'è uno.
-fn latest_md(source: &Path) -> Option<PathBuf> {
-    let prefix = format!("{} trascrizione ", title_of(source));
-    std::fs::read_dir(source.parent()?)
-        .ok()?
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry
-                .file_name()
-                .to_str()
-                .and_then(|name| name.strip_prefix(&prefix)?.strip_suffix(".md"))
-                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-        })
-        .filter_map(|entry| Some((entry.metadata().ok()?.modified().ok()?, entry.path())))
-        .max_by_key(|(modified, _)| *modified)
-        .map(|(_, path)| path)
+/// Il nome del modello con id `id` nel catalogo; un id sconosciuto resta com'è.
+fn model_name(id: &str) -> String {
+    models::find(id).map_or_else(|| id.to_string(), |m| m.name.clone())
 }
 
 /// Il documento di un Bino come Trascrizione, con il nome del modello dal catalogo.
@@ -720,7 +722,8 @@ fn bino_transcript(title: String, document: bino::Document) -> Transcript {
         durata_ms: Some(document.durata_ms),
         model: document
             .modello
-            .map(|id| models::find(&id).map_or(id, |m| m.name.clone()))
+            .as_deref()
+            .map(model_name)
             .unwrap_or_default(),
         speech_language: document.lingua_parlato,
         phrases: document
@@ -844,29 +847,8 @@ pub fn preload(app: &AppHandle) {
     });
 }
 
-/// Il Markdown salvato, se c'è.
-fn md_of(outcome: &TranscriptionOutcome) -> Option<PathBuf> {
-    match outcome {
-        TranscriptionOutcome::Saved(finished) => Some(PathBuf::from(&finished.md_path)),
-        TranscriptionOutcome::NoSpeech => None,
-    }
-}
-
-/// Salva il documento in Markdown accanto alla Sorgente; senza Frasi non crea il file.
-fn save_transcript(
-    source: &Path,
-    transcript: &Transcript,
-    labels: &Labels,
-) -> Result<TranscriptionOutcome, AppError> {
-    if transcript.phrases.is_empty() {
-        return Ok(TranscriptionOutcome::NoSpeech);
-    }
-    let markdown = transcript::render(transcript, labels, CopiaCome::Markdown);
-    save_md(source, &markdown).map(TranscriptionOutcome::Saved)
-}
-
 /// Scrive `text` nel primo `<stem> trascrizione <N>.md` libero accanto alla Sorgente.
-fn save_md(source: &Path, text: &str) -> Result<TranscriptionFinished, AppError> {
+fn save_md(source: &Path, text: &str) -> Result<PathBuf, AppError> {
     let (path, mut file) = loop {
         let path = md_path(source, |p| p.exists());
         // `create_new`: un file comparso dopo il controllo non si sovrascrive, si passa al prossimo N.
@@ -878,10 +860,7 @@ fn save_md(source: &Path, text: &str) -> Result<TranscriptionFinished, AppError>
     };
     file.write_all(text.as_bytes())
         .map_err(|e| unwritable(&path, &e))?;
-    Ok(TranscriptionFinished {
-        md_path: path.display().to_string(),
-        chars: u32::try_from(text.chars().count()).unwrap_or(u32::MAX),
-    })
+    Ok(path)
 }
 
 fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
@@ -900,7 +879,9 @@ fn md_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::managers::settings::SpeechLanguage;
+    use crate::audio_toolkit::ogg_opus::tests::decoded_seconds;
+    use crate::engine::pipeline::tests::{EnergyDetector, FakeEngine, fixture, wav};
+    use crate::managers::settings::Channels;
 
     fn transcript(phrases: &[&str]) -> Transcript {
         Transcript {
@@ -966,66 +947,47 @@ mod tests {
     }
 
     #[test]
-    fn salvare_due_volte_non_sovrascrive_e_conta_i_caratteri() {
-        let dir = std::env::temp_dir().join("sbobino-test-md");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let source = dir.join("Riunione.mp3");
+    fn salvare_due_volte_non_sovrascrive() {
+        let dir = temp_dir("sbobino-test-md");
+        let source = dir.join("Riunione.ogg");
         let first = save_md(&source, "Perché sì.\nVa bene.").unwrap();
         let second = save_md(&source, "altro").unwrap();
+        assert_eq!(first, dir.join("Riunione trascrizione 1.md"));
+        assert_eq!(second, dir.join("Riunione trascrizione 2.md"));
         assert_eq!(
-            first,
-            TranscriptionFinished {
-                md_path: dir.join("Riunione trascrizione 1.md").display().to_string(),
-                chars: 19,
-            }
-        );
-        assert_eq!(
-            second.md_path,
-            dir.join("Riunione trascrizione 2.md").display().to_string()
-        );
-        assert_eq!(
-            std::fs::read_to_string(&first.md_path).unwrap(),
+            std::fs::read_to_string(&first).unwrap(),
             "Perché sì.\nVa bene."
         );
     }
 
     #[test]
-    fn senza_frasi_non_si_salva_nessun_markdown() {
-        let dir = std::env::temp_dir().join("sbobino-test-nessun-parlato");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let source = dir.join("Silenzio.wav");
-        assert_eq!(
-            save_transcript(&source, &transcript(&[]), &labels()).unwrap(),
-            TranscriptionOutcome::NoSpeech
-        );
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        let document = transcript(&["Uno.", "Due."]);
-        let saved = save_transcript(&source, &document, &labels()).unwrap();
-        let TranscriptionOutcome::Saved(finished) = saved else {
-            panic!("{saved:?}");
-        };
-        assert_eq!(
-            std::fs::read_to_string(finished.md_path).unwrap(),
-            transcript::render(&document, &labels(), CopiaCome::Markdown)
-        );
-    }
-
-    #[test]
-    fn la_trascrizione_dal_vivo_annullata_o_guasta_non_salva_il_markdown() {
-        let dir = std::env::temp_dir().join("sbobino-test-dal-vivo");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let recording = dir.join("Registrazione.bino");
+    fn la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_bino() {
+        let dir = temp_dir("sbobino-test-dal-vivo");
         let document = transcript(&["Uno."]);
         let cancel = CancelToken::new();
-        let guasta = save_live(
-            &recording,
-            &document,
+        let live = |recording: &str, transcribed, document: &Transcript| {
+            save_live(
+                &dir.join(recording),
+                document,
+                transcribed,
+                &cancel,
+                &labels(),
+            )
+        };
+        // Il testo è nel Bino.
+        assert_eq!(
+            live("Registrazione.bino", Ok(()), &document),
+            LiveTranscription::Saved
+        );
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        assert_eq!(
+            live("Registrazione.ogg", Ok(()), &transcript(&[])),
+            LiveTranscription::NoSpeech
+        );
+        let guasta = live(
+            "Registrazione.ogg",
             Err(AppError::Internal("x".into())),
-            &cancel,
-            &labels(),
+            &document,
         );
         assert!(matches!(
             guasta,
@@ -1034,12 +996,19 @@ mod tests {
             }
         ));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        let saved = save_live(&recording, &document, Ok(()), &cancel, &labels());
-        assert!(matches!(saved, LiveTranscription::Saved(_)), "{saved:?}");
+        // Senza Bino, accanto all'Ogg.
+        assert_eq!(
+            live("Registrazione.ogg", Ok(()), &document),
+            LiveTranscription::Saved
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join("Registrazione trascrizione 1.md")).unwrap(),
+            transcript::render(&document, &labels(), CopiaCome::Markdown)
+        );
         // Annulla dopo l'ultima Frase: niente secondo Markdown.
         cancel.cancel();
         assert_eq!(
-            save_live(&recording, &document, Ok(()), &cancel, &labels()),
+            live("Registrazione.ogg", Ok(()), &document),
             LiveTranscription::Failed {
                 error: AppError::Cancelled
             }
@@ -1100,6 +1069,66 @@ mod tests {
     }
 
     #[test]
+    fn un_bino_aperto_porta_frasi_nomi_e_informazioni() {
+        let dir = temp_dir("sbobino-test-apri");
+        let ogg = dir.join("mix.ogg");
+        std::fs::write(&ogg, b"audio").unwrap();
+        let mut phrases = transcript(&["Ciao.", "Salve."]).phrases;
+        phrases[1].ingresso = Ingresso::Sistema;
+        phrases[1].parlante = Some(2);
+        let mut document = bino::Document::new(
+            "2026-10-03T17:05:42+02:00".into(),
+            4000,
+            bino::Modalita::IngressiSeparati,
+            Some(models::default_model().id.clone()),
+            SpeechLanguage::It,
+            false,
+            &phrases,
+        );
+        document.origine = Some("Call.mp4".into());
+        document.parlanti.insert("sistema:2".into(), "Lucia".into());
+        let path = dir.join("Call.bino");
+        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document).unwrap();
+        let opened = open_bino(&path).unwrap();
+        assert_eq!(
+            opened.info,
+            BinoInfo {
+                creato: "2026-10-03T17:05:42+02:00".into(),
+                durata_ms: 4000,
+                modello: Some(models::default_model().name.clone()),
+                lingua_parlato: SpeechLanguage::It,
+                ingressi_separati: true,
+                completa: false,
+                origine: Some("Call.mp4".into()),
+            }
+        );
+        assert_eq!(opened.parlanti, document.parlanti);
+        let ids: Vec<_> = opened
+            .phrases
+            .iter()
+            .map(|p| (p.phrase_id, p.ingresso, p.parlante, p.text.as_str()))
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                (0, Ingresso::Mix, None, "Ciao."),
+                (1, Ingresso::Sistema, Some(2), "Salve.")
+            ]
+        );
+        // Copia testo ed Esporta Markdown… rendono il Bino con i nomi dei Parlanti.
+        let settings = Settings {
+            interface_language: Some(Language::It),
+            ..Settings::default()
+        };
+        let markdown = bino_text(&path, &settings, CopiaCome::Markdown).unwrap();
+        assert!(markdown.starts_with("# Call\n"), "{markdown}");
+        assert!(
+            markdown.ends_with("**Audio di sistema · Lucia:** Salve.\n"),
+            "{markdown}"
+        );
+    }
+
+    #[test]
     fn una_cartella_non_scrivibile_da_errore_dedicato() {
         let source = std::env::temp_dir().join("sbobino-test-non-esiste/Audio.wav");
         let error = save_md(&source, "testo").unwrap_err();
@@ -1114,116 +1143,186 @@ mod tests {
         dir
     }
 
-    #[test]
-    fn il_bino_spostato_o_nella_raccolta_rinominata_si_ritrova() {
-        let last = LastTranscript::default();
-        last.set(transcript(&["Uno."]));
-        let bino = Path::new(r"C:\Sbobino\Acme\Call.bino");
-        last.saved_in(None, Some(bino.to_path_buf()));
-        last.moved(Path::new(r"C:\Sbobino\Altro.bino"), Path::new(r"C:\X.bino"));
-        assert_eq!(last.lock().bino.as_deref(), Some(bino));
-        last.moved(
-            Path::new(r"C:\sbobino\acme"),
-            Path::new(r"C:\Sbobino\Acme Srl"),
-        );
-        assert_eq!(
-            last.lock().bino.as_deref(),
-            Some(Path::new(r"C:\Sbobino\Acme Srl\Call.bino"))
-        );
-        last.moved(
-            Path::new(r"C:\Sbobino\Acme Srl\Call.bino"),
-            Path::new(r"C:\Sbobino\Call.bino"),
-        );
-        assert_eq!(
-            last.lock().bino.as_deref(),
-            Some(Path::new(r"C:\Sbobino\Call.bino"))
-        );
+    /// Il Bino del file `source` nella Raccolta `destination` della Libreria `library`, trascritto
+    /// con il motore finto.
+    fn file_bino(
+        library: &Path,
+        destination: &Path,
+        source: &Path,
+        settings: &Settings,
+        engine: &mut FakeEngine,
+        cancel: &CancelToken,
+    ) -> Result<Option<PathBuf>, AppError> {
+        file_to_bino(library, destination, source, settings, |copy| {
+            let mut phrases = Vec::new();
+            let durata_ms = transcribe_file(
+                source,
+                engine,
+                &mut EnergyDetector,
+                None,
+                None,
+                Some(copy),
+                cancel,
+                &mut |event| {
+                    if let PipelineEvent::Phrase {
+                        inizio_ms,
+                        fine_ms,
+                        text,
+                        ..
+                    } = event
+                    {
+                        phrases.push(Phrase {
+                            inizio_ms,
+                            fine_ms,
+                            text,
+                            ingresso: Ingresso::Mix,
+                            parlante: None,
+                        });
+                    }
+                },
+            )?;
+            Ok(bino::Document::new(
+                "2026-10-04T10:15:00+02:00".into(),
+                durata_ms,
+                bino::Modalita::Mix,
+                None,
+                SpeechLanguage::Auto,
+                true,
+                &phrases,
+            ))
+        })
     }
 
-    #[test]
-    fn la_rinomina_vale_per_copia_testo_il_bino_e_il_markdown() {
-        let dir = temp_dir("sbobino-test-rinomina");
-        let ogg = dir.join("mix.ogg");
-        std::fs::write(&ogg, b"audio").unwrap();
-        let mut document = transcript(&["Ciao.", "Salve."]);
-        document.phrases[0].parlante = Some(1);
-        document.phrases[1].parlante = Some(2);
-        let path = dir.join("Riunione.bino");
-        let bino_document = bino::Document::new(
-            "2026-10-03T17:05:42+02:00".into(),
-            4000,
-            bino::Modalita::Mix,
-            None,
-            SpeechLanguage::Auto,
-            true,
-            &document.phrases,
-        );
-        bino::write(&path, &[(Ingresso::Mix, &ogg)], &bino_document).unwrap();
-        let TranscriptionOutcome::Saved(saved) =
-            save_transcript(&path, &document, &labels()).unwrap()
-        else {
-            panic!("senza Markdown");
-        };
-        let last = LastTranscript::default();
-        // Senza Trascrizione non c'è niente da rinominare.
-        assert!(rename_parlante(&last, Ingresso::Mix, 1, "Mario", &labels()).is_err());
-        last.set(document);
-        last.saved_in(Some(PathBuf::from(&saved.md_path)), Some(path.clone()));
-        rename_parlante(&last, Ingresso::Mix, 1, "  Mario ", &labels()).unwrap();
-        // Un nome vuoto si rifiuta e non cambia nulla.
-        assert!(rename_parlante(&last, Ingresso::Mix, 2, "  ", &labels()).is_err());
-        let settings = Settings {
-            interface_language: Some(Language::It),
-            ..Settings::default()
-        };
-        let text = transcript_text(&last, &settings).unwrap();
-        assert!(
-            text.ends_with("\nMario: Ciao.\n\nParlante 2: Salve.\n"),
-            "{text}"
-        );
-        let md = std::fs::read_to_string(&saved.md_path).unwrap();
-        assert!(
-            md.ends_with("\n**Mario:** Ciao.\n\n**Parlante 2:** Salve.\n"),
-            "{md}"
-        );
-        let reread = bino::read(&path).unwrap();
-        assert_eq!(
-            reread.parlanti,
-            BTreeMap::from([("mix:1".to_string(), "Mario".to_string())])
-        );
-        assert_eq!(reread.frasi, bino_document.frasi);
-        // Un Markdown cancellato non si ricrea.
-        std::fs::remove_file(&saved.md_path).unwrap();
-        rename_parlante(&last, Ingresso::Mix, 2, "Lucia", &labels()).unwrap();
-        assert!(!Path::new(&saved.md_path).exists());
-        assert_eq!(bino::read(&path).unwrap().parlanti.len(), 2);
-    }
-
-    #[test]
-    fn il_markdown_di_un_bino_e_quello_modificato_per_ultimo() {
-        let dir = temp_dir("sbobino-test-ultimo-md");
-        let source = dir.join("Riunione.bino");
-        assert_eq!(latest_md(&source), None);
-        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
-        for name in [
-            "Riunione trascrizione 2.md",
-            "Riunione trascrizione 1.md",
-            "Riunione trascrizione 3.txt",
-            "Riunione trascrizione x.md",
-            "Altro trascrizione 4.md",
-        ] {
-            std::fs::write(dir.join(name), "").unwrap();
-        }
-        std::fs::File::options()
-            .write(true)
-            .open(dir.join("Riunione trascrizione 2.md"))
+    /// Canali e frequenza dichiarati nell'`OpusHead` del mix del Bino.
+    fn opus_head(path: &Path) -> (u8, u32) {
+        use std::io::Read;
+        let mut mix = Vec::new();
+        bino::Mix::open(path)
             .unwrap()
-            .set_modified(older)
+            .read_to_end(&mut mix)
             .unwrap();
-        assert_eq!(
-            latest_md(&source),
-            Some(dir.join("Riunione trascrizione 1.md"))
-        );
+        let at = mix.windows(8).position(|w| w == b"OpusHead").unwrap();
+        let rate = u32::from_le_bytes(mix[at + 12..at + 16].try_into().unwrap());
+        (mix[at + 9], rate)
+    }
+
+    /// I file e le cartelle sotto `dir`, relativi.
+    fn tree(dir: &Path) -> Vec<String> {
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            if path.is_dir() {
+                found.extend(tree(&path).into_iter().map(|p| format!("{name}/{p}")));
+            }
+            found.push(name);
+        }
+        found.sort();
+        found
+    }
+
+    #[test]
+    fn un_file_diventa_un_bino_nella_raccolta_con_l_audio_nel_formato_della_registrazione() {
+        for (name, rate, channels) in [
+            ("parlato-it.mp4", 16_000, Channels::Mono),
+            ("parlato-it.wav", 48_000, Channels::Stereo),
+        ] {
+            let library = temp_dir("sbobino-test-file-bino");
+            let raccolta = library.join("Acme");
+            std::fs::create_dir(&raccolta).unwrap();
+            let settings = Settings {
+                sample_rate: rate,
+                channels,
+                ..Settings::default()
+            };
+            let source = fixture(name);
+            let bino = |engine: &mut FakeEngine| {
+                file_bino(
+                    &library,
+                    &raccolta,
+                    &source,
+                    &settings,
+                    engine,
+                    &CancelToken::new(),
+                )
+                .unwrap()
+                .unwrap()
+            };
+            let path = bino(&mut FakeEngine::default());
+            assert_eq!(path, raccolta.join("parlato-it.bino"));
+            // Il mix ha la durata dell'originale, nel formato chiesto.
+            let (original, mix) = (decoded_seconds(&source), decoded_seconds(&path));
+            assert!(
+                (original - mix).abs() < 0.001,
+                "{name}: {original} s, {mix} s"
+            );
+            assert_eq!(
+                opus_head(&path),
+                (channel_count(channels) as u8, rate),
+                "{name}"
+            );
+            let document = bino::read(&path).unwrap();
+            assert!(!document.frasi.is_empty(), "{name}");
+            assert!(
+                document
+                    .frasi
+                    .iter()
+                    .all(|f| f.inizio_ms < f.fine_ms && f.fine_ms <= document.durata_ms),
+                "{name}: {:?}",
+                document.frasi
+            );
+            // Lo stesso file un'altra volta: un nome nuovo, e niente temporanei.
+            let again = bino(&mut FakeEngine::default());
+            assert_eq!(again, raccolta.join("parlato-it 2.bino"));
+            assert_eq!(
+                tree(&library),
+                ["Acme", "Acme/parlato-it 2.bino", "Acme/parlato-it.bino"]
+            );
+        }
+    }
+
+    #[test]
+    fn annullata_o_senza_parlato_non_resta_nessun_file() {
+        let library = temp_dir("sbobino-test-file-annullato");
+        let settings = Settings::default();
+        let cancel = CancelToken::new();
+        let mut engine = FakeEngine {
+            cancel_at: Some((1, cancel.clone())),
+            ..FakeEngine::default()
+        };
+        let source = fixture("parlato-it.wav");
+        let error =
+            file_bino(&library, &library, &source, &settings, &mut engine, &cancel).unwrap_err();
+        assert_eq!(error, AppError::Cancelled);
+        assert!(tree(&library).is_empty(), "{:?}", tree(&library));
+        let silence = wav("silenzio-bino", 16_000, 1, &[(2.0, false)]);
+        let none = file_bino(
+            &library,
+            &library,
+            &silence,
+            &settings,
+            &mut FakeEngine::default(),
+            &CancelToken::new(),
+        )
+        .unwrap();
+        assert_eq!(none, None);
+        assert!(tree(&library).is_empty(), "{:?}", tree(&library));
+    }
+
+    #[test]
+    fn senza_la_raccolta_il_bino_va_nella_radice() {
+        let library = temp_dir("sbobino-test-file-radice");
+        let path = file_bino(
+            &library,
+            &library.join("Sparita"),
+            &fixture("parlato-it.wav"),
+            &Settings::default(),
+            &mut FakeEngine::default(),
+            &CancelToken::new(),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(path, library.join("parlato-it.bino"));
     }
 
     #[test]

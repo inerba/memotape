@@ -14,10 +14,8 @@
     "cancel": "Annulla",
     "cancelling": "Annullamento…",
     "replace": {
-      "title": "Sostituire il testo?",
-      "description": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione. I file Markdown già salvati restano.",
-      "descriptionBino": "Il testo nell'area, comprese le tue modifiche, sarà sostituito dalla nuova Trascrizione, anche dentro il Bino. I file Markdown già salvati restano.",
-      "descriptionOpen": "Il testo nell'area, comprese le tue modifiche, sarà sostituito da quello del Bino.",
+      "title": "Ritrascrivere il Bino?",
+      "description": "Il testo del Bino sarà sostituito dalla nuova Trascrizione: le correzioni e i nomi dei Parlanti andranno persi.",
       "keep": "Mantieni il testo",
       "confirm": "Sostituisci"
     },
@@ -26,7 +24,12 @@
     "parlantiList": "Parlanti:",
     "rename": "Clic per rinominare: Invio conferma, Esc annulla",
     "renameName": "Nuovo nome per {{label}}",
-    "renameTaken": "Un altro Parlante ha già questo nome"
+    "renameTaken": "Un altro Parlante ha già questo nome",
+    "startWith": "Trascrivi · {{language}}",
+    "options": "Opzioni di Trascrizione",
+    "edit": "Clic per correggere: Invio salva, Esc annulla",
+    "export": "Esporta Markdown…",
+    "exported": "Esportato in {{path}}"
   },
   "status": {
     "idle": "Apri un file audio, video o Bino, o scegli un Bino della Libreria",
@@ -38,11 +41,9 @@
     "completing": "Completamento della trascrizione…",
     "completingPercent": "Completamento della trascrizione… {{percent}}%",
     "progress": "Avanzamento della Trascrizione",
-    "finished_one": "Trascrizione finita: {{count, number}} carattere salvato in {{path}}",
-    "finished_many": "Trascrizione finita: {{count, number}} di caratteri salvati in {{path}}",
-    "finished_other": "Trascrizione finita: {{count, number}} caratteri salvati in {{path}}",
+    "finished": "Trascrizione salvata in {{path}}",
     "noSpeech": "Nessun parlato rilevato",
-    "cancelled": "Trascrizione annullata: nessun Markdown salvato",
+    "cancelled": "Trascrizione annullata",
     "openModels": "Apri Impostazioni → Trascrizione",
     "diarizing": "Riconoscimento dei parlanti…"
   },
@@ -194,7 +195,8 @@
       "microphone": "Microfono",
       "system": "Sistema"
     },
-    "level": "Livello: {{input}}"
+    "level": "Livello: {{input}}",
+    "options": "Opzioni di Registrazione"
   },
   "about": {
     "title": "Informazioni",
@@ -258,6 +260,12 @@
     "names": {
       "invalidName": "Caratteri non ammessi (< > : \" / \\ | ? *), nome riservato, punto in testa o punto o spazio in fondo",
       "nameTaken": "Questo nome è già usato"
+    },
+    "more": "Altre azioni",
+    "info": {
+      "incomplete": "incompleto",
+      "origine": "dal file {{name}}",
+      "outside": "fuori dalla Libreria"
     }
   }
 }

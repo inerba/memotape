@@ -31,7 +31,7 @@ use crate::transcript::Ingresso;
 const TICK: Duration = Duration::from_millis(100);
 /// La cartella nascosta degli Ogg delle Registrazioni in corso, dentro la Cartella della Libreria.
 /// Dopo un crash l'audio è lì.
-const TEMP_FOLDER: &str = ".sbobino";
+pub(crate) const TEMP_FOLDER: &str = ".sbobino";
 
 /// Durata registrata (pause escluse) e livelli dall'evento precedente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
@@ -229,7 +229,8 @@ fn completa(transcribed: Option<&Result<(), AppError>>, cancelled: bool) -> bool
 }
 
 /// Senza Bino, l'Ogg temporaneo del mix esce dalla cartella nascosta e va nella radice della
-/// Libreria come `<prefisso> <data ora>.ogg`: è la Sorgente, con il Markdown accanto. Se nemmeno
+/// Libreria come `<prefisso> <data ora>.ogg`: è la Sorgente, con accanto il Markdown della
+/// Trascrizione dal vivo, l'unico posto in cui resta il testo. Se nemmeno
 /// questo riesce resta dov'è. Gli Ogg degli Ingressi restano nella cartella nascosta.
 fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
     let path = recording_path(
@@ -310,7 +311,7 @@ fn save_bino(
 }
 
 /// La cartella nascosta degli Ogg temporanei, creata se manca.
-fn temp_folder(folder: &Path) -> Result<PathBuf, AppError> {
+pub(crate) fn temp_folder(folder: &Path) -> Result<PathBuf, AppError> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW};
     let temp = folder.join(TEMP_FOLDER);
@@ -327,7 +328,7 @@ fn temp_folder(folder: &Path) -> Result<PathBuf, AppError> {
     Ok(temp)
 }
 
-fn channel_count(channels: Channels) -> usize {
+pub(crate) fn channel_count(channels: Channels) -> usize {
     match channels {
         Channels::Mono => 1,
         Channels::Stereo => 2,
@@ -419,15 +420,7 @@ fn run(
     }
     let temp = temp_folder(folder)?;
     let start = Local::now();
-    let (path, file) = loop {
-        let path = recording_path(&temp, prefix, start.naive_local(), "ogg", Path::exists);
-        // `create_new`: un file comparso dopo il controllo non si sovrascrive.
-        match File::create_new(&path) {
-            Ok(file) => break (path, file),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(unwritable(&path, &e)),
-        }
-    };
+    let (path, file) = create_numbered(&temp, &base_name(prefix, start.naive_local()), "ogg")?;
     for capture in &captures {
         log::info!(
             "Registrazione da {} ({} Hz, {} canali) in {}",
@@ -595,11 +588,42 @@ pub fn recording_path(
     extension: &str,
     exists: impl Fn(&Path) -> bool,
 ) -> PathBuf {
-    let base = format!("{prefix} {}", start.format("%Y-%m-%d %H-%M-%S"));
+    numbered(folder, &base_name(prefix, start), extension, exists)
+}
+
+/// `<prefisso> AAAA-MM-GG HH-MM-SS`, il nome di una Registrazione senza estensione.
+fn base_name(prefix: &str, start: NaiveDateTime) -> String {
+    format!("{prefix} {}", start.format("%Y-%m-%d %H-%M-%S"))
+}
+
+/// `<base>.<extension>` in `folder`, con " 2", " 3"… se il nome esiste già.
+pub fn numbered(
+    folder: &Path,
+    base: &str,
+    extension: &str,
+    exists: impl Fn(&Path) -> bool,
+) -> PathBuf {
     std::iter::once(folder.join(format!("{base}.{extension}")))
         .chain((2..).map(|n| folder.join(format!("{base} {n}.{extension}"))))
         .find(|path| !exists(path))
         .expect("i numeri non finiscono")
+}
+
+/// Crea il file `numbered` in `folder`. `create_new`: un file comparso dopo il controllo non si
+/// sovrascrive, si passa al numero successivo.
+pub(crate) fn create_numbered(
+    folder: &Path,
+    base: &str,
+    extension: &str,
+) -> Result<(PathBuf, File), AppError> {
+    loop {
+        let path = numbered(folder, base, extension, Path::exists);
+        match File::create_new(&path) {
+            Ok(file) => return Ok((path, file)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(unwritable(&path, &e)),
+        }
+    }
 }
 
 #[cfg(test)]
