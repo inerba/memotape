@@ -14,7 +14,7 @@ export const commands = {
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
 	/**
 	 *  Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
-	 *  estensioni di Sfoglia, così non diventa un modo per lanciare eseguibili.
+	 *  estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
@@ -83,11 +83,12 @@ export const commands = {
 	listOutputDevices: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_output_devices")),
 	/**
 	 *  Registra dagli ingressi delle impostazioni (microfono, audio di sistema o entrambi) finché
-	 *  arriva `stop_recording` o un dispositivo si scollega; poi il file diventa la Sorgente. Durata e
-	 *  livelli arrivano con `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta
-	 *  con `activityInProgress` se un'Attività è già in corso.
+	 *  arriva `stop_recording` o un dispositivo si scollega; poi il Bino, nella Raccolta `raccolta`
+	 *  (`null` o `""`: la radice della Libreria), diventa la Sorgente. Durata e livelli arrivano con
+	 *  `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta con
+	 *  `activityInProgress` se un'Attività è già in corso.
 	 */
-	record: (prefix: string) => typedError<RecordingSaved, AppError>(__TAURI_INVOKE("record", { prefix })),
+	record: (prefix: string, raccolta: string | null) => typedError<RecordingSaved, AppError>(__TAURI_INVOKE("record", { prefix, raccolta })),
 	/**  Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso. */
 	pauseRecording: (paused: boolean) => __TAURI_INVOKE<boolean>("pause_recording", { paused }),
 	/**
@@ -95,16 +96,43 @@ export const commands = {
 	 *  `false` se non è in corso.
 	 */
 	stopRecording: () => __TAURI_INVOKE<boolean>("stop_recording"),
-	/**  La Cartella predefinita in uso: quella delle impostazioni o `Documenti\Sbobino`. */
+	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Sbobino`. */
 	recordingsFolder: () => typedError<string, AppError>(__TAURI_INVOKE("recordings_folder")),
 	/**  Apre il dialog di sistema per scegliere una cartella. `null` se l'utente annulla. */
 	pickFolder: () => __TAURI_INVOKE<string | null>("pick_folder"),
+	/**  Le Raccolte e i Bini della Libreria, dall'indice: `library-changed` avvisa quando cambiano. */
+	libraryList: () => typedError<LibraryList, AppError>(__TAURI_INVOKE("library_list")),
+	/**
+	 *  Crea la Raccolta `nome`. `invalidName` per un nome che Windows non ammette, `nameTaken` se c'è
+	 *  già.
+	 */
+	createRaccolta: (nome: string) => typedError<null, AppError>(__TAURI_INVOKE("create_raccolta", { nome })),
+	/**
+	 *  Rinomina la Raccolta `nome` e la sua cartella in `nuovo`, e restituisce la cartella nuova. Rifiuta
+	 *  con `activityInProgress` se l'Attività in corso lavora su un suo Bino.
+	 */
+	renameRaccolta: (nome: string, nuovo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_raccolta", { nome, nuovo })),
+	/**  Elimina la Raccolta `nome`, solo se vuota (`raccoltaNotEmpty`). */
+	deleteRaccolta: (nome: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_raccolta", { nome })),
+	/**
+	 *  Rinomina il file del Bino in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+	 *  `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 */
+	renameBino: (path: string, titolo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_bino", { path, titolo })),
+	/**
+	 *  Sposta il Bino nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
+	 *  Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
+	 */
+	moveBino: (path: string, raccolta: string | null) => typedError<string, AppError>(__TAURI_INVOKE("move_bino", { path, raccolta })),
+	/**  Manda il Bino nel Cestino di Windows. */
+	trashBino: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("trash_bino", { path })),
 };
 
 /** Events */
 export const events = {
 	binoRequested: makeEvent<BinoRequested>("bino-requested"),
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
+	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
@@ -140,7 +168,15 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
  */
 { code: "liveTranscriptionUnavailable"; detail: string } | 
 /**  Il Bino è stato scritto da una versione più nuova dell'app, con uno schema che non conosce. */
-{ code: "unsupportedBino" } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "unsupportedBino" } | 
+/**  Il nome di una Raccolta o il titolo di un Bino non è ammesso da Windows. */
+{ code: "invalidName"; detail: string } | 
+/**  C'è già una Raccolta, o un Bino nella stessa cartella, con questo nome. */
+{ code: "nameTaken"; detail: string } | 
+/**  Si elimina solo una Raccolta vuota. */
+{ code: "raccoltaNotEmpty"; detail: string } | 
+/**  Il Bino non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
+{ code: "binoNotFound"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -148,6 +184,19 @@ export type AudioDevice = {
 	id: string,
 	name: string,
 	isDefault: boolean,
+};
+
+/**  Un Bino della Libreria, come lo mostra la barra laterale. */
+export type BinoEntry = {
+	path: string,
+	/**  `null`: Senza raccolta. */
+	raccolta: string | null,
+	/**  Il nome del file senza estensione. */
+	titolo: string,
+	/**  `creato` del Bino; per un Bino illeggibile la data di modifica del file. */
+	creato: string,
+	/**  `null` per un Bino illeggibile o di una versione futura. */
+	durataMs: number | null,
 };
 
 /**  È arrivato un Bino da aprire: la finestra lo prende con `take_pending_bino`. */
@@ -175,6 +224,17 @@ export type Language = "it" | "en" | "fr" | "es" | "de" | "pl";
 export type Levels = {
 	microphone: number | null,
 	system: number | null,
+};
+
+/**  L'elenco della Libreria è cambiato (o può essere cambiato): il frontend lo rilegge. */
+export type LibraryChanged = null;
+
+/**  Le Raccolte e tutti i Bini della Libreria. */
+export type LibraryList = {
+	/**  I nomi delle Raccolte, in ordine alfabetico. */
+	raccolte: string[],
+	/**  Dal più recente. */
+	bini: BinoEntry[],
 };
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
@@ -303,7 +363,7 @@ export type Settings = {
 	channels: Channels,
 	/**  Hz. */
 	sampleRate: number,
-	/**  `null`: `Documenti\Sbobino`. */
+	/**  La Cartella della Libreria; `null`: `Documenti\Sbobino`. */
 	recordingsFolder: string | null,
 	/**  `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese. */
 	interfaceLanguage: Language | null,
@@ -334,6 +394,11 @@ export type Settings = {
 	parlantiMicrofono?: boolean,
 	/**  Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati. */
 	parlantiSistema?: boolean,
+	/**
+	 *  La Raccolta scelta nella barra laterale: `null` Tutta la Libreria, `""` Senza raccolta,
+	 *  altrimenti il nome. Manca nei file salvati prima che esistesse: allora è Tutta la Libreria.
+	 */
+	raccolta?: string | null,
 };
 
 export type SpeakerAssignment = {

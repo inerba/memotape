@@ -1,10 +1,9 @@
 {
   "source": {
-    "browse": "Przeglądaj",
+    "browse": "Otwórz plik",
     "filter": "Audio, wideo i Bino",
     "none": "Nie wybrano pliku",
-    "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)",
-    "reveal": "{{path}} (kliknij, aby pokazać w folderze)"
+    "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)"
   },
   "transcription": {
     "start": "Transkrybuj",
@@ -30,7 +29,7 @@
     "renameTaken": "Inny mówca ma już tę nazwę"
   },
   "status": {
-    "idle": "Wybierz plik audio lub wideo przyciskiem Przeglądaj",
+    "idle": "Otwórz plik audio, wideo lub Bino albo wybierz Bino z Biblioteki",
     "recording": "Trwa nagrywanie…",
     "recordingPaused": "Nagrywanie wstrzymane",
     "recorded": "Nagranie zapisano w {{path}}",
@@ -65,6 +64,10 @@
       "unreadableSettings": "Nie można odczytać ustawień, aplikacja używa wartości domyślnych: {{detail}}",
       "liveTranscriptionUnavailable": "Transkrypcja na żywo niedostępna: model {{detail}} nie jest pobrany lub nie daje się załadować (nagranie i tak zostanie zapisane)",
       "unsupportedBino": "Ten plik Bino pochodzi z nowszej wersji Sbobino: zaktualizuj aplikację, aby go otworzyć",
+      "invalidName": "Nieprawidłowa nazwa: {{detail}}. Niedozwolone są < > : \" / \\ | ? *, nazwy zastrzeżone, takie jak CON, kropka na początku oraz kropka lub spacja na końcu",
+      "nameTaken": "Nazwa {{detail}} jest już używana",
+      "raccoltaNotEmpty": "Kolekcja {{detail}} nie jest pusta: najpierw przenieś lub usuń jej pliki Bino",
+      "binoNotFound": "Pliku Bino nie ma już na miejscu (przeniesiony, zmieniony lub usunięty poza aplikacją): {{detail}}",
       "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
       "cancelled": "Transkrypcja anulowana",
       "internal": "Błąd wewnętrzny: {{detail}}"
@@ -123,9 +126,9 @@
     },
     "general": {
       "title": "Ogólne",
-      "description": "Folder nagrań, format Kopiuj tekst i język interfejsu.",
-      "folder": "Folder domyślny",
-      "folderDescription": "Tu zapisywane są nagrania. Jeśli folder nie istnieje, zostanie utworzony.",
+      "description": "Folder Biblioteki, format Kopiuj tekst i język interfejsu.",
+      "folder": "Folder Biblioteki",
+      "folderDescription": "Tu Sbobino zapisuje pliki Bino: jego foldery to Kolekcje. Jeśli nie istnieje, zostanie utworzony; zmiana nie przenosi plików Bino z poprzedniego folderu.",
       "choose": "Wybierz…",
       "reset": "Użyj Dokumenty\\Sbobino",
       "language": "Język interfejsu",
@@ -217,5 +220,42 @@
     "duration": "Czas trwania",
     "model": "Model",
     "parlante": "Mówca {{n}}"
+  },
+  "library": {
+    "title": "Biblioteka",
+    "activity": "Trwająca czynność: kliknij, aby do niej wrócić",
+    "activityRecording": "Nagrywanie · {{elapsed}}",
+    "raccolta": "Kolekcja",
+    "raccolte": "Kolekcje",
+    "all": "Cała Biblioteka",
+    "none": "Bez kolekcji",
+    "newRaccolta": "Nowa Kolekcja…",
+    "newRaccoltaName": "Nazwa nowej Kolekcji",
+    "renameRaccolta": "Zmień nazwę Kolekcji",
+    "deleteRaccolta": "Usuń Kolekcję (tylko pustą)",
+    "empty": "Brak plików Bino",
+    "groups": {
+      "today": "Dzisiaj",
+      "yesterday": "Wczoraj",
+      "week": "W tym tygodniu"
+    },
+    "showAll": "Wszystkie pliki Bino w Kolekcji",
+    "sortBy": "Sortuj według",
+    "sortDate": "Data",
+    "sortTitle": "Tytuł",
+    "moveTo": "Przenieś do…",
+    "addToLibrary": "Dodaj do Biblioteki…",
+    "reveal": "Pokaż w Eksploratorze plików",
+    "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
+    "renameName": "Nowy tytuł pliku Bino",
+    "delete": "Usuń",
+    "deleteTitle": "Usunąć plik Bino?",
+    "deleteDescription": "„{{titolo}}” trafi do Kosza systemu Windows, skąd można go przywrócić.",
+    "deleteKeep": "Anuluj",
+    "deleteConfirm": "Przenieś do Kosza",
+    "names": {
+      "invalidName": "Niedozwolone znaki (< > : \" / \\ | ? *), nazwa zastrzeżona, kropka na początku albo kropka lub spacja na końcu",
+      "nameTaken": "Ta nazwa jest już używana"
+    }
   }
 }

@@ -54,6 +54,7 @@ export const DEFAULT_SETTINGS: Settings = {
   parlantiMicrofono: false,
   parlantiMix: false,
   parlantiSistema: false,
+  raccolta: null,
   recordingSource: "mic",
   recordingsFolder: null,
   sampleRate: 48_000,
@@ -83,6 +84,8 @@ export const settingsSchema = z.object({
   parlantiMicrofono: z.boolean().optional(),
   parlantiMix: z.boolean().optional(),
   parlantiSistema: z.boolean().optional(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  raccolta: z.string().nullable().optional(),
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),

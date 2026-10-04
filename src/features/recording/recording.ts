@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type {
   AppError,
   commands,
@@ -9,6 +10,7 @@ import {
   failedStatus,
   outcomeStatus,
   type Status,
+  statusText,
 } from "@/features/status/status";
 
 /** Il livello più basso mostrato, in dBFS: sotto è silenzio. */
@@ -91,4 +93,26 @@ function recordedStatus(
   return transcription.outcome === "failed"
     ? failedStatus(transcription.error)
     : outcomeStatus(transcription);
+}
+
+/**
+ * Lo stato in breve dell'Attività in corso, per la barra laterale: il timer della Registrazione
+ * (`elapsedMs` dall'ultimo `recording-tick`) o la fase con la percentuale. `null` senza Attività.
+ */
+export function activityText(
+  status: Status,
+  elapsedMs: number,
+  t: TFunction
+): string | null {
+  switch (status.phase) {
+    case "recording":
+      return t("library.activityRecording", {
+        elapsed: elapsedText(elapsedMs),
+      });
+    case "transcribing":
+    case "completing":
+      return statusText(status, t);
+    default:
+      return null;
+  }
 }

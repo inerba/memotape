@@ -21,6 +21,7 @@ use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
+use crate::library;
 use crate::managers::activity::Activity;
 use crate::managers::models::{self, DiarizerLease, Models};
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore};
@@ -172,6 +173,21 @@ impl LastTranscript {
     fn get(&self) -> Option<Transcript> {
         self.lock().transcript.clone()
     }
+
+    /// Il Bino, o la Raccolta, `from` è stato spostato o rinominato in `to`: la rinomina dei
+    /// Parlanti cerca lì il Bino che contiene queste Frasi.
+    pub fn moved(&self, from: &Path, to: &Path) {
+        let mut last = self.lock();
+        if let Some(bino) = &last.bino
+            && library::inside(bino, from)
+        {
+            let rest = bino
+                .components()
+                .skip(from.components().count())
+                .collect::<PathBuf>();
+            last.bino = Some(to.join(rest));
+        }
+    }
 }
 
 /// Rinomina il Parlante `parlante` di `ingresso` nell'ultima Trascrizione: il nome (senza spazi in
@@ -280,7 +296,8 @@ pub async fn transcribe(
     source: PathBuf,
 ) -> Result<TranscriptionOutcome, AppError> {
     let cancel = CancelToken::new();
-    let _activity = activity.begin({
+    // Su un Bino le scritture di altri comandi si rifiutano finché non è riscritto.
+    let _activity = activity.begin(bino::is_bino(&source).then(|| source.clone()), {
         let cancel = cancel.clone();
         move || cancel.cancel()
     })?;
@@ -649,8 +666,9 @@ fn save_live(
     }
 }
 
-/// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione, senza
-/// ritrascrivere, e la rinomina dei Parlanti riscrive il Bino e il suo Markdown più recente.
+/// Apre il Bino `source` come Sorgente: il suo testo diventa l'ultima Trascrizione (se non c'è
+/// un'Attività in corso), senza ritrascrivere, e la rinomina dei Parlanti riscrive il Bino e il suo
+/// Markdown più recente.
 /// Restituisce le Frasi per l'area, come se arrivassero da una Trascrizione, e i nomi dei Parlanti.
 pub fn open_bino(app: &AppHandle, source: &Path) -> Result<OpenedBino, AppError> {
     let document = bino::read(source)?;
@@ -667,9 +685,12 @@ pub fn open_bino(app: &AppHandle, source: &Path) -> Result<OpenedBino, AppError>
             parlante: frase.parlante,
         })
         .collect();
-    let last = app.state::<LastTranscript>();
-    last.set(bino_transcript(title_of(source), document));
-    last.saved_in(latest_md(source), Some(source.to_path_buf()));
+    // Durante un'Attività il Bino si consulta soltanto: l'ultima Trascrizione resta la sua.
+    if !app.state::<Activity>().is_running() {
+        let last = app.state::<LastTranscript>();
+        last.set(bino_transcript(title_of(source), document));
+        last.saved_in(latest_md(source), Some(source.to_path_buf()));
+    }
     Ok(OpenedBino { phrases, parlanti })
 }
 
@@ -1091,6 +1112,32 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn il_bino_spostato_o_nella_raccolta_rinominata_si_ritrova() {
+        let last = LastTranscript::default();
+        last.set(transcript(&["Uno."]));
+        let bino = Path::new(r"C:\Sbobino\Acme\Call.bino");
+        last.saved_in(None, Some(bino.to_path_buf()));
+        last.moved(Path::new(r"C:\Sbobino\Altro.bino"), Path::new(r"C:\X.bino"));
+        assert_eq!(last.lock().bino.as_deref(), Some(bino));
+        last.moved(
+            Path::new(r"C:\sbobino\acme"),
+            Path::new(r"C:\Sbobino\Acme Srl"),
+        );
+        assert_eq!(
+            last.lock().bino.as_deref(),
+            Some(Path::new(r"C:\Sbobino\Acme Srl\Call.bino"))
+        );
+        last.moved(
+            Path::new(r"C:\Sbobino\Acme Srl\Call.bino"),
+            Path::new(r"C:\Sbobino\Call.bino"),
+        );
+        assert_eq!(
+            last.lock().bino.as_deref(),
+            Some(Path::new(r"C:\Sbobino\Call.bino"))
+        );
     }
 
     #[test]

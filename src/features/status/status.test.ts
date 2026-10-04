@@ -8,6 +8,7 @@ import {
   statusText,
   withDiarizing,
   withLiveError,
+  withMovedSource,
   withProgress,
 } from "@/features/status/status";
 
@@ -15,7 +16,7 @@ const t = i18n.t.bind(i18n);
 
 test("a riposo la status bar invita a scegliere un file o mostra il percorso della Sorgente", () => {
   expect(statusText({ phase: "idle", source: null }, t)).toBe(
-    "Scegli un file audio o video con Sfoglia"
+    "Apri un file audio, video o Bino, o scegli un Bino della Libreria"
   );
   expect(
     statusText({ phase: "idle", source: "C:\\Lezioni\\Lezione 1.mp4" }, t)
@@ -188,4 +189,18 @@ test("senza modello la Registrazione continua e la status bar lo dice con il lin
   // Finita la Registrazione l'avviso arriva con il suo esito, non con l'evento.
   const recorded: Status = { path: "a.ogg", phase: "recorded" };
   expect(withLiveError(recorded, error)).toBe(recorded);
+});
+
+test("un Bino aperto spostato o rinominato resta nella status bar con il percorso nuovo", () => {
+  const from = "C:\\Sbobino\\Call.bino";
+  const to = "C:\\Sbobino\\Acme\\Call.bino";
+  expect(withMovedSource({ phase: "idle", source: from }, from, to)).toEqual({
+    phase: "idle",
+    source: to,
+  });
+  const other = { phase: "idle", source: "C:\\Altro.bino" } as const;
+  expect(withMovedSource(other, from, to)).toEqual(other);
+  expect(withMovedSource({ phase: "noSpeech" }, from, to)).toEqual({
+    phase: "noSpeech",
+  });
 });

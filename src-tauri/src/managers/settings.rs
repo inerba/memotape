@@ -27,7 +27,7 @@ pub struct Settings {
     pub channels: Channels,
     /// Hz.
     pub sample_rate: u32,
-    /// `null`: `Documenti\Sbobino`.
+    /// La Cartella della Libreria; `null`: `Documenti\Sbobino`.
     pub recordings_folder: Option<String>,
     /// `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese.
     pub interface_language: Option<Language>,
@@ -57,6 +57,10 @@ pub struct Settings {
     /// Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati.
     #[serde(default)]
     pub parlanti_sistema: bool,
+    /// La Raccolta scelta nella barra laterale: `null` Tutta la Libreria, `""` Senza raccolta,
+    /// altrimenti il nome. Manca nei file salvati prima che esistesse: allora è Tutta la Libreria.
+    #[serde(default)]
+    pub raccolta: Option<String>,
 }
 
 #[derive(
@@ -180,6 +184,7 @@ impl Default for Settings {
             parlanti_mix: false,
             parlanti_microfono: false,
             parlanti_sistema: false,
+            raccolta: None,
         }
     }
 }
@@ -414,6 +419,7 @@ mod tests {
         assert!(
             !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
         );
+        assert_eq!(settings.raccolta, None);
     }
 
     #[test]
@@ -511,6 +517,7 @@ mod tests {
         assert!(
             !settings.parlanti_mix && !settings.parlanti_microfono && !settings.parlanti_sistema
         );
+        assert_eq!(settings.raccolta, None);
     }
 
     #[test]
@@ -586,12 +593,15 @@ mod tests {
             parlanti_mix: true,
             parlanti_microfono: false,
             parlanti_sistema: true,
+            raccolta: Some("Ferrara Quarzi".into()),
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));
         // Un secondo salvataggio sostituisce il primo.
         let again = Settings {
             speech_language: SpeechLanguage::Auto,
+            // Senza raccolta.
+            raccolta: Some(String::new()),
             ..settings
         };
         again.save(&path).unwrap();

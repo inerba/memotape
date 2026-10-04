@@ -42,6 +42,18 @@ pub enum AppError {
     /// Il Bino è stato scritto da una versione più nuova dell'app, con uno schema che non conosce.
     #[error("Bino di una versione più nuova")]
     UnsupportedBino,
+    /// Il nome di una Raccolta o il titolo di un Bino non è ammesso da Windows.
+    #[error("nome non valido: {0}")]
+    InvalidName(String),
+    /// C'è già una Raccolta, o un Bino nella stessa cartella, con questo nome.
+    #[error("nome già usato: {0}")]
+    NameTaken(String),
+    /// Si elimina solo una Raccolta vuota.
+    #[error("Raccolta non vuota: {0}")]
+    RaccoltaNotEmpty(String),
+    /// Il Bino non è più dov'era: spostato, rinominato o cancellato fuori dall'app.
+    #[error("Bino non trovato: {0}")]
+    BinoNotFound(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

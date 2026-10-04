@@ -1,10 +1,9 @@
 {
   "source": {
-    "browse": "Durchsuchen",
+    "browse": "Datei öffnen",
     "filter": "Audio, Video und Bino",
     "none": "Keine Datei ausgewählt",
-    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)",
-    "reveal": "{{path}} (klicken, um es im Ordner anzuzeigen)"
+    "open": "{{path}} (klicken, um mit dem zugeordneten Programm zu öffnen)"
   },
   "transcription": {
     "start": "Transkribieren",
@@ -30,7 +29,7 @@
     "renameTaken": "Ein anderer Sprecher hat diesen Namen schon"
   },
   "status": {
-    "idle": "Wähle mit „Durchsuchen“ eine Audio- oder Videodatei",
+    "idle": "Öffne eine Audio-, Video- oder Bino-Datei oder wähle einen Bino aus der Bibliothek",
     "recording": "Aufnahme läuft…",
     "recordingPaused": "Aufnahme pausiert",
     "recorded": "Aufnahme gespeichert unter {{path}}",
@@ -63,6 +62,10 @@
       "unreadableSettings": "Die Einstellungen können nicht gelesen werden, die App verwendet die Standardwerte: {{detail}}",
       "liveTranscriptionUnavailable": "Live-Transkription nicht verfügbar: Das Modell {{detail}} ist nicht heruntergeladen oder lässt sich nicht laden (die Aufnahme wird trotzdem gespeichert)",
       "unsupportedBino": "Dieses Bino stammt aus einer neueren Version von Sbobino: Aktualisiere die App, um es zu öffnen",
+      "invalidName": "Ungültiger Name: {{detail}}. Nicht erlaubt sind < > : \" / \\ | ? *, reservierte Namen wie CON, ein Punkt am Anfang sowie ein Punkt oder Leerzeichen am Ende",
+      "nameTaken": "Der Name {{detail}} wird bereits verwendet",
+      "raccoltaNotEmpty": "Die Sammlung {{detail}} ist nicht leer: Verschiebe oder lösche zuerst ihre Bini",
+      "binoNotFound": "Der Bino ist nicht mehr an seinem Platz (außerhalb der App verschoben, umbenannt oder gelöscht): {{detail}}",
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
       "internal": "Interner Fehler: {{detail}}"
@@ -121,9 +124,9 @@
     },
     "general": {
       "title": "Allgemein",
-      "description": "Der Ordner für Aufnahmen, das Format von Text kopieren und die Sprache der Oberfläche.",
-      "folder": "Standardordner",
-      "folderDescription": "Hier werden die Aufnahmen gespeichert. Der Ordner wird angelegt, falls er nicht existiert.",
+      "description": "Der Bibliotheksordner, das Format von Text kopieren und die Sprache der Oberfläche.",
+      "folder": "Bibliotheksordner",
+      "folderDescription": "Hier speichert Sbobino die Bini: Seine Ordner sind die Sammlungen. Der Ordner wird angelegt, falls er nicht existiert; ein Wechsel verschiebt die Bini des vorherigen Ordners nicht.",
       "choose": "Auswählen…",
       "reset": "Dokumente\\Sbobino verwenden",
       "language": "Sprache der Oberfläche",
@@ -215,5 +218,42 @@
     "duration": "Dauer",
     "model": "Modell",
     "parlante": "Sprecher {{n}}"
+  },
+  "library": {
+    "title": "Bibliothek",
+    "activity": "Laufende Aktivität: klicken, um zu ihr zurückzukehren",
+    "activityRecording": "Aufnahme · {{elapsed}}",
+    "raccolta": "Sammlung",
+    "raccolte": "Sammlungen",
+    "all": "Ganze Bibliothek",
+    "none": "Ohne Sammlung",
+    "newRaccolta": "Neue Sammlung…",
+    "newRaccoltaName": "Name der neuen Sammlung",
+    "renameRaccolta": "Sammlung umbenennen",
+    "deleteRaccolta": "Sammlung löschen (nur wenn leer)",
+    "empty": "Hier gibt es keine Bini",
+    "groups": {
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "week": "Diese Woche"
+    },
+    "showAll": "Alle Bini der Sammlung",
+    "sortBy": "Sortieren nach",
+    "sortDate": "Datum",
+    "sortTitle": "Titel",
+    "moveTo": "Verschieben nach…",
+    "addToLibrary": "Zur Bibliothek hinzufügen…",
+    "reveal": "Im Datei-Explorer anzeigen",
+    "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
+    "renameName": "Neuer Titel des Bino",
+    "delete": "Löschen",
+    "deleteTitle": "Bino löschen?",
+    "deleteDescription": "„{{titolo}}“ wird in den Windows-Papierkorb verschoben und lässt sich dort wiederherstellen.",
+    "deleteKeep": "Abbrechen",
+    "deleteConfirm": "In den Papierkorb",
+    "names": {
+      "invalidName": "Unzulässige Zeichen (< > : \" / \\ | ? *), reservierter Name, Punkt am Anfang oder Punkt bzw. Leerzeichen am Ende",
+      "nameTaken": "Dieser Name wird bereits verwendet"
+    }
   }
 }

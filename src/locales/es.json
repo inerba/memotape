@@ -1,10 +1,9 @@
 {
   "source": {
-    "browse": "Examinar",
+    "browse": "Abrir archivo",
     "filter": "Audio, vídeo y Bino",
     "none": "Ningún archivo seleccionado",
-    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)",
-    "reveal": "{{path}} (clic para mostrarlo en su carpeta)"
+    "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)"
   },
   "transcription": {
     "start": "Transcribir",
@@ -30,7 +29,7 @@
     "renameTaken": "Otro hablante ya tiene este nombre"
   },
   "status": {
-    "idle": "Elige un archivo de audio o vídeo con Examinar",
+    "idle": "Abre un archivo de audio, vídeo o Bino, o elige un Bino de la Biblioteca",
     "recording": "Grabando…",
     "recordingPaused": "Grabación en pausa",
     "recorded": "Grabación guardada en {{path}}",
@@ -64,6 +63,10 @@
       "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
       "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
       "unsupportedBino": "Este Bino viene de una versión más reciente de Sbobino: actualiza la aplicación para abrirlo",
+      "invalidName": "Nombre no válido: {{detail}}. No se admiten < > : \" / \\ | ? *, los nombres reservados como CON, un punto al principio ni un punto o espacio al final",
+      "nameTaken": "El nombre {{detail}} ya está en uso",
+      "raccoltaNotEmpty": "La Colección {{detail}} no está vacía: mueve o elimina antes sus Bini",
+      "binoNotFound": "El Bino ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
       "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
       "cancelled": "Transcripción cancelada",
       "internal": "Error interno: {{detail}}"
@@ -122,9 +125,9 @@
     },
     "general": {
       "title": "General",
-      "description": "La carpeta de las grabaciones, el formato de Copiar texto y el idioma de la interfaz.",
-      "folder": "Carpeta predeterminada",
-      "folderDescription": "Donde se guardan las grabaciones. Si no existe, se crea.",
+      "description": "La carpeta de la Biblioteca, el formato de Copiar texto y el idioma de la interfaz.",
+      "folder": "Carpeta de la Biblioteca",
+      "folderDescription": "Donde Sbobino guarda los Bini: sus carpetas son las Colecciones. Si no existe, se crea; cambiarla no mueve los Bini de la carpeta anterior.",
       "choose": "Elegir…",
       "reset": "Usar Documentos\\Sbobino",
       "language": "Idioma de la interfaz",
@@ -216,5 +219,42 @@
     "duration": "Duración",
     "model": "Modelo",
     "parlante": "Hablante {{n}}"
+  },
+  "library": {
+    "title": "Biblioteca",
+    "activity": "Actividad en curso: haz clic para volver a ella",
+    "activityRecording": "Grabación · {{elapsed}}",
+    "raccolta": "Colección",
+    "raccolte": "Colecciones",
+    "all": "Toda la Biblioteca",
+    "none": "Sin colección",
+    "newRaccolta": "Nueva Colección…",
+    "newRaccoltaName": "Nombre de la nueva Colección",
+    "renameRaccolta": "Renombrar la Colección",
+    "deleteRaccolta": "Eliminar la Colección (solo si está vacía)",
+    "empty": "No hay Bini aquí",
+    "groups": {
+      "today": "Hoy",
+      "yesterday": "Ayer",
+      "week": "Esta semana"
+    },
+    "showAll": "Todos los Bini de la Colección",
+    "sortBy": "Ordenar por",
+    "sortDate": "Fecha",
+    "sortTitle": "Título",
+    "moveTo": "Mover a…",
+    "addToLibrary": "Añadir a la Biblioteca…",
+    "reveal": "Mostrar en el Explorador de archivos",
+    "rename": "Haz clic para renombrar: Intro confirma, Esc cancela",
+    "renameName": "Nuevo título del Bino",
+    "delete": "Eliminar",
+    "deleteTitle": "¿Eliminar el Bino?",
+    "deleteDescription": "«{{titolo}}» irá a la Papelera de reciclaje de Windows, desde donde podrás restaurarlo.",
+    "deleteKeep": "Cancelar",
+    "deleteConfirm": "Mover a la Papelera",
+    "names": {
+      "invalidName": "Caracteres no admitidos (< > : \" / \\ | ? *), nombre reservado, punto al principio o punto o espacio al final",
+      "nameTaken": "Este nombre ya está en uso"
+    }
   }
 }

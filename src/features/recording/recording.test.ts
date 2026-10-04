@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
 import {
+  activityText,
   afterRecording,
   elapsedText,
   levelPercent,
@@ -160,4 +161,18 @@ test("annullare il completamento della trascrizione salva la Registrazione senza
   });
   expect(missing.source).toBe(path);
   expect(missing.status.phase).toBe("failed");
+});
+
+test("l'Attività in corso dice il timer o la fase con la percentuale", () => {
+  expect(activityText({ paused: false, phase: "recording" }, 83_000, t)).toBe(
+    "Registrazione · 1:23"
+  );
+  expect(activityText({ percent: 45, phase: "transcribing" }, 0, t)).toBe(
+    "Trascrizione in corso… 45%"
+  );
+  expect(activityText({ percent: null, phase: "completing" }, 0, t)).toBe(
+    "Completamento della trascrizione…"
+  );
+  expect(activityText({ phase: "idle", source: null }, 0, t)).toBeNull();
+  expect(activityText({ phase: "cancelled" }, 0, t)).toBeNull();
 });

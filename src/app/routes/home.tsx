@@ -1,7 +1,8 @@
-import { Circle, Settings } from "lucide-react";
+import { Circle, FolderOpen } from "lucide-react";
 import {
   type ChangeEvent,
   type MouseEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -23,19 +24,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { AllBini } from "@/features/library/all-bini";
+import { BinoHeader } from "@/features/library/bino-header";
+import {
+  biniOf,
+  chosenRaccolta,
+  raccoltaLabel,
+} from "@/features/library/library";
+import { SELECT } from "@/features/library/move-select";
+import { Sidebar } from "@/features/library/sidebar";
+import { useBinoOperations } from "@/features/library/use-bino-operations";
+import { useLibrary } from "@/features/library/use-library";
 import { useModels } from "@/features/models/use-models";
-import { afterRecording } from "@/features/recording/recording";
+import { activityText, afterRecording } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
 import { speechLanguageChoice } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
-import { fileName, isBino } from "@/features/source/file-name";
+import { fileName, isBino, movedPath } from "@/features/source/file-name";
 import {
   afterTranscription,
+  errorText,
   needsSettings,
   type Status,
   statusText,
   withDiarizing,
   withLiveError,
+  withMovedSource,
   withProgress,
 } from "@/features/status/status";
 import { ParlantiBar } from "@/features/transcription/parlanti-bar";
@@ -62,6 +76,14 @@ import {
 } from "@/features/transcription/replace";
 
 const COPIED_MS = 2000;
+/** Quanto resta nella status bar l'errore di un'operazione sulla Libreria. */
+const NOTICE_MS = 6000;
+
+/** Un Bino aperto durante un'Attività: si consulta senza toccare la vista dell'Attività. */
+interface Browsed {
+  conversation: Conversation;
+  path: string;
+}
 
 export function HomePage() {
   const { t } = useTranslation();
@@ -82,6 +104,9 @@ export function HomePage() {
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null }
   );
+  // L'errore di un'operazione sulla Libreria: la status bar lo mostra per un po' sopra la fase, che
+  // durante un'Attività non deve cambiare.
+  const [notice, setNotice] = useState<AppError | null>(null);
   const [copied, setCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   // Cosa aspetta la conferma prima di sostituire il testo nell'area: un'Attività o l'apertura di
@@ -94,12 +119,18 @@ export function HomePage() {
   const [pendingBino, setPendingBino] = useState<string | null>(null);
   // Il Parlante di cui si sta scrivendo il nome nuovo.
   const [renaming, setRenaming] = useState<Parlante | null>(null);
+  // Il Bino aperto dalla barra laterale durante un'Attività.
+  const [browsed, setBrowsed] = useState<Browsed | null>(null);
+  // L'elenco completo dei Bini della Raccolta nell'area principale.
+  const [listOpen, setListOpen] = useState(false);
+  // Il timer della Registrazione per la barra laterale.
+  const [elapsedMs, setElapsedMs] = useState(0);
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
   // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
   const completing = status.phase === "completing";
   const paused = status.phase === "recording" && status.paused;
-  // Una Attività alla volta: durante l'una, l'altra e Sfoglia sono disabilitate.
+  // Una Attività alla volta: durante l'una, l'altra e Apri file sono disabilitate.
   const busy = running || recording || completing;
   const live = settings.trascrizioneDalVivo ?? false;
   // Il testo arriva dalla pipeline: non si modifica finché non è finita.
@@ -114,6 +145,8 @@ export function HomePage() {
     modelLanguages,
     settings.speechLanguage
   );
+  const library = useLibrary(setNotice);
+  const raccolta = chosenRaccolta(settings.raccolta, library.raccolte);
 
   useEffect(() => {
     // Le Frasi in ordine di inizio; la Frase fissa il Parziale del suo Ingresso.
@@ -141,6 +174,9 @@ export function HomePage() {
       setConversation(withoutPartials);
       setStatus((current) => withLiveError(current, payload.error));
     });
+    const ticks = events.recordingTick.listen(({ payload }) => {
+      setElapsedMs(payload.elapsedMs);
+    });
     // Il Bino dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
     // il listener, così uno arrivato nel frattempo non si perde.
     const takeBino = () =>
@@ -154,6 +190,7 @@ export function HomePage() {
       liveFailed.then((stop) => stop());
       diarizing.then((stop) => stop());
       assigned.then((stop) => stop());
+      ticks.then((stop) => stop());
       binoRequested.then((stop) => stop());
     };
   }, []);
@@ -176,6 +213,14 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [copied]);
 
+  useEffect(() => {
+    if (!notice) {
+      return;
+    }
+    const timer = setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
   // Un Bino si apre con il testo che contiene, senza ritrascrivere.
   const openBino = useCallback(async (path: string) => {
     const result = await commands.openBino(path);
@@ -189,13 +234,42 @@ export function HomePage() {
     setStatus({ phase: "idle", source: path });
   }, []);
 
-  // Una Sorgente scelta con Sfoglia o con il doppio clic su un Bino in Esplora file.
+  // Durante un'Attività un Bino della Libreria si consulta accanto, senza toccarla; quello su cui
+  // lavora l'Attività riporta alla sua vista.
+  const browse = useCallback(
+    async (path: string) => {
+      if (path === source) {
+        setBrowsed(null);
+        return;
+      }
+      const result = await commands.openBino(path);
+      if (result.status === "error") {
+        setNotice(result.error);
+      } else {
+        setBrowsed({
+          conversation: { ...EMPTY_CONVERSATION, ...result.data },
+          path,
+        });
+      }
+    },
+    [source]
+  );
+
+  // Finita l'Attività torna la sua vista, con il suo esito aperto (il Bino di una Registrazione).
+  useEffect(() => {
+    if (!busy) {
+      setBrowsed(null);
+    }
+  }, [busy]);
+
+  // Una Sorgente scelta con Apri file o con il doppio clic su un Bino in Esplora file. Un testo
+  // modificato a mano si sostituisce solo dopo conferma.
   const openPath = useCallback(
     (path: string) => {
       if (!isBino(path)) {
         setSource(path);
         setStatus({ phase: "idle", source: path });
-      } else if (text.trim()) {
+      } else if (edited.current && text.trim()) {
         setConfirmReplace({ action: "open", path });
       } else {
         openBino(path);
@@ -204,19 +278,85 @@ export function HomePage() {
     [openBino, text]
   );
 
-  const browse = useCallback(async () => {
+  const pickFile = useCallback(async () => {
     const picked = await commands.pickSource(t("source.filter"));
     if (picked) {
+      setListOpen(false);
       openPath(picked);
     }
   }, [openPath, t]);
 
-  // Un Bino arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Sfoglia
+  // Un Bino della barra laterale o dell'elenco completo.
+  const openFromLibrary = useCallback(
+    (path: string) => {
+      setListOpen(false);
+      if (busy) {
+        browse(path);
+      } else if (path !== source) {
+        openPath(path);
+      }
+    },
+    [browse, busy, openPath, source]
+  );
+
+  // "Attività in corso" riporta alla sua vista.
+  const showActivity = useCallback(() => {
+    setBrowsed(null);
+    setListOpen(false);
+  }, []);
+
+  const showAll = useCallback(() => setListOpen(true), []);
+
+  const chooseRaccolta = useCallback(
+    async (value: string | null) => {
+      const error = await save({ ...settings, raccolta: value });
+      if (error) {
+        setNotice(error);
+      }
+    },
+    [save, settings]
+  );
+
+  // Un Bino aperto e spostato o rinominato resta aperto, con il percorso nuovo.
+  const moved = useCallback((from: string, to: string) => {
+    setSource((current) => current && movedPath(current, from, to));
+    setBrowsed(
+      (current) =>
+        current && { ...current, path: movedPath(current.path, from, to) }
+    );
+    setStatus((current) => withMovedSource(current, from, to));
+  }, []);
+
+  // Il Bino nel Cestino, se era aperto, non lo è più; la vista di un'Attività però resta.
+  const trashed = useCallback(
+    (path: string) => {
+      setBrowsed((current) => (current?.path === path ? null : current));
+      if (path === source) {
+        setSource(null);
+        if (!busy) {
+          edited.current = false;
+          setConversation(EMPTY_CONVERSATION);
+          setStatus({ phase: "idle", source: null });
+        }
+      }
+    },
+    [busy, source]
+  );
+
+  const { dialog, moveBino, renameBino, requestTrash, reveal } =
+    useBinoOperations({
+      onError: setNotice,
+      onMoved: moved,
+      onTrashed: trashed,
+    });
+
+  // Un Bino arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
   // intanto è disabilitata) e che si chiuda una conferma aperta, che altrimenti cambierebbe azione.
   // Si apre sulla finestra principale, anche se c'era Impostazioni sopra.
   useEffect(() => {
     if (pendingBino && !busy && !confirmReplace) {
       setPendingBino(null);
+      setListOpen(false);
       navigate("/");
       openPath(pendingBino);
     }
@@ -261,10 +401,12 @@ export function HomePage() {
       edited.current = false;
     }
     setCancelling(false);
+    setElapsedMs(0);
+    setListOpen(false);
     setStatus({ paused: false, phase: "recording" });
     try {
       const after = afterRecording(
-        await commands.record(t("recording.prefix"))
+        await commands.record(t("recording.prefix"), raccolta)
       );
       if (after.source) {
         setSource(after.source);
@@ -279,7 +421,7 @@ export function HomePage() {
       acceptPartials.current = false;
       setConversation(withoutPartials);
     }
-  }, [live, t]);
+  }, [live, raccolta, t]);
 
   const setPaused = useCallback((value: boolean) => {
     setStatus((current) =>
@@ -338,19 +480,22 @@ export function HomePage() {
   }, []);
 
   // Il documento dell'ultima Trascrizione, in testo semplice o Markdown secondo le impostazioni;
-  // il testo modificato a mano si copia com'è.
+  // il testo modificato a mano si copia com'è, e quello di un Bino consultato durante un'Attività
+  // come lo mostra l'area.
   const copy = useCallback(async () => {
     try {
-      const rendered = edited.current ? null : await commands.transcriptText();
+      let rendered: string | null = null;
+      if (browsed) {
+        rendered = conversationText(browsed.conversation, t);
+      } else if (!edited.current) {
+        rendered = await commands.transcriptText();
+      }
       await navigator.clipboard.writeText(rendered ?? text);
       setCopied(true);
     } catch (e) {
-      setStatus({
-        error: { code: "internal", detail: String(e) },
-        phase: "failed",
-      });
+      setNotice({ code: "internal", detail: String(e) });
     }
-  }, [text]);
+  }, [browsed, t, text]);
 
   const chooseLanguage = useCallback(
     async (e: ChangeEvent<HTMLSelectElement>) => {
@@ -411,160 +556,338 @@ export function HomePage() {
     );
   }, []);
 
+  // Il titolo di un Bino con le sue operazioni. `active`: ci lavora la Trascrizione in corso.
+  const header = useCallback(
+    (path: string, active: boolean) => (
+      <BinoHeader
+        disabled={active}
+        library={library}
+        onMove={moveBino}
+        onRename={renameBino}
+        onReveal={reveal}
+        onTrash={requestTrash}
+        path={path}
+      />
+    ),
+    [library, moveBino, renameBino, requestTrash, reveal]
+  );
+
   // La sezione Trascrizione segue l'Attività: c'è durante e dopo una Trascrizione, anche dal vivo,
   // o se c'è testo.
   const showTranscription =
     writing || status.phase === "finished" || text !== "";
   const shown = shownText(running, writing, conversation, text, t);
 
+  let mainView: ReactNode;
+  if (listOpen) {
+    mainView = (
+      <AllBini
+        bini={biniOf(library.bini, raccolta)}
+        onMove={moveBino}
+        onOpen={openFromLibrary}
+        onTrash={requestTrash}
+        raccolte={library.raccolte}
+        title={raccoltaLabel(raccolta, t)}
+      />
+    );
+  } else if (browsed) {
+    mainView = (
+      <BrowsedView
+        copied={copied}
+        header={header(browsed.path, false)}
+        onCopy={copy}
+        text={conversationText(browsed.conversation, t)}
+      />
+    );
+  } else {
+    mainView = (
+      <>
+        <SourceTitle
+          header={header}
+          onOpen={open}
+          running={running}
+          source={source}
+        />
+        <TranscribeBar
+          busy={busy}
+          cancelling={cancelling}
+          canTranscribe={source !== null && !busy}
+          language={language}
+          languages={languages}
+          onCancel={running || completing ? cancel : null}
+          onError={failed}
+          onLanguage={chooseLanguage}
+          onTranscribe={requestTranscription}
+          running={running}
+        />
+        {recording ? (
+          <RecordingPanel onPausedChange={setPaused} paused={paused} />
+        ) : null}
+        {showTranscription ? (
+          <section className="flex min-h-0 flex-1 flex-col gap-2">
+            <Textarea
+              aria-label={t("transcription.text")}
+              className="flex-1 resize-none"
+              onChange={edit}
+              onClick={clickText}
+              readOnly={writing}
+              value={shown}
+            />
+            <div className="flex items-start justify-between gap-3">
+              <ParlantiBar
+                editing={renaming}
+                list={parlantiList}
+                onEdit={setRenaming}
+                onRename={rename}
+              />
+              <CopyButton
+                copied={copied}
+                disabled={!copyable(running, text)}
+                onCopy={copy}
+              />
+            </div>
+          </section>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
-      <div className="flex h-screen flex-col" inert={settingsPage !== null}>
-        <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
-          <section className="flex items-center gap-3">
-            <Button disabled={busy} onClick={browse} variant="outline">
-              {t("source.browse")}
-            </Button>
-            <Button
-              disabled={busy}
-              onClick={requestRecording}
-              variant="outline"
-            >
-              <Circle className="fill-destructive text-destructive" />
-              {t("recording.start")}
-            </Button>
-            <SettingCheckbox
-              disabled={busy}
-              label={t("recording.live")}
-              name="trascrizioneDalVivo"
-              onError={failed}
-            />
-            {source ? (
-              <div className="min-w-0 flex-1">
-                <button
-                  className="block max-w-full cursor-pointer truncate rounded-sm text-left text-sm underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  onClick={open}
-                  title={
-                    isBino(source)
-                      ? t("source.reveal", { path: source })
-                      : t("source.open", { path: source })
-                  }
-                  type="button"
-                >
-                  {fileName(source)}
-                </button>
-              </div>
-            ) : (
-              <span className="min-w-0 flex-1 truncate text-muted-foreground text-sm">
-                {t("source.none")}
-              </span>
-            )}
-            <select
-              aria-label={t("speechLanguage.label")}
-              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-              disabled={busy}
-              onChange={chooseLanguage}
-              title={t("speechLanguage.label")}
-              value={language}
-            >
-              <option value="auto">{t("speechLanguage.auto")}</option>
-              {languages.map((l) => (
-                <option key={l} value={l}>
-                  {t(`speechLanguage.languages.${l}`)}
-                </option>
-              ))}
-            </select>
-            <SettingCheckbox
-              disabled={busy}
-              label={t("transcription.parlanti")}
-              name="parlantiFile"
-              note={t("transcription.parlantiNote")}
-              onError={failed}
-            />
-            <Button disabled={!source || busy} onClick={requestTranscription}>
-              {running ? t("transcription.running") : t("transcription.start")}
-            </Button>
-            {running || completing ? (
-              <Button disabled={cancelling} onClick={cancel} variant="outline">
-                {cancelling
-                  ? t("transcription.cancelling")
-                  : t("transcription.cancel")}
-              </Button>
-            ) : null}
-            <Button asChild size="icon" variant="ghost">
-              <Link
-                aria-label={t("settings.open")}
-                title={t("settings.open")}
-                to="/settings"
-              >
-                <Settings />
-              </Link>
-            </Button>
-          </section>
-          {recording ? (
-            <RecordingPanel onPausedChange={setPaused} paused={paused} />
-          ) : null}
-          <AlertDialog
-            onOpenChange={closeConfirm}
-            open={confirmReplace !== null}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  {t("transcription.replace.title")}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t(replaceDescription(confirmReplace?.action, source))}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>
-                  {t("transcription.replace.keep")}
-                </AlertDialogCancel>
-                <AlertDialogAction onClick={replace}>
-                  {t("transcription.replace.confirm")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          {showTranscription ? (
-            <section className="flex min-h-0 flex-1 flex-col gap-2">
-              <Textarea
-                aria-label={t("transcription.text")}
-                className="flex-1 resize-none"
-                onChange={edit}
-                onClick={clickText}
-                readOnly={writing}
-                value={shown}
-              />
-              <div className="flex items-start justify-between gap-3">
-                <ParlantiBar
-                  editing={renaming}
-                  list={parlantiList}
-                  onEdit={setRenaming}
-                  onRename={rename}
-                />
+      <div className="flex h-screen" inert={settingsPage !== null}>
+        <Sidebar
+          actions={
+            <>
+              <div className="flex gap-2">
                 <Button
-                  className="ml-auto shrink-0"
-                  disabled={!copyable(running, text)}
-                  onClick={copy}
-                  size="sm"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={requestRecording}
                   variant="outline"
                 >
-                  {copied ? t("transcription.copied") : t("transcription.copy")}
+                  <Circle className="fill-destructive text-destructive" />
+                  {t("recording.start")}
+                </Button>
+                <Button
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={pickFile}
+                  variant="outline"
+                >
+                  <FolderOpen />
+                  {t("source.browse")}
                 </Button>
               </div>
-            </section>
-          ) : null}
-        </main>
-        <StatusBar status={status} />
+              <SettingCheckbox
+                disabled={busy}
+                label={t("recording.live")}
+                name="trascrizioneDalVivo"
+                onError={failed}
+              />
+            </>
+          }
+          activity={activityText(status, elapsedMs, t)}
+          list={library}
+          onActivity={showActivity}
+          onError={setNotice}
+          onMoved={moved}
+          onOpen={openFromLibrary}
+          onRaccolta={chooseRaccolta}
+          onShowAll={showAll}
+          raccolta={raccolta}
+          selected={listOpen ? null : (browsed?.path ?? source)}
+        />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+            {mainView}
+          </main>
+          <StatusBar notice={notice} status={status} />
+        </div>
       </div>
+      <AlertDialog onOpenChange={closeConfirm} open={confirmReplace !== null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("transcription.replace.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(replaceDescription(confirmReplace?.action, source))}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("transcription.replace.keep")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={replace}>
+              {t("transcription.replace.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {dialog}
       {settingsPage}
     </>
   );
 }
 
-/** Una casella della barra che salva subito un'impostazione; un errore va nella status bar. */
+/** Lingua del parlato, Riconosci i parlanti, Trascrivi e, durante l'Attività, Annulla. */
+function TranscribeBar({
+  busy,
+  canTranscribe,
+  cancelling,
+  language,
+  languages,
+  onCancel,
+  onError,
+  onLanguage,
+  onTranscribe,
+  running,
+}: {
+  busy: boolean;
+  canTranscribe: boolean;
+  cancelling: boolean;
+  language: string;
+  languages: string[];
+  /** `null` se non c'è niente da annullare. */
+  onCancel: (() => void) | null;
+  onError: (error: AppError) => void;
+  onLanguage: (e: ChangeEvent<HTMLSelectElement>) => void;
+  onTranscribe: () => void;
+  running: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <section className="flex items-center justify-end gap-3">
+      <select
+        aria-label={t("speechLanguage.label")}
+        className={SELECT}
+        disabled={busy}
+        onChange={onLanguage}
+        title={t("speechLanguage.label")}
+        value={language}
+      >
+        <option value="auto">{t("speechLanguage.auto")}</option>
+        {languages.map((l) => (
+          <option key={l} value={l}>
+            {t(`speechLanguage.languages.${l}`)}
+          </option>
+        ))}
+      </select>
+      <SettingCheckbox
+        disabled={busy}
+        label={t("transcription.parlanti")}
+        name="parlantiFile"
+        note={t("transcription.parlantiNote")}
+        onError={onError}
+      />
+      <Button disabled={!canTranscribe} onClick={onTranscribe}>
+        {running ? t("transcription.running") : t("transcription.start")}
+      </Button>
+      {onCancel ? (
+        <Button disabled={cancelling} onClick={onCancel} variant="outline">
+          {cancelling
+            ? t("transcription.cancelling")
+            : t("transcription.cancel")}
+        </Button>
+      ) : null}
+    </section>
+  );
+}
+
+/** Il testo di un Bino consultato durante un'Attività, in sola lettura, con Copia testo. */
+function BrowsedView({
+  copied,
+  header,
+  onCopy,
+  text,
+}: {
+  copied: boolean;
+  header: ReactNode;
+  onCopy: () => void;
+  text: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
+      {header}
+      <section className="flex min-h-0 flex-1 flex-col gap-2">
+        <Textarea
+          aria-label={t("transcription.text")}
+          className="flex-1 resize-none"
+          readOnly
+          value={text}
+        />
+        <CopyButton copied={copied} disabled={false} onCopy={onCopy} />
+      </section>
+    </>
+  );
+}
+
+/** Copia testo, che per un attimo dice "Copiato". */
+function CopyButton({
+  copied,
+  disabled,
+  onCopy,
+}: {
+  copied: boolean;
+  disabled: boolean;
+  onCopy: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Button
+      className="ml-auto shrink-0"
+      disabled={disabled}
+      onClick={onCopy}
+      size="sm"
+      variant="outline"
+    >
+      {copied ? t("transcription.copied") : t("transcription.copy")}
+    </Button>
+  );
+}
+
+/**
+ * Il titolo della Sorgente: per un Bino `header`, con le sue operazioni (non sul Bino che la
+ * Trascrizione in corso sta riscrivendo); per un file audio o video il nome, che un clic apre con il
+ * programma associato.
+ */
+function SourceTitle({
+  header,
+  onOpen,
+  running,
+  source,
+}: {
+  header: (path: string, active: boolean) => ReactNode;
+  onOpen: () => void;
+  running: boolean;
+  source: string | null;
+}) {
+  const { t } = useTranslation();
+  if (source && isBino(source)) {
+    return header(source, running);
+  }
+  return (
+    <section className="min-w-0">
+      {source ? (
+        <button
+          className="block max-w-full cursor-pointer truncate rounded-sm text-left font-medium text-lg underline decoration-muted-foreground/40 underline-offset-4 hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onOpen}
+          title={t("source.open", { path: source })}
+          type="button"
+        >
+          {fileName(source)}
+        </button>
+      ) : (
+        <span className="text-muted-foreground text-sm">
+          {t("source.none")}
+        </span>
+      )}
+    </section>
+  );
+}
+
+/** Una casella che salva subito un'impostazione; un errore va nella status bar. */
 function SettingCheckbox({
   disabled,
   label,
@@ -605,11 +928,20 @@ function SettingCheckbox({
   );
 }
 
-/** La status bar: il messaggio, il link alle Impostazioni quando serve e l'avanzamento. */
-function StatusBar({ status }: { status: Status }) {
+/**
+ * La status bar: il messaggio (o per un po' l'errore di un'operazione sulla Libreria), il link alle
+ * Impostazioni quando serve e l'avanzamento.
+ */
+function StatusBar({
+  notice,
+  status,
+}: {
+  notice: AppError | null;
+  status: Status;
+}) {
   const { t } = useTranslation();
-  const message = statusText(status, t);
-  const failed = status.phase === "failed";
+  const message = notice ? errorText(notice, t) : statusText(status, t);
+  const failed = notice !== null || status.phase === "failed";
   return (
     <footer
       aria-live="polite"

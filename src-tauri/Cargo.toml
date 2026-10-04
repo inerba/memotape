@@ -54,7 +54,10 @@ sys-locale = "0.3.2"
 # Il Bino è uno zip: Ogg salvati senza compressione, JSON con deflate (zlib-rs, Rust puro).
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 # Già nel grafo tramite Tauri: l'attributo nascosto della cartella dei temporanei delle Registrazioni.
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
+# Shell: il Cestino della Libreria (`SHFileOperationW` con `FOF_ALLOWUNDO`).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
+# L'indice della Libreria (ADR-0008). `bundled`: SQLite compilato con `cc`, FTS5 compreso.
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [features]
 # Usata dalle build di produzione o quando non c'è un dev server: non rimuovere.

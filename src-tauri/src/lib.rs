@@ -3,6 +3,7 @@ mod bino;
 mod commands;
 mod engine;
 mod error;
+mod library;
 mod managers;
 mod transcript;
 
@@ -40,6 +41,13 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::stop_recording,
             commands::recordings_folder,
             commands::pick_folder,
+            commands::library_list,
+            commands::create_raccolta,
+            commands::rename_raccolta,
+            commands::delete_raccolta,
+            commands::rename_bino,
+            commands::move_bino,
+            commands::trash_bino,
         ])
         .events(collect_events![
             managers::transcription::TranscriptPartial,
@@ -52,6 +60,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::models::ModelDownloadProgress,
             managers::models::ModelStateChanged,
             managers::recording::RecordingTick,
+            managers::library::LibraryChanged,
         ])
 }
 
@@ -71,7 +80,14 @@ pub fn run() {
         .manage(managers::recording::Recorder::default())
         .manage(managers::transcription::LastTranscript::default())
         .manage(managers::pending_bino::PendingBino::default())
+        .manage(managers::library::LibraryState::default())
         .invoke_handler(builder.invoke_handler())
+        // Quello che l'utente ha fatto in Esplora file si vede appena torna all'app.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(true) = event {
+                managers::library::sync_in_background(window.app_handle());
+            }
+        })
         .setup(move |app| {
             // Qui e non prima: un secondo avvio esce prima del setup, e riscrivere il file farebbe
             // ricaricare la pagina da Vite all'istanza aperta.
@@ -86,6 +102,7 @@ pub fn run() {
             ));
             app.manage(managers::models::Models::new(data.join("models"))?);
             managers::transcription::preload(app.handle());
+            managers::library::sync_in_background(app.handle());
             managers::pending_bino::request(
                 app.handle(),
                 std::env::args(),

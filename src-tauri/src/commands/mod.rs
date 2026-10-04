@@ -2,13 +2,14 @@
 
 use std::path::{Path, PathBuf};
 
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::audio_toolkit::capture::{self, AudioDevice};
 use crate::bino;
 use crate::error::AppError;
+use crate::library::LibraryList;
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
@@ -17,7 +18,7 @@ use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 use crate::transcript::Ingresso;
 
-/// Estensioni accettate da Sfoglia (spec, storia 2), Bino compresi.
+/// Estensioni accettate da Apri file (spec, storia 2), Bino compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
     "mp3", "wav", "m4a", "flac", "ogg", "opus", "webm", "mpga", "mpeg", "aiff", "mp4", "mkv",
     "mov", "m4v", "bino",
@@ -42,13 +43,13 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
             .blocking_pick_file()
     })
     .await
-    .inspect_err(|e| log::error!("dialog di Sfoglia: {e}"))
+    .inspect_err(|e| log::error!("dialog di Apri file: {e}"))
     .ok()??;
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
 /// Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
-/// estensioni di Sfoglia, così non diventa un modo per lanciare eseguibili.
+/// estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 #[tauri::command]
 #[specta::specta]
 pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
@@ -86,6 +87,8 @@ pub fn open_bino(
     if !bino::is_bino(path) {
         return Err(AppError::Internal(format!("non è un Bino: {source}")));
     }
+    // Un Bino sparito o cambiato in Esplora file si vede anche nella barra laterale.
+    managers::library::sync(&app);
     managers::transcription::open_bino(&app, path)
 }
 
@@ -108,7 +111,11 @@ pub async fn transcribe(
     activity: State<'_, Activity>,
     source: String,
 ) -> Result<managers::transcription::TranscriptionOutcome, AppError> {
-    managers::transcription::transcribe(app, &activity, PathBuf::from(source)).await
+    let outcome =
+        managers::transcription::transcribe(app.clone(), &activity, PathBuf::from(source)).await;
+    // Su un Bino la Trascrizione l'ha riscritto.
+    managers::library::sync(&app);
+    outcome
 }
 
 /// Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita.
@@ -135,6 +142,7 @@ pub fn transcript_text(
 #[tauri::command]
 #[specta::specta]
 pub fn rename_parlante(
+    app: AppHandle,
     activity: State<'_, Activity>,
     last: State<'_, managers::transcription::LastTranscript>,
     settings: State<'_, SettingsStore>,
@@ -142,14 +150,16 @@ pub fn rename_parlante(
     parlante: u32,
     nome: String,
 ) -> Result<(), AppError> {
-    let _activity = activity.begin(|| {})?;
-    managers::transcription::rename_parlante(
+    let _activity = activity.begin(None, || {})?;
+    let renamed = managers::transcription::rename_parlante(
         &last,
         ingresso,
         parlante,
         &nome,
         &managers::transcription::labels(&settings.get()),
-    )
+    );
+    managers::library::sync(&app);
+    renamed
 }
 
 /// I modelli del catalogo con il loro stato.
@@ -208,6 +218,9 @@ pub fn set_settings(
     if previous.model != saved.model {
         managers::transcription::preload(&app);
     }
+    if previous.recordings_folder != saved.recordings_folder {
+        managers::library::sync_in_background(&app);
+    }
     Ok(saved)
 }
 
@@ -239,9 +252,10 @@ pub async fn list_output_devices() -> Result<Vec<AudioDevice>, AppError> {
 }
 
 /// Registra dagli ingressi delle impostazioni (microfono, audio di sistema o entrambi) finché
-/// arriva `stop_recording` o un dispositivo si scollega; poi il file diventa la Sorgente. Durata e
-/// livelli arrivano con `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta
-/// con `activityInProgress` se un'Attività è già in corso.
+/// arriva `stop_recording` o un dispositivo si scollega; poi il Bino, nella Raccolta `raccolta`
+/// (`null` o `""`: la radice della Libreria), diventa la Sorgente. Durata e livelli arrivano con
+/// `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta con
+/// `activityInProgress` se un'Attività è già in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn record(
@@ -249,12 +263,16 @@ pub async fn record(
     activity: State<'_, Activity>,
     recorder: State<'_, Recorder>,
     prefix: String,
+    raccolta: Option<String>,
 ) -> Result<RecordingSaved, AppError> {
     let reserved = |c: char| c.is_control() || r#"<>:"/\|?*"#.contains(c);
     if prefix.trim().is_empty() || prefix.contains(reserved) {
         return Err(AppError::Internal(format!("prefisso non valido: {prefix}")));
     }
-    managers::recording::record(app, &activity, &recorder, prefix).await
+    let saved =
+        managers::recording::record(app.clone(), &activity, &recorder, prefix, raccolta).await;
+    managers::library::sync(&app);
+    saved
 }
 
 /// Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso.
@@ -272,7 +290,7 @@ pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
     recorder.stop()
 }
 
-/// La Cartella predefinita in uso: quella delle impostazioni o `Documenti\Sbobino`.
+/// La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Sbobino`.
 #[tauri::command]
 #[specta::specta]
 pub fn recordings_folder(app: AppHandle) -> Result<String, AppError> {
@@ -289,4 +307,137 @@ pub async fn pick_folder(app: AppHandle) -> Option<String> {
             .inspect_err(|e| log::error!("dialog della cartella: {e}"))
             .ok()??;
     picked.into_path().ok().map(|p| p.display().to_string())
+}
+
+/// Esegue `f` fuori dal thread principale: legge e scrive sul disco.
+async fn blocking<T: Send + 'static>(
+    app: AppHandle,
+    f: impl FnOnce(&AppHandle) -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    tauri::async_runtime::spawn_blocking(move || f(&app))
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Le Raccolte e i Bini della Libreria, dall'indice: `library-changed` avvisa quando cambiano.
+#[tauri::command]
+#[specta::specta]
+pub async fn library_list(app: AppHandle) -> Result<LibraryList, AppError> {
+    blocking(app, |app| {
+        managers::library::with(app, |library| library.list())
+    })
+    .await
+}
+
+/// Crea la Raccolta `nome`. `invalidName` per un nome che Windows non ammette, `nameTaken` se c'è
+/// già.
+#[tauri::command]
+#[specta::specta]
+pub async fn create_raccolta(app: AppHandle, nome: String) -> Result<(), AppError> {
+    blocking(app, move |app| {
+        managers::library::change(app, |library| library.create_raccolta(&nome))
+    })
+    .await
+}
+
+/// Rinomina la Raccolta `nome` e la sua cartella in `nuovo`, e restituisce la cartella nuova. Rifiuta
+/// con `activityInProgress` se l'Attività in corso lavora su un suo Bino.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_raccolta(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    nome: String,
+    nuovo: String,
+) -> Result<String, AppError> {
+    let _writing = activity.write(&raccolta_path(&app, &nome)?)?;
+    blocking(app, move |app| {
+        let (from, to) =
+            managers::library::change(app, |library| library.rename_raccolta(&nome, &nuovo))?;
+        Ok(moved(app, &from, &to))
+    })
+    .await
+}
+
+/// Elimina la Raccolta `nome`, solo se vuota (`raccoltaNotEmpty`).
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_raccolta(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    nome: String,
+) -> Result<(), AppError> {
+    let _writing = activity.write(&raccolta_path(&app, &nome)?)?;
+    blocking(app, move |app| {
+        managers::library::change(app, |library| library.delete_raccolta(&nome))
+    })
+    .await
+}
+
+/// Rinomina il file del Bino in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+/// `activityInProgress` il Bino su cui lavora l'Attività in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_bino(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    titolo: String,
+) -> Result<String, AppError> {
+    let from = PathBuf::from(path);
+    let _writing = activity.write(&from)?;
+    blocking(app, move |app| {
+        let to = managers::library::change(app, |library| library.rename_bino(&from, &titolo))?;
+        Ok(moved(app, &from, &to))
+    })
+    .await
+}
+
+/// Sposta il Bino nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
+/// Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
+#[tauri::command]
+#[specta::specta]
+pub async fn move_bino(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    raccolta: Option<String>,
+) -> Result<String, AppError> {
+    let from = PathBuf::from(path);
+    let _writing = activity.write(&from)?;
+    blocking(app, move |app| {
+        let to = managers::library::change(app, |library| {
+            library.move_bino(&from, raccolta.as_deref())
+        })?;
+        Ok(moved(app, &from, &to))
+    })
+    .await
+}
+
+/// Manda il Bino nel Cestino di Windows.
+#[tauri::command]
+#[specta::specta]
+pub async fn trash_bino(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+) -> Result<(), AppError> {
+    let path = PathBuf::from(path);
+    let _writing = activity.write(&path)?;
+    blocking(app, move |app| {
+        managers::library::change(app, |library| library.trash_bino(&path))
+    })
+    .await
+}
+
+/// Il Bino o la Raccolta `from` ora è `to`: lo segue anche l'ultima Trascrizione. Restituisce `to`.
+fn moved(app: &AppHandle, from: &Path, to: &Path) -> String {
+    app.state::<managers::transcription::LastTranscript>()
+        .moved(from, to);
+    to.display().to_string()
+}
+
+fn raccolta_path(app: &AppHandle, nome: &str) -> Result<PathBuf, AppError> {
+    crate::library::validate_name(nome)?;
+    Ok(managers::recording::recordings_folder(app)?.join(nome))
 }

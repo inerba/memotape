@@ -1,10 +1,9 @@
 {
   "source": {
-    "browse": "Parcourir",
+    "browse": "Ouvrir un fichier",
     "filter": "Audio, vidéo et Bino",
     "none": "Aucun fichier choisi",
-    "open": "{{path}} (cliquez pour l'ouvrir avec l'application associée)",
-    "reveal": "{{path}} (cliquer pour l'afficher dans son dossier)"
+    "open": "{{path}} (cliquez pour l'ouvrir avec l'application associée)"
   },
   "transcription": {
     "start": "Transcrire",
@@ -30,7 +29,7 @@
     "renameTaken": "Un autre intervenant porte déjà ce nom"
   },
   "status": {
-    "idle": "Choisissez un fichier audio ou vidéo avec Parcourir",
+    "idle": "Ouvrez un fichier audio, vidéo ou Bino, ou choisissez un Bino de la Bibliothèque",
     "recording": "Enregistrement en cours…",
     "recordingPaused": "Enregistrement en pause",
     "recorded": "Enregistrement sauvegardé dans {{path}}",
@@ -64,6 +63,10 @@
       "unreadableSettings": "Impossible de lire les paramètres, l'application utilise les valeurs par défaut : {{detail}}",
       "liveTranscriptionUnavailable": "Transcription en direct indisponible : le modèle {{detail}} n'est pas téléchargé ou ne se charge pas (l'enregistrement est sauvegardé quand même)",
       "unsupportedBino": "Ce Bino provient d'une version plus récente de Sbobino : mettez l'application à jour pour l'ouvrir",
+      "invalidName": "Nom non valide : {{detail}}. Interdits : < > : \" / \\ | ? *, les noms réservés comme CON, un point au début et un point ou une espace à la fin",
+      "nameTaken": "Le nom {{detail}} est déjà utilisé",
+      "raccoltaNotEmpty": "La Collection {{detail}} n'est pas vide : déplacez ou supprimez d'abord ses Bini",
+      "binoNotFound": "Le Bino n'est plus à sa place (déplacé, renommé ou supprimé hors de l'application) : {{detail}}",
       "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
       "cancelled": "Transcription annulée",
       "internal": "Erreur interne : {{detail}}"
@@ -122,9 +125,9 @@
     },
     "general": {
       "title": "Général",
-      "description": "Le dossier des enregistrements, le format de Copier le texte et la langue de l'interface.",
-      "folder": "Dossier par défaut",
-      "folderDescription": "Où les enregistrements sont sauvegardés. Il est créé s'il n'existe pas.",
+      "description": "Le dossier de la Bibliothèque, le format de Copier le texte et la langue de l'interface.",
+      "folder": "Dossier de la Bibliothèque",
+      "folderDescription": "Où Sbobino enregistre les Bini : ses dossiers sont les Collections. Il est créé s'il n'existe pas ; le changer ne déplace pas les Bini du dossier précédent.",
       "choose": "Choisir…",
       "reset": "Utiliser Documents\\Sbobino",
       "language": "Langue de l'interface",
@@ -216,5 +219,42 @@
     "duration": "Durée",
     "model": "Modèle",
     "parlante": "Intervenant {{n}}"
+  },
+  "library": {
+    "title": "Bibliothèque",
+    "activity": "Activité en cours : cliquez pour y revenir",
+    "activityRecording": "Enregistrement · {{elapsed}}",
+    "raccolta": "Collection",
+    "raccolte": "Collections",
+    "all": "Toute la Bibliothèque",
+    "none": "Sans collection",
+    "newRaccolta": "Nouvelle Collection…",
+    "newRaccoltaName": "Nom de la nouvelle Collection",
+    "renameRaccolta": "Renommer la Collection",
+    "deleteRaccolta": "Supprimer la Collection (seulement si vide)",
+    "empty": "Aucun Bino ici",
+    "groups": {
+      "today": "Aujourd'hui",
+      "yesterday": "Hier",
+      "week": "Cette semaine"
+    },
+    "showAll": "Tous les Bini de la Collection",
+    "sortBy": "Trier par",
+    "sortDate": "Date",
+    "sortTitle": "Titre",
+    "moveTo": "Déplacer vers…",
+    "addToLibrary": "Ajouter à la Bibliothèque…",
+    "reveal": "Afficher dans l'Explorateur de fichiers",
+    "rename": "Cliquez pour renommer : Entrée confirme, Échap annule",
+    "renameName": "Nouveau titre du Bino",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer le Bino ?",
+    "deleteDescription": "« {{titolo}} » ira dans la Corbeille de Windows, d’où vous pourrez le restaurer.",
+    "deleteKeep": "Annuler",
+    "deleteConfirm": "Mettre à la Corbeille",
+    "names": {
+      "invalidName": "Caractères interdits (< > : \" / \\ | ? *), nom réservé, point au début ou point ou espace à la fin",
+      "nameTaken": "Ce nom est déjà utilisé"
+    }
   }
 }

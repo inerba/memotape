@@ -9,7 +9,8 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 ## Soluzione
 
 Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
-- **Sorgente.** L'utente apre un file audio o video con "Sfoglia", oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
+- **Sorgente.** L'utente apre un file audio, video o Bino con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
+- **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008).
 - **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Alla fine il testo viene salvato in un documento Markdown accanto alla Sorgente.
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
@@ -79,7 +80,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ### Sorgente
 
-1. Come utente, voglio un pulsante "Sfoglia" che apra il dialog di sistema, così scelgo un file senza digitare percorsi.
+1. Come utente, voglio un pulsante "Apri file" che apra il dialog di sistema, così scelgo un file senza digitare percorsi.
 2. Come utente, voglio che il dialog proponga solo le estensioni accettate (MP3, WAV, M4A, FLAC, OGG, OPUS, WEBM, MPGA, MPEG, AIFF, MP4, MKV, MOV, M4V), così non scelgo file inutili.
 3. Come utente, voglio vedere il nome della Sorgente nella finestra, così so su cosa sto lavorando.
 4. Come utente, voglio cliccare il nome della Sorgente e aprirla con il programma associato, così la ascolto o la guardo prima di trascrivere.
@@ -148,7 +149,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 55. Come utente, voglio scegliere il bitrate tra 16, 24, 32, 48, 64, 96, 128, 192 e 320 kbps, così adatto la qualità.
 56. Come utente, voglio scegliere mono o stereo e la frequenza tra 8 000, 16 000, 24 000 e 48 000 Hz, così adatto il file all'uso.
 57. Come utente, voglio come predefiniti 32 kbps, mono, 48 kHz, così ho subito un buon compromesso per la voce.
-58. Come utente, voglio scegliere la Cartella predefinita, che in mancanza è `Documenti\Sbobino` e viene creata se non esiste, così so dove finiscono le Registrazioni.
+58. Come utente, voglio scegliere la Cartella della Libreria, che in mancanza è `Documenti\Sbobino` e viene creata se non esiste, così so dove finiscono i Bini.
 59. Come utente, voglio scegliere la Lingua dell'interfaccia tra it, en, fr, es, de e pl, con un avviso che si applica al riavvio, così uso l'app nella mia lingua.
 60. Come utente al primo avvio, voglio l'interfaccia nella lingua del sistema se è tra le sei, altrimenti in inglese, così non devo cercare l'impostazione.
 61. Come utente, voglio che tutte le impostazioni restino salvate tra un avvio e l'altro, così l'app riparte come l'ho lasciata.
@@ -157,7 +158,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ### Finestra e aggiornamenti
 
-64. Come utente, voglio che le sezioni visibili seguano l'Attività (Sorgente, Registrazione, Trascrizione), così la finestra mostra solo ciò che serve.
+64. Come utente, voglio una barra laterale sempre visibile con la Libreria e un'area principale le cui sezioni seguono l'Attività (Sorgente, Registrazione, Trascrizione), così la finestra mostra solo ciò che serve.
 65. Come utente, voglio che la status bar mostri sempre la fase in corso, la percentuale quando c'è e gli errori con messaggi dedicati, così so sempre cosa succede.
 66. Come utente, voglio che all'avvio, se c'è connessione, l'app controlli se esiste una versione più recente e mi proponga il link per scaricarla, così resto aggiornato.
 67. Come utente offline, voglio che il controllo aggiornamenti fallisca in silenzio, così non vedo errori inutili.
@@ -263,6 +264,14 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Copia testo è disabilitato mentre la Trascrizione di un file è in corso.
   - La Trascrizione è più veloce: su 10 minuti di riunione Nemotron passa da 93 a 32 s, Parakeet da 20 a 15 s, Whisper da 42 a 38 s (RTX 2070 SUPER).
   - Anche la prima Trascrizione dopo l'avvio, o dopo il cambio di modello, parte senza l'attesa del riscaldamento del modello: il riscaldamento avviene nel caricamento in background.
+- **V8, Libreria e barra laterale (ticket libreria/01)**: storie 1–16, 18, 19, 21 e 23–34 della spec v3 (`.scratch/sbobino-libreria/spec.md`); della 17, 20 e 22 la parte senza la nuova vista del Bino (ticket libreria/03), della 100 e della 101 aprire, leggere, copiare, rinominare, spostare ed eliminare altri Bini durante un'Attività, e poi 103, 104, 106–108. Cambiano le storie 1, 58 e 64.
+  - La finestra ha una barra laterale: Registra, Apri file e Trascrivi dal vivo; "Attività in corso" (timer o percentuale, riporta alla sua vista); il selettore della Raccolta (Tutta la Libreria, Senza raccolta, le Raccolte, Nuova Raccolta…) con Rinomina ed Elimina; i Bini della Raccolta dal più recente in Oggi, Ieri, Questa settimana e poi per mese, con titolo, ora e durata, e quello aperto evidenziato; in fondo "Tutti i Bini della Raccolta" (elenco completo ordinabile per data o titolo, con Sposta in… ed Elimina) e Impostazioni.
+  - La Libreria è la Cartella della Libreria (prima Cartella predefinita); le Raccolte sono le sue cartelle di primo livello, i Bini nella radice sono Senza raccolta, quelli più in profondità contano nella Raccolta che li contiene. Quello che si fa in Esplora file si vede quando l'app torna in primo piano o si apre un Bino. Cambiare cartella mostra i Bini della nuova senza spostare quelli della vecchia.
+  - Sopra il testo di un Bino aperto c'è il suo titolo, il nome del file: un clic lo rinomina (vuoto, caratteri non ammessi da Windows o un titolo già nella stessa cartella non si confermano). Accanto ci sono Mostra in Esplora file, Sposta in… ed Elimina, che dopo una conferma lo manda nel Cestino di Windows (su un volume senza Cestino rifiuta). Un Bino fuori dalla Libreria si apre come prima e ha "Aggiungi alla Libreria…", che lo sposta nella Raccolta scelta.
+  - Le Raccolte si creano, si rinominano (con la cartella) e si eliminano solo se vuote, con gli stessi controlli sul nome. La Raccolta scelta resta al prossimo avvio; una sparita vale Tutta la Libreria.
+  - Una Registrazione salva il Bino nella Raccolta scelta (con Tutta la Libreria o Senza raccolta nella radice); a Stop compare nella barra laterale e resta aperto. Durante la Registrazione la sua Raccolta non si rinomina né si elimina.
+  - Durante un'Attività gli altri Bini si aprono in sola lettura, si copiano, si rinominano, si spostano e si eliminano; il Bino su cui lavora l'Attività no. Finita l'Attività torna la sua vista, con il Bino della Registrazione aperto.
+  - Aprire un Bino chiede conferma solo se il testo nell'area è stato modificato a mano.
 
 ## Fuori dal perimetro
 
@@ -270,7 +279,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
 - Timestamp nel testo, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
-- Storico delle trascrizioni, editor avanzato del testo, esportazioni diverse dal Markdown.
+- Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.
 - La scelta della GPU: `transcribe-cpp` usa Vulkan se disponibile, altrimenti la CPU.

@@ -1,10 +1,9 @@
 {
   "source": {
-    "browse": "Browse",
+    "browse": "Open file",
     "filter": "Audio, video and Bino",
     "none": "No file selected",
-    "open": "{{path}} (click to open with the default app)",
-    "reveal": "{{path}} (click to show it in its folder)"
+    "open": "{{path}} (click to open with the default app)"
   },
   "transcription": {
     "start": "Transcribe",
@@ -30,7 +29,7 @@
     "renameTaken": "Another speaker already has this name"
   },
   "status": {
-    "idle": "Choose an audio or video file with Browse",
+    "idle": "Open an audio, video or Bino file, or choose a Bino from the Library",
     "recording": "Recording…",
     "recordingPaused": "Recording paused",
     "recorded": "Recording saved to {{path}}",
@@ -63,6 +62,10 @@
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
       "unsupportedBino": "This Bino comes from a newer version of Sbobino: update the app to open it",
+      "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
+      "nameTaken": "The name {{detail}} is already used",
+      "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Bini first",
+      "binoNotFound": "The Bino is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}"
@@ -121,9 +124,9 @@
     },
     "general": {
       "title": "General",
-      "description": "The recordings folder, the Copy text format and the interface language.",
-      "folder": "Default folder",
-      "folderDescription": "Where recordings are saved. Created if it doesn't exist.",
+      "description": "The Library folder, the Copy text format and the interface language.",
+      "folder": "Library folder",
+      "folderDescription": "Where Sbobino saves Bini: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Bini of the previous folder.",
       "choose": "Choose…",
       "reset": "Use Documents\\Sbobino",
       "language": "Interface language",
@@ -215,5 +218,42 @@
     "duration": "Duration",
     "model": "Model",
     "parlante": "Speaker {{n}}"
+  },
+  "library": {
+    "title": "Library",
+    "activity": "Activity in progress: click to go back to it",
+    "activityRecording": "Recording · {{elapsed}}",
+    "raccolta": "Collection",
+    "raccolte": "Collections",
+    "all": "Whole Library",
+    "none": "No collection",
+    "newRaccolta": "New Collection…",
+    "newRaccoltaName": "Name of the new Collection",
+    "renameRaccolta": "Rename the Collection",
+    "deleteRaccolta": "Delete the Collection (only if empty)",
+    "empty": "No Bini here",
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "week": "This week"
+    },
+    "showAll": "All Bini in the Collection",
+    "sortBy": "Sort by",
+    "sortDate": "Date",
+    "sortTitle": "Title",
+    "moveTo": "Move to…",
+    "addToLibrary": "Add to Library…",
+    "reveal": "Show in File Explorer",
+    "rename": "Click to rename: Enter confirms, Esc cancels",
+    "renameName": "New title of the Bino",
+    "delete": "Delete",
+    "deleteTitle": "Delete the Bino?",
+    "deleteDescription": "“{{titolo}}” will go to the Windows Recycle Bin, where you can restore it.",
+    "deleteKeep": "Cancel",
+    "deleteConfirm": "Move to Recycle Bin",
+    "names": {
+      "invalidName": "Characters not allowed (< > : \" / \\ | ? *), reserved name, leading dot or trailing dot or space",
+      "nameTaken": "This name is already used"
+    }
   }
 }

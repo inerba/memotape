@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import type { AppError, commands, TranscriptionOutcome } from "@/bindings";
+import { movedPath } from "@/features/source/file-name";
 
 /** Cosa mostra la status bar: la fase dell'Attività, o l'errore. */
 export type Status =
@@ -94,6 +95,20 @@ export function withDiarizing(status: Status): Status {
 /** Applica `live-transcription-failed`: la Registrazione continua e la status bar lo dice. */
 export function withLiveError(status: Status, liveError: AppError): Status {
   return status.phase === "recording" ? { ...status, liveError } : status;
+}
+
+/**
+ * La status bar dopo che il Bino o la Raccolta `from`, forse con la Sorgente che mostra, è diventato
+ * `to`.
+ */
+export function withMovedSource(
+  status: Status,
+  from: string,
+  to: string
+): Status {
+  return status.phase === "idle"
+    ? { ...status, source: status.source && movedPath(status.source, from, to) }
+    : status;
 }
 
 /** Se accanto al messaggio serve il link alle Impostazioni, per scaricare o cambiare modello. */
