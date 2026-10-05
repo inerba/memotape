@@ -2,17 +2,17 @@
 
 ![Memotape cassette symbol](src-tauri/icons/128x128.png)
 
-**Record, transcribe, and revisit conversations on your Windows PC.**
+Record, transcribe, and revisit conversations on your Windows PC.
 
-Memotape turns speech from audio files, videos, and recordings into searchable text. Record your microphone, system audio, or both; transcribe locally; then listen back, correct the text, and export your notes. No account or API key is required. Once you have downloaded a model, transcription works offline.
+Memotape transcribes audio files, videos, and recordings into searchable text. Record your microphone, system audio, or both, then listen back, correct the transcript, and export your notes. Transcription runs on your PC and works offline once you have downloaded a model. You do not need an account or API key.
 
-Built for meetings, interviews, lectures, and recorded conversations. Available for **Windows 10/11 x64**.
+Use it for meetings, interviews, lectures, and recorded conversations on Windows 10/11 x64.
 
 [Get started](#getting-started) · [Models](#transcription-models) · [Build from source](#build-from-source) · [Contribute](#contributing)
 
 ## Project status
 
-Memotape is under active development. The repository currently identifies the app as version `0.1.0`; public distribution, the installer publisher, and the application license are still being defined. The installer is currently unsigned. See [Build from source](#build-from-source) to run the app or produce a local installer.
+Memotape is under active development at version `0.1.0`. Public distribution, the installer publisher, and the application license have yet to be decided. The installer is unsigned. See [Build from source](#build-from-source) to run the app or build a local installer.
 
 ## What you can do
 
@@ -30,7 +30,7 @@ Memotape is under active development. The repository currently identifies the ap
 | Copy and export | Copy the full transcript as plain text or Markdown, copy an individual turn, or export a Markdown file. |
 | Optional assistant access | Allow Claude or Codex to search and read your Library through a local, read-only MCP server. |
 
-The interface is available in **English, Italian, French, Spanish, German, and Polish**, with light, dark, and Windows-matched themes. Spoken-language options depend on the selected model and are separate from the interface language.
+The interface is available in English, Italian, French, Spanish, German, and Polish, with light, dark, and Windows-matched themes. Spoken-language options depend on the selected model and are separate from the interface language.
 
 ## Getting started
 
@@ -44,7 +44,7 @@ After launching Memotape:
 
 1. Click **Import a file**, or drag one audio or video file into the window.
 2. Choose the model and spoken language in the transcription options. Enable **Recognize speakers** if needed; this requires the separate Sortformer download.
-3. Click **Transcribe**. Progress appears while the file is processed; the completed text appears when transcription finishes.
+3. Click **Transcribe**. You can follow progress while the file is processed and read the transcript when it finishes.
 4. Open the resulting Tape to listen, correct phrases, rename speakers, copy text, or export Markdown.
 
 The new Tape is saved in the selected Collection, or the Library root when no Collection is selected. The original file is preserved. If you cancel, the phrases already transcribed remain available to copy, but no new Tape is saved. A file with no detected speech also produces no Tape.
@@ -60,12 +60,12 @@ The recording is saved as a Tape. You can also record without live transcription
 
 ### Review and reuse the text
 
-- Click a phrase to correct it. **Enter** or leaving the phrase saves; **Esc** cancels the edit.
+- Click a phrase to correct it. Press **Enter** or leave the phrase to save; press **Esc** to cancel the edit.
 - Use a turn's time or play button to listen from that passage. **Space** toggles playback when you are not typing.
 - Search the Library with **Ctrl+K** to find matching text and open the relevant passage.
 - Use **Copy text**, **Copy turn**, or **Export Markdown…** to reuse your transcript.
 
-Transcribing an existing Tape again asks for confirmation because it replaces its transcript, corrections, and speaker names. Only one recording or transcription can run at a time; you can still consult other Tape files while it runs.
+Transcribing an existing Tape again asks for confirmation because it replaces its transcript, corrections, and speaker names. You can run one recording or transcription at a time and read other Tape files while you wait.
 
 ## Transcription models
 
@@ -78,7 +78,7 @@ Download and manage models in **Settings → Transcription**. You only need one 
 | Parakeet TDT v3 0.6B | Alternative transcription model | Completed phrases | 549 MB |
 | Sortformer 4spk v2.1 | Speaker recognition, up to four speakers | Applied after recording | 139 MB |
 
-Sizes are rounded decimal MB for the packaged models, not memory requirements. Processing uses Vulkan when available and falls back to the CPU; performance depends on your hardware and the model. Parakeet detects the spoken language automatically rather than accepting a manual language choice.
+Download sizes are rounded to decimal MB. Memory requirements differ. Processing uses Vulkan when available and falls back to the CPU; performance depends on your hardware and the model. Parakeet detects the spoken language automatically rather than accepting a manual language choice.
 
 Models are stored in `%APPDATA%\it.memotape.desktop\models`. Interrupted downloads can resume; completed files are checked against their expected size and SHA-256. The [model catalog](src-tauri/src/managers/models.json) is the source of truth for download URLs, checksums, sizes, and model licenses.
 
@@ -98,21 +98,21 @@ A **Tape** is a `.tape` file that keeps audio, transcript, phrase timings, speak
 
 Internally, it is a ZIP archive containing the mix in Ogg/Opus, a JSON transcript, and an optional waveform. Separate-input recordings also include the individual audio tracks. You can move a Tape between folders or open one outside the Library. The local search index can be rebuilt from the Tape files.
 
-Markdown export is an explicit action. Phrase timings support playback inside the app; they are not included in copied text or exported Markdown.
+Use **Export Markdown…** to save a Markdown file. Phrase timings let you play the corresponding audio inside the app; copied text and exported Markdown omit them.
 
 ## Privacy and assistant access
 
 Recording, transcription, speaker recognition, Library search, and playback happen on your PC. Model downloads and update checks use the network. On a Windows installation without WebView2, the installer also needs a connection to download that runtime.
 
-Assistant access is **off by default**. To enable it, open **Settings → Assistants** and turn on **Allow assistants to read the Library**. That page provides connection snippets using the actual installed executable path for Claude Code, Claude Desktop, and Codex.
+Assistant access is off by default. To enable it, open **Settings → Assistants** and turn on **Allow assistants to read the Library**. That page provides connection snippets using the actual installed executable path for Claude Code, Claude Desktop, and Codex.
 
 The assistant starts `memotape.exe --mcp` as a local stdio server, which also works with the desktop app closed. It can search the Library, list Collections and Tape files, and read transcript passages. It cannot modify Tape files or start recordings or transcriptions.
 
-**Text read by an external assistant may be sent to that assistant's servers.** Enable access only if you want that assistant to read your Library. Files moved manually while Memotape is closed appear in the assistant's index after you reopen the app.
+Text read by an external assistant may be sent to that assistant's servers. Enable access only if you want that assistant to read your Library. Files moved manually while Memotape is closed appear in the assistant's index after you reopen the app.
 
 ## Build from source
 
-Development and packaging target **Windows x64**. Run the commands below from the repository root in PowerShell.
+Development and packaging target Windows x64. Run the commands below from the repository root in PowerShell.
 
 ### Prerequisites
 
@@ -227,6 +227,6 @@ For substantial changes, discuss the intended behavior before implementing it. [
 
 ## License and acknowledgments
 
-**The application license has not yet been selected; this repository does not currently include an application `LICENSE` file.** Dependency and model licenses are separate and do not define the license of Memotape itself.
+The application license has not yet been selected, and this repository has no application `LICENSE` file. Dependency and model licenses are separate and do not define the license of Memotape itself.
 
 The project started from the [create-tauri-react](https://github.com/MrLightful/create-tauri-react) template, distributed under the MIT license. Memotape uses Tauri and React for its desktop interface, transcribe-cpp for local speech processing, and Rust audio components for decoding and recording. Bundled third-party license texts are in [`src-tauri/resources/licenses/`](src-tauri/resources/licenses/); model license identifiers are listed in the [model catalog](src-tauri/src/managers/models.json).
