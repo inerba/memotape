@@ -20,6 +20,17 @@ export const commands = {
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
+	 *  Cerca una versione più recente su GitHub. `None` se non c'è o non si può sapere (offline, rate
+	 *  limit): il controllo non dà mai errori.
+	 */
+	checkUpdate: () => __TAURI_INVOKE<{
+	version: string,
+	/**  La pagina della release. */
+	url: string,
+} | null>("check_update"),
+	/**  Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro. */
+	openUpdate: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_update", { url })),
+	/**
 	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
 	 *  Tape nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Tape si
 	 *  riscrive il testo.
@@ -536,6 +547,13 @@ export type TranscriptionOutcome =
  */
 export type TranscriptionProgress = {
 	percent: number | null,
+};
+
+/**  Una versione più recente di quella in esecuzione. */
+export type UpdateInfo = {
+	version: string,
+	/**  La pagina della release. */
+	url: string,
 };
 
 /* Tauri Specta runtime */

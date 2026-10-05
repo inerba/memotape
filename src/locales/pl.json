@@ -59,6 +59,8 @@
     "file": "Dźwięk z {{name}}"
   },
   "status": {
+    "updateAvailable": "Dostępna jest wersja {{version}} aplikacji Memotape.",
+    "updateDownload": "Pobierz",
     "idle": "Otwórz plik audio, wideo lub Tape albo wybierz Tape z Biblioteki",
     "recording": "Trwa nagrywanie…",
     "recordingPaused": "Nagrywanie wstrzymane",

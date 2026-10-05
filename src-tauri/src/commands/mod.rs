@@ -17,6 +17,7 @@ use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 use crate::tape;
 use crate::transcript::Ingresso;
+use crate::updates::{self, UpdateInfo};
 
 /// Estensioni accettate da Apri file (spec, storia 2), Tape compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
@@ -81,6 +82,28 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
         app.opener().open_path(source, None::<&str>)
     };
     opened.map_err(|e| AppError::Internal(e.to_string()))
+}
+
+/// Cerca una versione più recente su GitHub. `None` se non c'è o non si può sapere (offline, rate
+/// limit): il controllo non dà mai errori.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_update(app: AppHandle) -> Option<UpdateInfo> {
+    updates::check(&app.package_info().version.to_string()).await
+}
+
+/// Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro.
+#[tauri::command]
+#[specta::specta]
+pub fn open_update(app: AppHandle, url: String) -> Result<(), AppError> {
+    if !url.starts_with(updates::RELEASES_PREFIX) {
+        return Err(AppError::Internal(format!(
+            "indirizzo non accettato: {url}"
+        )));
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| AppError::Internal(e.to_string()))
 }
 
 /// Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le

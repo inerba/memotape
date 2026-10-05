@@ -10,6 +10,7 @@ import {
   events,
   type LibraryList,
   type TapeInfo,
+  type UpdateInfo,
 } from "@/bindings";
 import {
   AlertDialog,
@@ -131,6 +132,7 @@ export function HomePage() {
   // status bar lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [copied, setCopied] = useState(false);
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
   const [dismissed, setDismissed] = useState<Status | null>(null);
@@ -239,6 +241,11 @@ export function HomePage() {
     const timer = setTimeout(() => setCopied(false), COPIED_MS);
     return () => clearTimeout(timer);
   }, [copied]);
+
+  // Una versione più recente: l'avviso resta finché non si chiude. Offline non dice nulla.
+  useEffect(() => {
+    commands.checkUpdate().then(setUpdate);
+  }, []);
 
   useEffect(() => {
     if (!(notice || message)) {
@@ -660,12 +667,20 @@ export function HomePage() {
 
   // L'avviso in cima: l'errore di un'operazione, un messaggio o l'esito dell'Attività.
   const statusBanner = dismissed === status ? null : bannerOf(status, t);
-  const banner = shownBanner(notice, message, statusBanner, t);
+  const banner = shownBanner(
+    notice,
+    message,
+    statusBanner ?? updateBanner(update, t),
+    t
+  );
   const dismiss = useCallback(() => {
     setNotice(null);
     setMessage(null);
     setDismissed(status);
-  }, [status]);
+    if (banner?.updateUrl) {
+      setUpdate(null);
+    }
+  }, [banner, status]);
   // Gli esiti spariscono da soli dopo un po'; gli errori restano finché non si chiudono.
   useEffect(() => {
     if (statusBanner?.tone !== "info") {
@@ -823,6 +838,17 @@ export function HomePage() {
       ) : null}
     </>
   );
+}
+
+function updateBanner(update: UpdateInfo | null, t: TFunction): Banner | null {
+  return update
+    ? {
+        settings: false,
+        text: t("status.updateAvailable", { version: update.version }),
+        tone: "info",
+        updateUrl: update.url,
+      }
+    : null;
 }
 
 /** L'avviso da mostrare: l'errore di un'operazione, poi un messaggio, poi quello della fase. */
@@ -1132,6 +1158,12 @@ function BannerView({
 }) {
   const { t } = useTranslation();
   const error = banner.tone === "error";
+  const { updateUrl } = banner;
+  const openUpdate = useCallback(() => {
+    if (updateUrl) {
+      commands.openUpdate(updateUrl);
+    }
+  }, [updateUrl]);
   return (
     <div
       className={`motion-safe:fade-in motion-safe:slide-in-from-top-2 absolute top-24 left-1/2 z-20 flex w-[min(40rem,calc(100%-4rem))] -translate-x-1/2 items-start gap-3 rounded-xl border bg-card px-4 py-3 text-sm shadow-float motion-safe:animate-in ${
@@ -1155,6 +1187,18 @@ function BannerView({
             >
               {t("status.openModels")}
             </Link>
+          </>
+        ) : null}
+        {banner.updateUrl ? (
+          <>
+            {" "}
+            <button
+              className="whitespace-nowrap font-medium underline underline-offset-4"
+              onClick={openUpdate}
+              type="button"
+            >
+              {t("status.updateDownload")}
+            </button>
           </>
         ) : null}
       </span>

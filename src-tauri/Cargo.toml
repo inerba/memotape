@@ -40,6 +40,8 @@ transcribe-cpp = { version = "0.2.4", default-features = false, features = ["vul
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls", "http2", "system-proxy"] }
 # 0.10: la stessa versione che Tauri porta già nel grafo.
 sha2 = "0.10"
+# Confronto delle versioni del controllo aggiornamenti; già nel grafo tramite Tauri.
+semver = "1"
 # Già nel grafo tramite Tauri: `select!` per annullare un download fermo in attesa di dati.
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 # Registrazione: cattura WASAPI, encoder Opus (libopus 1.6.1 statica, compilata con cmake) e

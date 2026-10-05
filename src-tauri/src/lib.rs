@@ -8,6 +8,7 @@ mod mcp;
 mod player;
 mod tape;
 mod transcript;
+mod updates;
 
 pub use mcp::serve as serve_mcp;
 use tauri::Manager;
@@ -25,6 +26,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_exe,
             commands::pick_source,
             commands::open_source,
+            commands::check_update,
+            commands::open_update,
             commands::transcribe,
             commands::cancel_transcription,
             commands::transcript_text,

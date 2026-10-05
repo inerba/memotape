@@ -59,6 +59,8 @@
     "file": "Audio de {{name}}"
   },
   "status": {
+    "updateAvailable": "Memotape {{version}} está disponible.",
+    "updateDownload": "Descargar",
     "idle": "Abre un archivo de audio, vídeo o Tape, o elige un Tape de la Biblioteca",
     "recording": "Grabando…",
     "recordingPaused": "Grabación en pausa",

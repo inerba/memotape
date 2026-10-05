@@ -150,6 +150,8 @@ export interface Banner {
   settings: boolean;
   text: string;
   tone: "error" | "info";
+  /** La pagina della release da aprire: l'avviso è un aggiornamento disponibile. */
+  updateUrl?: string;
 }
 
 /**
