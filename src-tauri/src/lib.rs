@@ -93,7 +93,7 @@ pub fn run() {
         .manage(managers::library::LibraryState::default())
         .invoke_handler(builder.invoke_handler())
         // Il mix di un Tape per il player, un tratto alla volta, letto fuori dal thread della finestra.
-        .register_asynchronous_uri_scheme_protocol("bino", |_, request, responder| {
+        .register_asynchronous_uri_scheme_protocol("tape", |_, request, responder| {
             tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(player::respond(&request));
             });

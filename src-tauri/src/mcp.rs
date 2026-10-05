@@ -402,7 +402,7 @@ ends with the `from` to pass to read the next page.",
 #[tool_handler(
     name = "memotape",
     instructions = "Memotape is the user's local transcription app. Its Library is a folder of Tape \
-(.bino files): each Tape is a recording or a transcribed audio/video file, with its transcript split \
+(.tape files): each Tape is a recording or a transcribed audio/video file, with its transcript split \
 into phrases (start and end in ms), optionally attributed to speakers (Parlanti) and to an Ingresso: \
 mix, microfono (the user's microphone) or sistema (system audio, e.g. the other people in a call). \
 Raccolte are folders that group Tape. Use search to find phrases by words, then read_around for the \
@@ -436,7 +436,7 @@ impl Server {
     }
 }
 
-/// Il Tape `tape`, relativo alla Libreria `root`: solo un `.bino` dentro la Libreria, fuori dalle
+/// Il Tape `tape`, relativo alla Libreria `root`: solo un `.tape` dentro la Libreria, fuori dalle
 /// cartelle con il punto in testa (come `.memotape`). Un percorso assoluto o con `..` si rifiuta.
 fn resolve(root: &Path, tape: &str) -> Result<PathBuf, String> {
     let relative = Path::new(tape);
@@ -597,30 +597,30 @@ mod tests {
     #[test]
     fn si_legge_solo_un_tape_dentro_la_libreria() {
         let dir = temp_dir("mcp-percorsi");
-        tape_at(&dir.join("Acme").join("Call.bino"), 1000);
-        tape_at(&dir.join(".memotape").join("Nascosto.bino"), 1000);
+        tape_at(&dir.join("Acme").join("Call.tape"), 1000);
+        tape_at(&dir.join(".memotape").join("Nascosto.tape"), 1000);
         std::fs::write(dir.join("Note.md"), "").unwrap();
         assert_eq!(
-            resolve(&dir, r"Acme\Call.bino"),
-            Ok(dir.join("Acme").join("Call.bino"))
+            resolve(&dir, r"Acme\Call.tape"),
+            Ok(dir.join("Acme").join("Call.tape"))
         );
         assert_eq!(
-            resolve(&dir, "Acme/Call.bino"),
-            Ok(dir.join("Acme").join("Call.bino"))
+            resolve(&dir, "Acme/Call.tape"),
+            Ok(dir.join("Acme").join("Call.tape"))
         );
         for rifiutato in [
             "",
             "Note.md",
-            r"..\fuori.bino",
-            r"Acme\..\..\fuori.bino",
-            r".memotape\Nascosto.bino",
-            r"C:\Windows\x.bino",
-            r"\x.bino",
-            "Assente.bino",
+            r"..\fuori.tape",
+            r"Acme\..\..\fuori.tape",
+            r".memotape\Nascosto.tape",
+            r"C:\Windows\x.tape",
+            r"\x.tape",
+            "Assente.tape",
         ] {
             assert!(resolve(&dir, rifiutato).is_err(), "{rifiutato}");
         }
-        let assoluto = dir.join("Acme").join("Call.bino");
+        let assoluto = dir.join("Acme").join("Call.tape");
         assert!(resolve(&dir, &assoluto.display().to_string()).is_err());
     }
 
@@ -682,7 +682,7 @@ mod tests {
         .save(&places.settings)
         .unwrap();
         tape_with(
-            &root.join("Ferrara Quarzi").join("Call di lunedì.bino"),
+            &root.join("Ferrara Quarzi").join("Call di lunedì.tape"),
             &[
                 ("Buongiorno a tutti.", Some(1)),
                 ("Parliamo del preventivo per l'impianto.", Some(2)),
@@ -691,7 +691,7 @@ mod tests {
             ],
             &[("mix:2", "Giulia Ferrara")],
         );
-        tape_at(&root.join("Sciolto.bino"), 1000);
+        tape_at(&root.join("Sciolto.tape"), 1000);
         Library::open(&root, &library::db_path(&places.index, &root))
             .unwrap()
             .sync()
@@ -738,7 +738,7 @@ mod tests {
         let [tape] = found.tapes.as_slice() else {
             panic!("{found:?}");
         };
-        assert_eq!(tape.tape.tape, r"Ferrara Quarzi\Call di lunedì.bino");
+        assert_eq!(tape.tape.tape, r"Ferrara Quarzi\Call di lunedì.tape");
         assert_eq!(tape.tape.raccolta.as_deref(), Some("Ferrara Quarzi"));
         assert_eq!(
             tape.frasi
@@ -810,7 +810,7 @@ mod tests {
                 .iter()
                 .map(|b| b.tape.as_str())
                 .collect::<Vec<_>>(),
-            ["Sciolto.bino"]
+            ["Sciolto.tape"]
         );
         assert_eq!(list(Some("Ferrara Quarzi")).total, 1);
     }
@@ -820,7 +820,7 @@ mod tests {
         let (_, server) = server("testo", true);
         let text = server
             .read_transcript(Parameters(TranscriptParams {
-                tape: "Ferrara Quarzi/Call di lunedì.bino".into(),
+                tape: "Ferrara Quarzi/Call di lunedì.tape".into(),
                 from: None,
             }))
             .unwrap();

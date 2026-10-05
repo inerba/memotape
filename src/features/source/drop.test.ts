@@ -7,7 +7,7 @@ test("un solo file audio, video o Tape si apre", () => {
     path: "C:\\audio\\Lezione 1.MP3",
   });
   expect(dropVerdict(["D:\\video\\call.mkv"], false).accepted).toBe(true);
-  expect(dropVerdict(["D:\\Memotape\\Call.bino"], false).accepted).toBe(true);
+  expect(dropVerdict(["D:\\Memotape\\Call.tape"], false).accepted).toBe(true);
 });
 
 test("più di un file si rifiuta, anche se tutti accettati", () => {
@@ -28,7 +28,7 @@ test("un formato non accettato o una cartella si rifiutano", () => {
 });
 
 test("durante un'Attività si apre solo un Tape", () => {
-  expect(dropVerdict(["C:\\Call.bino"], true).accepted).toBe(true);
+  expect(dropVerdict(["C:\\Call.tape"], true).accepted).toBe(true);
   expect(dropVerdict(["C:\\a.wav"], true)).toEqual({
     accepted: false,
     reason: "busy",

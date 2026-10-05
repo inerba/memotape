@@ -1,5 +1,5 @@
 //! Il protocollo `tape` del player: serve il `mix.ogg` di un Tape al tag `<audio>`, con le richieste
-//! `Range` per lo spostamento. L'URL è `http://bino.localhost/<percorso del Tape>` (`convertFileSrc`).
+//! `Range` per lo spostamento. L'URL è `http://tape.localhost/<percorso del Tape>` (`convertFileSrc`).
 //! E la Forma d'onda che fa da barra di avanzamento.
 
 use std::io::{Read, Seek, SeekFrom};
@@ -109,7 +109,7 @@ pub fn forma_onda(path: &Path, count: usize, activity: &Activity) -> Result<Vec<
     Ok(forma_onda::regroup(&values, count))
 }
 
-/// La risposta del protocollo a `request`: serve solo il mix di un `.bino`.
+/// La risposta del protocollo a `request`: serve solo il mix di un `.tape`.
 pub fn respond(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let path = request.uri().path().trim_start_matches('/');
     let path = PathBuf::from(
@@ -232,7 +232,7 @@ mod tests {
         let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 48_000, 2, 64).unwrap();
         writer.write(&sine(48_000, 2, 3.0)).unwrap();
         writer.finish().unwrap();
-        let path = dir.join("Riunione dell'unità.bino");
+        let path = dir.join("Riunione dell'unità.tape");
         let document = Document::new(
             "2026-10-04T10:00:00+02:00".into(),
             3000,
@@ -294,7 +294,7 @@ mod tests {
                 percent_encoding::utf8_percent_encode(path, percent_encoding::NON_ALPHANUMERIC)
                     .collect();
             Request::builder()
-                .uri(format!("http://bino.localhost/{encoded}"))
+                .uri(format!("http://tape.localhost/{encoded}"))
                 .header(header::RANGE, "bytes=10-")
                 .body(Vec::new())
                 .unwrap()
@@ -310,6 +310,6 @@ mod tests {
         );
         assert_eq!(served.body(), &extracted[10..]);
         assert_eq!(respond(&request(r"C:\Windows\win.ini")).status(), 403);
-        assert_eq!(respond(&request(r"C:\non c'è\x.bino")).status(), 404);
+        assert_eq!(respond(&request(r"C:\non c'è\x.tape")).status(), 404);
     }
 }

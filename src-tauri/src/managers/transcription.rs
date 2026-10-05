@@ -348,7 +348,7 @@ pub async fn transcribe(
     .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// Il Tape `<nome del file>.bino` del file audio o video `source`, nella cartella `destination` (la
+/// Il Tape `<nome del file>.tape` del file audio o video `source`, nella cartella `destination` (la
 /// radice della Libreria `library` se nel frattempo è sparita), con " 2", " 3"… se esiste già.
 /// `transcribe` riceve la copia dell'audio, scritta in un Ogg temporaneo nella cartella nascosta con
 /// il formato della Registrazione, e restituisce il documento. Annullata, guasta o senza Frasi
@@ -379,7 +379,7 @@ fn file_to_tape(
     } else {
         library
     };
-    let path = numbered(folder, &title_of(source), "bino", Path::exists);
+    let path = numbered(folder, &title_of(source), "tape", Path::exists);
     tape::write(
         &path,
         &[(Ingresso::Mix, &ogg)],
@@ -1007,7 +1007,7 @@ mod tests {
         };
         // Il testo è nel Tape.
         assert_eq!(
-            live("Registrazione.bino", Ok(()), &document),
+            live("Registrazione.tape", Ok(()), &document),
             LiveTranscription::Saved
         );
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
@@ -1118,7 +1118,7 @@ mod tests {
         );
         document.origine = Some("Call.mp4".into());
         document.parlanti.insert("sistema:2".into(), "Lucia".into());
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         tape::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         let opened = open_tape(&path).unwrap();
         assert_eq!(
@@ -1280,7 +1280,7 @@ mod tests {
                 .unwrap()
             };
             let path = tape(&mut FakeEngine::default());
-            assert_eq!(path, raccolta.join("parlato-it.bino"));
+            assert_eq!(path, raccolta.join("parlato-it.tape"));
             // Il mix ha la durata dell'originale, nel formato chiesto.
             let (original, mix) = (decoded_seconds(&source), decoded_seconds(&path));
             assert!(
@@ -1315,10 +1315,10 @@ mod tests {
             );
             // Lo stesso file un'altra volta: un nome nuovo, e niente temporanei.
             let again = tape(&mut FakeEngine::default());
-            assert_eq!(again, raccolta.join("parlato-it 2.bino"));
+            assert_eq!(again, raccolta.join("parlato-it 2.tape"));
             assert_eq!(
                 tree(&library),
-                ["Acme", "Acme/parlato-it 2.bino", "Acme/parlato-it.bino"]
+                ["Acme", "Acme/parlato-it 2.tape", "Acme/parlato-it.tape"]
             );
         }
     }
@@ -1364,7 +1364,7 @@ mod tests {
         )
         .unwrap()
         .unwrap();
-        assert_eq!(path, library.join("parlato-it.bino"));
+        assert_eq!(path, library.join("parlato-it.tape"));
     }
 
     #[test]

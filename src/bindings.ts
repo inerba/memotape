@@ -144,7 +144,7 @@ export const commands = {
 	/**  Elimina la Raccolta `nome`, solo se vuota (`raccoltaNotEmpty`). */
 	deleteRaccolta: (nome: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_raccolta", { nome })),
 	/**
-	 *  Rinomina il file del Tape in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+	 *  Rinomina il file del Tape in `<titolo>.tape` e restituisce il percorso nuovo. Rifiuta con
 	 *  `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	renameTape: (path: string, titolo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_tape", { path, titolo })),

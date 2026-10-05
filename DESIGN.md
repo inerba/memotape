@@ -187,7 +187,7 @@ components:
 
 **Creative North Star: "Il foglio e il nastro"**
 
-Un Bino si legge come un documento e si ascolta come un nastro, e le due cose sono collegate. Il testo sta al centro, su un foglio di carta tiepida, in una colonna da lettura; i comandi stanno ai margini (barra laterale, riga del titolo, player sospeso in basso) e compaiono solo dove servono. Rifiuta l'impianto da pannello di controllo: niente fila di pulsanti sopra un'area di testo, niente status bar.
+Un Tape si legge come un documento e si ascolta come un nastro, e le due cose sono collegate. Il testo sta al centro, su un foglio di carta tiepida, in una colonna da lettura; i comandi stanno ai margini (barra laterale, riga del titolo, player sospeso in basso) e compaiono solo dove servono. Rifiuta l'impianto da pannello di controllo: niente fila di pulsanti sopra un'area di testo, niente status bar.
 
 La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema segue Windows con `prefers-color-scheme`; in Impostazioni → Generale si può fissarlo chiaro o scuro.
 
@@ -222,7 +222,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 - **Carta** (`paper`): fondo del pannello centrale.
 - **Foglio** (`sheet`, il `card` e `popover` di shadcn): superfici sospese e piccole superfici sopra la carta: player, dock, avvisi, menu, chip, pulsanti outline, select.
 - **Carta della barra laterale** (`sidebar-paper`): un tono più scura e calda della carta; nel tema scuro più scura del pannello.
-- **Selezione della barra laterale** (`sidebar-selected`): il Bino aperto nei Recenti, una carta appena olivastra.
+- **Selezione della barra laterale** (`sidebar-selected`): il Tape aperto nei Recenti, una carta appena olivastra.
 - **Inchiostro** (`ink`) e **Inchiostro dei pulsanti** (`ink-button`): testo e pulsante pieno; nel tema scuro i ruoli si invertono (pulsante carta chiara su fondo scuro).
 - **Inchiostro tenue** (`ink-muted`): metadati, breadcrumb, tempi dei turni, schede non scelte, etichette dei gruppi, segnaposti.
 - **Carta in hover** (`paper-hover`, l'`accent` di shadcn): fondo in hover di pulsanti ghost, icone e voci di menu. **Carte di servizio** (`paper-shade`, `paper-muted`): fondi secondari di shadcn.
@@ -241,10 +241,10 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 **Body Font:** Inter Variable (con ui-sans-serif, system-ui, sans-serif), con `cv11` e `ss01` su tutto il body
 **Label/Mono Font:** nessun mono; i tempi usano le cifre tabulari di Inter (`tabular-nums`)
 
-**Character:** Un sans glifico, con le aste svasate, per il nome delle cose (titolo del Bino, benvenuto, marchio) e un sans neutro e molto leggibile per tutto ciò che si legge a lungo o si usa; l'accoppiamento dà al documento un'aria editoriale senza rendere l'interfaccia decorativa.
+**Character:** Un sans glifico, con le aste svasate, per il nome delle cose (titolo del Tape, benvenuto, marchio) e un sans neutro e molto leggibile per tutto ciò che si legge a lungo o si usa; l'accoppiamento dà al documento un'aria editoriale senza rendere l'interfaccia decorativa.
 
 ### Hierarchy
-- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Bino nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso font a 2.5rem.
+- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Tape nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso font a 2.5rem.
 - **Wordmark** (500, 1.375rem, −0.01em): "memotape" in minuscolo nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Memotape"; Impostazioni usa lo stesso font a 2rem per il titolo della pagina, con un sottotitolo in `ink-muted`.
 - **Reading** (400, 1.0625rem, 1.7): il testo dei turni, nella colonna da 46rem (circa 70 caratteri a riga dopo il rientro).
 - **Meta** (400, 1.0625rem, cifre tabulari, `ink-muted`): la riga data · ora · durata sotto il titolo e il sottotitolo del benvenuto (con interlinea rilassata).
@@ -315,7 +315,7 @@ Quieti e piccoli; uno solo pieno per vista.
 
 ### Navigation
 - **Barra laterale:** marchio (simbolo e "memotape"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
-- **Breadcrumb:** Raccolta / Bino a 14 px, la Raccolta in `ink-muted` e cliccabile, il Bino in inchiostro; separatore `/` tenue.
+- **Breadcrumb:** Raccolta / Tape a 14 px, la Raccolta in `ink-muted` e cliccabile, il Tape in inchiostro; separatore `/` tenue.
 - **Schede:** Trascrizione e Parlanti a 44 px, peso 500, `ink-muted`; la scelta passa all'inchiostro con un trattino inferiore da 2 px a capi tondi, sopra il filo della barra. Il conteggio accanto è in cifre tabulari tenui.
 - **Menu a comparsa:** popover nativo ancorato (`position-area`), largo almeno 240 px, voci da 32 px con icona tenue a sinistra, divisori da 1 px e titoletti a 12 px; Elimina in mattone, in fondo.
 - **Controlli della finestra:** tre pulsanti da 46 px con icone da 16 px a tratto 1.25; Riduci e Ingrandisci con fondo inchiostro all'8% in hover, Chiudi con il rosso di Windows e l'icona bianca.

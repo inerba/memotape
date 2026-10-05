@@ -16,7 +16,7 @@ tauri = { version = "2.12.1", features = [] }
 tauri-plugin-dialog = "2.8.1"
 tauri-plugin-log = "2.10.0"
 tauri-plugin-opener = "2.7.0"
-# Doppio clic su un Bino con l'app già aperta: il percorso arriva alla finestra esistente.
+# Doppio clic su un Tape con l'app già aperta: il percorso arriva alla finestra esistente.
 tauri-plugin-single-instance = "2.5.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -51,7 +51,7 @@ ogg = "0.9.2"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 # Lingua dell'interfaccia al primo avvio: la lingua di visualizzazione di Windows.
 sys-locale = "0.3.2"
-# Il Bino è uno zip: Ogg salvati senza compressione, JSON con deflate (zlib-rs, Rust puro).
+# Il Tape è uno zip: Ogg salvati senza compressione, JSON con deflate (zlib-rs, Rust puro).
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 # Già nel grafo tramite Tauri: l'attributo nascosto della cartella dei temporanei delle Registrazioni.
 # Shell: il Cestino della Libreria (`SHFileOperationW` con `FOF_ALLOWUNDO`).
@@ -59,7 +59,7 @@ zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
 # L'indice della Libreria (ADR-0008). `bundled`: SQLite compilato con `cc`, FTS5 compreso.
 rusqlite = { version = "0.40", features = ["bundled"] }
-# Già nel grafo tramite Tauri e reqwest: il percorso del Bino nell'URL del protocollo `bino`.
+# Già nel grafo tramite Tauri e reqwest: il percorso del Tape nell'URL del protocollo `tape`.
 percent-encoding = "2.3"
 # Il server MCP degli Assistenti (ADR-0012): stdio, solo strumenti.
 rmcp = { version = "3.5", features = ["server", "transport-io"] }

@@ -21,7 +21,7 @@ use crate::transcript::Ingresso;
 /// Estensioni accettate da Apri file (spec, storia 2), Tape compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
     "mp3", "wav", "m4a", "flac", "ogg", "opus", "webm", "mpga", "mpeg", "aiff", "mp4", "mkv",
-    "mov", "m4v", "bino",
+    "mov", "m4v", "tape",
 ];
 
 /// Versione dell'app, dal `Cargo.toml`.
@@ -522,7 +522,7 @@ pub async fn delete_raccolta(
     .await
 }
 
-/// Rinomina il file del Tape in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+/// Rinomina il file del Tape in `<titolo>.tape` e restituisce il percorso nuovo. Rifiuta con
 /// `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]

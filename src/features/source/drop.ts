@@ -16,7 +16,7 @@ export const SOURCE_EXTENSIONS = [
   "mkv",
   "mov",
   "m4v",
-  "bino",
+  "tape",
 ];
 
 export type DropVerdict =

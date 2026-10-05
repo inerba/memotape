@@ -115,7 +115,7 @@ test("una Registrazione che non parte lascia la Sorgente com'era", () => {
 });
 
 test("con la Trascrizione dal vivo la status bar dice dov'è il testo salvato", () => {
-  const path = String.raw`D:\Reg\Registrazione 2026-10-03 10-00-00.bino`;
+  const path = String.raw`D:\Reg\Registrazione 2026-10-03 10-00-00.tape`;
   const after = afterRecording({
     data: { error: null, path, transcription: { outcome: "saved" } },
     status: "ok",

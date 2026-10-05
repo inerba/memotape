@@ -1,12 +1,12 @@
 {
   "source": {
     "browse": "Open file",
-    "dropBusy": "During a recording or a transcription you can only open a Bino",
+    "dropBusy": "During a recording or a transcription you can only open a Tape",
     "dropFormat": "Format not supported",
     "dropFormats": "Supported: {{formats}}",
     "dropMany": "One file at a time",
     "dropOpen": "Drop to open",
-    "filter": "Audio, video and Bino",
+    "filter": "Audio, video and Tape",
     "none": "No file selected",
     "open": "{{path}} (click to open with the default app)",
     "ready": "Ready to transcribe"
@@ -21,8 +21,8 @@
     "cancel": "Cancel",
     "cancelling": "Cancelling…",
     "replace": {
-      "title": "Transcribe the Bino again?",
-      "description": "The Bino's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
+      "title": "Transcribe the Tape again?",
+      "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
       "keep": "Keep the text",
       "confirm": "Replace"
     },
@@ -59,7 +59,7 @@
     "file": "Audio from {{name}}"
   },
   "status": {
-    "idle": "Open an audio, video or Bino file, or choose a Bino from the Library",
+    "idle": "Open an audio, video or Tape file, or choose a Tape from the Library",
     "recording": "Recording…",
     "recordingPaused": "Recording paused",
     "recorded": "Recording saved to {{path}}",
@@ -90,11 +90,11 @@
       "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
-      "unsupportedTape": "This Bino comes from a newer version of Memotape: update the app to open it",
+      "unsupportedTape": "This Tape comes from a newer version of Memotape: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
       "nameTaken": "The name {{detail}} is already used",
-      "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Bini first",
-      "tapeNotFound": "The Bino is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
+      "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Tape first",
+      "tapeNotFound": "The Tape is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}"
@@ -113,7 +113,7 @@
   "settings": {
     "open": "Settings",
     "title": "Settings",
-    "subtitle": "How Memotape records, transcribes and saves your Bini.",
+    "subtitle": "How Memotape records, transcribes and saves your Tape.",
     "back": "Back",
     "transcription": {
       "title": "Transcription",
@@ -157,7 +157,7 @@
       "title": "General",
       "description": "The Library folder, the Copy text format, the theme and the interface language.",
       "folder": "Library folder",
-      "folderDescription": "Where Memotape saves Bini: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Bini of the previous folder.",
+      "folderDescription": "Where Memotape saves Tape: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Tape of the previous folder.",
       "choose": "Choose…",
       "reset": "Use Documents\\Memotape",
       "language": "Interface language",
@@ -176,9 +176,9 @@
     },
     "assistants": {
       "title": "Assistants",
-      "description": "Claude and Codex can search and read your Bini through an MCP server, even when Memotape is closed.",
+      "description": "Claude and Codex can search and read your Tape through an MCP server, even when Memotape is closed.",
       "allow": "Allow assistants to read the Library",
-      "allowDescription": "Assistants search and read the titles and text of your Bini without changing them. What they read goes to Anthropic's or OpenAI's servers: it leaves your PC.",
+      "allowDescription": "Assistants search and read the titles and text of your Tape without changing them. What they read goes to Anthropic's or OpenAI's servers: it leaves your PC.",
       "connect": "Connect an assistant",
       "connectDescription": "Copy the configuration into the assistant and restart it.",
       "claudeCode": "Claude Code: run the command in a terminal",
@@ -277,7 +277,7 @@
     "newRaccoltaName": "Name of the new Collection",
     "renameRaccolta": "Rename the Collection",
     "deleteRaccolta": "Delete the Collection (only if empty)",
-    "empty": "No Bini here",
+    "empty": "No Tape here",
     "search": "Search",
     "searchAll": "Search the whole Library",
     "noResults": "No results",
@@ -286,7 +286,7 @@
       "yesterday": "Yesterday",
       "week": "This week"
     },
-    "showAll": "All Bini in the Collection",
+    "showAll": "All Tape in the Collection",
     "sortDate": "Date",
     "sortTitle": "Title",
     "sortDuration": "Duration",
@@ -296,9 +296,9 @@
     "addToLibrary": "Add to Library…",
     "reveal": "Show in File Explorer",
     "rename": "Click to rename: Enter confirms, Esc cancels",
-    "renameName": "New title of the Bino",
+    "renameName": "New title of the Tape",
     "delete": "Delete",
-    "deleteTitle": "Delete the Bino?",
+    "deleteTitle": "Delete the Tape?",
     "deleteDescription": "“{{titolo}}” will go to the Windows Recycle Bin, where you can restore it.",
     "deleteKeep": "Cancel",
     "deleteConfirm": "Move to Recycle Bin",
@@ -351,14 +351,14 @@
     "file": "File {{name}}",
     "parlanti_one": "{{count}} speaker",
     "parlanti_other": "{{count}} speakers",
-    "noText": "This Bino has no text yet",
+    "noText": "This Tape has no text yet",
     "noTextDescription": "Transcribe it to read, search and listen back to what was said.",
     "ingressi": "Microphone + system audio",
     "changeDate": "Click to change date and time: Enter confirms, Esc cancels",
     "dateLabel": "Recording date and time"
   },
   "tabs": {
-    "label": "Bino views",
+    "label": "Tape views",
     "transcript": "Transcript",
     "parlanti": "Speakers"
   },

@@ -26,7 +26,7 @@ function tape(
   return {
     creato: new Date(y ?? 0, (mo ?? 1) - 1, d, h, mi).toISOString(),
     durataMs: 60_000,
-    path: `C:\\Memotape\\${raccolta ? `${raccolta}\\` : ""}${titolo}.bino`,
+    path: `C:\\Memotape\\${raccolta ? `${raccolta}\\` : ""}${titolo}.tape`,
     raccolta,
     titolo,
   };

@@ -412,7 +412,7 @@ impl Library {
         self.sync().map(drop)
     }
 
-    /// Rinomina il file del Tape in `<titolo>.bino`, con la sua estensione. Restituisce il percorso
+    /// Rinomina il file del Tape in `<titolo>.tape`, con la sua estensione. Restituisce il percorso
     /// nuovo.
     pub fn rename_tape(&mut self, path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
         existing_tape(path)?;
@@ -604,7 +604,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
     Ok(db)
 }
 
-/// Un `.bino` trovato nella cartella.
+/// Un `.tape` trovato nella cartella.
 struct Found {
     /// Relativo alla Libreria.
     relative: String,
@@ -613,7 +613,7 @@ struct Found {
     size: i64,
 }
 
-/// I `.bino` sotto `root`, saltando le cartelle che iniziano con `.` (come `.memotape`).
+/// I `.tape` sotto `root`, saltando le cartelle che iniziano con `.` (come `.memotape`).
 fn walk(root: &Path, found: &mut Vec<Found>) -> Result<(), AppError> {
     fn visit(root: &Path, dir: &Path, found: &mut Vec<Found>) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)?.filter_map(Result::ok) {
@@ -784,18 +784,18 @@ pub(crate) mod tests {
         let (root, mut library) = library("raccolte");
         // Prima che la cartella esista la Libreria è vuota.
         assert_eq!(titoli(&mut library), []);
-        tape_at(&root.join("Sciolto.bino"), 1000);
-        tape_at(&root.join("Ferrara Quarzi").join("Preventivo.bino"), 2000);
+        tape_at(&root.join("Sciolto.tape"), 1000);
+        tape_at(&root.join("Ferrara Quarzi").join("Preventivo.tape"), 2000);
         tape_at(
             &root
                 .join("Ferrara Quarzi")
                 .join("2025")
-                .join("Vecchia.bino"),
+                .join("Vecchia.tape"),
             3000,
         );
-        tape_at(&root.join(".memotape").join("Nascosto.bino"), 1000);
+        tape_at(&root.join(".memotape").join("Nascosto.tape"), 1000);
         tape_at(
-            &root.join("Acme").join(".bozze").join("Nascosto.bino"),
+            &root.join("Acme").join(".bozze").join("Nascosto.tape"),
             1000,
         );
         std::fs::create_dir_all(root.join("Vuota")).unwrap();
@@ -818,7 +818,7 @@ pub(crate) mod tests {
         assert_eq!(
             preventivo.path,
             root.join("Ferrara Quarzi")
-                .join("Preventivo.bino")
+                .join("Preventivo.tape")
                 .display()
                 .to_string()
         );
@@ -829,15 +829,15 @@ pub(crate) mod tests {
     #[test]
     fn le_modifiche_fatte_da_esplora_file_si_vedono_dopo_l_allineamento() {
         let (root, mut library) = library("esplora-file");
-        tape_at(&root.join("Uno.bino"), 1000);
-        tape_at(&root.join("Due.bino"), 1000);
-        tape_at(&root.join("Tre.bino"), 1000);
+        tape_at(&root.join("Uno.tape"), 1000);
+        tape_at(&root.join("Due.tape"), 1000);
+        tape_at(&root.join("Tre.tape"), 1000);
         std::fs::create_dir_all(root.join("Acme")).unwrap();
         assert_eq!(library.sync().unwrap(), 3);
-        std::fs::rename(root.join("Uno.bino"), root.join("Acme").join("Uno.bino")).unwrap();
-        std::fs::rename(root.join("Due.bino"), root.join("Secondo.bino")).unwrap();
-        std::fs::remove_file(root.join("Tre.bino")).unwrap();
-        tape_at(&root.join("Quattro.bino"), 1000);
+        std::fs::rename(root.join("Uno.tape"), root.join("Acme").join("Uno.tape")).unwrap();
+        std::fs::rename(root.join("Due.tape"), root.join("Secondo.tape")).unwrap();
+        std::fs::remove_file(root.join("Tre.tape")).unwrap();
+        tape_at(&root.join("Quattro.tape"), 1000);
         assert_eq!(
             titoli(&mut library),
             [
@@ -851,11 +851,11 @@ pub(crate) mod tests {
     #[test]
     fn si_rileggono_solo_i_tapes_con_data_o_dimensione_cambiate() {
         let (root, mut library) = library("rilettura");
-        tape_at(&root.join("Uno.bino"), 1000);
-        tape_at(&root.join("Due.bino"), 1000);
+        tape_at(&root.join("Uno.tape"), 1000);
+        tape_at(&root.join("Due.tape"), 1000);
         assert_eq!(library.sync().unwrap(), 2);
         assert_eq!(library.sync().unwrap(), 0);
-        let path = root.join("Uno.bino");
+        let path = root.join("Uno.tape");
         let mut document = tape::read(&path).unwrap();
         document.durata_ms = 5000;
         tape::rewrite(&path, &document).unwrap();
@@ -882,8 +882,8 @@ pub(crate) mod tests {
     fn un_tape_illeggibile_resta_nell_elenco_con_il_nome_del_file() {
         let (root, mut library) = library("illeggibile");
         std::fs::create_dir_all(&root).unwrap();
-        std::fs::write(root.join("Rotto.bino"), "non è uno zip").unwrap();
-        tape_at(&root.join("Buono.bino"), 1000);
+        std::fs::write(root.join("Rotto.tape"), "non è uno zip").unwrap();
+        tape_at(&root.join("Buono.tape"), 1000);
         library.sync().unwrap();
         let tapes = library.list().unwrap().tapes;
         let rotto = tapes.iter().find(|b| b.titolo == "Rotto").unwrap();
@@ -901,8 +901,8 @@ pub(crate) mod tests {
         let dir = temp_dir("libreria-ricostruzione");
         let root = dir.join("Memotape");
         let db = db_path(&dir.join("indice"), &root);
-        tape_at(&root.join("Acme").join("Uno.bino"), 1000);
-        tape_at(&root.join("Due.bino"), 2000);
+        tape_at(&root.join("Acme").join("Uno.tape"), 1000);
+        tape_at(&root.join("Due.tape"), 2000);
         let listed = |db: &Path| {
             let mut library = Library::open(&root, db).unwrap();
             library.sync().unwrap();
@@ -956,7 +956,7 @@ pub(crate) mod tests {
                 "{invalid:?}"
             );
         }
-        tape_at(&root.join("Acme").join("Call.bino"), 1000);
+        tape_at(&root.join("Acme").join("Call.tape"), 1000);
         library.create_raccolta("Beta").unwrap();
         assert_eq!(
             library.rename_raccolta("Acme", "Beta").unwrap_err(),
@@ -985,14 +985,14 @@ pub(crate) mod tests {
     #[test]
     fn i_tapes_si_rinominano_e_si_spostano_senza_sovrascrivere() {
         let (root, mut library) = library("operazioni-tapes");
-        let call = root.join("Call.bino");
+        let call = root.join("Call.tape");
         tape_at(&call, 1000);
-        tape_at(&root.join("Altra.bino"), 1000);
-        tape_at(&root.join("Acme").join("Altra.bino"), 1000);
+        tape_at(&root.join("Altra.tape"), 1000);
+        tape_at(&root.join("Acme").join("Altra.tape"), 1000);
         let renamed = library
             .rename_tape(&call, "Ferrara Quarzi, preventivo")
             .unwrap();
-        assert_eq!(renamed, root.join("Ferrara Quarzi, preventivo.bino"));
+        assert_eq!(renamed, root.join("Ferrara Quarzi, preventivo.tape"));
         assert!(!call.exists() && renamed.is_file());
         assert_eq!(
             library.rename_tape(&renamed, "altra").unwrap_err(),
@@ -1003,20 +1003,20 @@ pub(crate) mod tests {
             AppError::InvalidName("a?b".into())
         );
         // Solo maiuscole e minuscole; l'estensione resta quella del file.
-        let upper = root.join("Maiuscolo.BINO");
+        let upper = root.join("Maiuscolo.TAPE");
         tape_at(&upper, 1000);
         assert_eq!(
             library.rename_tape(&upper, "MAIUSCOLO").unwrap(),
-            root.join("MAIUSCOLO.BINO")
+            root.join("MAIUSCOLO.TAPE")
         );
         let moved = library.move_tape(&renamed, Some("Acme")).unwrap();
         assert_eq!(
             moved,
-            root.join("Acme").join("Ferrara Quarzi, preventivo.bino")
+            root.join("Acme").join("Ferrara Quarzi, preventivo.tape")
         );
         assert_eq!(
             library
-                .move_tape(&root.join("Acme").join("Altra.bino"), None)
+                .move_tape(&root.join("Acme").join("Altra.tape"), None)
                 .unwrap_err(),
             AppError::NameTaken("Altra".into())
         );
@@ -1030,7 +1030,7 @@ pub(crate) mod tests {
         let moved = library.move_tape(&moved, Some("Nuova")).unwrap();
         assert_eq!(
             moved,
-            root.join("Nuova").join("Ferrara Quarzi, preventivo.bino")
+            root.join("Nuova").join("Ferrara Quarzi, preventivo.tape")
         );
         assert_eq!(
             library.move_tape(&moved, Some("..")).unwrap_err(),
@@ -1038,7 +1038,7 @@ pub(crate) mod tests {
         );
         assert!(matches!(
             library
-                .move_tape(&root.join("Assente.bino"), None)
+                .move_tape(&root.join("Assente.tape"), None)
                 .unwrap_err(),
             AppError::TapeNotFound(_)
         ));
@@ -1060,10 +1060,10 @@ pub(crate) mod tests {
             .parent()
             .unwrap()
             .join("Download")
-            .join("Ricevuto.bino");
+            .join("Ricevuto.tape");
         tape_at(&outside, 1000);
         let added = library.move_tape(&outside, Some("Acme")).unwrap();
-        assert_eq!(added, root.join("Acme").join("Ricevuto.bino"));
+        assert_eq!(added, root.join("Acme").join("Ricevuto.tape"));
         assert!(!outside.exists());
         assert_eq!(titoli(&mut library), [entry(Some("Acme"), "Ricevuto")]);
     }
@@ -1076,7 +1076,7 @@ pub(crate) mod tests {
         std::fs::create_dir_all(db.parent().unwrap()).unwrap();
         assert!(Library::open_read_only(&root, &db).is_err());
         assert!(!db.exists());
-        tape_at(&root.join("Uno.bino"), 1000);
+        tape_at(&root.join("Uno.tape"), 1000);
         Library::open(&root, &db).unwrap().sync().unwrap();
         let read_only = Library::open_read_only(&root, &db).unwrap();
         assert_eq!(read_only.list().unwrap().tapes.len(), 1);
@@ -1100,7 +1100,7 @@ pub(crate) mod tests {
     #[test]
     fn eliminare_un_tape_lo_manda_nel_cestino() {
         let (root, mut library) = library("cestino");
-        let path = root.join("Da buttare.bino");
+        let path = root.join("Da buttare.tape");
         tape_at(&path, 1000);
         library.sync().unwrap();
         library.trash_tape(&path).unwrap();
@@ -1139,7 +1139,7 @@ pub(crate) mod tests {
     fn searchable(name: &str) -> (PathBuf, Library) {
         let (root, mut library) = library(name);
         tape_with(
-            &root.join("Ferrara Quarzi").join("Call di lunedì.bino"),
+            &root.join("Ferrara Quarzi").join("Call di lunedì.tape"),
             &[
                 ("Buongiorno a tutti.", Some(1)),
                 ("Parliamo del preventivo per l'impianto.", Some(2)),
@@ -1149,12 +1149,12 @@ pub(crate) mod tests {
             &[("mix:2", "Giulia Ferrara")],
         );
         tape_with(
-            &root.join("Acme").join("Riunione Acme.bino"),
+            &root.join("Acme").join("Riunione Acme.tape"),
             &[("Il preventivo di Acme è pronto.", None)],
             &[],
         );
         tape_with(
-            &root.join("Sciolto.bino"),
+            &root.join("Sciolto.tape"),
             &[("Nessun preventivo qui, solo saluti.", None)],
             &[],
         );
@@ -1222,7 +1222,7 @@ pub(crate) mod tests {
             [("Call di lunedì".to_string(), vec![1, 3])]
         );
         // La rinomina riscrive il Tape: dopo l'allineamento il nome nuovo si trova.
-        let path = root.join("Ferrara Quarzi").join("Call di lunedì.bino");
+        let path = root.join("Ferrara Quarzi").join("Call di lunedì.tape");
         let mut document = tape::read(&path).unwrap();
         document
             .parlanti
@@ -1264,7 +1264,7 @@ pub(crate) mod tests {
         assert_eq!(
             acme.tape.path,
             root.join("Acme")
-                .join("Riunione Acme.bino")
+                .join("Riunione Acme.tape")
                 .display()
                 .to_string()
         );
@@ -1329,12 +1329,12 @@ pub(crate) mod tests {
         let root = dir.join("Memotape");
         let db = db_path(&dir.join("indice"), &root);
         tape_with(
-            &root.join("Acme").join("Uno.bino"),
+            &root.join("Acme").join("Uno.tape"),
             &[("Il preventivo è pronto.", None)],
             &[],
         );
         tape_with(
-            &root.join("Due.bino"),
+            &root.join("Due.tape"),
             &[("Preventivo rifiutato.", None)],
             &[],
         );

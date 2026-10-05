@@ -21,7 +21,7 @@ import { elapsedText } from "@/features/recording/recording";
 import { speechLanguageName } from "@/features/settings/settings";
 import { fileName, folderOf } from "@/features/source/file-name";
 
-const EXTENSION = /\.bino$/i;
+const EXTENSION = /\.tape$/i;
 
 /** La voce del Tape `path` nella Libreria, se ci sta, senza distinguere maiuscole e minuscole. */
 export function entryOf(library: LibraryList, path: string) {

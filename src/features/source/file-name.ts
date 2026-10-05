@@ -28,5 +28,5 @@ export function movedPath(path: string, from: string, to: string): string {
 
 /** Se la Sorgente è un Tape: si apre con il suo testo e il clic sul nome la mostra nella cartella. */
 export function isTape(path: string) {
-  return fileName(path).toLowerCase().endsWith(".bino");
+  return fileName(path).toLowerCase().endsWith(".tape");
 }

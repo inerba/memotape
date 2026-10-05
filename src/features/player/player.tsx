@@ -263,7 +263,7 @@ export function Player({
         onTimeUpdate={time}
         preload="metadata"
         ref={audio}
-        src={convertFileSrc(path, "bino")}
+        src={convertFileSrc(path, "tape")}
       />
       <div className="flex items-center gap-2 text-muted-foreground text-xs">
         <span className="min-w-0 flex-1 truncate pl-1" title={label}>

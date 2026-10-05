@@ -308,7 +308,7 @@ impl Recorded {
     }
 }
 
-/// Scrive il Tape `<prefisso> <data ora>.bino` nella cartella `destination` (una Raccolta della
+/// Scrive il Tape `<prefisso> <data ora>.tape` nella cartella `destination` (una Raccolta della
 /// Libreria `folder`, o la radice se nel frattempo è sparita) e cancella gli Ogg temporanei, e con
 /// loro la cartella nascosta se resta vuota.
 fn save_tape(
@@ -326,7 +326,7 @@ fn save_tape(
         },
         prefix,
         recorded.start.naive_local(),
-        "bino",
+        "tape",
         Path::exists,
     );
     let audio: Vec<_> = recorded
@@ -731,7 +731,7 @@ mod tests {
         assert_eq!(
             path,
             raccolta.join(format!(
-                "Registrazione {}.bino",
+                "Registrazione {}.tape",
                 start.format("%Y-%m-%d %H-%M-%S")
             ))
         );
@@ -751,8 +751,8 @@ mod tests {
         let taken =
             |names: &'static [&str]| move |p: &Path| names.iter().any(|n| p == folder.join(n));
         assert_eq!(
-            recording_path(folder, "Registrazione", start, "bino", taken(&[])),
-            folder.join("Registrazione 2026-03-07 09-05-01.bino")
+            recording_path(folder, "Registrazione", start, "tape", taken(&[])),
+            folder.join("Registrazione 2026-03-07 09-05-01.tape")
         );
         assert_eq!(
             recording_path(

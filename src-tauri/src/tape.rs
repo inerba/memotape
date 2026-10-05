@@ -379,11 +379,11 @@ impl Seek for Mix {
 /// Se `path` è un Tape, dall'estensione.
 pub fn is_tape(path: &Path) -> bool {
     path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("bino"))
+        .is_some_and(|e| e.eq_ignore_ascii_case("tape"))
 }
 
 /// Il Tape da aprire tra gli argomenti di un avvio (il doppio clic in Esplora file passa il
-/// percorso): il primo `.bino` dopo l'eseguibile, rispetto alla cartella di lavoro `cwd`.
+/// percorso): il primo `.tape` dopo l'eseguibile, rispetto alla cartella di lavoro `cwd`.
 pub fn from_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Option<PathBuf> {
     args.into_iter()
         .skip(1)
@@ -485,7 +485,7 @@ mod tests {
     fn si_rilegge_il_documento_scritto_e_l_audio_e_intatto() {
         let dir = temp_dir("tape-scrittura");
         let mix = ogg(&dir);
-        let path = dir.join("Registrazione.bino");
+        let path = dir.join("Registrazione.tape");
         let written = document(&["Buongiorno.", "Iniziamo."]);
         write(&path, &[(Ingresso::Mix, &mix)], &written, None).unwrap();
         assert_eq!(read(&path).unwrap(), written);
@@ -509,7 +509,7 @@ mod tests {
             ogg_named(&dir, "mic.ogg", 1.0),
             ogg_named(&dir, "sys.ogg", 0.5),
         );
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let mut written = document(&["Mi senti?", "Sì."]);
         written.modalita = Modalita::IngressiSeparati;
         written.frasi[0].ingresso = Ingresso::Microfono;
@@ -566,7 +566,7 @@ mod tests {
     #[test]
     fn il_mix_si_decodifica_come_sorgente() {
         let dir = temp_dir("tape-decodifica");
-        let path = dir.join("Registrazione.bino");
+        let path = dir.join("Registrazione.tape");
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &document(&[]), None).unwrap();
         let seconds = decoded_seconds(&path);
         assert!((seconds - 1.5).abs() < 0.001, "{seconds} s");
@@ -575,7 +575,7 @@ mod tests {
     #[test]
     fn i_campi_sconosciuti_si_ignorano() {
         let dir = temp_dir("tape-campi-sconosciuti");
-        let path = dir.join("Futuro.bino");
+        let path = dir.join("Futuro.tape");
         let mut json = serde_json::to_value(document(&["Ciao."])).unwrap();
         json["etichette"] = serde_json::json!(["riunione"]);
         json["frasi"][0]["confidenza"] = serde_json::json!(0.9);
@@ -586,11 +586,11 @@ mod tests {
     #[test]
     fn una_versione_futura_da_errore_dedicato() {
         let dir = temp_dir("tape-versione-futura");
-        let path = dir.join("Futuro.bino");
+        let path = dir.join("Futuro.tape");
         // Anche se il resto dello schema è cambiato.
         tape_with(&path, r#"{ "version": 2, "testo": {} }"#);
         assert_eq!(read(&path).unwrap_err(), AppError::UnsupportedTape);
-        let error = read(&dir.join("Non esiste.bino")).unwrap_err();
+        let error = read(&dir.join("Non esiste.tape")).unwrap_err();
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
 
@@ -598,7 +598,7 @@ mod tests {
     fn la_riscrittura_sostituisce_solo_il_testo_senza_lasciare_temporanei() {
         let dir = temp_dir("tape-riscrittura");
         let mix = ogg(&dir);
-        let path = dir.join("Registrazione.bino");
+        let path = dir.join("Registrazione.tape");
         let mut incompleta = document(&["Uno."]);
         incompleta.completa = false;
         write(&path, &[(Ingresso::Mix, &mix)], &incompleta, None).unwrap();
@@ -614,13 +614,13 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         names.sort();
-        assert_eq!(names, ["Registrazione.bino", "mix.ogg"]);
+        assert_eq!(names, ["Registrazione.tape", "mix.ogg"]);
     }
 
     #[test]
     fn la_forma_d_onda_si_rilegge_e_resta_dopo_correzioni_e_riscritture() {
         let dir = temp_dir("tape-forma-onda");
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let written = document(&["Ciao."]);
         write(
             &path,
@@ -640,7 +640,7 @@ mod tests {
     fn un_tape_senza_forma_d_onda_la_riceve_una_volta_sola() {
         let dir = temp_dir("tape-forma-onda-aggiunta");
         let mix = ogg(&dir);
-        let path = dir.join("Vecchio.bino");
+        let path = dir.join("Vecchio.tape");
         let written = document(&["Ciao."]);
         write(&path, &[(Ingresso::Mix, &mix)], &written, None).unwrap();
         assert_eq!(forma_onda(&path), None);
@@ -654,7 +654,7 @@ mod tests {
         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
         assert_eq!(audio, std::fs::read(&mix).unwrap());
         // Una Forma d'onda vuota vale come assente, e si sostituisce.
-        let vuota = dir.join("Vuota.bino");
+        let vuota = dir.join("Vuota.tape");
         write(&vuota, &[(Ingresso::Mix, &mix)], &written, Some(&[])).unwrap();
         assert_eq!(forma_onda(&vuota), None);
         save_forma_onda(&vuota, &[0.5]).unwrap();
@@ -664,7 +664,7 @@ mod tests {
     #[test]
     fn una_riscrittura_fallita_lascia_il_tape_com_era() {
         let dir = temp_dir("tape-riscrittura-fallita");
-        let path = dir.join("Registrazione.bino");
+        let path = dir.join("Registrazione.tape");
         write(
             &path,
             &[(Ingresso::Mix, &ogg(&dir))],
@@ -691,7 +691,7 @@ mod tests {
     #[test]
     fn origine_si_rilegge_e_un_tape_senza_origine_si_legge_come_prima() {
         let dir = temp_dir("tape-origine");
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let written = Document {
             origine: Some("Call Teams.mp4".into()),
             ..document(&["Ciao."])
@@ -701,7 +701,7 @@ mod tests {
         // Senza origine il campo non si scrive, e un Tape di prima si legge con `None`.
         let json = serde_json::to_value(document(&["Ciao."])).unwrap();
         assert!(json.get("origine").is_none(), "{json}");
-        let old = dir.join("Vecchio.bino");
+        let old = dir.join("Vecchio.tape");
         tape_with(&old, &json.to_string());
         assert_eq!(read(&old).unwrap().origine, None);
     }
@@ -710,7 +710,7 @@ mod tests {
     fn la_correzione_cambia_solo_il_testo_di_quella_frase() {
         let dir = temp_dir("tape-correzione");
         let mix = ogg(&dir);
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let mut before = document(&["Buongiorno.", "Inizziamo.", "Bene."]);
         before.origine = Some("Call.mp4".into());
         before.frasi[2].ingresso = Ingresso::Sistema;
@@ -735,7 +735,7 @@ mod tests {
     #[test]
     fn correzioni_contemporanee_dello_stesso_tape_restano_tutte() {
         let dir = temp_dir("tape-correzioni-contemporanee");
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let testi: Vec<String> = (0..8).map(|i| format!("Frase {i}.")).collect();
         let refs: Vec<&str> = testi.iter().map(String::as_str).collect();
         write(
@@ -766,7 +766,7 @@ mod tests {
     #[test]
     fn la_data_si_cambia_con_l_ora_locale_e_il_resto_resta() {
         let dir = temp_dir("tape-creato");
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let before = document(&["Ciao."]);
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
         let creato = set_creato(&path, "2025-12-31T23:30").unwrap();
@@ -783,7 +783,7 @@ mod tests {
     #[test]
     fn la_rinomina_di_un_parlante_si_salva_nel_tape() {
         let dir = temp_dir("tape-rinomina");
-        let path = dir.join("Call.bino");
+        let path = dir.join("Call.tape");
         let before = document(&["Ciao.", "Salve."]);
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
         rename_parlante(&path, Ingresso::Sistema, 2, "  Lucia ").unwrap();
@@ -806,17 +806,17 @@ mod tests {
         let cwd = Path::new(r"C:\Lavoro");
         assert_eq!(
             from_args(
-                args(&[r"C:\Memotape\memotape.exe", r"D:\Note\Lezione.BINO"]),
+                args(&[r"C:\Memotape\memotape.exe", r"D:\Note\Lezione.TAPE"]),
                 cwd
             ),
-            Some(PathBuf::from(r"D:\Note\Lezione.BINO"))
+            Some(PathBuf::from(r"D:\Note\Lezione.TAPE"))
         );
         assert_eq!(
-            from_args(args(&["memotape.exe", "--flag", "Lezione.bino"]), cwd),
-            Some(PathBuf::from(r"C:\Lavoro\Lezione.bino"))
+            from_args(args(&["memotape.exe", "--flag", "Lezione.tape"]), cwd),
+            Some(PathBuf::from(r"C:\Lavoro\Lezione.tape"))
         );
-        // L'eseguibile non conta, nemmeno se si chiamasse `.bino`.
-        assert_eq!(from_args(args(&["x.bino"]), cwd), None);
+        // L'eseguibile non conta, nemmeno se si chiamasse `.tape`.
+        assert_eq!(from_args(args(&["x.tape"]), cwd), None);
         assert_eq!(from_args(args(&["memotape.exe", "audio.mp3"]), cwd), None);
     }
 }

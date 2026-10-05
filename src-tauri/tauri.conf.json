@@ -14,9 +14,9 @@
     "publisher": "EDITORE DA DEFINIRE",
     "fileAssociations": [
       {
-        "ext": ["bino"],
-        "name": "Memotape.Bino",
-        "description": "Bino (Memotape)",
+        "ext": ["tape"],
+        "name": "Memotape.Tape",
+        "description": "Tape (Memotape)",
         "role": "Editor"
       }
     ],

@@ -1,12 +1,12 @@
 {
   "source": {
     "browse": "Abrir archivo",
-    "dropBusy": "Durante una grabación o una transcripción solo se puede abrir un Bino",
+    "dropBusy": "Durante una grabación o una transcripción solo se puede abrir un Tape",
     "dropFormat": "Formato no admitido",
     "dropFormats": "Se admiten: {{formats}}",
     "dropMany": "Un archivo cada vez",
     "dropOpen": "Suelta para abrir",
-    "filter": "Audio, vídeo y Bino",
+    "filter": "Audio, vídeo y Tape",
     "none": "Ningún archivo seleccionado",
     "open": "{{path}} (haz clic para abrirlo con la aplicación asociada)",
     "ready": "Listo para transcribir"
@@ -21,8 +21,8 @@
     "cancel": "Cancelar",
     "cancelling": "Cancelando…",
     "replace": {
-      "title": "¿Volver a transcribir el Bino?",
-      "description": "El texto del Bino se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes.",
+      "title": "¿Volver a transcribir el Tape?",
+      "description": "El texto del Tape se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes.",
       "keep": "Conservar el texto",
       "confirm": "Reemplazar"
     },
@@ -59,7 +59,7 @@
     "file": "Audio de {{name}}"
   },
   "status": {
-    "idle": "Abre un archivo de audio, vídeo o Bino, o elige un Bino de la Biblioteca",
+    "idle": "Abre un archivo de audio, vídeo o Tape, o elige un Tape de la Biblioteca",
     "recording": "Grabando…",
     "recordingPaused": "Grabación en pausa",
     "recorded": "Grabación guardada en {{path}}",
@@ -90,11 +90,11 @@
       "outputDeviceMissing": "No hay ningún dispositivo de salida para el audio del sistema, o el elegido en Configuración no está disponible",
       "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
       "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
-      "unsupportedTape": "Este Bino viene de una versión más reciente de Memotape: actualiza la aplicación para abrirlo",
+      "unsupportedTape": "Este Tape viene de una versión más reciente de Memotape: actualiza la aplicación para abrirlo",
       "invalidName": "Nombre no válido: {{detail}}. No se admiten < > : \" / \\ | ? *, los nombres reservados como CON, un punto al principio ni un punto o espacio al final",
       "nameTaken": "El nombre {{detail}} ya está en uso",
-      "raccoltaNotEmpty": "La Colección {{detail}} no está vacía: mueve o elimina antes sus Bini",
-      "tapeNotFound": "El Bino ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
+      "raccoltaNotEmpty": "La Colección {{detail}} no está vacía: mueve o elimina antes sus Tape",
+      "tapeNotFound": "El Tape ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
       "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
       "cancelled": "Transcripción cancelada",
       "internal": "Error interno: {{detail}}"
@@ -113,7 +113,7 @@
   "settings": {
     "open": "Configuración",
     "title": "Configuración",
-    "subtitle": "Cómo Memotape graba, transcribe y guarda tus Bini.",
+    "subtitle": "Cómo Memotape graba, transcribe y guarda tus Tape.",
     "back": "Volver",
     "transcription": {
       "title": "Transcripción",
@@ -157,7 +157,7 @@
       "title": "General",
       "description": "La carpeta de la Biblioteca, el formato de Copiar texto, el tema y el idioma de la interfaz.",
       "folder": "Carpeta de la Biblioteca",
-      "folderDescription": "Donde Memotape guarda los Bini: sus carpetas son las Colecciones. Si no existe, se crea; cambiarla no mueve los Bini de la carpeta anterior.",
+      "folderDescription": "Donde Memotape guarda los Tape: sus carpetas son las Colecciones. Si no existe, se crea; cambiarla no mueve los Tape de la carpeta anterior.",
       "choose": "Elegir…",
       "reset": "Usar Documentos\\Memotape",
       "language": "Idioma de la interfaz",
@@ -176,9 +176,9 @@
     },
     "assistants": {
       "title": "Asistentes",
-      "description": "Claude y Codex pueden buscar y leer tus Bini a través de un servidor MCP, incluso con Memotape cerrado.",
+      "description": "Claude y Codex pueden buscar y leer tus Tape a través de un servidor MCP, incluso con Memotape cerrado.",
       "allow": "Permitir que los asistentes lean la Biblioteca",
-      "allowDescription": "Los asistentes buscan y leen los títulos y el texto de tus Bini sin modificarlos. Lo que leen va a los servidores de Anthropic o de OpenAI: sale de tu PC.",
+      "allowDescription": "Los asistentes buscan y leen los títulos y el texto de tus Tape sin modificarlos. Lo que leen va a los servidores de Anthropic o de OpenAI: sale de tu PC.",
       "connect": "Conectar un asistente",
       "connectDescription": "Copia la configuración en el asistente y reinícialo.",
       "claudeCode": "Claude Code: ejecuta el comando en una terminal",
@@ -277,7 +277,7 @@
     "newRaccoltaName": "Nombre de la nueva Colección",
     "renameRaccolta": "Renombrar la Colección",
     "deleteRaccolta": "Eliminar la Colección (solo si está vacía)",
-    "empty": "No hay Bini aquí",
+    "empty": "No hay Tape aquí",
     "search": "Buscar",
     "searchAll": "Buscar en toda la Biblioteca",
     "noResults": "Sin resultados",
@@ -286,7 +286,7 @@
       "yesterday": "Ayer",
       "week": "Esta semana"
     },
-    "showAll": "Todos los Bini de la Colección",
+    "showAll": "Todos los Tape de la Colección",
     "sortDate": "Fecha",
     "sortTitle": "Título",
     "sortDuration": "Duración",
@@ -296,9 +296,9 @@
     "addToLibrary": "Añadir a la Biblioteca…",
     "reveal": "Mostrar en el Explorador de archivos",
     "rename": "Haz clic para renombrar: Intro confirma, Esc cancela",
-    "renameName": "Nuevo título del Bino",
+    "renameName": "Nuevo título del Tape",
     "delete": "Eliminar",
-    "deleteTitle": "¿Eliminar el Bino?",
+    "deleteTitle": "¿Eliminar el Tape?",
     "deleteDescription": "«{{titolo}}» irá a la Papelera de reciclaje de Windows, desde donde podrás restaurarlo.",
     "deleteKeep": "Cancelar",
     "deleteConfirm": "Mover a la Papelera",
@@ -352,14 +352,14 @@
     "parlanti_one": "{{count}} hablante",
     "parlanti_many": "{{count}} hablantes",
     "parlanti_other": "{{count}} hablantes",
-    "noText": "Este Bino aún no tiene texto",
+    "noText": "Este Tape aún no tiene texto",
     "noTextDescription": "Transcríbelo para leer, buscar y volver a escuchar lo que se dijo.",
     "ingressi": "Micrófono + audio del sistema",
     "changeDate": "Haz clic para cambiar la fecha y la hora: Intro confirma, Esc cancela",
     "dateLabel": "Fecha y hora de la grabación"
   },
   "tabs": {
-    "label": "Vistas del Bino",
+    "label": "Vistas del Tape",
     "transcript": "Transcripción",
     "parlanti": "Hablantes"
   },

@@ -17,7 +17,7 @@ const t = i18n.t.bind(i18n);
 
 test("a riposo la status bar invita a scegliere un file o mostra il percorso della Sorgente", () => {
   expect(statusText({ phase: "idle", source: null }, t)).toBe(
-    "Apri un file audio, video o Bino, o scegli un Bino della Libreria"
+    "Apri un file audio, video o Tape, o scegli un Tape della Libreria"
   );
   expect(
     statusText({ phase: "idle", source: "C:\\Lezioni\\Lezione 1.mp4" }, t)
@@ -56,7 +56,7 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
 });
 
 test("a fine Trascrizione mostra il Tape in cui è il testo", () => {
-  const path = String.raw`C:\Memotape\Acme\Lezione 1.bino`;
+  const path = String.raw`C:\Memotape\Acme\Lezione 1.tape`;
   expect(statusText({ path, phase: "finished" }, t)).toBe(
     `Trascrizione salvata in ${path}`
   );
@@ -93,7 +93,7 @@ test("il progresso aggiorna solo una Trascrizione in corso", () => {
     phase: "transcribing",
   });
   // Un evento in ritardo non riporta indietro una Trascrizione già finita.
-  const finished: Status = { path: "a.bino", phase: "finished" };
+  const finished: Status = { path: "a.tape", phase: "finished" };
   expect(withProgress(finished, 100)).toBe(finished);
 });
 
@@ -109,10 +109,10 @@ test("una Trascrizione senza Frasi dice che non c'è parlato", () => {
 test("una Trascrizione salvata porta il percorso del Tape", () => {
   expect(
     afterTranscription({
-      data: { outcome: "saved", path: "a.bino" },
+      data: { outcome: "saved", path: "a.tape" },
       status: "ok",
     })
-  ).toEqual({ path: "a.bino", phase: "finished" });
+  ).toEqual({ path: "a.tape", phase: "finished" });
 });
 
 test("Annulla non è un errore", () => {
@@ -188,13 +188,13 @@ test("senza modello la Registrazione continua e la status bar lo dice con il lin
 });
 
 test("un Tape aperto spostato o rinominato resta nella status bar con il percorso nuovo", () => {
-  const from = "C:\\Memotape\\Call.bino";
-  const to = "C:\\Memotape\\Acme\\Call.bino";
+  const from = "C:\\Memotape\\Call.tape";
+  const to = "C:\\Memotape\\Acme\\Call.tape";
   expect(withMovedSource({ phase: "idle", source: from }, from, to)).toEqual({
     phase: "idle",
     source: to,
   });
-  const other = { phase: "idle", source: "C:\\Altro.bino" } as const;
+  const other = { phase: "idle", source: "C:\\Altro.tape" } as const;
   expect(withMovedSource(other, from, to)).toEqual(other);
   expect(withMovedSource({ phase: "noSpeech" }, from, to)).toEqual({
     phase: "noSpeech",
