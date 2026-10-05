@@ -217,8 +217,9 @@ pub async fn export_markdown(app: AppHandle, path: String) -> Result<Option<Stri
     .await
 }
 
-/// Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`. Rifiuta un nome vuoto, e
-/// con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+/// Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`, o con `null` all'Ingresso
+/// senza Parlanti (il Microfono). Rifiuta un nome vuoto, e con `activityInProgress` il Tape su cui
+/// lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_parlante(
@@ -226,7 +227,7 @@ pub async fn rename_parlante(
     activity: State<'_, Activity>,
     path: String,
     ingresso: Ingresso,
-    parlante: u32,
+    parlante: Option<u32>,
     nome: String,
 ) -> Result<(), AppError> {
     write_tape(app, &activity, tape_path(&path)?, move |path| {

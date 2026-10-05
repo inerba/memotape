@@ -197,9 +197,9 @@ impl Library {
             .map_err(internal)?;
             if let Some(document) = &document {
                 for frase in &document.frasi {
-                    let parlante = frase
-                        .parlante
-                        .and_then(|n| document.parlanti.get(&frase.ingresso.parlante_key(n)));
+                    let parlante = document
+                        .parlanti
+                        .get(&frase.ingresso.parlante_key(frase.parlante));
                     tx.execute(
                         "INSERT INTO ricerca VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                         params![

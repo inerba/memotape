@@ -59,9 +59,13 @@ pub enum Ingresso {
 }
 
 impl Ingresso {
-    /// La chiave del Parlante `n` di questo Ingresso tra i nomi dei Parlanti: `sistema:2`.
-    pub fn parlante_key(self, n: u32) -> String {
-        format!("{}:{n}", self.key())
+    /// La chiave del Parlante `n` di questo Ingresso tra i nomi dei Parlanti: `sistema:2`. Senza
+    /// Parlante è quella dell'Ingresso, `microfono`: il Microfono non diarizzato è una persona sola.
+    pub fn parlante_key(self, n: Option<u32>) -> String {
+        match n {
+            Some(n) => format!("{}:{n}", self.key()),
+            None => self.key().to_string(),
+        }
     }
 
     /// Il nome nel Tape e nelle chiavi: `mix`, `microfono`, `sistema`.
@@ -83,19 +87,15 @@ impl Ingresso {
 
 impl Phrase {
     /// `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta (il mix). Un Parlante
-    /// rinominato ha il suo nome al posto di `Parlante 2`.
+    /// rinominato ha il suo nome al posto di `Parlante 2`; un Ingresso senza Parlanti rinominato
+    /// è `Microfono · Mario`.
     fn label(&self, labels: &Labels, parlanti: &BTreeMap<String, String>) -> Option<String> {
         let ingresso = match self.ingresso {
             Ingresso::Mix => None,
             Ingresso::Microfono => Some(labels.get("/settings/recording/inputs/mic")),
             Ingresso::Sistema => Some(labels.get("/settings/recording/inputs/system")),
         };
-        let parlante = self
-            .parlante
-            .map(|n| match parlanti.get(&self.ingresso.parlante_key(n)) {
-                Some(nome) => nome.clone(),
-                None => labels.parlante(n),
-            });
+        let parlante = labels.nome(parlanti, self.ingresso, self.parlante);
         match (ingresso, parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
             (Some(ingresso), None) => Some(ingresso.to_string()),
@@ -128,6 +128,20 @@ impl Labels {
     pub fn parlante(&self, n: u32) -> String {
         self.get("/transcript/parlante")
             .replace("{{n}}", &n.to_string())
+    }
+
+    /// Il nome di chi parla in una Frase di `ingresso` con il Parlante `parlante`: quello dato con
+    /// la rinomina (anche all'Ingresso senza Parlanti), o `Parlante 2`; `None` se non ce n'è.
+    pub fn nome(
+        &self,
+        parlanti: &BTreeMap<String, String>,
+        ingresso: Ingresso,
+        parlante: Option<u32>,
+    ) -> Option<String> {
+        parlanti
+            .get(&ingresso.parlante_key(parlante))
+            .cloned()
+            .or_else(|| parlante.map(|n| self.parlante(n)))
     }
 
     fn get(&self, pointer: &str) -> &str {
@@ -358,7 +372,7 @@ mod tests {
         ]);
         document
             .parlanti
-            .insert(Ingresso::Sistema.parlante_key(1), "Mario".into());
+            .insert(Ingresso::Sistema.parlante_key(Some(1)), "Mario".into());
         let text = markdown(&document);
         assert!(
             text.ends_with(
@@ -368,7 +382,27 @@ mod tests {
             ),
             "{text}"
         );
-        assert_eq!(Ingresso::Mix.parlante_key(3), "mix:3");
+        assert_eq!(Ingresso::Mix.parlante_key(Some(3)), "mix:3");
+    }
+
+    #[test]
+    fn il_microfono_senza_parlanti_rinominato_ha_il_suo_nome() {
+        let mut document = transcript(vec![
+            voice(Ingresso::Microfono, None, "Mi senti?"),
+            voice(Ingresso::Sistema, Some(1), "Sì."),
+        ]);
+        assert_eq!(Ingresso::Microfono.parlante_key(None), "microfono");
+        document
+            .parlanti
+            .insert("microfono".into(), "Francesco".into());
+        let text = markdown(&document);
+        assert!(
+            text.ends_with(
+                "\n**Microfono · Francesco:** Mi senti?\n\
+                 \n**Audio di sistema · Parlante 1:** Sì.\n"
+            ),
+            "{text}"
+        );
     }
 
     #[test]

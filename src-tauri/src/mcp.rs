@@ -332,13 +332,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
                 phrase_id: f.id,
                 inizio_ms: f.inizio_ms,
                 fine_ms: f.fine_ms,
-                parlante: f.parlante.map(|n| {
-                    document
-                        .parlanti
-                        .get(&f.ingresso.parlante_key(n))
-                        .cloned()
-                        .unwrap_or_else(|| labels.parlante(n))
-                }),
+                parlante: labels.nome(&document.parlanti, f.ingresso, f.parlante),
                 testo: f.testo.clone(),
             })
             .collect();

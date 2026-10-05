@@ -258,12 +258,13 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
     })
 }
 
-/// Dà il nome `nome` (senza spazi in testa e in coda, non vuoto) al Parlante `parlante` di `ingresso`,
-/// per tutte le sue Frasi, e riscrive il Tape.
+/// Dà il nome `nome` (senza spazi in testa e in coda, non vuoto) al Parlante `parlante` di `ingresso`
+/// (con `None` all'Ingresso, per le sue Frasi senza Parlante), per tutte le sue Frasi, e riscrive il
+/// Tape.
 pub fn rename_parlante(
     path: &Path,
     ingresso: Ingresso,
-    parlante: u32,
+    parlante: Option<u32>,
     nome: &str,
 ) -> Result<(), AppError> {
     let nome = nome.trim();
@@ -765,7 +766,7 @@ mod tests {
                 let path = &path;
                 scope.spawn(move || edit_frase(path, Ingresso::Mix, id, "corretta").unwrap());
             }
-            scope.spawn(|| rename_parlante(&path, Ingresso::Mix, 2, "Lucia").unwrap());
+            scope.spawn(|| rename_parlante(&path, Ingresso::Mix, Some(2), "Lucia").unwrap());
         });
         let after = read(&path).unwrap();
         assert!(
@@ -801,13 +802,16 @@ mod tests {
         let path = dir.join("Call.tape");
         let before = document(&["Ciao.", "Salve."]);
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
-        rename_parlante(&path, Ingresso::Sistema, 2, "  Lucia ").unwrap();
+        rename_parlante(&path, Ingresso::Sistema, Some(2), "  Lucia ").unwrap();
+        // Il Microfono senza Parlanti si rinomina come una persona sola.
+        rename_parlante(&path, Ingresso::Microfono, None, "Francesco").unwrap();
         // Un nome vuoto si rifiuta e non cambia nulla.
-        assert!(rename_parlante(&path, Ingresso::Mix, 1, "  ").is_err());
+        assert!(rename_parlante(&path, Ingresso::Mix, Some(1), "  ").is_err());
         let after = read(&path).unwrap();
         assert_eq!(
             after.parlanti,
             BTreeMap::from([
+                ("microfono".to_string(), "Francesco".to_string()),
                 ("mix:1".to_string(), "Mario".to_string()),
                 ("sistema:2".to_string(), "Lucia".to_string()),
             ])

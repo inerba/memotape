@@ -40,10 +40,11 @@ export const commands = {
 	 */
 	openTape: (source: string) => typedError<OpenedTape, AppError>(__TAURI_INVOKE("open_tape", { source })),
 	/**
-	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`. Rifiuta un nome vuoto, e
-	 *  con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`, o con `null` all'Ingresso
+	 *  senza Parlanti (il Microfono). Rifiuta un nome vuoto, e con `activityInProgress` il Tape su cui
+	 *  lavora l'Attività in corso.
 	 */
-	renameParlante: (path: string, ingresso: Ingresso, parlante: number, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { path, ingresso, parlante, nome })),
+	renameParlante: (path: string, ingresso: Ingresso, parlante: number | null, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { path, ingresso, parlante, nome })),
 	/**
 	 *  Corregge il testo della Frase `phrase_id` di `ingresso` nel Tape `path`; tempi, Parlanti e audio
 	 *  restano com'erano. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.

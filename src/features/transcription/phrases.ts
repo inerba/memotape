@@ -9,7 +9,7 @@ import type {
 /**
  * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio, il Parziale in corso di
  * ogni Ingresso (uno solo, `mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
- * `<ingresso>:<n>` (`parlanteKey`).
+ * `<ingresso>:<n>`, o `<ingresso>` per un Ingresso senza Parlanti (`parlanteKey`).
  */
 export interface Conversation {
   parlanti: Partial<Record<string, string>>;
@@ -23,9 +23,12 @@ export const EMPTY_CONVERSATION: Conversation = {
   phrases: [],
 };
 
-/** La chiave del Parlante `n` di un Ingresso tra i nomi, come nel Tape: `sistema:2`. */
-function parlanteKey(ingresso: Ingresso, n: number): string {
-  return `${ingresso}:${n}`;
+/**
+ * La chiave del Parlante `n` di un Ingresso tra i nomi, come nel Tape: `sistema:2`; senza Parlante
+ * quella dell'Ingresso, `microfono` (il Microfono non diarizzato è una persona sola).
+ */
+function parlanteKey(ingresso: Ingresso, n: number | null): string {
+  return n === null ? ingresso : `${ingresso}:${n}`;
 }
 
 /** `item` dopo gli elementi che iniziano prima o insieme a lui. */
@@ -88,11 +91,11 @@ export function withParlanti(
   };
 }
 
-/** Il nome dato al Parlante `parlante` di `ingresso`, per tutte le sue Frasi. */
+/** Il nome dato al Parlante `parlante` di `ingresso` (o all'Ingresso), per tutte le sue Frasi. */
 export function withNome(
   conversation: Conversation,
   ingresso: Ingresso,
-  parlante: number,
+  parlante: number | null,
   nome: string
 ): Conversation {
   return {
@@ -109,20 +112,26 @@ const INGRESSO_LABELS = {
   sistema: "settings.recording.inputs.system",
 } as const;
 
-/** Il nome del Parlante: quello dato con la rinomina, o `Parlante 2`. */
+/**
+ * Il nome del Parlante: quello dato con la rinomina, o `Parlante 2`. Senza Parlante, il nome dato
+ * all'Ingresso, se c'è.
+ */
 function nomeOf(
   conversation: Conversation,
   ingresso: Ingresso,
-  parlante: number,
+  parlante: number | null,
   t: TFunction
-): string {
+): string | null {
   return (
     conversation.parlanti[parlanteKey(ingresso, parlante)] ??
-    t("transcript.parlante", { n: parlante })
+    (parlante === null ? null : t("transcript.parlante", { n: parlante }))
   );
 }
 
-/** `Microfono · Parlante 2`, `Microfono`, `Parlante 2` o nessuna etichetta, come nel Markdown. */
+/**
+ * `Microfono · Parlante 2`, `Microfono`, `Microfono · Mario` (l'Ingresso rinominato), `Parlante 2` o
+ * nessuna etichetta, come nel Markdown.
+ */
 function voiceLabel(
   conversation: Conversation,
   ingresso: Ingresso,
@@ -131,34 +140,44 @@ function voiceLabel(
 ): string | null {
   const parts = [
     ingresso === "mix" ? null : t(INGRESSO_LABELS[ingresso]),
-    parlante ? nomeOf(conversation, ingresso, parlante, t) : null,
+    nomeOf(conversation, ingresso, parlante ?? null, t),
   ].filter((part) => part !== null);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-/** Un Parlante del testo, con l'etichetta dei suoi turni e il nome da cui parte la rinomina. */
+/**
+ * Un Parlante del testo, con l'etichetta dei suoi turni e il nome da cui parte la rinomina. Senza
+ * numero (`parlante` `null`) è un Ingresso non diarizzato, una persona sola: il Microfono.
+ */
 export interface Parlante {
   ingresso: Ingresso;
   label: string;
   nome: string;
-  parlante: number;
+  parlante: number | null;
 }
 
-/** I Parlanti delle Frasi, in ordine di comparsa. */
+/**
+ * I Parlanti delle Frasi, in ordine di comparsa, e gli Ingressi con Frasi senza Parlante (si
+ * rinominano come una persona sola). Il mix senza Parlanti non ne ha.
+ */
 export function parlantiOf(
   conversation: Conversation,
   t: TFunction
 ): Parlante[] {
   const found: Parlante[] = [];
-  for (const { ingresso, parlante } of conversation.phrases) {
+  for (const phrase of conversation.phrases) {
+    const { ingresso } = phrase;
+    const parlante = phrase.parlante ?? null;
     if (
-      parlante &&
+      (parlante !== null || ingresso !== "mix") &&
       !found.some((s) => s.ingresso === ingresso && s.parlante === parlante)
     ) {
       found.push({
         ingresso,
         label: voiceLabel(conversation, ingresso, parlante, t) ?? "",
-        nome: nomeOf(conversation, ingresso, parlante, t),
+        nome:
+          nomeOf(conversation, ingresso, parlante, t) ??
+          (ingresso === "mix" ? "" : t(INGRESSO_LABELS[ingresso])),
         parlante,
       });
     }

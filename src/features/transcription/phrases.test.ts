@@ -222,6 +222,34 @@ test("i Parlanti sono in ordine di comparsa, una volta sola, con etichetta e nom
   expect(parlantiOf(EMPTY_CONVERSATION, t)).toEqual([]);
 });
 
+test("il Microfono non diarizzato è una persona sola e si rinomina come un Parlante", () => {
+  const c = withParlanti(
+    [
+      phrase(0, 0, "Mi senti?", "microfono"),
+      phrase(0, 1000, "Sì.", "sistema"),
+      phrase(1, 2000, "Bene.", "microfono"),
+    ].reduce(withPhrase, EMPTY_CONVERSATION),
+    [{ ingresso: "sistema", parlante: 1, phraseId: 0 }]
+  );
+  const [microfono, sistema1] = parlantiOf(c, t);
+  expect(microfono).toEqual({
+    ingresso: "microfono",
+    label: "Microfono",
+    nome: "Microfono",
+    parlante: null,
+  });
+  expect(sistema1?.label).toBe("Audio di sistema · Parlante 1");
+  const named = withNome(c, "microfono", null, "Francesco");
+  expect(named.parlanti).toEqual({ microfono: "Francesco" });
+  expect(render(named)).toBe(
+    "Microfono · Francesco:\nMi senti?\n\nAudio di sistema · Parlante 1:\nSì.\n\nMicrofono · Francesco:\nBene."
+  );
+  // Il mix senza Parlanti non ha nulla da rinominare.
+  expect(
+    parlantiOf(withPhrase(EMPTY_CONVERSATION, phrase(0, 0, "Ciao.")), t)
+  ).toEqual([]);
+});
+
 test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", () => {
   const list = parlantiOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
   const [microfono1, sistema1] = list;
