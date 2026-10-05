@@ -313,6 +313,11 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Vede solo la Libreria: un Bino si indica con il percorso relativo alla Libreria. Non modifica nulla e non avvia Attività.
   - Legge l'indice che l'app tiene allineato: un Bino spostato a mano con l'app chiusa non si trova finché l'app non si riapre.
   - Ogni richiesta lascia una riga nel log di Sbobino.
+- **V16, Copia turno**:
+  - Ogni Turno ha in fondo alla sua riga, dalla parte opposta al nome, il pulsantino "Copia turno". Si vede passando il mouse sul Turno o con il focus da tastiera al suo interno; sul Turno in ascolto Riascolta gli sta a sinistra.
+  - Copia sempre in testo semplice, qualunque sia "Copia testo come": il nome mostrato nel Turno seguito da due punti (`Mario: …`, con gli Ingressi separati `Microfono · Mario: …`) e le sue Frasi una dopo l'altra, con le correzioni. Senza nome, solo le Frasi. Il Parziale in corso si copia com'è al momento del clic: anche un Turno fatto solo di un Parziale ha il pulsante.
+  - Per circa 1,5 s l'icona diventa una spunta e il tooltip dice "Copiato"; nessun avviso.
+  - C'è ovunque si vede il testo a turni: Registrazione dal vivo, Bino aperto (anche consultato durante un'Attività), file trascritto o annullato.
 
 ## Fuori dal perimetro
 

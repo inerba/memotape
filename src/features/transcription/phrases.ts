@@ -274,6 +274,12 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
   return turns;
 }
 
+/** Il testo di Copia turno, sempre semplice: `Nome: Frasi…`; un turno senza etichetta dà solo le Frasi. */
+export function turnText(turn: Turn): string {
+  const text = turn.items.map((item) => item.text).join(" ");
+  return turn.label ? `${turn.label}: ${text}` : text;
+}
+
 /** Quanti colori hanno le voci: oltre, si ricomincia dal primo. */
 export const VOICE_COLORS = 6;
 

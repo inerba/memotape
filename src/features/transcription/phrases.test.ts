@@ -8,6 +8,7 @@ import {
   parlanteStats,
   parlantiOf,
   turnsOf,
+  turnText,
   VOICE_COLORS,
   voiceColors,
   withNome,
@@ -354,4 +355,18 @@ test("di un Parlante si contano turni, tempo di parola e prima comparsa", () => 
     talkMs: 900,
     turns: 1,
   });
+});
+
+test("Copia turno dà il nome della voce e le Frasi del turno, con il Parziale com'è", () => {
+  const [, , lucia] = turnsOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
+  expect(turnText(lucia)).toBe("Audio di sistema · Lucia: Anch'io.");
+
+  let mix = [
+    phrase(0, 0, "Buongiorno."),
+    phrase(1, 1000, "Oggi parliamo."),
+  ].reduce(withPhrase, EMPTY_CONVERSATION);
+  mix = withPartial(mix, phrase(2, 2000, "Di cas"));
+  expect(turnsOf(mix, t).map(turnText)).toEqual([
+    "Buongiorno. Oggi parliamo. Di cas",
+  ]);
 });

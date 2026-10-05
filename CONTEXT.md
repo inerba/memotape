@@ -72,6 +72,10 @@ _Avoid_: speaker detection, riconoscimento dei parlanti
 Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa.
 _Avoid_: speaker, voce, utente
 
+**Turno**:
+Frasi consecutive (e Parziali) con lo stesso Ingresso e lo stesso Parlante; senza Parlanti né Ingressi separati, le Frasi fino a una pausa lunga. È l'unità in cui si legge il testo.
+_Avoid_: spezzone, blocco, intervento, chat, paragrafo
+
 ### Lingue
 
 **Lingua del parlato**:

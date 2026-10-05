@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, Play, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Copy, Play, RotateCcw } from "lucide-react";
 import {
   type FocusEvent,
   type KeyboardEvent,
@@ -24,6 +24,7 @@ import {
   phraseKey,
   type Turn,
   turnsOf,
+  turnText,
   voiceColors,
 } from "@/features/transcription/phrases";
 
@@ -289,7 +290,7 @@ function TurnBlock({
 
   return (
     <article
-      className={`-mx-4 rounded-xl px-4 py-3 transition-colors duration-200 ease-out ${
+      className={`group/turno -mx-4 rounded-xl px-4 py-3 transition-colors duration-200 ease-out ${
         active ? "bg-play-soft/55" : ""
       }`}
     >
@@ -345,6 +346,7 @@ function TurnBlock({
             {t("player.replay")}
           </button>
         ) : null}
+        <CopyTurn turn={turn} />
       </div>
       <p className={`mt-1 text-[1.0625rem] leading-[1.7] ${indent}`}>
         {turn.items.map((item, i) => {
@@ -367,6 +369,43 @@ function TurnBlock({
         })}
       </p>
     </article>
+  );
+}
+
+/** Per quanto Copia turno mostra la spunta. */
+const COPIED_MS = 1500;
+
+/** Copia turno: il testo semplice del turno negli appunti; si vede col mouse o il focus sul turno. */
+function CopyTurn({ turn }: { turn: Turn }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) {
+      return;
+    }
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const copy = useCallback(async () => {
+    await navigator.clipboard.writeText(turnText(turn));
+    setCopied(true);
+  }, [turn]);
+  const label = copied
+    ? t("transcription.copied")
+    : t("transcription.copyTurn");
+  return (
+    <button
+      aria-label={label}
+      className={`flex size-6 items-center justify-center rounded-md text-foreground/70 transition-[opacity,color,background-color] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 group-focus-within/turno:opacity-100 group-hover/turno:opacity-100 [&_svg]:size-3.5 ${
+        copied ? "opacity-100" : "opacity-0"
+      }`}
+      onClick={copy}
+      onPointerDown={keepFocus}
+      title={label}
+      type="button"
+    >
+      {copied ? <Check className="text-play" /> : <Copy />}
+    </button>
   );
 }
 
