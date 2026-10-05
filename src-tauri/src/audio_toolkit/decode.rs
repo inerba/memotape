@@ -12,8 +12,8 @@ use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
 
 use crate::audio_toolkit::forma_onda::Picchi;
-use crate::bino;
 use crate::error::AppError;
+use crate::tape;
 
 static CODECS: LazyLock<CodecRegistry> = LazyLock::new(|| {
     let mut registry = CodecRegistry::new();
@@ -37,10 +37,10 @@ impl Decoder {
             AppError::UnreadableFile(format!("{}: {e}", path.display()))
         };
         let mut hint = Hint::new();
-        // Di un Bino si decodifica il mix.
-        let source: Box<dyn MediaSource> = if bino::is_bino(path) {
+        // Di un Tape si decodifica il mix.
+        let source: Box<dyn MediaSource> = if tape::is_tape(path) {
             hint.with_extension("ogg");
-            Box::new(bino::Mix::open(path)?)
+            Box::new(tape::Mix::open(path)?)
         } else {
             if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 hint.with_extension(ext);
@@ -145,7 +145,7 @@ impl Block {
     }
 }
 
-/// La Forma d'onda di `path` (di un Bino, il mix): `count` picchi (0–1) dall'inizio alla fine,
+/// La Forma d'onda di `path` (di un Tape, il mix): `count` picchi (0–1) dall'inizio alla fine,
 /// ciascuno il massimo assoluto della sua parte di audio. Meno di `count` se l'audio dura meno di
 /// `count` × 20 ms.
 pub fn peaks(path: &Path, count: usize) -> Result<Vec<f32>, AppError> {
@@ -161,7 +161,7 @@ pub fn peaks(path: &Path, count: usize) -> Result<Vec<f32>, AppError> {
     Ok(picchi.map_or_else(Vec::new, |p| p.values(count)))
 }
 
-impl MediaSource for bino::Mix {
+impl MediaSource for tape::Mix {
     fn is_seekable(&self) -> bool {
         true
     }

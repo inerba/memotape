@@ -1,5 +1,5 @@
-//! La Libreria (ADR-0008): la cartella dei Bini, con le Raccolte come cartelle di primo livello, e
-//! un indice SQLite che si allinea alla cartella e si ricostruisce dai Bini. Senza Tauri.
+//! La Libreria (ADR-0008): la cartella dei Tape, con le Raccolte come cartelle di primo livello, e
+//! un indice SQLite che si allinea alla cartella e si ricostruisce dai Tape. Senza Tauri.
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
@@ -8,18 +8,18 @@ use std::time::UNIX_EPOCH;
 use chrono::{DateTime, Local};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
-use crate::bino;
 use crate::error::AppError;
+use crate::tape;
 use crate::transcript::Ingresso;
 
 /// La Cartella della Libreria se le impostazioni non ne indicano un'altra, dentro Documenti.
 pub const DEFAULT_FOLDER: &str = "Sbobino";
 
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
-const SCHEMA: i32 = 2;
+const SCHEMA: i32 = 3;
 
 const SCHEMA_SQL: &str = "
-CREATE TABLE bini (
+CREATE TABLE tapes (
     percorso TEXT PRIMARY KEY,
     raccolta TEXT,
     titolo TEXT NOT NULL,
@@ -38,30 +38,32 @@ CREATE VIRTUAL TABLE ricerca USING fts5(
     parlante,
     tokenize = 'unicode61 remove_diacritics 2'
 );
-PRAGMA user_version = 2;
+PRAGMA user_version = 3;
 ";
 
 /// Dove cominciano e finiscono le parole trovate negli estratti della ricerca.
 pub const MARK_START: char = '\u{1}';
 pub const MARK_END: char = '\u{2}';
-/// Le Frasi trovate per ogni Bino e i Bini di una ricerca.
-const FRASI_PER_BINO: u32 = 5;
-const BINI_PER_RICERCA: usize = 50;
+/// Le Frasi trovate per ogni Tape e i Tape di una ricerca.
+const FRASI_PER_TAPE: u32 = 5;
+const TAPES_PER_RICERCA: usize = 50;
 
-/// Le Raccolte e tutti i Bini della Libreria.
+/// Le Raccolte e tutti i Tape della Libreria.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 pub struct LibraryList {
     /// I nomi delle Raccolte, in ordine alfabetico.
     pub raccolte: Vec<String>,
     /// Dal più recente.
-    pub bini: Vec<BinoEntry>,
+    #[serde(rename = "bini")]
+    pub tapes: Vec<BinoEntry>,
 }
 
-/// Un Bino trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
+/// Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
 /// solo il titolo).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 pub struct SearchResult {
-    pub bino: BinoEntry,
+    #[serde(rename = "bino")]
+    pub tape: BinoEntry,
     pub frasi: Vec<SearchHit>,
 }
 
@@ -75,7 +77,7 @@ pub struct SearchHit {
     pub estratto: String,
 }
 
-/// Un Bino della Libreria, come lo mostra la barra laterale.
+/// Un Tape della Libreria, come lo mostra la barra laterale.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BinoEntry {
@@ -84,9 +86,9 @@ pub struct BinoEntry {
     pub raccolta: Option<String>,
     /// Il nome del file senza estensione.
     pub titolo: String,
-    /// `creato` del Bino; per un Bino illeggibile la data di modifica del file.
+    /// `creato` del Tape; per un Tape illeggibile la data di modifica del file.
     pub creato: String,
-    /// `null` per un Bino illeggibile o di una versione futura.
+    /// `null` per un Tape illeggibile o di una versione futura.
     pub durata_ms: Option<u32>,
 }
 
@@ -146,15 +148,15 @@ impl Library {
         &self.root
     }
 
-    /// Allinea l'indice alla cartella: rilegge i Bini nuovi o con data di modifica o dimensione
-    /// cambiate e toglie quelli spariti. Restituisce quanti Bini ha riletto.
+    /// Allinea l'indice alla cartella: rilegge i Tape nuovi o con data di modifica o dimensione
+    /// cambiate e toglie quelli spariti. Restituisce quanti Tape ha riletto.
     pub fn sync(&mut self) -> Result<usize, AppError> {
         let mut found = Vec::new();
         walk(&self.root, &mut found)?;
         let tx = self.db.transaction().map_err(internal)?;
         let indexed: HashMap<String, (i64, i64)> = {
             let mut query = tx
-                .prepare("SELECT percorso, modificato, dimensione FROM bini")
+                .prepare("SELECT percorso, modificato, dimensione FROM tapes")
                 .map_err(internal)?;
             query
                 .query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))
@@ -164,7 +166,7 @@ impl Library {
         let present: std::collections::HashSet<&str> =
             found.iter().map(|f| f.relative.as_str()).collect();
         for gone in indexed.keys().filter(|p| !present.contains(p.as_str())) {
-            tx.execute("DELETE FROM bini WHERE percorso = ?1", [gone])
+            tx.execute("DELETE FROM tapes WHERE percorso = ?1", [gone])
                 .map_err(internal)?;
             tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [gone])
                 .map_err(internal)?;
@@ -176,11 +178,11 @@ impl Library {
             }
             reread += 1;
             let path = self.root.join(&file.relative);
-            let document = bino::read(&path)
-                .inspect_err(|e| log::warn!("Bino illeggibile nella Libreria: {e}"))
+            let document = tape::read(&path)
+                .inspect_err(|e| log::warn!("Tape illeggibile nella Libreria: {e}"))
                 .ok();
             // ponytail: il DELETE su `percorso` scorre tutta la tabella FTS, quindi si fa solo per i
-            // Bini già nell'indice e una ricostruzione non lo paga. Se diventa lento: una tabella
+            // Tape già nell'indice e una ricostruzione non lo paga. Se diventa lento: una tabella
             // delle Frasi con un indice su `percorso` e la FTS a contenuto esterno.
             if indexed.contains_key(&file.relative) {
                 tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [&file.relative])
@@ -223,7 +225,7 @@ impl Library {
                 |d| d.creato.clone(),
             );
             tx.execute(
-                "INSERT OR REPLACE INTO bini VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT OR REPLACE INTO tapes VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     file.relative,
                     raccolta_of(&file.relative),
@@ -240,7 +242,7 @@ impl Library {
         Ok(reread)
     }
 
-    /// Le Raccolte (le cartelle di primo livello, escluse quelle che iniziano con `.`) e i Bini
+    /// Le Raccolte (le cartelle di primo livello, escluse quelle che iniziano con `.`) e i Tape
     /// dell'indice.
     pub fn list(&self) -> Result<LibraryList, AppError> {
         let mut raccolte: Vec<String> = match std::fs::read_dir(&self.root) {
@@ -257,18 +259,18 @@ impl Library {
         let mut query = self
             .db
             .prepare(
-                "SELECT percorso, raccolta, titolo, creato, durata_ms FROM bini
+                "SELECT percorso, raccolta, titolo, creato, durata_ms FROM tapes
                  ORDER BY creato DESC",
             )
             .map_err(internal)?;
-        let bini = query
+        let tapes = query
             .query_map([], |r| self.entry(r))
             .and_then(Iterator::collect)
             .map_err(internal)?;
-        Ok(LibraryList { raccolte, bini })
+        Ok(LibraryList { raccolte, tapes })
     }
 
-    /// Il Bino dalle prime cinque colonne di `r`: percorso, Raccolta, titolo, `creato`, durata.
+    /// Il Tape dalle prime cinque colonne di `r`: percorso, Raccolta, titolo, `creato`, durata.
     fn entry(&self, r: &rusqlite::Row) -> rusqlite::Result<BinoEntry> {
         Ok(BinoEntry {
             path: self.root.join(r.get::<_, String>(0)?).display().to_string(),
@@ -279,10 +281,10 @@ impl Library {
         })
     }
 
-    /// Cerca `query` nei titoli, nelle Frasi e nei nomi dei Parlanti dei Bini della Raccolta
+    /// Cerca `query` nei titoli, nelle Frasi e nei nomi dei Parlanti dei Tape della Raccolta
     /// `raccolta` (`None` tutta la Libreria, `""` Senza raccolta). Ogni parola vale come inizio di
     /// parola, senza maiuscole né accenti, e tutte devono stare nella stessa Frase (o nel titolo).
-    /// Prima i Bini con più testo pertinente: la somma dei `bm25` delle loro righe.
+    /// Prima i Tape con più testo pertinente: la somma dei `bm25` delle loro righe.
     pub fn search(
         &self,
         query: &str,
@@ -292,7 +294,7 @@ impl Library {
             return Ok(Vec::new());
         };
         // ponytail: `snippet()` si calcola per tutte le righe trovate, anche oltre le
-        // `FRASI_PER_BINO`; da spostare in una seconda query se una parola comune diventa lenta.
+        // `FRASI_PER_TAPE`; da spostare in una seconda query se una parola comune diventa lenta.
         let mut statement = self
             .db
             .prepare(
@@ -310,7 +312,7 @@ impl Library {
                  )
                  SELECT b.percorso, b.raccolta, b.titolo, b.creato, b.durata_ms,
                         p.frase, p.ingresso, p.inizio_ms, p.estratto, p.parlante
-                 FROM pesate p JOIN bini b ON b.percorso = p.percorso
+                 FROM pesate p JOIN tapes b ON b.percorso = p.percorso
                  WHERE p.n <= ?5 AND (?2 IS NULL OR coalesce(b.raccolta, '') = ?2)
                  ORDER BY p.totale, b.percorso, p.inizio_ms",
             )
@@ -322,7 +324,7 @@ impl Library {
                     raccolta,
                     MARK_START.to_string(),
                     MARK_END.to_string(),
-                    FRASI_PER_BINO
+                    FRASI_PER_TAPE
                 ],
                 |r| {
                     let hit = match (r.get::<_, Option<u32>>(5)?, r.get::<_, Option<String>>(6)?) {
@@ -344,13 +346,13 @@ impl Library {
             .map_err(internal)?;
         let mut results: Vec<SearchResult> = Vec::new();
         for row in rows {
-            let (bino, hit) = row.map_err(internal)?;
-            if results.last().is_none_or(|r| r.bino.path != bino.path) {
-                if results.len() == BINI_PER_RICERCA {
+            let (tape, hit) = row.map_err(internal)?;
+            if results.last().is_none_or(|r| r.tape.path != tape.path) {
+                if results.len() == TAPES_PER_RICERCA {
                     break;
                 }
                 results.push(SearchResult {
-                    bino,
+                    tape,
                     frasi: Vec::new(),
                 });
             }
@@ -361,7 +363,7 @@ impl Library {
         Ok(results)
     }
 
-    /// La cartella in cui va un Bino nuovo della Raccolta `raccolta`: la sua, o la radice per
+    /// La cartella in cui va un Tape nuovo della Raccolta `raccolta`: la sua, o la radice per
     /// `None` (Tutta la Libreria) e `""` (Senza raccolta).
     pub fn raccolta_dir(root: &Path, raccolta: Option<&str>) -> Result<PathBuf, AppError> {
         match raccolta {
@@ -412,10 +414,10 @@ impl Library {
         self.sync().map(drop)
     }
 
-    /// Rinomina il file del Bino in `<titolo>.bino`, con la sua estensione. Restituisce il percorso
+    /// Rinomina il file del Tape in `<titolo>.bino`, con la sua estensione. Restituisce il percorso
     /// nuovo.
-    pub fn rename_bino(&mut self, path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
-        existing_bino(path)?;
+    pub fn rename_tape(&mut self, path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
+        existing_tape(path)?;
         validate_name(titolo)?;
         let mut name = std::ffi::OsString::from(titolo);
         if let Some(extension) = path.extension() {
@@ -436,10 +438,10 @@ impl Library {
         Ok(to)
     }
 
-    /// Sposta il Bino nella Raccolta `raccolta` (la radice per `None` o `""`), anche da fuori della
+    /// Sposta il Tape nella Raccolta `raccolta` (la radice per `None` o `""`), anche da fuori della
     /// Libreria. Restituisce il percorso nuovo.
-    pub fn move_bino(&mut self, path: &Path, raccolta: Option<&str>) -> Result<PathBuf, AppError> {
-        existing_bino(path)?;
+    pub fn move_tape(&mut self, path: &Path, raccolta: Option<&str>) -> Result<PathBuf, AppError> {
+        existing_tape(path)?;
         let dir = Self::raccolta_dir(&self.root, raccolta)?;
         let to = dir.join(path.file_name().unwrap_or_default());
         if same_path(&to, path) {
@@ -459,9 +461,9 @@ impl Library {
         Ok(to)
     }
 
-    /// Manda il Bino nel Cestino.
-    pub fn trash_bino(&mut self, path: &Path) -> Result<(), AppError> {
-        existing_bino(path)?;
+    /// Manda il Tape nel Cestino.
+    pub fn trash_tape(&mut self, path: &Path) -> Result<(), AppError> {
+        existing_tape(path)?;
         trash(path)?;
         self.sync().map(drop)
     }
@@ -486,7 +488,7 @@ pub fn db_path(dir: &Path, root: &Path) -> PathBuf {
     dir.join(format!("{name}.sqlite"))
 }
 
-/// Un nome valido per una Raccolta o il titolo di un Bino: non vuoto, senza i caratteri che Windows
+/// Un nome valido per una Raccolta o il titolo di un Tape: non vuoto, senza i caratteri che Windows
 /// non ammette, non un nome riservato (`CON`, `NUL`, `COM1`…), senza punto o spazio in fondo e senza
 /// punto in testa (le cartelle con il punto non sono Raccolte).
 pub fn validate_name(name: &str) -> Result<(), AppError> {
@@ -599,7 +601,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
         }
         db.execute_batch(SCHEMA_SQL)?;
     }
-    db.query_row("SELECT count(*) FROM bini", [], |_| Ok(()))
+    db.query_row("SELECT count(*) FROM tapes", [], |_| Ok(()))
         .optional()?;
     Ok(db)
 }
@@ -628,7 +630,7 @@ fn walk(root: &Path, found: &mut Vec<Found>) -> Result<(), AppError> {
                 if let Err(e) = visit(root, &path, found) {
                     log::warn!("{} non letta: {e}", path.display());
                 }
-            } else if kind.is_file() && bino::is_bino(&path) {
+            } else if kind.is_file() && tape::is_tape(&path) {
                 let Ok(metadata) = entry.metadata() else {
                     continue;
                 };
@@ -656,7 +658,7 @@ fn walk(root: &Path, found: &mut Vec<Found>) -> Result<(), AppError> {
     }
 }
 
-/// La Raccolta di un Bino dal percorso relativo alla Libreria: la cartella di primo livello, se
+/// La Raccolta di un Tape dal percorso relativo alla Libreria: la cartella di primo livello, se
 /// non sta nella radice.
 pub(crate) fn raccolta_of(relative: &str) -> Option<String> {
     let mut components = Path::new(relative).components();
@@ -698,8 +700,8 @@ pub fn inside(path: &Path, dir: &Path) -> bool {
     lower(path).starts_with(lower(dir))
 }
 
-fn existing_bino(path: &Path) -> Result<(), AppError> {
-    if bino::is_bino(path) && path.is_file() {
+fn existing_tape(path: &Path) -> Result<(), AppError> {
+    if tape::is_tape(path) && path.is_file() {
         Ok(())
     } else {
         Err(AppError::BinoNotFound(path.display().to_string()))
@@ -728,17 +730,17 @@ pub(crate) mod tests {
     use crate::managers::settings::SpeechLanguage;
     use crate::transcript::{Ingresso, Phrase};
 
-    /// Un Bino vero in `path`, con `durata_ms` e una Frase.
-    pub fn bino_at(path: &Path, durata_ms: u32) {
+    /// Un Tape vero in `path`, con `durata_ms` e una Frase.
+    pub fn tape_at(path: &Path, durata_ms: u32) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         let ogg = path.with_extension("ogg.tmp");
         let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 16_000, 1, 16).unwrap();
         writer.write(&sine(16_000, 1, 0.1)).unwrap();
         writer.finish().unwrap();
-        let document = bino::Document::new(
+        let document = tape::Document::new(
             "2026-10-04T10:15:00+02:00".into(),
             durata_ms,
-            bino::Modalita::Mix,
+            tape::Modalita::Mix,
             None,
             SpeechLanguage::from("it"),
             true,
@@ -750,7 +752,7 @@ pub(crate) mod tests {
                 parlante: None,
             }],
         );
-        bino::write(path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
+        tape::write(path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         std::fs::remove_file(ogg).unwrap();
     }
 
@@ -764,15 +766,15 @@ pub(crate) mod tests {
 
     fn titoli(library: &mut Library) -> Vec<(Option<String>, String)> {
         library.sync().unwrap();
-        let mut bini: Vec<_> = library
+        let mut tapes: Vec<_> = library
             .list()
             .unwrap()
-            .bini
+            .tapes
             .into_iter()
             .map(|b| (b.raccolta, b.titolo))
             .collect();
-        bini.sort();
-        bini
+        tapes.sort();
+        tapes
     }
 
     fn entry(raccolta: Option<&str>, titolo: &str) -> (Option<String>, String) {
@@ -784,22 +786,22 @@ pub(crate) mod tests {
         let (root, mut library) = library("raccolte");
         // Prima che la cartella esista la Libreria è vuota.
         assert_eq!(titoli(&mut library), []);
-        bino_at(&root.join("Sciolto.bino"), 1000);
-        bino_at(&root.join("Ferrara Quarzi").join("Preventivo.bino"), 2000);
-        bino_at(
+        tape_at(&root.join("Sciolto.bino"), 1000);
+        tape_at(&root.join("Ferrara Quarzi").join("Preventivo.bino"), 2000);
+        tape_at(
             &root
                 .join("Ferrara Quarzi")
                 .join("2025")
                 .join("Vecchia.bino"),
             3000,
         );
-        bino_at(&root.join(".sbobino").join("Nascosto.bino"), 1000);
-        bino_at(
+        tape_at(&root.join(".sbobino").join("Nascosto.bino"), 1000);
+        tape_at(
             &root.join("Acme").join(".bozze").join("Nascosto.bino"),
             1000,
         );
         std::fs::create_dir_all(root.join("Vuota")).unwrap();
-        std::fs::write(root.join("Note.md"), "non è un Bino").unwrap();
+        std::fs::write(root.join("Note.md"), "non è un Tape").unwrap();
         assert_eq!(
             titoli(&mut library),
             [
@@ -810,7 +812,11 @@ pub(crate) mod tests {
         );
         let list = library.list().unwrap();
         assert_eq!(list.raccolte, ["Acme", "Ferrara Quarzi", "Vuota"]);
-        let preventivo = list.bini.iter().find(|b| b.titolo == "Preventivo").unwrap();
+        let preventivo = list
+            .tapes
+            .iter()
+            .find(|b| b.titolo == "Preventivo")
+            .unwrap();
         assert_eq!(
             preventivo.path,
             root.join("Ferrara Quarzi")
@@ -825,15 +831,15 @@ pub(crate) mod tests {
     #[test]
     fn le_modifiche_fatte_da_esplora_file_si_vedono_dopo_l_allineamento() {
         let (root, mut library) = library("esplora-file");
-        bino_at(&root.join("Uno.bino"), 1000);
-        bino_at(&root.join("Due.bino"), 1000);
-        bino_at(&root.join("Tre.bino"), 1000);
+        tape_at(&root.join("Uno.bino"), 1000);
+        tape_at(&root.join("Due.bino"), 1000);
+        tape_at(&root.join("Tre.bino"), 1000);
         std::fs::create_dir_all(root.join("Acme")).unwrap();
         assert_eq!(library.sync().unwrap(), 3);
         std::fs::rename(root.join("Uno.bino"), root.join("Acme").join("Uno.bino")).unwrap();
         std::fs::rename(root.join("Due.bino"), root.join("Secondo.bino")).unwrap();
         std::fs::remove_file(root.join("Tre.bino")).unwrap();
-        bino_at(&root.join("Quattro.bino"), 1000);
+        tape_at(&root.join("Quattro.bino"), 1000);
         assert_eq!(
             titoli(&mut library),
             [
@@ -845,18 +851,18 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn si_rileggono_solo_i_bini_con_data_o_dimensione_cambiate() {
+    fn si_rileggono_solo_i_tapes_con_data_o_dimensione_cambiate() {
         let (root, mut library) = library("rilettura");
-        bino_at(&root.join("Uno.bino"), 1000);
-        bino_at(&root.join("Due.bino"), 1000);
+        tape_at(&root.join("Uno.bino"), 1000);
+        tape_at(&root.join("Due.bino"), 1000);
         assert_eq!(library.sync().unwrap(), 2);
         assert_eq!(library.sync().unwrap(), 0);
         let path = root.join("Uno.bino");
-        let mut document = bino::read(&path).unwrap();
+        let mut document = tape::read(&path).unwrap();
         document.durata_ms = 5000;
-        bino::rewrite(&path, &document).unwrap();
+        tape::rewrite(&path, &document).unwrap();
         assert_eq!(library.sync().unwrap(), 1);
-        let uno = library.list().unwrap().bini;
+        let uno = library.list().unwrap().tapes;
         assert!(
             uno.iter()
                 .any(|b| b.titolo == "Uno" && b.durata_ms == Some(5000))
@@ -864,7 +870,7 @@ pub(crate) mod tests {
         // Stessa dimensione e stessa data: non si rilegge.
         let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
         document.durata_ms = 6000;
-        bino::rewrite(&path, &document).unwrap();
+        tape::rewrite(&path, &document).unwrap();
         File::options()
             .write(true)
             .open(&path)
@@ -875,21 +881,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn un_bino_illeggibile_resta_nell_elenco_con_il_nome_del_file() {
+    fn un_tape_illeggibile_resta_nell_elenco_con_il_nome_del_file() {
         let (root, mut library) = library("illeggibile");
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("Rotto.bino"), "non è uno zip").unwrap();
-        bino_at(&root.join("Buono.bino"), 1000);
+        tape_at(&root.join("Buono.bino"), 1000);
         library.sync().unwrap();
-        let bini = library.list().unwrap().bini;
-        let rotto = bini.iter().find(|b| b.titolo == "Rotto").unwrap();
+        let tapes = library.list().unwrap().tapes;
+        let rotto = tapes.iter().find(|b| b.titolo == "Rotto").unwrap();
         assert_eq!(rotto.durata_ms, None);
         assert!(
             DateTime::parse_from_rfc3339(&rotto.creato).is_ok(),
             "{}",
             rotto.creato
         );
-        assert!(bini.iter().any(|b| b.titolo == "Buono"));
+        assert!(tapes.iter().any(|b| b.titolo == "Buono"));
     }
 
     #[test]
@@ -897,15 +903,15 @@ pub(crate) mod tests {
         let dir = temp_dir("libreria-ricostruzione");
         let root = dir.join("Sbobino");
         let db = db_path(&dir.join("indice"), &root);
-        bino_at(&root.join("Acme").join("Uno.bino"), 1000);
-        bino_at(&root.join("Due.bino"), 2000);
+        tape_at(&root.join("Acme").join("Uno.bino"), 1000);
+        tape_at(&root.join("Due.bino"), 2000);
         let listed = |db: &Path| {
             let mut library = Library::open(&root, db).unwrap();
             library.sync().unwrap();
             library.list().unwrap()
         };
         let before = listed(&db);
-        assert_eq!(before.bini.len(), 2);
+        assert_eq!(before.tapes.len(), 2);
         std::fs::remove_file(&db).unwrap();
         assert_eq!(listed(&db), before);
         std::fs::write(&db, "spazzatura, non un database SQLite").unwrap();
@@ -952,7 +958,7 @@ pub(crate) mod tests {
                 "{invalid:?}"
             );
         }
-        bino_at(&root.join("Acme").join("Call.bino"), 1000);
+        tape_at(&root.join("Acme").join("Call.bino"), 1000);
         library.create_raccolta("Beta").unwrap();
         assert_eq!(
             library.rename_raccolta("Acme", "Beta").unwrap_err(),
@@ -979,62 +985,62 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn i_bini_si_rinominano_e_si_spostano_senza_sovrascrivere() {
-        let (root, mut library) = library("operazioni-bini");
+    fn i_tapes_si_rinominano_e_si_spostano_senza_sovrascrivere() {
+        let (root, mut library) = library("operazioni-tapes");
         let call = root.join("Call.bino");
-        bino_at(&call, 1000);
-        bino_at(&root.join("Altra.bino"), 1000);
-        bino_at(&root.join("Acme").join("Altra.bino"), 1000);
+        tape_at(&call, 1000);
+        tape_at(&root.join("Altra.bino"), 1000);
+        tape_at(&root.join("Acme").join("Altra.bino"), 1000);
         let renamed = library
-            .rename_bino(&call, "Ferrara Quarzi, preventivo")
+            .rename_tape(&call, "Ferrara Quarzi, preventivo")
             .unwrap();
         assert_eq!(renamed, root.join("Ferrara Quarzi, preventivo.bino"));
         assert!(!call.exists() && renamed.is_file());
         assert_eq!(
-            library.rename_bino(&renamed, "altra").unwrap_err(),
+            library.rename_tape(&renamed, "altra").unwrap_err(),
             AppError::NameTaken("altra".into())
         );
         assert_eq!(
-            library.rename_bino(&renamed, "a?b").unwrap_err(),
+            library.rename_tape(&renamed, "a?b").unwrap_err(),
             AppError::InvalidName("a?b".into())
         );
         // Solo maiuscole e minuscole; l'estensione resta quella del file.
         let upper = root.join("Maiuscolo.BINO");
-        bino_at(&upper, 1000);
+        tape_at(&upper, 1000);
         assert_eq!(
-            library.rename_bino(&upper, "MAIUSCOLO").unwrap(),
+            library.rename_tape(&upper, "MAIUSCOLO").unwrap(),
             root.join("MAIUSCOLO.BINO")
         );
-        let moved = library.move_bino(&renamed, Some("Acme")).unwrap();
+        let moved = library.move_tape(&renamed, Some("Acme")).unwrap();
         assert_eq!(
             moved,
             root.join("Acme").join("Ferrara Quarzi, preventivo.bino")
         );
         assert_eq!(
             library
-                .move_bino(&root.join("Acme").join("Altra.bino"), None)
+                .move_tape(&root.join("Acme").join("Altra.bino"), None)
                 .unwrap_err(),
             AppError::NameTaken("Altra".into())
         );
-        // Una Raccolta nuova si crea spostandoci un Bino.
+        // Una Raccolta nuova si crea spostandoci un Tape.
         // Già lì, anche scritto con altre maiuscole.
         let upper_path = PathBuf::from(moved.to_string_lossy().to_uppercase());
         assert_eq!(
-            library.move_bino(&upper_path, Some("Acme")).unwrap(),
+            library.move_tape(&upper_path, Some("Acme")).unwrap(),
             upper_path
         );
-        let moved = library.move_bino(&moved, Some("Nuova")).unwrap();
+        let moved = library.move_tape(&moved, Some("Nuova")).unwrap();
         assert_eq!(
             moved,
             root.join("Nuova").join("Ferrara Quarzi, preventivo.bino")
         );
         assert_eq!(
-            library.move_bino(&moved, Some("..")).unwrap_err(),
+            library.move_tape(&moved, Some("..")).unwrap_err(),
             AppError::InvalidName("..".into())
         );
         assert!(matches!(
             library
-                .move_bino(&root.join("Assente.bino"), None)
+                .move_tape(&root.join("Assente.bino"), None)
                 .unwrap_err(),
             AppError::BinoNotFound(_)
         ));
@@ -1050,15 +1056,15 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn un_bino_da_fuori_si_aggiunge_spostandolo_nella_libreria() {
+    fn un_tape_da_fuori_si_aggiunge_spostandolo_nella_libreria() {
         let (root, mut library) = library("aggiungi");
         let outside = root
             .parent()
             .unwrap()
             .join("Download")
             .join("Ricevuto.bino");
-        bino_at(&outside, 1000);
-        let added = library.move_bino(&outside, Some("Acme")).unwrap();
+        tape_at(&outside, 1000);
+        let added = library.move_tape(&outside, Some("Acme")).unwrap();
         assert_eq!(added, root.join("Acme").join("Ricevuto.bino"));
         assert!(!outside.exists());
         assert_eq!(titoli(&mut library), [entry(Some("Acme"), "Ricevuto")]);
@@ -1072,10 +1078,10 @@ pub(crate) mod tests {
         std::fs::create_dir_all(db.parent().unwrap()).unwrap();
         assert!(Library::open_read_only(&root, &db).is_err());
         assert!(!db.exists());
-        bino_at(&root.join("Uno.bino"), 1000);
+        tape_at(&root.join("Uno.bino"), 1000);
         Library::open(&root, &db).unwrap().sync().unwrap();
         let read_only = Library::open_read_only(&root, &db).unwrap();
-        assert_eq!(read_only.list().unwrap().bini.len(), 1);
+        assert_eq!(read_only.list().unwrap().tapes.len(), 1);
         assert_eq!(read_only.search("buongiorno", None).unwrap().len(), 1);
         drop(read_only);
         // Un indice di un'altra versione si rifiuta e resta com'è: lo rifà l'app.
@@ -1094,28 +1100,28 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn eliminare_un_bino_lo_manda_nel_cestino() {
+    fn eliminare_un_tape_lo_manda_nel_cestino() {
         let (root, mut library) = library("cestino");
         let path = root.join("Da buttare.bino");
-        bino_at(&path, 1000);
+        tape_at(&path, 1000);
         library.sync().unwrap();
-        library.trash_bino(&path).unwrap();
+        library.trash_tape(&path).unwrap();
         assert!(!path.exists());
-        assert_eq!(library.list().unwrap().bini, []);
+        assert_eq!(library.list().unwrap().tapes, []);
         assert!(matches!(
-            library.trash_bino(&path).unwrap_err(),
+            library.trash_tape(&path).unwrap_err(),
             AppError::BinoNotFound(_)
         ));
     }
 
-    /// Un Bino vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
-    pub fn bino_with(path: &Path, frasi: &[(&str, Option<u32>)], parlanti: &[(&str, &str)]) {
-        bino_at(path, 1000);
-        let mut document = bino::read(path).unwrap();
+    /// Un Tape vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
+    pub fn tape_with(path: &Path, frasi: &[(&str, Option<u32>)], parlanti: &[(&str, &str)]) {
+        tape_at(path, 1000);
+        let mut document = tape::read(path).unwrap();
         document.frasi = frasi
             .iter()
             .zip(0..)
-            .map(|(&(testo, parlante), id)| bino::Frase {
+            .map(|(&(testo, parlante), id)| tape::Frase {
                 id,
                 inizio_ms: id * 1000,
                 fine_ms: id * 1000 + 900,
@@ -1128,13 +1134,13 @@ pub(crate) mod tests {
             .iter()
             .map(|&(k, v)| (k.into(), v.into()))
             .collect();
-        bino::rewrite(path, &document).unwrap();
+        tape::rewrite(path, &document).unwrap();
     }
 
     /// Una Libreria di prova per la ricerca, già allineata.
     fn searchable(name: &str) -> (PathBuf, Library) {
         let (root, mut library) = library(name);
-        bino_with(
+        tape_with(
             &root.join("Ferrara Quarzi").join("Call di lunedì.bino"),
             &[
                 ("Buongiorno a tutti.", Some(1)),
@@ -1144,12 +1150,12 @@ pub(crate) mod tests {
             ],
             &[("mix:2", "Giulia Ferrara")],
         );
-        bino_with(
+        tape_with(
             &root.join("Acme").join("Riunione Acme.bino"),
             &[("Il preventivo di Acme è pronto.", None)],
             &[],
         );
-        bino_with(
+        tape_with(
             &root.join("Sciolto.bino"),
             &[("Nessun preventivo qui, solo saluti.", None)],
             &[],
@@ -1158,7 +1164,7 @@ pub(crate) mod tests {
         (root, library)
     }
 
-    /// I titoli dei Bini trovati, nell'ordine, ognuno con gli id delle Frasi trovate.
+    /// I titoli dei Tape trovati, nell'ordine, ognuno con gli id delle Frasi trovate.
     fn found(library: &Library, query: &str, raccolta: Option<&str>) -> Vec<(String, Vec<u32>)> {
         library
             .search(query, raccolta)
@@ -1166,7 +1172,7 @@ pub(crate) mod tests {
             .into_iter()
             .map(|r| {
                 (
-                    r.bino.titolo,
+                    r.tape.titolo,
                     r.frasi.into_iter().map(|f| f.phrase_id).collect(),
                 )
             })
@@ -1207,7 +1213,7 @@ pub(crate) mod tests {
     fn la_ricerca_trova_i_titoli_e_i_nomi_dei_parlanti() {
         let (root, library) = searchable("ricerca-titoli");
         let mut library = library;
-        // Solo il titolo: il Bino senza Frasi.
+        // Solo il titolo: il Tape senza Frasi.
         assert_eq!(
             found(&library, "lunedi", None),
             [("Call di lunedì".to_string(), vec![])]
@@ -1217,20 +1223,20 @@ pub(crate) mod tests {
             found(&library, "giulia", None),
             [("Call di lunedì".to_string(), vec![1, 3])]
         );
-        // La rinomina riscrive il Bino: dopo l'allineamento il nome nuovo si trova.
+        // La rinomina riscrive il Tape: dopo l'allineamento il nome nuovo si trova.
         let path = root.join("Ferrara Quarzi").join("Call di lunedì.bino");
-        let mut document = bino::read(&path).unwrap();
+        let mut document = tape::read(&path).unwrap();
         document
             .parlanti
             .insert("mix:1".into(), "Marco Rossi".into());
-        bino::rewrite(&path, &document).unwrap();
+        tape::rewrite(&path, &document).unwrap();
         library.sync().unwrap();
         assert_eq!(
             found(&library, "rossi", None),
             [("Call di lunedì".to_string(), vec![0, 2])]
         );
-        // Un Bino rinominato si trova con il titolo nuovo e non con il vecchio.
-        library.rename_bino(&path, "Call di martedì").unwrap();
+        // Un Tape rinominato si trova con il titolo nuovo e non con il vecchio.
+        library.rename_tape(&path, "Call di martedì").unwrap();
         assert_eq!(found(&library, "lunedi", None), []);
         assert_eq!(
             found(&library, "martedi", None),
@@ -1258,13 +1264,13 @@ pub(crate) mod tests {
         let results = library.search("preventivo", Some("Acme")).unwrap();
         let acme = &results[0];
         assert_eq!(
-            acme.bino.path,
+            acme.tape.path,
             root.join("Acme")
                 .join("Riunione Acme.bino")
                 .display()
                 .to_string()
         );
-        assert_eq!(acme.bino.raccolta.as_deref(), Some("Acme"));
+        assert_eq!(acme.tape.raccolta.as_deref(), Some("Acme"));
         assert_eq!(acme.frasi[0].ingresso, Ingresso::Mix);
         assert_eq!(acme.frasi[0].inizio_ms, 0);
     }
@@ -1272,7 +1278,7 @@ pub(crate) mod tests {
     #[test]
     fn i_risultati_sono_per_pertinenza_con_l_estratto_segnato() {
         let (_, library) = searchable("ricerca-estratto");
-        // Il Bino con più Frasi sulla parola viene prima.
+        // Il Tape con più Frasi sulla parola viene prima.
         assert_eq!(found(&library, "preventivo", None)[0].0, "Call di lunedì");
         let results = library.search("prev", Some("Acme")).unwrap();
         assert_eq!(
@@ -1324,12 +1330,12 @@ pub(crate) mod tests {
         let dir = temp_dir("libreria-ricerca-ricostruita");
         let root = dir.join("Sbobino");
         let db = db_path(&dir.join("indice"), &root);
-        bino_with(
+        tape_with(
             &root.join("Acme").join("Uno.bino"),
             &[("Il preventivo è pronto.", None)],
             &[],
         );
-        bino_with(
+        tape_with(
             &root.join("Due.bino"),
             &[("Preventivo rifiutato.", None)],
             &[],
@@ -1351,7 +1357,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn la_cartella_di_un_bino_nuovo_e_la_sua_raccolta_o_la_radice() {
+    fn la_cartella_di_un_tape_nuovo_e_la_sua_raccolta_o_la_radice() {
         let root = Path::new(r"C:\Sbobino");
         assert_eq!(Library::raccolta_dir(root, None).unwrap(), root);
         assert_eq!(Library::raccolta_dir(root, Some("")).unwrap(), root);

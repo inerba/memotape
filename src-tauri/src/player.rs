@@ -1,5 +1,5 @@
-//! Il protocollo `bino` del player: serve il `mix.ogg` di un Bino al tag `<audio>`, con le richieste
-//! `Range` per lo spostamento. L'URL è `http://bino.localhost/<percorso del Bino>` (`convertFileSrc`).
+//! Il protocollo `tape` del player: serve il `mix.ogg` di un Tape al tag `<audio>`, con le richieste
+//! `Range` per lo spostamento. L'URL è `http://bino.localhost/<percorso del Tape>` (`convertFileSrc`).
 //! E la Forma d'onda che fa da barra di avanzamento.
 
 use std::io::{Read, Seek, SeekFrom};
@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use tauri::http::{Request, Response, header};
 
 use crate::audio_toolkit::{decode, forma_onda};
-use crate::bino::{self, Mix};
 use crate::error::AppError;
 use crate::managers::activity::Activity;
+use crate::tape::{self, Mix};
 
 /// Il massimo di byte di una risposta: wry passa il corpo intero in memoria.
 const MAX_LEN: u64 = 1024 * 1024;
@@ -80,7 +80,7 @@ fn parse_range(range: &str) -> Option<(Option<u64>, Option<u64>)> {
     }
 }
 
-/// Apre il Bino `path`, legge la finestra di `mix.ogg` chiesta da `range` e lo chiude: un Bino
+/// Apre il Tape `path`, legge la finestra di `mix.ogg` chiesta da `range` e lo chiude: un Tape
 /// tenuto aperto non si potrebbe riscrivere, rinominare o mandare nel Cestino.
 pub fn read(path: &Path, range: Option<&str>) -> Result<(Window, Vec<u8>), AppError> {
     let mut mix = Mix::open(path)?;
@@ -92,17 +92,17 @@ pub fn read(path: &Path, range: Option<&str>) -> Result<(Window, Vec<u8>), AppEr
     Ok((window, bytes))
 }
 
-/// La Forma d'onda del Bino `path` in `count` valori. Un Bino che non la ha la calcola dal mix e
-/// prova una volta a salvarla, se `activity` non lavora su quel Bino; se non riesce, la ricalcolerà
+/// La Forma d'onda del Tape `path` in `count` valori. Un Tape che non la ha la calcola dal mix e
+/// prova una volta a salvarla, se `activity` non lavora su quel Tape; se non riesce, la ricalcolerà
 /// alla prossima apertura (ADR-0010).
 pub fn forma_onda(path: &Path, count: usize, activity: &Activity) -> Result<Vec<f32>, AppError> {
-    if let Some(values) = bino::forma_onda(path) {
+    if let Some(values) = tape::forma_onda(path) {
         return Ok(forma_onda::regroup(&values, count));
     }
     let values = decode::peaks(path, forma_onda::VALORI)?;
     let saved = activity
         .write(path)
-        .and_then(|_writing| bino::save_forma_onda(path, &values));
+        .and_then(|_writing| tape::save_forma_onda(path, &values));
     if let Err(e) = saved {
         log::warn!("Forma d'onda non salvata in {}: {e}", path.display());
     }
@@ -124,7 +124,7 @@ pub fn respond(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
         .headers()
         .get(header::RANGE)
         .and_then(|r| r.to_str().ok());
-    let response = if bino::is_bino(&path) {
+    let response = if tape::is_tape(&path) {
         match read(&path, range) {
             Ok((window, bytes)) => {
                 let builder = builder.status(window.status);
@@ -135,7 +135,7 @@ pub fn respond(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
                 .body(bytes)
             }
             Err(e) => {
-                log::warn!("protocollo bino: {e:?}");
+                log::warn!("protocollo tape: {e:?}");
                 builder.status(404).body(Vec::new())
             }
         }
@@ -152,8 +152,8 @@ mod tests {
     use super::*;
     use crate::audio_toolkit::ogg_opus::OggOpusWriter;
     use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
-    use crate::bino::{Document, Modalita};
     use crate::managers::settings::SpeechLanguage;
+    use crate::tape::{Document, Modalita};
     use crate::transcript::Ingresso;
 
     fn win(status: u16, content_range: Option<&str>, start: u64, len: u64) -> Window {
@@ -225,8 +225,8 @@ mod tests {
         );
     }
 
-    /// Un Bino con 3 s di mix, e i byte del suo `mix.ogg`.
-    fn bino_with_mix(name: &str) -> (PathBuf, Vec<u8>) {
+    /// Un Tape con 3 s di mix, e i byte del suo `mix.ogg`.
+    fn tape_with_mix(name: &str) -> (PathBuf, Vec<u8>) {
         let dir = temp_dir(name);
         let ogg = dir.join("mix.ogg");
         let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 48_000, 2, 64).unwrap();
@@ -242,13 +242,13 @@ mod tests {
             true,
             &[],
         );
-        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
+        tape::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
         (path, std::fs::read(&ogg).unwrap())
     }
 
     #[test]
     fn le_richieste_range_danno_i_byte_del_mix_estratto() {
-        let (path, extracted) = bino_with_mix("player-finestra");
+        let (path, extracted) = tape_with_mix("player-finestra");
         let total = extracted.len();
         let (whole, bytes) = read(&path, None).unwrap();
         assert_eq!(whole.status, 200);
@@ -269,17 +269,17 @@ mod tests {
     }
 
     #[test]
-    fn la_forma_d_onda_si_calcola_una_volta_e_poi_si_legge_dal_bino() {
-        let (path, _) = bino_with_mix("player-forma-onda");
+    fn la_forma_d_onda_si_calcola_una_volta_e_poi_si_legge_dal_tape() {
+        let (path, _) = tape_with_mix("player-forma-onda");
         let activity = Activity::default();
-        // Durante un'Attività su quel Bino si calcola ma non si salva.
+        // Durante un'Attività su quel Tape si calcola ma non si salva.
         let guard = activity.begin(Some(path.clone()), || {}).unwrap();
         let computed = forma_onda(&path, 30, &activity).unwrap();
         assert_eq!(computed.len(), 30);
-        assert_eq!(bino::forma_onda(&path), None);
+        assert_eq!(tape::forma_onda(&path), None);
         drop(guard);
         assert_eq!(forma_onda(&path, 30, &activity).unwrap(), computed);
-        let saved = bino::forma_onda(&path).unwrap();
+        let saved = tape::forma_onda(&path).unwrap();
         // 3 s sono 150 picchi da 20 ms, meno dei valori salvati.
         assert_eq!(saved.len(), 150);
         assert_eq!(forma_onda::regroup(&saved, 30), computed);
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn il_protocollo_serve_solo_il_mix_di_un_bino() {
+    fn il_protocollo_serve_solo_il_mix_di_un_tape() {
         // Come `convertFileSrc`, che usa `encodeURIComponent`.
         let request = |path: &str| {
             let encoded: String =
@@ -299,7 +299,7 @@ mod tests {
                 .body(Vec::new())
                 .unwrap()
         };
-        let (path, extracted) = bino_with_mix("player-protocollo");
+        let (path, extracted) = tape_with_mix("player-protocollo");
         let served = respond(&request(&path.display().to_string()));
         assert_eq!(served.status(), 206);
         assert_eq!(served.headers()[header::CONTENT_TYPE], "audio/ogg");

@@ -1,4 +1,4 @@
-//! Il Bino: lo zip di una Registrazione con l'audio del mix (`mix.ogg`) e, con gli Ingressi separati,
+//! Il Tape: lo zip di una Registrazione con l'audio del mix (`mix.ogg`) e, con gli Ingressi separati,
 //! di ogni Ingresso (`microfono.ogg`, `sistema.ogg`), salvati senza ricompressione, e il testo con i
 //! suoi metadati (`trascrizione.json`, schema v1), e la Forma d'onda del mix (`forma-onda.json`,
 //! ADR-0010). Senza Tauri.
@@ -21,7 +21,7 @@ use crate::transcript::Phrase;
 /// La versione dello schema che questa app scrive e sa leggere.
 pub const VERSION: u32 = 1;
 const DOCUMENT: &str = "trascrizione.json";
-/// La Forma d'onda del mix: facoltativa, un Bino scritto prima di lei non ce l'ha.
+/// La Forma d'onda del mix: facoltativa, un Tape scritto prima di lei non ce l'ha.
 const FORMA_ONDA: &str = "forma-onda.json";
 
 /// La voce dello zip con l'audio dell'Ingresso; è anche la fine del nome del suo Ogg temporaneo.
@@ -49,7 +49,7 @@ pub struct Document {
     /// I nomi dati ai Parlanti, per chiave `<ingresso>:<n>`.
     pub parlanti: BTreeMap<String, String>,
     pub frasi: Vec<Frase>,
-    /// Il nome del file audio o video da cui è stato trascritto il Bino; manca in una Registrazione.
+    /// Il nome del file audio o video da cui è stato trascritto il Tape; manca in una Registrazione.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origine: Option<String>,
 }
@@ -122,7 +122,7 @@ impl Document {
     }
 }
 
-/// Crea il Bino `path` con gli Ogg di `audio` (il mix e, con gli Ingressi separati, ogni Ingresso),
+/// Crea il Tape `path` con gli Ogg di `audio` (il mix e, con gli Ingressi separati, ogni Ingresso),
 /// `document` e, se c'è, la Forma d'onda del mix. Non sovrascrive un file esistente; se non riesce
 /// a finirlo, lo cancella.
 pub fn write(
@@ -175,7 +175,7 @@ pub fn read(path: &Path) -> Result<Document, AppError> {
     serde_json::from_slice(&json).map_err(|e| unreadable(path, &e))
 }
 
-/// La Forma d'onda del mix salvata nel Bino; `None` se manca, non si legge o è vuota.
+/// La Forma d'onda del mix salvata nel Tape; `None` se manca, non si legge o è vuota.
 pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
     let mut json = Vec::new();
     open(path)
@@ -189,7 +189,7 @@ pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
         .filter(|values| !values.is_empty())
 }
 
-/// Aggiunge al Bino la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
+/// Aggiunge al Tape la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
 pub fn save_forma_onda(path: &Path, values: &[f32]) -> Result<(), AppError> {
     let _writing = writing();
     if forma_onda(path).is_some() {
@@ -200,15 +200,15 @@ pub fn save_forma_onda(path: &Path, values: &[f32]) -> Result<(), AppError> {
     })
 }
 
-/// Sostituisce `trascrizione.json` scrivendo un Bino nuovo accanto e rinominandolo sopra il
-/// vecchio: a metà, il Bino originale resta intatto. Le altre voci si copiano come sono.
+/// Sostituisce `trascrizione.json` scrivendo un Tape nuovo accanto e rinominandolo sopra il
+/// vecchio: a metà, il Tape originale resta intatto. Le altre voci si copiano come sono.
 pub fn rewrite(path: &Path, document: &Document) -> Result<(), AppError> {
     replace(path, DOCUMENT, |zip, temp| {
         write_document(zip, temp, document)
     })
 }
 
-/// Riscrive il Bino con la voce `name` scritta da `add` al posto di quella che c'era, se c'era.
+/// Riscrive il Tape con la voce `name` scritta da `add` al posto di quella che c'era, se c'era.
 fn replace(
     path: &Path,
     name: &str,
@@ -229,7 +229,7 @@ fn replace(
         }
         add(&mut zip, &temp)?;
         zip.finish().map_err(|e| unwritable(&temp, &e))?;
-        // Il vecchio Bino si chiude prima del rename.
+        // Il vecchio Tape si chiude prima del rename.
         drop(old);
         std::fs::rename(&temp, path).map_err(|e| unwritable(path, &e))
     })();
@@ -239,7 +239,7 @@ fn replace(
     written
 }
 
-/// Corregge il testo della Frase `id` di `ingresso` e riscrive il Bino: tempi, Parlanti, nomi e audio
+/// Corregge il testo della Frase `id` di `ingresso` e riscrive il Tape: tempi, Parlanti, nomi e audio
 /// restano come sono.
 pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Result<(), AppError> {
     update(path, |document| {
@@ -259,7 +259,7 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
 }
 
 /// Dà il nome `nome` (senza spazi in testa e in coda, non vuoto) al Parlante `parlante` di `ingresso`,
-/// per tutte le sue Frasi, e riscrive il Bino.
+/// per tutte le sue Frasi, e riscrive il Tape.
 pub fn rename_parlante(
     path: &Path,
     ingresso: Ingresso,
@@ -279,7 +279,7 @@ pub fn rename_parlante(
 }
 
 /// Cambia `creato` con la data e l'ora locali `local` (`2026-10-03T17:05`, come
-/// `<input type="datetime-local">`) e riscrive il Bino. Restituisce il `creato` scritto.
+/// `<input type="datetime-local">`) e riscrive il Tape. Restituisce il `creato` scritto.
 pub fn set_creato(path: &Path, local: &str) -> Result<String, AppError> {
     let scritto = chrono::NaiveDateTime::parse_from_str(local, "%Y-%m-%dT%H:%M")
         .ok()
@@ -305,9 +305,9 @@ fn update(
     rewrite(path, &document)
 }
 
-/// Il lock delle riscritture di un Bino. Due riscritture dello stesso Bino non si sovrappongono:
+/// Il lock delle riscritture di un Tape. Due riscritture dello stesso Tape non si sovrappongono:
 /// altrimenti l'ultima cancellerebbe la prima e scriverebbero lo stesso `.tmp`.
-// ponytail: un solo lock per tutti i Bini; una mappa per percorso se le scritture diventano lente.
+// ponytail: un solo lock per tutti i Tape; una mappa per percorso se le scritture diventano lente.
 fn writing() -> MutexGuard<'static, ()> {
     static WRITING: Mutex<()> = Mutex::new(());
     WRITING.lock().unwrap_or_else(PoisonError::into_inner)
@@ -376,19 +376,19 @@ impl Seek for Mix {
     }
 }
 
-/// Se `path` è un Bino, dall'estensione.
-pub fn is_bino(path: &Path) -> bool {
+/// Se `path` è un Tape, dall'estensione.
+pub fn is_tape(path: &Path) -> bool {
     path.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("bino"))
 }
 
-/// Il Bino da aprire tra gli argomenti di un avvio (il doppio clic in Esplora file passa il
+/// Il Tape da aprire tra gli argomenti di un avvio (il doppio clic in Esplora file passa il
 /// percorso): il primo `.bino` dopo l'eseguibile, rispetto alla cartella di lavoro `cwd`.
 pub fn from_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Option<PathBuf> {
     args.into_iter()
         .skip(1)
         .map(PathBuf::from)
-        .find(|path| is_bino(path))
+        .find(|path| is_tape(path))
         .map(|path| cwd.join(path))
 }
 
@@ -472,8 +472,8 @@ mod tests {
         path
     }
 
-    /// Un Bino con `json` come `trascrizione.json`.
-    fn bino_with(path: &Path, json: &str) {
+    /// Un Tape con `json` come `trascrizione.json`.
+    fn tape_with(path: &Path, json: &str) {
         let mut zip = ZipWriter::new(File::create(path).unwrap());
         zip.start_file(DOCUMENT, SimpleFileOptions::default())
             .unwrap();
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn si_rilegge_il_documento_scritto_e_l_audio_e_intatto() {
-        let dir = temp_dir("bino-scrittura");
+        let dir = temp_dir("tape-scrittura");
         let mix = ogg(&dir);
         let path = dir.join("Registrazione.bino");
         let written = document(&["Buongiorno.", "Iniziamo."]);
@@ -495,15 +495,15 @@ mod tests {
         let mut audio = Vec::new();
         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
         assert_eq!(audio, std::fs::read(&mix).unwrap());
-        // Non sovrascrive un Bino esistente.
+        // Non sovrascrive un Tape esistente.
         let error = write(&path, &[(Ingresso::Mix, &mix)], &written, None).unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
         assert_eq!(read(&path).unwrap(), written);
     }
 
     #[test]
-    fn con_gli_ingressi_separati_il_bino_ha_l_audio_di_ogni_ingresso() {
-        let dir = temp_dir("bino-ingressi-separati");
+    fn con_gli_ingressi_separati_il_tape_ha_l_audio_di_ogni_ingresso() {
+        let dir = temp_dir("tape-ingressi-separati");
         let (mix, mic, system) = (
             ogg(&dir),
             ogg_named(&dir, "mic.ogg", 1.0),
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn il_mix_si_decodifica_come_sorgente() {
-        let dir = temp_dir("bino-decodifica");
+        let dir = temp_dir("tape-decodifica");
         let path = dir.join("Registrazione.bino");
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &document(&[]), None).unwrap();
         let seconds = decoded_seconds(&path);
@@ -574,21 +574,21 @@ mod tests {
 
     #[test]
     fn i_campi_sconosciuti_si_ignorano() {
-        let dir = temp_dir("bino-campi-sconosciuti");
+        let dir = temp_dir("tape-campi-sconosciuti");
         let path = dir.join("Futuro.bino");
         let mut json = serde_json::to_value(document(&["Ciao."])).unwrap();
         json["etichette"] = serde_json::json!(["riunione"]);
         json["frasi"][0]["confidenza"] = serde_json::json!(0.9);
-        bino_with(&path, &json.to_string());
+        tape_with(&path, &json.to_string());
         assert_eq!(read(&path).unwrap(), document(&["Ciao."]));
     }
 
     #[test]
     fn una_versione_futura_da_errore_dedicato() {
-        let dir = temp_dir("bino-versione-futura");
+        let dir = temp_dir("tape-versione-futura");
         let path = dir.join("Futuro.bino");
         // Anche se il resto dello schema è cambiato.
-        bino_with(&path, r#"{ "version": 2, "testo": {} }"#);
+        tape_with(&path, r#"{ "version": 2, "testo": {} }"#);
         assert_eq!(read(&path).unwrap_err(), AppError::UnsupportedBino);
         let error = read(&dir.join("Non esiste.bino")).unwrap_err();
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn la_riscrittura_sostituisce_solo_il_testo_senza_lasciare_temporanei() {
-        let dir = temp_dir("bino-riscrittura");
+        let dir = temp_dir("tape-riscrittura");
         let mix = ogg(&dir);
         let path = dir.join("Registrazione.bino");
         let mut incompleta = document(&["Uno."]);
@@ -619,7 +619,7 @@ mod tests {
 
     #[test]
     fn la_forma_d_onda_si_rilegge_e_resta_dopo_correzioni_e_riscritture() {
-        let dir = temp_dir("bino-forma-onda");
+        let dir = temp_dir("tape-forma-onda");
         let path = dir.join("Call.bino");
         let written = document(&["Ciao."]);
         write(
@@ -637,8 +637,8 @@ mod tests {
     }
 
     #[test]
-    fn un_bino_senza_forma_d_onda_la_riceve_una_volta_sola() {
-        let dir = temp_dir("bino-forma-onda-aggiunta");
+    fn un_tape_senza_forma_d_onda_la_riceve_una_volta_sola() {
+        let dir = temp_dir("tape-forma-onda-aggiunta");
         let mix = ogg(&dir);
         let path = dir.join("Vecchio.bino");
         let written = document(&["Ciao."]);
@@ -662,8 +662,8 @@ mod tests {
     }
 
     #[test]
-    fn una_riscrittura_fallita_lascia_il_bino_com_era() {
-        let dir = temp_dir("bino-riscrittura-fallita");
+    fn una_riscrittura_fallita_lascia_il_tape_com_era() {
+        let dir = temp_dir("tape-riscrittura-fallita");
         let path = dir.join("Registrazione.bino");
         write(
             &path,
@@ -673,7 +673,7 @@ mod tests {
         )
         .unwrap();
         let before = std::fs::read(&path).unwrap();
-        // Il Bino aperto in esclusiva da un altro programma: il rename non riesce.
+        // Il Tape aperto in esclusiva da un altro programma: il rename non riesce.
         let lock = {
             use std::os::windows::fs::OpenOptionsExt;
             std::fs::OpenOptions::new()
@@ -689,8 +689,8 @@ mod tests {
     }
 
     #[test]
-    fn origine_si_rilegge_e_un_bino_senza_origine_si_legge_come_prima() {
-        let dir = temp_dir("bino-origine");
+    fn origine_si_rilegge_e_un_tape_senza_origine_si_legge_come_prima() {
+        let dir = temp_dir("tape-origine");
         let path = dir.join("Call.bino");
         let written = Document {
             origine: Some("Call Teams.mp4".into()),
@@ -698,17 +698,17 @@ mod tests {
         };
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &written, None).unwrap();
         assert_eq!(read(&path).unwrap(), written);
-        // Senza origine il campo non si scrive, e un Bino di prima si legge con `None`.
+        // Senza origine il campo non si scrive, e un Tape di prima si legge con `None`.
         let json = serde_json::to_value(document(&["Ciao."])).unwrap();
         assert!(json.get("origine").is_none(), "{json}");
         let old = dir.join("Vecchio.bino");
-        bino_with(&old, &json.to_string());
+        tape_with(&old, &json.to_string());
         assert_eq!(read(&old).unwrap().origine, None);
     }
 
     #[test]
     fn la_correzione_cambia_solo_il_testo_di_quella_frase() {
-        let dir = temp_dir("bino-correzione");
+        let dir = temp_dir("tape-correzione");
         let mix = ogg(&dir);
         let path = dir.join("Call.bino");
         let mut before = document(&["Buongiorno.", "Inizziamo.", "Bene."]);
@@ -733,8 +733,8 @@ mod tests {
     }
 
     #[test]
-    fn correzioni_contemporanee_dello_stesso_bino_restano_tutte() {
-        let dir = temp_dir("bino-correzioni-contemporanee");
+    fn correzioni_contemporanee_dello_stesso_tape_restano_tutte() {
+        let dir = temp_dir("tape-correzioni-contemporanee");
         let path = dir.join("Call.bino");
         let testi: Vec<String> = (0..8).map(|i| format!("Frase {i}.")).collect();
         let refs: Vec<&str> = testi.iter().map(String::as_str).collect();
@@ -765,7 +765,7 @@ mod tests {
 
     #[test]
     fn la_data_si_cambia_con_l_ora_locale_e_il_resto_resta() {
-        let dir = temp_dir("bino-creato");
+        let dir = temp_dir("tape-creato");
         let path = dir.join("Call.bino");
         let before = document(&["Ciao."]);
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
@@ -781,8 +781,8 @@ mod tests {
     }
 
     #[test]
-    fn la_rinomina_di_un_parlante_si_salva_nel_bino() {
-        let dir = temp_dir("bino-rinomina");
+    fn la_rinomina_di_un_parlante_si_salva_nel_tape() {
+        let dir = temp_dir("tape-rinomina");
         let path = dir.join("Call.bino");
         let before = document(&["Ciao.", "Salve."]);
         write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
@@ -801,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn dagli_argomenti_di_avvio_il_primo_bino_rispetto_alla_cartella_di_lavoro() {
+    fn dagli_argomenti_di_avvio_il_primo_tape_rispetto_alla_cartella_di_lavoro() {
         let args = |a: &[&str]| a.iter().map(ToString::to_string).collect::<Vec<_>>();
         let cwd = Path::new(r"C:\Lavoro");
         assert_eq!(

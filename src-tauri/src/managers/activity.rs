@@ -11,7 +11,7 @@ type Stop = Box<dyn Fn() + Send>;
 
 struct Current {
     stop: Stop,
-    /// Il Bino, o la cartella del Bino che nascerà, su cui lavora: lì le scritture si rifiutano.
+    /// Il Tape, o la cartella del Tape che nascerà, su cui lavora: lì le scritture si rifiutano.
     target: Option<PathBuf>,
 }
 
@@ -40,8 +40,8 @@ impl Activity {
         Ok(ActivityGuard { activity: self })
     }
 
-    /// Per scrivere `path`, un Bino o una Raccolta: senza Attività la prende per il tempo della
-    /// scrittura; con un'Attività su un altro Bino si scrive senza; su `path` o dentro `path`
+    /// Per scrivere `path`, un Tape o una Raccolta: senza Attività la prende per il tempo della
+    /// scrittura; con un'Attività su un altro Tape si scrive senza; su `path` o dentro `path`
     /// risponde `activityInProgress`.
     pub fn write(&self, path: &Path) -> Result<Option<ActivityGuard<'_>>, AppError> {
         match &*self.current() {
@@ -119,21 +119,21 @@ mod tests {
     }
 
     #[test]
-    fn le_scritture_si_rifiutano_solo_sul_bino_dell_attivita() {
+    fn le_scritture_si_rifiutano_solo_sul_tape_dell_attivita() {
         let raccolta = Path::new(r"C:\Sbobino\Acme");
-        let bino = raccolta.join("Call.bino");
+        let tape = raccolta.join("Call.bino");
         let altro = Path::new(r"C:\Sbobino\Altro.bino");
         // Senza Attività la scrittura la prende.
         assert!(Activity::default().write(altro).unwrap().is_some());
         let activity = Activity::default();
-        let guard = activity.begin(Some(bino.clone()), || {}).unwrap();
+        let guard = activity.begin(Some(tape.clone()), || {}).unwrap();
         assert!(matches!(
-            activity.write(&bino),
+            activity.write(&tape),
             Err(AppError::ActivityInProgress)
         ));
 
         // Windows non distingue maiuscole e minuscole.
-        let upper = PathBuf::from(bino.to_string_lossy().to_uppercase());
+        let upper = PathBuf::from(tape.to_string_lossy().to_uppercase());
         assert!(matches!(
             activity.write(&upper),
             Err(AppError::ActivityInProgress)

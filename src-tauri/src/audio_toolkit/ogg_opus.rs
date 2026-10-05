@@ -1,4 +1,4 @@
-//! Writer Ogg/Opus (RFC 7845) per le Registrazioni e, con `OggCopy`, per il mix del Bino di un file
+//! Writer Ogg/Opus (RFC 7845) per le Registrazioni e, con `OggCopy`, per il mix del Tape di un file
 //! trascritto: libopus via `opus`, pagine con `ogg`.
 
 use std::fs::File;
@@ -105,7 +105,7 @@ impl<W: Write> OggOpusWriter<W> {
         Ok(())
     }
 
-    /// La Forma d'onda dell'audio scritto finora, in `forma_onda::VALORI` valori: quella del Bino,
+    /// La Forma d'onda dell'audio scritto finora, in `forma_onda::VALORI` valori: quella del Tape,
     /// senza decodificare il file.
     pub fn forma_onda(&self) -> Vec<f32> {
         self.picchi.values(forma_onda::VALORI)
@@ -167,7 +167,7 @@ impl<W: Write> OggOpusWriter<W> {
 }
 
 /// L'audio di un file portato ai canali e alla frequenza della Registrazione e scritto in Ogg/Opus:
-/// il `mix.ogg` del Bino di un file trascritto.
+/// il `mix.ogg` del Tape di un file trascritto.
 pub struct OggCopy {
     writer: OggOpusWriter<File>,
     rate: u32,

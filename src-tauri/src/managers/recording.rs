@@ -1,7 +1,7 @@
 //! Registrazione dal microfono, dall'audio di sistema o da entrambi: catture, mixer e writer
 //! Ogg/Opus in un thread, con Pausa e Stop comandati da flag atomici. L'Ogg si scrive mentre si
 //! registra, in una cartella nascosta dentro la Cartella della Libreria; a Stop, finita la
-//! Trascrizione dal vivo, diventa un Bino con il testo, che è la Sorgente.
+//! Trascrizione dal vivo, diventa un Tape con il testo, che è la Sorgente.
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -18,7 +18,6 @@ use transcribe_cpp::CancelToken;
 use crate::audio_toolkit::capture::{self, Capture, Kind};
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
-use crate::bino;
 use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::library::Library;
@@ -27,6 +26,7 @@ use crate::managers::settings::{
     Channels, RecordingSource, Settings, SettingsStore, guadagno_factor,
 };
 use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgress};
+use crate::tape;
 use crate::transcript::Ingresso;
 
 /// Ogni quanto arriva `recording-tick`.
@@ -55,10 +55,10 @@ pub struct Levels {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingSaved {
-    /// Il Bino; se non si è potuto scrivere, l'Ogg nella cartella nascosta.
+    /// Il Tape; se non si è potuto scrivere, l'Ogg nella cartella nascosta.
     pub path: String,
     /// Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`) o
-    /// perché il Bino non si è scritto; `null` dopo Stop.
+    /// perché il Tape non si è scritto; `null` dopo Stop.
     pub error: Option<AppError>,
     /// L'esito della Trascrizione dal vivo; `null` se era spenta.
     pub transcription: Option<LiveTranscription>,
@@ -123,7 +123,7 @@ impl Recorder {
 }
 
 /// Registra dagli ingressi delle impostazioni finché arriva Stop o un dispositivo si scollega,
-/// emettendo `recording-tick`. `prefix` è il prefisso tradotto del nome del file; il Bino va nella
+/// emettendo `recording-tick`. `prefix` è il prefisso tradotto del nome del file; il Tape va nella
 /// Raccolta `raccolta` (la radice della Libreria per `None` o `""`).
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn record(
@@ -137,7 +137,7 @@ pub async fn record(
     let destination = Library::raccolta_dir(&folder, raccolta.as_deref())?;
     let controls = Arc::new(Controls::default());
     let cancel = CancelToken::new();
-    // La Raccolta non si rinomina né si elimina finché il Bino non è scritto.
+    // La Raccolta non si rinomina né si elimina finché il Tape non è scritto.
     let _activity = activity.begin(Some(destination.clone()), {
         let controls = Arc::clone(&controls);
         let cancel = cancel.clone();
@@ -212,18 +212,18 @@ pub async fn record(
         }
         None => None,
     };
-    // Il Bino ha le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata.
+    // Il Tape ha le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata.
     let phrases = live
         .as_ref()
         .and_then(|(transcript, _)| transcript.as_ref())
         .map_or(&[][..], |transcript| &transcript.phrases);
-    let document = bino::Document::new(
-        bino::creato(recorded.start),
+    let document = tape::Document::new(
+        tape::creato(recorded.start),
         recorded.durata_ms,
         if separate {
-            bino::Modalita::IngressiSeparati
+            tape::Modalita::IngressiSeparati
         } else {
-            bino::Modalita::Mix
+            tape::Modalita::Mix
         },
         live.is_some()
             .then(|| SettingsStore::model_of(&settings).id.clone()),
@@ -236,7 +236,7 @@ pub async fn record(
     );
     let mut error = recorded.error.clone();
     let path =
-        save_bino(&folder, &destination, &prefix, &recorded, &document).unwrap_or_else(|e| {
+        save_tape(&folder, &destination, &prefix, &recorded, &document).unwrap_or_else(|e| {
             error.get_or_insert(e);
             keep_ogg(&folder, &prefix, &recorded)
         });
@@ -255,13 +255,13 @@ pub async fn record(
     })
 }
 
-/// Se il testo del Bino è completo: la Trascrizione dal vivo c'era (`transcribed`), è arrivata alla
+/// Se il testo del Tape è completo: la Trascrizione dal vivo c'era (`transcribed`), è arrivata alla
 /// fine e non è stata annullata, nemmeno dopo l'ultima Frase.
 fn completa(transcribed: Option<&Result<(), AppError>>, cancelled: bool) -> bool {
     matches!(transcribed, Some(Ok(()))) && !cancelled
 }
 
-/// Senza Bino, l'Ogg temporaneo del mix esce dalla cartella nascosta e va nella radice della
+/// Senza Tape, l'Ogg temporaneo del mix esce dalla cartella nascosta e va nella radice della
 /// Libreria come `<prefisso> <data ora>.ogg`: è la Sorgente, con accanto il Markdown della
 /// Trascrizione dal vivo, l'unico posto in cui resta il testo. Se nemmeno
 /// questo riesce resta dov'è. Gli Ogg degli Ingressi restano nella cartella nascosta.
@@ -276,13 +276,13 @@ fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
     let mix = recorded.mix();
     match std::fs::rename(mix, &path) {
         Ok(()) => {
-            log::warn!("Bino non scritto, la Registrazione è in {}", path.display());
+            log::warn!("Tape non scritto, la Registrazione è in {}", path.display());
             let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
             path
         }
         Err(e) => {
             log::warn!(
-                "Bino non scritto, la Registrazione resta in {}: {e}",
+                "Tape non scritto, la Registrazione resta in {}: {e}",
                 mix.display()
             );
             mix.to_path_buf()
@@ -308,15 +308,15 @@ impl Recorded {
     }
 }
 
-/// Scrive il Bino `<prefisso> <data ora>.bino` nella cartella `destination` (una Raccolta della
+/// Scrive il Tape `<prefisso> <data ora>.bino` nella cartella `destination` (una Raccolta della
 /// Libreria `folder`, o la radice se nel frattempo è sparita) e cancella gli Ogg temporanei, e con
 /// loro la cartella nascosta se resta vuota.
-fn save_bino(
+fn save_tape(
     folder: &Path,
     destination: &Path,
     prefix: &str,
     recorded: &Recorded,
-    document: &bino::Document,
+    document: &tape::Document,
 ) -> Result<PathBuf, AppError> {
     let path = recording_path(
         if destination.is_dir() {
@@ -334,7 +334,7 @@ fn save_bino(
         .iter()
         .map(|(ingresso, ogg)| (*ingresso, ogg.as_path()))
         .collect();
-    bino::write(&path, &audio, document, Some(&recorded.forma_onda))?;
+    tape::write(&path, &audio, document, Some(&recorded.forma_onda))?;
     for (_, ogg) in &recorded.oggs {
         if let Err(e) = std::fs::remove_file(ogg) {
             log::warn!("{} non cancellato: {e}", ogg.display());
@@ -471,7 +471,7 @@ fn run(
         if separate {
             // Accanto al mix, con il suo nome: `<nome>.microfono.ogg`, `<nome>.sistema.ogg`.
             for ingresso in [Ingresso::Microfono, Ingresso::Sistema] {
-                let track = path.with_extension(bino::audio_entry(ingresso));
+                let track = path.with_extension(tape::audio_entry(ingresso));
                 // Come il mix, non sovrascrive gli Ogg di una Registrazione interrotta da un crash.
                 let file = File::create_new(&track).map_err(|e| unwritable(&track, &e))?;
                 created.push(track.clone());
@@ -685,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn il_testo_del_bino_e_completo_solo_se_la_trascrizione_dal_vivo_e_finita() {
+    fn il_testo_del_tape_e_completo_solo_se_la_trascrizione_dal_vivo_e_finita() {
         let guasta = Err(AppError::Internal("x".into()));
         assert!(completa(Some(&Ok(())), false));
         assert!(!completa(Some(&Ok(())), true));
@@ -696,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn il_bino_va_nella_raccolta_o_nella_radice_se_la_raccolta_non_c_e_piu() {
+    fn il_tape_va_nella_raccolta_o_nella_radice_se_la_raccolta_non_c_e_piu() {
         use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
         let folder = temp_dir("registrazione-raccolta");
         let raccolta = folder.join("Acme");
@@ -718,16 +718,16 @@ mod tests {
                 forma_onda: vec![0.5, 0.25],
             }
         };
-        let document = bino::Document::new(
-            bino::creato(start),
+        let document = tape::Document::new(
+            tape::creato(start),
             100,
-            bino::Modalita::Mix,
+            tape::Modalita::Mix,
             None,
             crate::managers::settings::SpeechLanguage::auto(),
             false,
             &[],
         );
-        let path = save_bino(&folder, &raccolta, "Registrazione", &recorded(), &document).unwrap();
+        let path = save_tape(&folder, &raccolta, "Registrazione", &recorded(), &document).unwrap();
         assert_eq!(
             path,
             raccolta.join(format!(
@@ -735,12 +735,12 @@ mod tests {
                 start.format("%Y-%m-%d %H-%M-%S")
             ))
         );
-        assert_eq!(bino::read(&path).unwrap(), document);
-        assert_eq!(bino::forma_onda(&path), Some(vec![0.5, 0.25]));
+        assert_eq!(tape::read(&path).unwrap(), document);
+        assert_eq!(tape::forma_onda(&path), Some(vec![0.5, 0.25]));
         // L'Ogg temporaneo stava nella radice, e la cartella nascosta se ne va con lui.
         assert!(!folder.join(TEMP_FOLDER).exists());
         let sparita = folder.join("Sparita");
-        let path = save_bino(&folder, &sparita, "Registrazione", &recorded(), &document).unwrap();
+        let path = save_tape(&folder, &sparita, "Registrazione", &recorded(), &document).unwrap();
         assert_eq!(path.parent(), Some(folder.as_path()));
     }
 

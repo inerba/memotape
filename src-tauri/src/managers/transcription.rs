@@ -1,8 +1,8 @@
 //! Trascrizione di una Sorgente, o dal vivo di una Registrazione (il mix, o con gli Ingressi separati
 //! ogni Ingresso con una sua pipeline): prende il motore del modello scelto (caricato una volta e
 //! tenuto tra una Trascrizione e l'altra), esegue la pipeline e la traduce in eventi. Un file audio o
-//! video diventa un Bino nella Raccolta, di un Bino si riscrive il testo. Tiene l'ultima Trascrizione
-//! per Copia testo finché non c'è un Bino da cui copiare.
+//! video diventa un Tape nella Raccolta, di un Tape si riscrive il testo. Tiene l'ultima Trascrizione
+//! per Copia testo finché non c'è un Tape da cui copiare.
 
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -16,7 +16,6 @@ use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
-use crate::bino;
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_file};
 use crate::engine::transcribe_cpp::TranscribeCpp;
@@ -29,6 +28,7 @@ use crate::managers::recording::{
     TEMP_FOLDER, channel_count, create_numbered, numbered, recordings_folder, temp_folder,
 };
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore, SpeechLanguage};
+use crate::tape;
 use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
@@ -44,7 +44,7 @@ pub struct TranscriptPhrase {
     pub text: String,
     /// Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri.
     pub ingresso: Ingresso,
-    /// Il Parlante, da 1: c'è nelle Frasi di un Bino diarizzato. Durante una Trascrizione arriva
+    /// Il Parlante, da 1: c'è nelle Frasi di un Tape diarizzato. Durante una Trascrizione arriva
     /// dopo, con `speakers-assigned`.
     pub parlante: Option<u32>,
 }
@@ -98,10 +98,10 @@ pub struct TranscriptionProgress {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum TranscriptionOutcome {
-    /// Il testo è nel Bino `path`: quello nuovo di un file, o il Bino trascritto. Diventa la
+    /// Il testo è nel Tape `path`: quello nuovo di un file, o il Tape trascritto. Diventa la
     /// Sorgente.
     Saved { path: String },
-    /// Nessuna Frase: un file non diventa un Bino; un Bino resta senza Frasi.
+    /// Nessuna Frase: un file non diventa un Tape; un Tape resta senza Frasi.
     NoSpeech,
 }
 
@@ -109,26 +109,26 @@ pub enum TranscriptionOutcome {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "outcome", rename_all = "camelCase")]
 pub enum LiveTranscription {
-    /// Il testo è nel Bino o, se il Bino non si è scritto, nel Markdown accanto all'Ogg.
+    /// Il testo è nel Tape o, se il Tape non si è scritto, nel Markdown accanto all'Ogg.
     Saved,
     NoSpeech,
-    /// Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Bino ha
+    /// Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Tape ha
     /// le Frasi arrivate, con il testo incompleto.
     Failed {
         error: AppError,
     },
 }
 
-/// Un Bino aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni.
+/// Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
 pub struct OpenedBino {
     pub phrases: Vec<TranscriptPhrase>,
-    /// Per chiave `<ingresso>:<n>`, come nel Bino.
+    /// Per chiave `<ingresso>:<n>`, come nel Tape.
     pub parlanti: BTreeMap<String, String>,
     pub info: BinoInfo,
 }
 
-/// La riga di informazioni della vista di un Bino.
+/// La riga di informazioni della vista di un Tape.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct BinoInfo {
@@ -145,7 +145,7 @@ pub struct BinoInfo {
 }
 
 /// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende
-/// finché non c'è un Bino aperto. Si riempie man mano che arrivano le Frasi. In `tauri::State`.
+/// finché non c'è un Tape aperto. Si riempie man mano che arrivano le Frasi. In `tauri::State`.
 #[derive(Default)]
 pub struct LastTranscript(Mutex<Option<Transcript>>);
 
@@ -177,10 +177,10 @@ pub fn transcript_text(last: &LastTranscript, settings: &Settings) -> Option<Str
         .map(|t| transcript::render(&t, &labels(settings), settings.copia_come))
 }
 
-/// Il Bino `path` reso come documento, con le correzioni e i nomi dei Parlanti, in `format`: per
+/// Il Tape `path` reso come documento, con le correzioni e i nomi dei Parlanti, in `format`: per
 /// Copia testo e per Esporta Markdown….
-pub fn bino_text(path: &Path, settings: &Settings, format: CopiaCome) -> Result<String, AppError> {
-    let transcript = bino_transcript(title_of(path), bino::read(path)?);
+pub fn tape_text(path: &Path, settings: &Settings, format: CopiaCome) -> Result<String, AppError> {
+    let transcript = tape_transcript(title_of(path), tape::read(path)?);
     Ok(transcript::render(&transcript, &labels(settings), format))
 }
 
@@ -217,8 +217,8 @@ pub(crate) fn title_of(source: &Path) -> String {
 
 /// Trascrive `source` emettendo `transcription-progress`, `transcript-partial` e
 /// `transcript-phrase`; con Riconosci i parlanti poi diarizza (`diarization-started`,
-/// `speakers-assigned`). Un file audio o video diventa un Bino nella Raccolta `raccolta` (la radice
-/// della Libreria per `None` o `""`); di un Bino si riscrive il testo.
+/// `speakers-assigned`). Un file audio o video diventa un Tape nella Raccolta `raccolta` (la radice
+/// della Libreria per `None` o `""`); di un Tape si riscrive il testo.
 /// È un'Attività: se ce n'è già una restituisce `AppError::ActivityInProgress`.
 pub async fn transcribe(
     app: AppHandle,
@@ -229,9 +229,9 @@ pub async fn transcribe(
     let library = recordings_folder(&app)?;
     let destination = Library::raccolta_dir(&library, raccolta.as_deref())?;
     let cancel = CancelToken::new();
-    // Le scritture di altri comandi su quel Bino, o sulla Raccolta del Bino che nascerà, si
+    // Le scritture di altri comandi su quel Tape, o sulla Raccolta del Tape che nascerà, si
     // rifiutano finché la Trascrizione non è finita.
-    let target = if bino::is_bino(&source) {
+    let target = if tape::is_tape(&source) {
         source.clone()
     } else {
         destination.clone()
@@ -243,9 +243,9 @@ pub async fn transcribe(
     let settings = app.state::<SettingsStore>().get();
     let model = SettingsStore::model_of(&settings);
     let silero = silero_path(&app)?;
-    // Un Bino illeggibile o di una versione più nuova si rifiuta prima di caricare il modello.
-    let bino = bino::is_bino(&source)
-        .then(|| bino::read(&source))
+    // Un Tape illeggibile o di una versione più nuova si rifiuta prima di caricare il modello.
+    let tape = tape::is_tape(&source)
+        .then(|| tape::read(&source))
         .transpose()?;
     // Senza Sortformer lo si dice subito, non dopo aver trascritto.
     let diarizer = settings
@@ -297,41 +297,41 @@ pub async fn transcribe(
                     &cancel,
                 )?;
             }
-            // Annulla premuto dopo l'ultima Frase: il Bino non cambia e non nasce.
+            // Annulla premuto dopo l'ultima Frase: il Tape non cambia e non nasce.
             if cancel.is_cancelled() {
                 return Err(AppError::Cancelled);
             }
             Ok(transcript)
         };
         let document = |creato, durata_ms, transcript: &Transcript| {
-            bino::Document::new(
+            tape::Document::new(
                 creato,
                 durata_ms,
-                bino::Modalita::Mix,
+                tape::Modalita::Mix,
                 Some(model.id.clone()),
                 settings.speech_language.clone(),
                 true,
                 &transcript.phrases,
             )
         };
-        // Il Bino con le Frasi; anche senza parlato un Bino si riscrive.
-        let saved = match bino {
+        // Il Tape con le Frasi; anche senza parlato un Tape si riscrive.
+        let saved = match tape {
             Some(old) => {
                 let transcript = run(None)?;
-                let rewritten = bino::Document {
+                let rewritten = tape::Document {
                     origine: old.origine,
                     ..document(old.creato, old.durata_ms, &transcript)
                 };
-                bino::rewrite(&source, &rewritten)?;
+                tape::rewrite(&source, &rewritten)?;
                 (!transcript.phrases.is_empty()).then_some(source)
             }
-            None => file_to_bino(&library, &destination, &source, &settings, |copy| {
+            None => file_to_tape(&library, &destination, &source, &settings, |copy| {
                 let transcript = run(Some(copy))?;
-                Ok(bino::Document {
+                Ok(tape::Document {
                     origine: source.file_name().map(|n| n.to_string_lossy().into_owned()),
                     // L'ora del file, se la dice; altrimenti quella della Trascrizione.
                     ..document(
-                        bino::creato(modified_at(&source).unwrap_or(started)),
+                        tape::creato(modified_at(&source).unwrap_or(started)),
                         transcript.durata_ms.unwrap_or_default(),
                         &transcript,
                     )
@@ -348,17 +348,17 @@ pub async fn transcribe(
     .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// Il Bino `<nome del file>.bino` del file audio o video `source`, nella cartella `destination` (la
+/// Il Tape `<nome del file>.bino` del file audio o video `source`, nella cartella `destination` (la
 /// radice della Libreria `library` se nel frattempo è sparita), con " 2", " 3"… se esiste già.
 /// `transcribe` riceve la copia dell'audio, scritta in un Ogg temporaneo nella cartella nascosta con
 /// il formato della Registrazione, e restituisce il documento. Annullata, guasta o senza Frasi
-/// (`None`): non restano né Bino né Ogg temporaneo.
-fn file_to_bino(
+/// (`None`): non restano né Tape né Ogg temporaneo.
+fn file_to_tape(
     library: &Path,
     destination: &Path,
     source: &Path,
     settings: &Settings,
-    transcribe: impl FnOnce(OggCopy) -> Result<bino::Document, AppError>,
+    transcribe: impl FnOnce(OggCopy) -> Result<tape::Document, AppError>,
 ) -> Result<Option<PathBuf>, AppError> {
     let temp = temp_folder(library)?;
     let (ogg, file) = create_numbered(&temp, &title_of(source), "ogg")?;
@@ -380,7 +380,7 @@ fn file_to_bino(
         library
     };
     let path = numbered(folder, &title_of(source), "bino", Path::exists);
-    bino::write(
+    tape::write(
         &path,
         &[(Ingresso::Mix, &ogg)],
         &document,
@@ -398,7 +398,7 @@ fn modified_at(source: &Path) -> Option<chrono::DateTime<chrono::Local>> {
         .map(Into::into)
 }
 
-/// L'Ogg temporaneo del Bino di un file: al drop si cancella, e con lui la cartella nascosta se resta
+/// L'Ogg temporaneo del Tape di un file: al drop si cancella, e con lui la cartella nascosta se resta
 /// vuota.
 struct Temporary(PathBuf);
 
@@ -605,7 +605,7 @@ pub fn transcribe_live(
                 .into_iter()
                 .collect::<Result<(), AppError>>()
                 .and_then(|()| match diarizer {
-                    // Dopo Stop, finite le code: i Parlanti arrivano prima che si componga il Bino.
+                    // Dopo Stop, finite le code: i Parlanti arrivano prima che si componga il Tape.
                     Some(diarizer) if !cancel.is_cancelled() => {
                         let audio: Vec<_> =
                             audio.into_iter().filter(|(_, a)| !a.is_empty()).collect();
@@ -642,7 +642,7 @@ fn live_failed(app: &AppHandle, error: &AppError, cancel: &CancelToken) {
 }
 
 /// L'esito della Trascrizione dal vivo della Registrazione `recording`, finita la coda: il documento
-/// prende il nome del file. Il testo è già nel Bino; se il Bino non si è scritto (`recording` è
+/// prende il nome del file. Il testo è già nel Tape; se il Tape non si è scritto (`recording` è
 /// l'Ogg) si salva nel Markdown accanto, a meno che la Trascrizione (`transcribed`) non sia stata
 /// annullata o guasta.
 pub fn finish_live(
@@ -668,7 +668,7 @@ pub fn finish_live(
     )
 }
 
-/// Com'è finita la Trascrizione dal vivo; senza Bino ne salva il documento nel Markdown accanto a
+/// Com'è finita la Trascrizione dal vivo; senza Tape ne salva il documento nel Markdown accanto a
 /// `recording`, se non è stata annullata o guasta.
 fn save_live(
     recording: &Path,
@@ -685,7 +685,7 @@ fn save_live(
         if transcript.phrases.is_empty() {
             return Ok(LiveTranscription::NoSpeech);
         }
-        if !bino::is_bino(recording) {
+        if !tape::is_tape(recording) {
             let markdown = transcript::render(transcript, labels, CopiaCome::Markdown);
             save_md(recording, &markdown)?;
         }
@@ -694,10 +694,10 @@ fn save_live(
     saved.unwrap_or_else(|error| LiveTranscription::Failed { error })
 }
 
-/// Apre il Bino `source` come Sorgente, senza ritrascrivere: le Frasi, come se arrivassero da una
+/// Apre il Tape `source` come Sorgente, senza ritrascrivere: le Frasi, come se arrivassero da una
 /// Trascrizione, i nomi dei Parlanti e le informazioni.
-pub fn open_bino(source: &Path) -> Result<OpenedBino, AppError> {
-    let document = bino::read(source)?;
+pub fn open_tape(source: &Path) -> Result<OpenedBino, AppError> {
+    let document = tape::read(source)?;
     let phrases = document
         .frasi
         .iter()
@@ -717,7 +717,7 @@ pub fn open_bino(source: &Path) -> Result<OpenedBino, AppError> {
             durata_ms: document.durata_ms,
             modello: document.modello.as_deref().map(model_name),
             lingua_parlato: document.lingua_parlato,
-            ingressi_separati: document.modalita == bino::Modalita::IngressiSeparati,
+            ingressi_separati: document.modalita == tape::Modalita::IngressiSeparati,
             completa: document.completa,
             origine: document.origine,
         },
@@ -730,8 +730,8 @@ fn model_name(id: &str) -> String {
     models::find(id).map_or_else(|| id.to_string(), |m| m.name.clone())
 }
 
-/// Il documento di un Bino come Trascrizione, con il nome del modello dal catalogo.
-fn bino_transcript(title: String, document: bino::Document) -> Transcript {
+/// Il documento di un Tape come Trascrizione, con il nome del modello dal catalogo.
+fn tape_transcript(title: String, document: tape::Document) -> Transcript {
     Transcript {
         title,
         date: document.date(),
@@ -992,7 +992,7 @@ mod tests {
     }
 
     #[test]
-    fn la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_bino() {
+    fn la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_tape() {
         let dir = temp_dir("sbobino-test-dal-vivo");
         let document = transcript(&["Uno."]);
         let cancel = CancelToken::new();
@@ -1005,7 +1005,7 @@ mod tests {
                 &labels(),
             )
         };
-        // Il testo è nel Bino.
+        // Il testo è nel Tape.
         assert_eq!(
             live("Registrazione.bino", Ok(()), &document),
             LiveTranscription::Saved
@@ -1027,7 +1027,7 @@ mod tests {
             }
         ));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
-        // Senza Bino, accanto all'Ogg.
+        // Senza Tape, accanto all'Ogg.
         assert_eq!(
             live("Registrazione.ogg", Ok(()), &document),
             LiveTranscription::Saved
@@ -1065,12 +1065,12 @@ mod tests {
     }
 
     #[test]
-    fn il_testo_di_un_bino_diventa_la_trascrizione_con_il_nome_del_modello() {
+    fn il_testo_di_un_tape_diventa_la_trascrizione_con_il_nome_del_modello() {
         let phrases = transcript(&["Uno.", "Due."]).phrases;
-        let mut document = bino::Document::new(
+        let mut document = tape::Document::new(
             "2026-10-03T17:05:42+02:00".into(),
             4000,
-            bino::Modalita::Mix,
+            tape::Modalita::Mix,
             Some(models::default_model().id.clone()),
             SpeechLanguage::from("it"),
             false,
@@ -1078,7 +1078,7 @@ mod tests {
         );
         document.parlanti.insert("mix:1".into(), "Mario".into());
         assert_eq!(
-            bino_transcript("Registrazione".into(), document.clone()),
+            tape_transcript("Registrazione".into(), document.clone()),
             Transcript {
                 title: "Registrazione".into(),
                 date: "2026-10-03 17:05".into(),
@@ -1091,26 +1091,26 @@ mod tests {
         );
         // Senza Trascrizione dal vivo il modello non c'è; un id sconosciuto resta com'è.
         for (modello, model) in [(None, ""), (Some("futuro"), "futuro")] {
-            let document = bino::Document {
+            let document = tape::Document {
                 modello: modello.map(Into::into),
                 ..document.clone()
             };
-            assert_eq!(bino_transcript(String::new(), document).model, model);
+            assert_eq!(tape_transcript(String::new(), document).model, model);
         }
     }
 
     #[test]
-    fn un_bino_aperto_porta_frasi_nomi_e_informazioni() {
+    fn un_tape_aperto_porta_frasi_nomi_e_informazioni() {
         let dir = temp_dir("sbobino-test-apri");
         let ogg = dir.join("mix.ogg");
         std::fs::write(&ogg, b"audio").unwrap();
         let mut phrases = transcript(&["Ciao.", "Salve."]).phrases;
         phrases[1].ingresso = Ingresso::Sistema;
         phrases[1].parlante = Some(2);
-        let mut document = bino::Document::new(
+        let mut document = tape::Document::new(
             "2026-10-03T17:05:42+02:00".into(),
             4000,
-            bino::Modalita::IngressiSeparati,
+            tape::Modalita::IngressiSeparati,
             Some(models::default_model().id.clone()),
             SpeechLanguage::from("it"),
             false,
@@ -1119,8 +1119,8 @@ mod tests {
         document.origine = Some("Call.mp4".into());
         document.parlanti.insert("sistema:2".into(), "Lucia".into());
         let path = dir.join("Call.bino");
-        bino::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
-        let opened = open_bino(&path).unwrap();
+        tape::write(&path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
+        let opened = open_tape(&path).unwrap();
         assert_eq!(
             opened.info,
             BinoInfo {
@@ -1146,12 +1146,12 @@ mod tests {
                 (1, Ingresso::Sistema, Some(2), "Salve.")
             ]
         );
-        // Copia testo ed Esporta Markdown… rendono il Bino con i nomi dei Parlanti.
+        // Copia testo ed Esporta Markdown… rendono il Tape con i nomi dei Parlanti.
         let settings = Settings {
             interface_language: Some(Language::It),
             ..Settings::default()
         };
-        let markdown = bino_text(&path, &settings, CopiaCome::Markdown).unwrap();
+        let markdown = tape_text(&path, &settings, CopiaCome::Markdown).unwrap();
         assert!(markdown.starts_with("# Call\n"), "{markdown}");
         assert!(
             markdown.ends_with("**Audio di sistema · Lucia:** Salve.\n"),
@@ -1174,9 +1174,9 @@ mod tests {
         dir
     }
 
-    /// Il Bino del file `source` nella Raccolta `destination` della Libreria `library`, trascritto
+    /// Il Tape del file `source` nella Raccolta `destination` della Libreria `library`, trascritto
     /// con il motore finto.
-    fn file_bino(
+    fn file_tape(
         library: &Path,
         destination: &Path,
         source: &Path,
@@ -1184,7 +1184,7 @@ mod tests {
         engine: &mut FakeEngine,
         cancel: &CancelToken,
     ) -> Result<Option<PathBuf>, AppError> {
-        file_to_bino(library, destination, source, settings, |copy| {
+        file_to_tape(library, destination, source, settings, |copy| {
             let mut phrases = Vec::new();
             let durata_ms = transcribe_file(
                 source,
@@ -1212,10 +1212,10 @@ mod tests {
                     }
                 },
             )?;
-            Ok(bino::Document::new(
+            Ok(tape::Document::new(
                 "2026-10-04T10:15:00+02:00".into(),
                 durata_ms,
-                bino::Modalita::Mix,
+                tape::Modalita::Mix,
                 None,
                 SpeechLanguage::auto(),
                 true,
@@ -1224,11 +1224,11 @@ mod tests {
         })
     }
 
-    /// Canali e frequenza dichiarati nell'`OpusHead` del mix del Bino.
+    /// Canali e frequenza dichiarati nell'`OpusHead` del mix del Tape.
     fn opus_head(path: &Path) -> (u8, u32) {
         use std::io::Read;
         let mut mix = Vec::new();
-        bino::Mix::open(path)
+        tape::Mix::open(path)
             .unwrap()
             .read_to_end(&mut mix)
             .unwrap();
@@ -1253,12 +1253,12 @@ mod tests {
     }
 
     #[test]
-    fn un_file_diventa_un_bino_nella_raccolta_con_l_audio_nel_formato_della_registrazione() {
+    fn un_file_diventa_un_tape_nella_raccolta_con_l_audio_nel_formato_della_registrazione() {
         for (name, rate, channels) in [
             ("parlato-it.mp4", 16_000, Channels::Mono),
             ("parlato-it.wav", 48_000, Channels::Stereo),
         ] {
-            let library = temp_dir("sbobino-test-file-bino");
+            let library = temp_dir("sbobino-test-file-tape");
             let raccolta = library.join("Acme");
             std::fs::create_dir(&raccolta).unwrap();
             let settings = Settings {
@@ -1267,8 +1267,8 @@ mod tests {
                 ..Settings::default()
             };
             let source = fixture(name);
-            let bino = |engine: &mut FakeEngine| {
-                file_bino(
+            let tape = |engine: &mut FakeEngine| {
+                file_tape(
                     &library,
                     &raccolta,
                     &source,
@@ -1279,7 +1279,7 @@ mod tests {
                 .unwrap()
                 .unwrap()
             };
-            let path = bino(&mut FakeEngine::default());
+            let path = tape(&mut FakeEngine::default());
             assert_eq!(path, raccolta.join("parlato-it.bino"));
             // Il mix ha la durata dell'originale, nel formato chiesto.
             let (original, mix) = (decoded_seconds(&source), decoded_seconds(&path));
@@ -1293,7 +1293,7 @@ mod tests {
                 "{name}"
             );
             // La Forma d'onda c'è già, uguale a quella ricalcolata dal mix.
-            let forma_onda = bino::forma_onda(&path).unwrap();
+            let forma_onda = tape::forma_onda(&path).unwrap();
             let decoded = crate::audio_toolkit::decode::peaks(&path, 1000).unwrap();
             assert_eq!(forma_onda.len(), decoded.len(), "{name}");
             assert!(
@@ -1303,7 +1303,7 @@ mod tests {
                     .all(|(f, d)| (f - d).abs() < 0.1),
                 "{name}: {forma_onda:?} contro {decoded:?}"
             );
-            let document = bino::read(&path).unwrap();
+            let document = tape::read(&path).unwrap();
             assert!(!document.frasi.is_empty(), "{name}");
             assert!(
                 document
@@ -1314,7 +1314,7 @@ mod tests {
                 document.frasi
             );
             // Lo stesso file un'altra volta: un nome nuovo, e niente temporanei.
-            let again = bino(&mut FakeEngine::default());
+            let again = tape(&mut FakeEngine::default());
             assert_eq!(again, raccolta.join("parlato-it 2.bino"));
             assert_eq!(
                 tree(&library),
@@ -1334,11 +1334,11 @@ mod tests {
         };
         let source = fixture("parlato-it.wav");
         let error =
-            file_bino(&library, &library, &source, &settings, &mut engine, &cancel).unwrap_err();
+            file_tape(&library, &library, &source, &settings, &mut engine, &cancel).unwrap_err();
         assert_eq!(error, AppError::Cancelled);
         assert!(tree(&library).is_empty(), "{:?}", tree(&library));
-        let silence = wav("silenzio-bino", 16_000, 1, &[(2.0, false)]);
-        let none = file_bino(
+        let silence = wav("silenzio-tape", 16_000, 1, &[(2.0, false)]);
+        let none = file_tape(
             &library,
             &library,
             &silence,
@@ -1352,9 +1352,9 @@ mod tests {
     }
 
     #[test]
-    fn senza_la_raccolta_il_bino_va_nella_radice() {
+    fn senza_la_raccolta_il_tape_va_nella_radice() {
         let library = temp_dir("sbobino-test-file-radice");
-        let path = file_bino(
+        let path = file_tape(
             &library,
             &library.join("Sparita"),
             &fixture("parlato-it.wav"),

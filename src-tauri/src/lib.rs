@@ -1,5 +1,4 @@
 mod audio_toolkit;
-mod bino;
 mod commands;
 mod engine;
 mod error;
@@ -7,6 +6,7 @@ mod library;
 mod managers;
 mod mcp;
 mod player;
+mod tape;
 mod transcript;
 
 pub use mcp::serve as serve_mcp;
@@ -66,7 +66,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::transcription::LiveTranscriptionFailed,
             managers::transcription::DiarizationStarted,
             managers::transcription::SpeakersAssigned,
-            managers::pending_bino::BinoRequested,
+            managers::pending_tape::BinoRequested,
             managers::models::ModelDownloadProgress,
             managers::models::ModelStateChanged,
             managers::recording::RecordingTick,
@@ -81,7 +81,7 @@ pub fn run() {
         // Per primo, come chiede il plugin: un secondo avvio esce prima di inizializzare il resto.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             focus_main(app);
-            managers::pending_bino::request(app, args, std::path::Path::new(&cwd));
+            managers::pending_tape::request(app, args, std::path::Path::new(&cwd));
         }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -89,10 +89,10 @@ pub fn run() {
         .manage(managers::activity::Activity::default())
         .manage(managers::recording::Recorder::default())
         .manage(managers::transcription::LastTranscript::default())
-        .manage(managers::pending_bino::PendingBino::default())
+        .manage(managers::pending_tape::PendingTape::default())
         .manage(managers::library::LibraryState::default())
         .invoke_handler(builder.invoke_handler())
-        // Il mix di un Bino per il player, un tratto alla volta, letto fuori dal thread della finestra.
+        // Il mix di un Tape per il player, un tratto alla volta, letto fuori dal thread della finestra.
         .register_asynchronous_uri_scheme_protocol("bino", |_, request, responder| {
             tauri::async_runtime::spawn_blocking(move || {
                 responder.respond(player::respond(&request));
@@ -119,7 +119,7 @@ pub fn run() {
             app.manage(managers::models::Models::new(data.join("models"))?);
             managers::transcription::preload(app.handle());
             managers::library::sync_in_background(app.handle());
-            managers::pending_bino::request(
+            managers::pending_tape::request(
                 app.handle(),
                 std::env::args(),
                 &std::env::current_dir().unwrap_or_default(),

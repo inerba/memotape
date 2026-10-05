@@ -4,7 +4,7 @@ pub mod activity;
 pub mod library;
 pub mod loaded_model;
 pub mod models;
-pub mod pending_bino;
+pub mod pending_tape;
 pub mod recording;
 pub mod settings;
 pub mod transcription;

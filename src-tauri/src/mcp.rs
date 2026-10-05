@@ -16,14 +16,14 @@ use crate::library::{self, Library, MARK_END, MARK_START};
 use crate::managers::settings::{CopiaCome, Settings};
 use crate::managers::transcription;
 use crate::transcript::Ingresso;
-use crate::{bino, error::AppError};
+use crate::{error::AppError, tape};
 
 /// L'identifier di `tauri.conf.json`: il nome delle cartelle dell'app.
 const IDENTIFIER: &str = "it.sbobino.desktop";
-/// I Bini di una ricerca, se l'Assistente non ne chiede un altro numero, e al massimo.
+/// I Tape di una ricerca, se l'Assistente non ne chiede un altro numero, e al massimo.
 const SEARCH_LIMIT: u32 = 10;
 const SEARCH_MAX: u32 = 25;
-/// I Bini di un elenco, se l'Assistente non ne chiede un altro numero, e al massimo.
+/// I Tape di un elenco, se l'Assistente non ne chiede un altro numero, e al massimo.
 const LIST_LIMIT: u32 = 50;
 const LIST_MAX: u32 = 100;
 /// Le Frasi prima e dopo quella chiesta, se l'Assistente non ne chiede un altro numero, e al massimo.
@@ -96,32 +96,32 @@ pub struct SearchParams {
     /// The words to find. Each word matches as a word prefix, ignoring case and accents; all words
     /// must appear in the same phrase (or in the title, or in a renamed speaker's name).
     query: String,
-    /// Search only this Raccolta (collection), by name; "" searches only Bini outside any Raccolta.
+    /// Search only this Raccolta (collection), by name; "" searches only Tape outside any Raccolta.
     /// Omit to search the whole Library.
     raccolta: Option<String>,
-    /// How many Bini to return, most relevant first (default 10, at most 25).
+    /// How many Tape to return, most relevant first (default 10, at most 25).
     limit: Option<u32>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct ListParams {
-    /// List only this Raccolta (collection), by name; "" lists only Bini outside any Raccolta.
+    /// List only this Raccolta (collection), by name; "" lists only Tape outside any Raccolta.
     /// Omit to list the whole Library.
     raccolta: Option<String>,
-    /// Only Bini recorded on or after this local date, as YYYY-MM-DD.
+    /// Only Tape recorded on or after this local date, as YYYY-MM-DD.
     from: Option<String>,
-    /// Only Bini recorded on or before this local date, as YYYY-MM-DD.
+    /// Only Tape recorded on or before this local date, as YYYY-MM-DD.
     to: Option<String>,
-    /// How many Bini to return, most recent first (default 50, at most 100).
+    /// How many Tape to return, most recent first (default 50, at most 100).
     limit: Option<u32>,
-    /// How many of the matching Bini to skip, to read past `limit` (see `total`).
+    /// How many of the matching Tape to skip, to read past `limit` (see `total`).
     offset: Option<u32>,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct AroundParams {
-    /// The Bino, as its path relative to the Library returned by search or list_bini.
-    bino: String,
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
     /// The Ingresso of the phrase: "mix", "microfono" or "sistema", as returned by search.
     ingresso: String,
     /// The id of the phrase, as returned by search (`phraseId`).
@@ -134,38 +134,38 @@ pub struct AroundParams {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct TranscriptParams {
-    /// The Bino, as its path relative to the Library returned by search or list_bini.
-    bino: String,
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
     /// Where to continue reading: the `from` given at the end of the previous page. Omit to start.
     from: Option<u32>,
 }
 
-/// Un Bino della Libreria.
+/// Un Tape della Libreria.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct BinoOut {
+pub struct TapeOut {
     /// Path relative to the Library: pass it to read_around and read_transcript.
-    bino: String,
+    tape: String,
     titolo: String,
     /// The Raccolta (collection); null outside any Raccolta.
     raccolta: Option<String>,
     /// When it was recorded, local time with UTC offset.
     creato: String,
-    /// Null if the Bino cannot be read.
+    /// Null if the Tape cannot be read.
     durata_ms: Option<u32>,
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchOut {
-    bini: Vec<FoundBino>,
+    tapes: Vec<FoundTape>,
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FoundBino {
+pub struct FoundTape {
     #[serde(flatten)]
-    bino: BinoOut,
+    tape: TapeOut,
     /// The matching phrases (up to 5), in order of time; empty if only the title matched.
     frasi: Vec<FoundFrase>,
 }
@@ -185,21 +185,21 @@ pub struct FoundFrase {
 pub struct ListOut {
     /// All the Raccolte (collections) of the Library.
     raccolte: Vec<String>,
-    /// How many Bini match, before `offset` and `limit`.
+    /// How many Tape match, before `offset` and `limit`.
     total: u32,
-    bini: Vec<BinoOut>,
+    tapes: Vec<TapeOut>,
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AroundOut {
     #[serde(flatten)]
-    bino: BinoOut,
+    tape: TapeOut,
     /// In order of time.
     frasi: Vec<FraseOut>,
-    /// Whether the Bino has phrases before the first one returned.
+    /// Whether the Tape has phrases before the first one returned.
     more_before: bool,
-    /// Whether the Bino has phrases after the last one returned.
+    /// Whether the Tape has phrases after the last one returned.
     more_after: bool,
 }
 
@@ -228,7 +228,7 @@ impl Sbobino {
 
     #[tool(
         description = "Search the Sbobino Library for words in titles, phrases and speaker names. \
-Returns the most relevant Bini, each with up to 5 matching phrases (excerpt, Ingresso, phraseId, \
+Returns the most relevant Tape, each with up to 5 matching phrases (excerpt, Ingresso, phraseId, \
 start time). Rephrase and search again with synonyms if nothing is found; read a hit's context with \
 read_around.",
         annotations(title = "Search the Library", read_only_hint = true)
@@ -240,11 +240,11 @@ read_around.",
         let results = library
             .search(&p.query, p.raccolta.as_deref())
             .map_err(|e| e.to_string())?;
-        let bini = results
+        let tapes = results
             .into_iter()
             .take(limit)
-            .map(|r| FoundBino {
-                bino: bino_out(library.root(), r.bino),
+            .map(|r| FoundTape {
+                tape: tape_out(library.root(), r.tape),
                 frasi: r
                     .frasi
                     .into_iter()
@@ -257,17 +257,17 @@ read_around.",
                     .collect(),
             })
             .collect();
-        Ok(Json(SearchOut { bini }))
+        Ok(Json(SearchOut { tapes }))
     }
 
     #[tool(
-        description = "List the Raccolte (collections) and the Bini of the Sbobino Library, most \
+        description = "List the Raccolte (collections) and the Tape of the Sbobino Library, most \
 recent first, optionally only one Raccolta or a range of dates.",
         annotations(title = "List the Library", read_only_hint = true)
     )]
-    fn list_bini(&self, Parameters(p): Parameters<ListParams>) -> Result<Json<ListOut>, String> {
+    fn list_tapes(&self, Parameters(p): Parameters<ListParams>) -> Result<Json<ListOut>, String> {
         log::info!(
-            "Assistente: list_bini {:?} dal {:?} al {:?}",
+            "Assistente: list_tapes {:?} dal {:?} al {:?}",
             p.raccolta,
             p.from,
             p.to
@@ -277,7 +277,7 @@ recent first, optionally only one Raccolta or a range of dates.",
         let list = library.list().map_err(|e| e.to_string())?;
         let limit = bounded(p.limit, LIST_LIMIT, LIST_MAX);
         let matching: Vec<_> = list
-            .bini
+            .tapes
             .into_iter()
             .filter(|b| match p.raccolta.as_deref() {
                 None => true,
@@ -289,17 +289,17 @@ recent first, optionally only one Raccolta or a range of dates.",
         Ok(Json(ListOut {
             raccolte: list.raccolte,
             total: u32::try_from(matching.len()).unwrap_or(u32::MAX),
-            bini: matching
+            tapes: matching
                 .into_iter()
                 .skip(p.offset.unwrap_or(0) as usize)
                 .take(limit)
-                .map(|b| bino_out(library.root(), b))
+                .map(|b| tape_out(library.root(), b))
                 .collect(),
         }))
     }
 
     #[tool(
-        description = "Read the phrases around a phrase of a Bino, with times, Ingresso and speaker: \
+        description = "Read the phrases around a phrase of a Tape, with times, Ingresso and speaker: \
 use it to read the context of a search hit. Phrases of all the Ingressi are in order of time, so \
 `before` and `after` count phrases of any Ingresso.",
         annotations(title = "Read around a phrase", read_only_hint = true)
@@ -310,12 +310,12 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
     ) -> Result<Json<AroundOut>, String> {
         log::info!(
             "Assistente: read_around {} {}:{}",
-            p.bino,
+            p.tape,
             p.ingresso,
             p.phrase_id
         );
         let (settings, library) = self.allowed_library()?;
-        let path = resolve(library.root(), &p.bino)?;
+        let path = resolve(library.root(), &p.tape)?;
         let labels = transcription::labels(&settings);
         let ingresso = Ingresso::from_key(&p.ingresso).ok_or_else(|| {
             format!(
@@ -323,7 +323,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
                 p.ingresso
             )
         })?;
-        let document = bino::read(&path).map_err(|e| read_error(&p.bino, &e))?;
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
         let mut frasi: Vec<FraseOut> = document
             .frasi
             .iter()
@@ -349,7 +349,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
             .ok_or_else(|| {
                 format!(
                     "{} has no phrase {} in {}.",
-                    p.bino, p.phrase_id, p.ingresso
+                    p.tape, p.phrase_id, p.ingresso
                 )
             })?;
         let (window, more_before, more_after) = around(
@@ -359,10 +359,10 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
             bounded(p.after, AROUND, AROUND_MAX),
         );
         Ok(Json(AroundOut {
-            bino: BinoOut {
-                bino: p.bino.clone(),
+            tape: TapeOut {
+                tape: p.tape.clone(),
                 titolo: transcription::title_of(&path),
-                raccolta: library::raccolta_of(&p.bino),
+                raccolta: library::raccolta_of(&p.tape),
                 creato: document.creato.clone(),
                 durata_ms: Some(document.durata_ms),
             },
@@ -373,7 +373,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
     }
 
     #[tool(
-        description = "Read the whole transcript of a Bino as Markdown (title, date, duration, model, \
+        description = "Read the whole transcript of a Tape as Markdown (title, date, duration, model, \
 then the text in paragraphs, with speaker labels), one page at a time. If there is more, the page \
 ends with the `from` to pass to read the next page.",
         annotations(title = "Read a transcript", read_only_hint = true)
@@ -382,11 +382,11 @@ ends with the `from` to pass to read the next page.",
         &self,
         Parameters(p): Parameters<TranscriptParams>,
     ) -> Result<String, String> {
-        log::info!("Assistente: read_transcript {} da {:?}", p.bino, p.from);
+        log::info!("Assistente: read_transcript {} da {:?}", p.tape, p.from);
         let (settings, library) = self.allowed_library()?;
-        let path = resolve(library.root(), &p.bino)?;
-        let text = transcription::bino_text(&path, &settings, CopiaCome::Markdown)
-            .map_err(|e| read_error(&p.bino, &e))?;
+        let path = resolve(library.root(), &p.tape)?;
+        let text = transcription::tape_text(&path, &settings, CopiaCome::Markdown)
+            .map_err(|e| read_error(&p.tape, &e))?;
         let from = p.from.unwrap_or(0) as usize;
         let (page, next) = page(&text, from, PAGE_BYTES)
             .ok_or_else(|| format!("Invalid from {from}: use a value given by read_transcript."))?;
@@ -401,12 +401,12 @@ ends with the `from` to pass to read the next page.",
 
 #[tool_handler(
     name = "sbobino",
-    instructions = "Sbobino is the user's local transcription app. Its Library is a folder of Bini \
-(.bino files): each Bino is a recording or a transcribed audio/video file, with its transcript split \
+    instructions = "Sbobino is the user's local transcription app. Its Library is a folder of Tape \
+(.bino files): each Tape is a recording or a transcribed audio/video file, with its transcript split \
 into phrases (start and end in ms), optionally attributed to speakers (Parlanti) and to an Ingresso: \
 mix, microfono (the user's microphone) or sistema (system audio, e.g. the other people in a call). \
-Raccolte are folders that group Bini. Use search to find phrases by words, then read_around for the \
-context of a hit or read_transcript for a whole Bino; list_bini lists Bini by date. Bini are \
+Raccolte are folders that group Tape. Use search to find phrases by words, then read_around for the \
+context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
 identified by their path relative to the Library, as these tools return it. Everything is read-only."
 )]
 impl ServerHandler for Sbobino {}
@@ -436,17 +436,17 @@ impl Sbobino {
     }
 }
 
-/// Il Bino `bino`, relativo alla Libreria `root`: solo un `.bino` dentro la Libreria, fuori dalle
+/// Il Tape `tape`, relativo alla Libreria `root`: solo un `.bino` dentro la Libreria, fuori dalle
 /// cartelle con il punto in testa (come `.sbobino`). Un percorso assoluto o con `..` si rifiuta.
-fn resolve(root: &Path, bino: &str) -> Result<PathBuf, String> {
-    let relative = Path::new(bino);
+fn resolve(root: &Path, tape: &str) -> Result<PathBuf, String> {
+    let relative = Path::new(tape);
     let inside = relative.components().all(|c| match c {
         Component::Normal(name) => !name.to_string_lossy().starts_with('.'),
         _ => false,
     });
-    if !inside || !bino::is_bino(relative) {
+    if !inside || !tape::is_tape(relative) {
         return Err(format!(
-            "{bino:?} is not a Bino of the Library: use the path returned by search or list_bini."
+            "{tape:?} is not a Tape of the Library: use the path returned by search or list_tapes."
         ));
     }
     let path = root.join(relative);
@@ -454,7 +454,7 @@ fn resolve(root: &Path, bino: &str) -> Result<PathBuf, String> {
         Ok(path)
     } else {
         Err(format!(
-            "{bino} is not in the Library any more: search again, or ask the user to open Sbobino \
+            "{tape} is not in the Library any more: search again, or ask the user to open Sbobino \
 if it was moved."
         ))
     }
@@ -495,7 +495,7 @@ fn date(value: Option<&str>) -> Result<Option<NaiveDate>, String> {
         .transpose()
 }
 
-/// Se il Bino creato a `creato` (`2026-10-04T10:15:00+02:00`, ora locale) cade tra i giorni `from` e
+/// Se il Tape creato a `creato` (`2026-10-04T10:15:00+02:00`, ora locale) cade tra i giorni `from` e
 /// `to`, compresi. Un `creato` illeggibile resta fuori da ogni periodo.
 fn in_period(creato: &str, from: Option<NaiveDate>, to: Option<NaiveDate>) -> bool {
     if from.is_none() && to.is_none() {
@@ -517,9 +517,9 @@ fn bold(estratto: &str) -> String {
     estratto.replace([MARK_START, MARK_END], "**")
 }
 
-fn bino_out(root: &Path, entry: library::BinoEntry) -> BinoOut {
-    BinoOut {
-        bino: Path::new(&entry.path)
+fn tape_out(root: &Path, entry: library::BinoEntry) -> TapeOut {
+    TapeOut {
+        tape: Path::new(&entry.path)
             .strip_prefix(root)
             .map_or(entry.path.clone(), |p| p.display().to_string()),
         titolo: entry.titolo,
@@ -529,12 +529,12 @@ fn bino_out(root: &Path, entry: library::BinoEntry) -> BinoOut {
     }
 }
 
-fn read_error(bino: &str, e: &AppError) -> String {
+fn read_error(tape: &str, e: &AppError) -> String {
     match e {
         AppError::UnsupportedBino => {
-            format!("{bino} comes from a newer Sbobino: ask the user to update the app.")
+            format!("{tape} comes from a newer Sbobino: ask the user to update the app.")
         }
-        _ => format!("{bino} cannot be read: {e}"),
+        _ => format!("{tape} cannot be read: {e}"),
     }
 }
 
@@ -585,7 +585,7 @@ fn start_log() {
 mod tests {
     use super::*;
     use crate::audio_toolkit::ogg_opus::tests::temp_dir;
-    use crate::library::tests::{bino_at, bino_with};
+    use crate::library::tests::{tape_at, tape_with};
 
     #[test]
     fn l_identifier_e_quello_di_tauri() {
@@ -595,10 +595,10 @@ mod tests {
     }
 
     #[test]
-    fn si_legge_solo_un_bino_dentro_la_libreria() {
+    fn si_legge_solo_un_tape_dentro_la_libreria() {
         let dir = temp_dir("mcp-percorsi");
-        bino_at(&dir.join("Acme").join("Call.bino"), 1000);
-        bino_at(&dir.join(".sbobino").join("Nascosto.bino"), 1000);
+        tape_at(&dir.join("Acme").join("Call.bino"), 1000);
+        tape_at(&dir.join(".sbobino").join("Nascosto.bino"), 1000);
         std::fs::write(dir.join("Note.md"), "").unwrap();
         assert_eq!(
             resolve(&dir, r"Acme\Call.bino"),
@@ -681,7 +681,7 @@ mod tests {
         }
         .save(&places.settings)
         .unwrap();
-        bino_with(
+        tape_with(
             &root.join("Ferrara Quarzi").join("Call di lunedì.bino"),
             &[
                 ("Buongiorno a tutti.", Some(1)),
@@ -691,7 +691,7 @@ mod tests {
             ],
             &[("mix:2", "Giulia Ferrara")],
         );
-        bino_at(&root.join("Sciolto.bino"), 1000);
+        tape_at(&root.join("Sciolto.bino"), 1000);
         Library::open(&root, &library::db_path(&places.index, &root))
             .unwrap()
             .sync()
@@ -714,7 +714,7 @@ mod tests {
     fn senza_indice_si_chiede_di_aprire_sbobino() {
         let (_, server) = server("senza-indice", true);
         std::fs::remove_dir_all(&server.places.index).unwrap();
-        let list = server.list_bini(Parameters(ListParams {
+        let list = server.list_tapes(Parameters(ListParams {
             raccolta: None,
             from: None,
             to: None,
@@ -735,13 +735,13 @@ mod tests {
                 limit: None,
             }))
             .unwrap();
-        let [bino] = found.bini.as_slice() else {
+        let [tape] = found.tapes.as_slice() else {
             panic!("{found:?}");
         };
-        assert_eq!(bino.bino.bino, r"Ferrara Quarzi\Call di lunedì.bino");
-        assert_eq!(bino.bino.raccolta.as_deref(), Some("Ferrara Quarzi"));
+        assert_eq!(tape.tape.tape, r"Ferrara Quarzi\Call di lunedì.bino");
+        assert_eq!(tape.tape.raccolta.as_deref(), Some("Ferrara Quarzi"));
         assert_eq!(
-            bino.frasi
+            tape.frasi
                 .iter()
                 .map(|f| (f.phrase_id, f.estratto.as_str()))
                 .collect::<Vec<_>>(),
@@ -752,14 +752,14 @@ mod tests {
         );
         let Json(around) = server
             .read_around(Parameters(AroundParams {
-                bino: bino.bino.bino.clone(),
+                tape: tape.tape.tape.clone(),
                 ingresso: "mix".into(),
                 phrase_id: 1,
                 before: Some(1),
                 after: Some(1),
             }))
             .unwrap();
-        assert_eq!(around.bino.titolo, "Call di lunedì");
+        assert_eq!(around.tape.titolo, "Call di lunedì");
         assert_eq!(
             around
                 .frasi
@@ -776,7 +776,7 @@ mod tests {
         assert!(
             server
                 .read_around(Parameters(AroundParams {
-                    bino: bino.bino.bino.clone(),
+                    tape: tape.tape.tape.clone(),
                     ingresso: "sistema".into(),
                     phrase_id: 1,
                     before: None,
@@ -787,11 +787,11 @@ mod tests {
     }
 
     #[test]
-    fn si_elencano_i_bini_per_raccolta() {
+    fn si_elencano_i_tape_per_raccolta() {
         let (_, server) = server("elenca", true);
         let list = |raccolta: Option<&str>| {
             server
-                .list_bini(Parameters(ListParams {
+                .list_tapes(Parameters(ListParams {
                     raccolta: raccolta.map(Into::into),
                     from: None,
                     to: None,
@@ -806,9 +806,9 @@ mod tests {
         assert_eq!(all.total, 2);
         assert_eq!(
             list(Some(""))
-                .bini
+                .tapes
                 .iter()
-                .map(|b| b.bino.as_str())
+                .map(|b| b.tape.as_str())
                 .collect::<Vec<_>>(),
             ["Sciolto.bino"]
         );
@@ -820,7 +820,7 @@ mod tests {
         let (_, server) = server("testo", true);
         let text = server
             .read_transcript(Parameters(TranscriptParams {
-                bino: "Ferrara Quarzi/Call di lunedì.bino".into(),
+                tape: "Ferrara Quarzi/Call di lunedì.bino".into(),
                 from: None,
             }))
             .unwrap();

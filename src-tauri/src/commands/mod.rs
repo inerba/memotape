@@ -7,18 +7,18 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::audio_toolkit::capture::{self, AudioDevice};
-use crate::bino;
 use crate::error::AppError;
 use crate::library::{LibraryList, SearchResult};
 use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
-use crate::managers::pending_bino::PendingBino;
+use crate::managers::pending_tape::PendingTape;
 use crate::managers::recording::{Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
+use crate::tape;
 use crate::transcript::Ingresso;
 
-/// Estensioni accettate da Apri file (spec, storia 2), Bino compresi.
+/// Estensioni accettate da Apri file (spec, storia 2), Tape compresi.
 const SOURCE_EXTENSIONS: &[&str] = &[
     "mp3", "wav", "m4a", "flac", "ogg", "opus", "webm", "mpga", "mpeg", "aiff", "mp4", "mkv",
     "mov", "m4v", "bino",
@@ -57,7 +57,7 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
-/// Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
+/// Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 /// estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 #[tauri::command]
 #[specta::specta]
@@ -75,7 +75,7 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     if !path.is_file() {
         return Err(AppError::UnreadableFile(source));
     }
-    let opened = if bino::is_bino(&path) {
+    let opened = if tape::is_tape(&path) {
         app.opener().reveal_item_in_dir(path)
     } else {
         app.opener().open_path(source, None::<&str>)
@@ -83,7 +83,7 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     opened.map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Apre un Bino scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
+/// Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
 /// informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
 #[tauri::command]
 #[specta::specta]
@@ -91,35 +91,35 @@ pub fn open_bino(
     app: AppHandle,
     source: String,
 ) -> Result<managers::transcription::OpenedBino, AppError> {
-    let path = bino_path(&source)?;
-    // Un Bino sparito o cambiato in Esplora file si vede anche nella barra laterale.
+    let path = tape_path(&source)?;
+    // Un Tape sparito o cambiato in Esplora file si vede anche nella barra laterale.
     managers::library::sync(&app);
-    managers::transcription::open_bino(&path)
+    managers::transcription::open_tape(&path)
 }
 
-/// `path` se è un Bino: i comandi che leggono o scrivono un Bino non toccano altri file.
-fn bino_path(path: &str) -> Result<PathBuf, AppError> {
+/// `path` se è un Tape: i comandi che leggono o scrivono un Tape non toccano altri file.
+fn tape_path(path: &str) -> Result<PathBuf, AppError> {
     let path = PathBuf::from(path);
-    if bino::is_bino(&path) {
+    if tape::is_tape(&path) {
         Ok(path)
     } else {
         Err(AppError::Internal(format!(
-            "non è un Bino: {}",
+            "non è un Tape: {}",
             path.display()
         )))
     }
 }
 
-/// Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
+/// Il Tape arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
 /// la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
 #[tauri::command]
 #[specta::specta]
-pub fn take_pending_bino(pending: State<'_, PendingBino>) -> Option<String> {
+pub fn take_pending_bino(pending: State<'_, PendingTape>) -> Option<String> {
     pending.take()
 }
 
 /// Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
-/// Bino nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Bino si
+/// Tape nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Tape si
 /// riscrive il testo.
 /// Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 /// `cancel_transcription`.
@@ -149,7 +149,7 @@ pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
     activity.cancel()
 }
 
-/// Il testo di Copia testo della Trascrizione in corso o appena finita senza Bino: in testo semplice
+/// Il testo di Copia testo della Trascrizione in corso o appena finita senza Tape: in testo semplice
 /// o Markdown, secondo `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 #[tauri::command]
 #[specta::specta]
@@ -160,39 +160,39 @@ pub fn transcript_text(
     managers::transcription::transcript_text(&last, &settings.get())
 }
 
-/// Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`.
+/// Il testo di Copia testo del Tape `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`.
 #[tauri::command]
 #[specta::specta]
 pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError> {
-    let path = bino_path(&path)?;
+    let path = tape_path(&path)?;
     blocking(app, move |app| {
         let settings = app.state::<SettingsStore>().get();
-        managers::transcription::bino_text(&path, &settings, settings.copia_come)
+        managers::transcription::tape_text(&path, &settings, settings.copia_come)
     })
     .await
 }
 
-/// La Forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
-/// più corto di `count` × 20 ms. Salvata nel Bino; se manca si calcola e si prova a salvarla.
+/// La Forma d'onda del mix del Tape `path` per il player: `count` picchi (0–1), meno se l'audio è
+/// più corto di `count` × 20 ms. Salvata nel Tape; se manca si calcola e si prova a salvarla.
 #[tauri::command]
 #[specta::specta]
 pub async fn bino_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
-    let path = bino_path(&path)?;
+    let path = tape_path(&path)?;
     blocking(app, move |app| {
         crate::player::forma_onda(&path, count as usize, &app.state::<Activity>())
     })
     .await
 }
 
-/// Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
+/// Salva il Markdown del Tape `path` dove sceglie l'utente nel dialog di sistema, proponendo
 /// `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
 #[tauri::command]
 #[specta::specta]
 pub async fn export_markdown(app: AppHandle, path: String) -> Result<Option<String>, AppError> {
-    let path = bino_path(&path)?;
+    let path = tape_path(&path)?;
     blocking(app, move |app| {
         let settings = app.state::<SettingsStore>().get();
-        let markdown = managers::transcription::bino_text(
+        let markdown = managers::transcription::tape_text(
             &path,
             &settings,
             managers::settings::CopiaCome::Markdown,
@@ -217,8 +217,8 @@ pub async fn export_markdown(app: AppHandle, path: String) -> Result<Option<Stri
     .await
 }
 
-/// Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Bino `path`. Rifiuta un nome vuoto, e
-/// con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+/// Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`. Rifiuta un nome vuoto, e
+/// con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_parlante(
@@ -229,14 +229,14 @@ pub async fn rename_parlante(
     parlante: u32,
     nome: String,
 ) -> Result<(), AppError> {
-    write_bino(app, &activity, bino_path(&path)?, move |path| {
-        bino::rename_parlante(path, ingresso, parlante, &nome)
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::rename_parlante(path, ingresso, parlante, &nome)
     })
     .await
 }
 
-/// Corregge il testo della Frase `phrase_id` di `ingresso` nel Bino `path`; tempi, Parlanti e audio
-/// restano com'erano. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+/// Corregge il testo della Frase `phrase_id` di `ingresso` nel Tape `path`; tempi, Parlanti e audio
+/// restano com'erano. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn edit_frase(
@@ -247,14 +247,14 @@ pub async fn edit_frase(
     phrase_id: u32,
     testo: String,
 ) -> Result<(), AppError> {
-    write_bino(app, &activity, bino_path(&path)?, move |path| {
-        bino::edit_frase(path, ingresso, phrase_id, &testo)
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::edit_frase(path, ingresso, phrase_id, &testo)
     })
     .await
 }
 
-/// Cambia la data e l'ora del Bino `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
-/// il `creato` scritto. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+/// Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
+/// il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn set_creato(
@@ -263,15 +263,15 @@ pub async fn set_creato(
     path: String,
     local: String,
 ) -> Result<String, AppError> {
-    write_bino(app, &activity, bino_path(&path)?, move |path| {
-        bino::set_creato(path, &local)
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::set_creato(path, &local)
     })
     .await
 }
 
-/// Riscrive il Bino `path` con `write`, tenendo l'Attività solo per la scrittura, poi riallinea
+/// Riscrive il Tape `path` con `write`, tenendo l'Attività solo per la scrittura, poi riallinea
 /// l'indice: la modifica si trova subito con la ricerca.
-async fn write_bino<T: Send + 'static>(
+async fn write_tape<T: Send + 'static>(
     app: AppHandle,
     activity: &Activity,
     path: PathBuf,
@@ -385,7 +385,7 @@ pub async fn list_output_devices() -> Result<Vec<AudioDevice>, AppError> {
 }
 
 /// Registra dagli ingressi delle impostazioni (microfono, audio di sistema o entrambi) finché
-/// arriva `stop_recording` o un dispositivo si scollega; poi il Bino, nella Raccolta `raccolta`
+/// arriva `stop_recording` o un dispositivo si scollega; poi il Tape, nella Raccolta `raccolta`
 /// (`null` o `""`: la radice della Libreria), diventa la Sorgente. Durata e livelli arrivano con
 /// `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta con
 /// `activityInProgress` se un'Attività è già in corso.
@@ -452,7 +452,7 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
-/// Le Raccolte e i Bini della Libreria, dall'indice: `library-changed` avvisa quando cambiano.
+/// Le Raccolte e i Tape della Libreria, dall'indice: `library-changed` avvisa quando cambiano.
 #[tauri::command]
 #[specta::specta]
 pub async fn library_list(app: AppHandle) -> Result<LibraryList, AppError> {
@@ -462,7 +462,7 @@ pub async fn library_list(app: AppHandle) -> Result<LibraryList, AppError> {
     .await
 }
 
-/// Cerca `query` nei Bini della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
+/// Cerca `query` nei Tape della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
 /// raccolta): titoli, testo delle Frasi e nomi dei Parlanti.
 #[tauri::command]
 #[specta::specta]
@@ -489,7 +489,7 @@ pub async fn create_raccolta(app: AppHandle, nome: String) -> Result<(), AppErro
 }
 
 /// Rinomina la Raccolta `nome` e la sua cartella in `nuovo`, e restituisce la cartella nuova. Rifiuta
-/// con `activityInProgress` se l'Attività in corso lavora su un suo Bino.
+/// con `activityInProgress` se l'Attività in corso lavora su un suo Tape.
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_raccolta(
@@ -522,8 +522,8 @@ pub async fn delete_raccolta(
     .await
 }
 
-/// Rinomina il file del Bino in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
-/// `activityInProgress` il Bino su cui lavora l'Attività in corso.
+/// Rinomina il file del Tape in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+/// `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
 pub async fn rename_bino(
@@ -535,13 +535,13 @@ pub async fn rename_bino(
     let from = PathBuf::from(path);
     let _writing = activity.write(&from)?;
     blocking(app, move |app| {
-        let to = managers::library::change(app, |library| library.rename_bino(&from, &titolo))?;
+        let to = managers::library::change(app, |library| library.rename_tape(&from, &titolo))?;
         Ok(to.display().to_string())
     })
     .await
 }
 
-/// Sposta il Bino nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
+/// Sposta il Tape nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
 /// Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
 #[tauri::command]
 #[specta::specta]
@@ -555,14 +555,14 @@ pub async fn move_bino(
     let _writing = activity.write(&from)?;
     blocking(app, move |app| {
         let to = managers::library::change(app, |library| {
-            library.move_bino(&from, raccolta.as_deref())
+            library.move_tape(&from, raccolta.as_deref())
         })?;
         Ok(to.display().to_string())
     })
     .await
 }
 
-/// Manda il Bino nel Cestino di Windows.
+/// Manda il Tape nel Cestino di Windows.
 #[tauri::command]
 #[specta::specta]
 pub async fn trash_bino(
@@ -573,7 +573,7 @@ pub async fn trash_bino(
     let path = PathBuf::from(path);
     let _writing = activity.write(&path)?;
     blocking(app, move |app| {
-        managers::library::change(app, |library| library.trash_bino(&path))
+        managers::library::change(app, |library| library.trash_tape(&path))
     })
     .await
 }

@@ -1,6 +1,6 @@
 //! La Forma d'onda: i picchi dell'audio ogni 20 ms, raggruppati in un numero fisso di valori.
 
-/// Quanti valori della Forma d'onda si salvano nel Bino, qualunque sia la durata (ADR-0010).
+/// Quanti valori della Forma d'onda si salvano nel Tape, qualunque sia la durata (ADR-0010).
 pub const VALORI: usize = 1000;
 /// Quanto audio riassume un picco prima del raggruppamento finale.
 const WINDOW_MS: u32 = 20;

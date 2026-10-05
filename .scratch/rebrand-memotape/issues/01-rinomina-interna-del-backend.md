@@ -12,7 +12,7 @@ Spec: `.scratch/rebrand-memotape/spec.md` (storie 21, 24, 25).
 
 **Blocked by:** None (can start immediately). Prima si committa il lavoro in corso (la Continuazione) e si apre il branch `rebrand-memotape`.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Nel Rust nessun identificatore, commento o nome di test usa `bino`/`bini`. Fanno eccezione il contratto IPC, che passa da `bindings.ts`, e le stringhe dell'estensione `.bino`
 - [ ] `tools/list` del server MCP restituisce `list_tapes`, e nessuno strumento o descrizione parla di Bini

@@ -64,7 +64,7 @@ impl Ingresso {
         format!("{}:{n}", self.key())
     }
 
-    /// Il nome nel Bino e nelle chiavi: `mix`, `microfono`, `sistema`.
+    /// Il nome nel Tape e nelle chiavi: `mix`, `microfono`, `sistema`.
     pub fn key(self) -> &'static str {
         match self {
             Self::Mix => "mix",

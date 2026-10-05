@@ -15,13 +15,13 @@ export const commands = {
 	 */
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
 	/**
-	 *  Apre la Sorgente con il programma associato; un Bino lo mostra nella cartella. Accetta solo le
+	 *  Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 	 *  estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
 	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
-	 *  Bino nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Bino si
+	 *  Tape nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Tape si
 	 *  riscrive il testo.
 	 *  Rifiuta con `activityInProgress` se un'Attività è già in corso, e finisce con `cancelled` dopo
 	 *  `cancel_transcription`.
@@ -30,44 +30,44 @@ export const commands = {
 	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
 	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
 	/**
-	 *  Il testo di Copia testo della Trascrizione in corso o appena finita senza Bino: in testo semplice
+	 *  Il testo di Copia testo della Trascrizione in corso o appena finita senza Tape: in testo semplice
 	 *  o Markdown, secondo `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 	 */
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**
-	 *  Apre un Bino scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
+	 *  Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
 	 *  informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
 	 */
 	openBino: (source: string) => typedError<OpenedBino, AppError>(__TAURI_INVOKE("open_bino", { source })),
 	/**
-	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Bino `path`. Rifiuta un nome vuoto, e
-	 *  con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`. Rifiuta un nome vuoto, e
+	 *  con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	renameParlante: (path: string, ingresso: Ingresso, parlante: number, nome: string) => typedError<null, AppError>(__TAURI_INVOKE("rename_parlante", { path, ingresso, parlante, nome })),
 	/**
-	 *  Corregge il testo della Frase `phrase_id` di `ingresso` nel Bino `path`; tempi, Parlanti e audio
-	 *  restano com'erano. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 *  Corregge il testo della Frase `phrase_id` di `ingresso` nel Tape `path`; tempi, Parlanti e audio
+	 *  restano com'erano. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
 	/**
-	 *  Cambia la data e l'ora del Bino `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
-	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 *  Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
+	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	setCreato: (path: string, local: string) => typedError<string, AppError>(__TAURI_INVOKE("set_creato", { path, local })),
-	/**  Il testo di Copia testo del Bino `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
+	/**  Il testo di Copia testo del Tape `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
 	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
 	/**
-	 *  La Forma d'onda del mix del Bino `path` per il player: `count` picchi (0–1), meno se l'audio è
-	 *  più corto di `count` × 20 ms. Salvata nel Bino; se manca si calcola e si prova a salvarla.
+	 *  La Forma d'onda del mix del Tape `path` per il player: `count` picchi (0–1), meno se l'audio è
+	 *  più corto di `count` × 20 ms. Salvata nel Tape; se manca si calcola e si prova a salvarla.
 	 */
 	binoPeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("bino_peaks", { path, count })),
 	/**
-	 *  Salva il Markdown del Bino `path` dove sceglie l'utente nel dialog di sistema, proponendo
+	 *  Salva il Markdown del Tape `path` dove sceglie l'utente nel dialog di sistema, proponendo
 	 *  `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
 	 */
 	exportMarkdown: (path: string) => typedError<string | null, AppError>(__TAURI_INVOKE("export_markdown", { path })),
 	/**
-	 *  Il Bino arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
+	 *  Il Tape arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
 	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
 	 */
 	takePendingBino: () => __TAURI_INVOKE<string | null>("take_pending_bino"),
@@ -107,7 +107,7 @@ export const commands = {
 	listOutputDevices: () => typedError<AudioDevice[], AppError>(__TAURI_INVOKE("list_output_devices")),
 	/**
 	 *  Registra dagli ingressi delle impostazioni (microfono, audio di sistema o entrambi) finché
-	 *  arriva `stop_recording` o un dispositivo si scollega; poi il Bino, nella Raccolta `raccolta`
+	 *  arriva `stop_recording` o un dispositivo si scollega; poi il Tape, nella Raccolta `raccolta`
 	 *  (`null` o `""`: la radice della Libreria), diventa la Sorgente. Durata e livelli arrivano con
 	 *  `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta con
 	 *  `activityInProgress` se un'Attività è già in corso.
@@ -124,10 +124,10 @@ export const commands = {
 	recordingsFolder: () => typedError<string, AppError>(__TAURI_INVOKE("recordings_folder")),
 	/**  Apre il dialog di sistema per scegliere una cartella. `null` se l'utente annulla. */
 	pickFolder: () => __TAURI_INVOKE<string | null>("pick_folder"),
-	/**  Le Raccolte e i Bini della Libreria, dall'indice: `library-changed` avvisa quando cambiano. */
+	/**  Le Raccolte e i Tape della Libreria, dall'indice: `library-changed` avvisa quando cambiano. */
 	libraryList: () => typedError<LibraryList, AppError>(__TAURI_INVOKE("library_list")),
 	/**
-	 *  Cerca `query` nei Bini della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
+	 *  Cerca `query` nei Tape della Raccolta `raccolta` (`null` tutta la Libreria, `""` Senza
 	 *  raccolta): titoli, testo delle Frasi e nomi dei Parlanti.
 	 */
 	librarySearch: (query: string, raccolta: string | null) => typedError<SearchResult[], AppError>(__TAURI_INVOKE("library_search", { query, raccolta })),
@@ -138,22 +138,22 @@ export const commands = {
 	createRaccolta: (nome: string) => typedError<null, AppError>(__TAURI_INVOKE("create_raccolta", { nome })),
 	/**
 	 *  Rinomina la Raccolta `nome` e la sua cartella in `nuovo`, e restituisce la cartella nuova. Rifiuta
-	 *  con `activityInProgress` se l'Attività in corso lavora su un suo Bino.
+	 *  con `activityInProgress` se l'Attività in corso lavora su un suo Tape.
 	 */
 	renameRaccolta: (nome: string, nuovo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_raccolta", { nome, nuovo })),
 	/**  Elimina la Raccolta `nome`, solo se vuota (`raccoltaNotEmpty`). */
 	deleteRaccolta: (nome: string) => typedError<null, AppError>(__TAURI_INVOKE("delete_raccolta", { nome })),
 	/**
-	 *  Rinomina il file del Bino in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
-	 *  `activityInProgress` il Bino su cui lavora l'Attività in corso.
+	 *  Rinomina il file del Tape in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
+	 *  `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	renameBino: (path: string, titolo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_bino", { path, titolo })),
 	/**
-	 *  Sposta il Bino nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
+	 *  Sposta il Tape nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
 	 *  Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
 	 */
 	moveBino: (path: string, raccolta: string | null) => typedError<string, AppError>(__TAURI_INVOKE("move_bino", { path, raccolta })),
-	/**  Manda il Bino nel Cestino di Windows. */
+	/**  Manda il Tape nel Cestino di Windows. */
 	trashBino: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("trash_bino", { path })),
 };
 
@@ -196,15 +196,15 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
  *  continua senza Trascrizione dal vivo.
  */
 { code: "liveTranscriptionUnavailable"; detail: string } | 
-/**  Il Bino è stato scritto da una versione più nuova dell'app, con uno schema che non conosce. */
+/**  Il Tape è stato scritto da una versione più nuova dell'app, con uno schema che non conosce. */
 { code: "unsupportedBino" } | 
-/**  Il nome di una Raccolta o il titolo di un Bino non è ammesso da Windows. */
+/**  Il nome di una Raccolta o il titolo di un Tape non è ammesso da Windows. */
 { code: "invalidName"; detail: string } | 
-/**  C'è già una Raccolta, o un Bino nella stessa cartella, con questo nome. */
+/**  C'è già una Raccolta, o un Tape nella stessa cartella, con questo nome. */
 { code: "nameTaken"; detail: string } | 
 /**  Si elimina solo una Raccolta vuota. */
 { code: "raccoltaNotEmpty"; detail: string } | 
-/**  Il Bino non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
+/**  Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
 { code: "binoNotFound"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
@@ -215,20 +215,20 @@ export type AudioDevice = {
 	isDefault: boolean,
 };
 
-/**  Un Bino della Libreria, come lo mostra la barra laterale. */
+/**  Un Tape della Libreria, come lo mostra la barra laterale. */
 export type BinoEntry = {
 	path: string,
 	/**  `null`: Senza raccolta. */
 	raccolta: string | null,
 	/**  Il nome del file senza estensione. */
 	titolo: string,
-	/**  `creato` del Bino; per un Bino illeggibile la data di modifica del file. */
+	/**  `creato` del Tape; per un Tape illeggibile la data di modifica del file. */
 	creato: string,
-	/**  `null` per un Bino illeggibile o di una versione futura. */
+	/**  `null` per un Tape illeggibile o di una versione futura. */
 	durataMs: number | null,
 };
 
-/**  La riga di informazioni della vista di un Bino. */
+/**  La riga di informazioni della vista di un Tape. */
 export type BinoInfo = {
 	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
 	creato: string,
@@ -242,7 +242,7 @@ export type BinoInfo = {
 	origine: string | null,
 };
 
-/**  È arrivato un Bino da aprire: la finestra lo prende con `take_pending_bino`. */
+/**  È arrivato un Tape da aprire: la finestra lo prende con `take_pending_bino`. */
 export type BinoRequested = null;
 
 export type Channels = "mono" | "stereo";
@@ -272,7 +272,7 @@ export type Levels = {
 /**  L'elenco della Libreria è cambiato (o può essere cambiato): il frontend lo rilegge. */
 export type LibraryChanged = null;
 
-/**  Le Raccolte e tutti i Bini della Libreria. */
+/**  Le Raccolte e tutti i Tape della Libreria. */
 export type LibraryList = {
 	/**  I nomi delle Raccolte, in ordine alfabetico. */
 	raccolte: string[],
@@ -282,10 +282,10 @@ export type LibraryList = {
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
 export type LiveTranscription = 
-/**  Il testo è nel Bino o, se il Bino non si è scritto, nel Markdown accanto all'Ogg. */
+/**  Il testo è nel Tape o, se il Tape non si è scritto, nel Markdown accanto all'Ogg. */
 { outcome: "saved" } | { outcome: "noSpeech" } | 
 /**
- *  Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Bino ha
+ *  Modello assente (`liveTranscriptionUnavailable`), guasto o Annulla (`cancelled`): il Tape ha
  *  le Frasi arrivate, con il testo incompleto.
  */
 { outcome: "failed"; error: AppError };
@@ -366,21 +366,21 @@ export type ModelStateChanged = {
 	error: AppError | null,
 };
 
-/**  Un Bino aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
+/**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
 export type OpenedBino = {
 	phrases: TranscriptPhrase[],
-	/**  Per chiave `<ingresso>:<n>`, come nel Bino. */
+	/**  Per chiave `<ingresso>:<n>`, come nel Tape. */
 	parlanti: { [key in string]: string },
 	info: BinoInfo,
 };
 
 /**  La Registrazione salvata, che diventa la Sorgente. */
 export type RecordingSaved = {
-	/**  Il Bino; se non si è potuto scrivere, l'Ogg nella cartella nascosta. */
+	/**  Il Tape; se non si è potuto scrivere, l'Ogg nella cartella nascosta. */
 	path: string,
 	/**
 	 *  Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`) o
-	 *  perché il Bino non si è scritto; `null` dopo Stop.
+	 *  perché il Tape non si è scritto; `null` dopo Stop.
 	 */
 	error: AppError | null,
 	/**  L'esito della Trascrizione dal vivo; `null` se era spenta. */
@@ -404,7 +404,7 @@ export type SearchHit = {
 };
 
 /**
- *  Un Bino trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
+ *  Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
  *  solo il titolo).
  */
 export type SearchResult = {
@@ -525,7 +525,7 @@ export type TranscriptPhrase = {
 	/**  Con gli Ingressi separati ogni Ingresso ha le sue Frasi, con id propri. */
 	ingresso: Ingresso,
 	/**
-	 *  Il Parlante, da 1: c'è nelle Frasi di un Bino diarizzato. Durante una Trascrizione arriva
+	 *  Il Parlante, da 1: c'è nelle Frasi di un Tape diarizzato. Durante una Trascrizione arriva
 	 *  dopo, con `speakers-assigned`.
 	 */
 	parlante: number | null,
@@ -534,11 +534,11 @@ export type TranscriptPhrase = {
 /**  Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`. */
 export type TranscriptionOutcome = 
 /**
- *  Il testo è nel Bino `path`: quello nuovo di un file, o il Bino trascritto. Diventa la
+ *  Il testo è nel Tape `path`: quello nuovo di un file, o il Tape trascritto. Diventa la
  *  Sorgente.
  */
 { outcome: "saved"; path: string } | 
-/**  Nessuna Frase: un file non diventa un Bino; un Bino resta senza Frasi. */
+/**  Nessuna Frase: un file non diventa un Tape; un Tape resta senza Frasi. */
 { outcome: "noSpeech" };
 
 /**
