@@ -1,4 +1,4 @@
-# Sbobino
+# Memotape
 
 App desktop che trasforma in testo, interamente in locale, il parlato di file audio, video e registrazioni fatte dal computer.
 
@@ -7,7 +7,7 @@ App desktop che trasforma in testo, interamente in locale, il parlato di file au
 ### Sorgenti e attività
 
 **Sorgente**:
-Il file audio, video o Bino selezionato, su cui agiscono le Attività. Il Bino prodotto da una Registrazione o da una Trascrizione diventa la Sorgente.
+Il file audio, video o Tape selezionato, su cui agiscono le Attività. Il Tape prodotto da una Registrazione o da una Trascrizione diventa la Sorgente.
 _Avoid_: input, file sorgente, audio sorgente
 
 **Attività**:
@@ -19,7 +19,7 @@ L'Attività che cattura microfono, audio di sistema o entrambi in un unico file.
 _Avoid_: recording, cattura
 
 **Continuazione**:
-Una Registrazione che, invece di creare un Bino nuovo, accoda il suo audio e le sue Frasi a un Bino esistente; il Bino ricorda dove e quando comincia ogni Continuazione.
+Una Registrazione che, invece di creare un Tape nuovo, accoda il suo audio e le sue Frasi a un Tape esistente; il Tape ricorda dove e quando comincia ogni Continuazione.
 _Avoid_: ripresa, riprendere (è il contrario di Pausa), append, prosecuzione
 
 **Trascrizione**:
@@ -35,27 +35,27 @@ Il microfono o l'audio di sistema (loopback del dispositivo di uscita) catturati
 _Avoid_: sorgente (è la Sorgente), input
 
 **Guadagno**:
-Quanto Sbobino alza o abbassa l'audio di un Ingresso durante una Registrazione, prima di unirlo agli altri: cambia l'audio salvato e quello trascritto, non il volume di Windows né quello delle altre app.
+Quanto Memotape alza o abbassa l'audio di un Ingresso durante una Registrazione, prima di unirlo agli altri: cambia l'audio salvato e quello trascritto, non il volume di Windows né quello delle altre app.
 _Avoid_: volume (è quello del player o di Windows), gain, livello (è quello che mostra l'indicatore)
 
-**Bino**:
-Il file `.bino` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
-_Avoid_: progetto, archivio, pacchetto
+**Tape**:
+Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
+_Avoid_: Bino (il nome di prima), progetto, archivio, pacchetto, nastro, cassetta
 
 **Forma d'onda**:
-L'andamento del volume del mix di un Bino, dall'inizio alla fine, che il player mostra come barra di avanzamento; sta dentro il Bino, così riaprirlo non la ricalcola.
+L'andamento del volume del mix di un Tape, dall'inizio alla fine, che il player mostra come barra di avanzamento; sta dentro il Tape, così riaprirlo non la ricalcola.
 _Avoid_: waveform, picchi, cache
 
 **Libreria**:
-La cartella in cui Sbobino salva i Bini e li tiene per ritrovarli, cercarli e riascoltarli: un Bino ne fa parte se sta lì dentro, e uno altrove si apre ma non compare.
+La cartella in cui Memotape salva i Tape e li tiene per ritrovarli, cercarli e riascoltarli: un Tape ne fa parte se sta lì dentro, e uno altrove si apre ma non compare.
 _Avoid_: Cartella predefinita, archivio, storico, database
 
 **Raccolta**:
-Una cartella di primo livello della Libreria che raggruppa Bini, per esempio le call con un cliente; un Bino sta in una Raccolta o in nessuna.
+Una cartella di primo livello della Libreria che raggruppa Tape, per esempio le call con un cliente; un Tape sta in una Raccolta o in nessuna.
 _Avoid_: progetto, cartella, etichetta, fascicolo
 
 **Assistente**:
-Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Bini della Libreria; non li modifica e non avvia Attività.
+Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Tape della Libreria; non li modifica e non avvia Attività.
 _Avoid_: agente, bot, integrazione, MCP
 
 ### Testo
