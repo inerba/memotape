@@ -90,7 +90,7 @@
       "outputDeviceMissing": "Nessun dispositivo di uscita per l'audio di sistema, o quello scelto in Impostazioni non è disponibile",
       "unreadableSettings": "Impossibile leggere le impostazioni, l'app usa i valori predefiniti: {{detail}}",
       "liveTranscriptionUnavailable": "Trascrizione dal vivo non disponibile: il modello {{detail}} non è scaricato o non si carica (la Registrazione si salva comunque)",
-      "unsupportedTape": "Questo Bino viene da una versione più recente di Sbobino: aggiorna l'app per aprirlo",
+      "unsupportedTape": "Questo Bino viene da una versione più recente di Memotape: aggiorna l'app per aprirlo",
       "invalidName": "Nome non valido: {{detail}}. Non sono ammessi < > : \" / \\ | ? *, i nomi riservati come CON, il punto in testa e il punto o lo spazio in fondo",
       "nameTaken": "Il nome {{detail}} è già usato",
       "raccoltaNotEmpty": "La Raccolta {{detail}} non è vuota: sposta o elimina prima i suoi Bini",
@@ -113,7 +113,7 @@
   "settings": {
     "open": "Impostazioni",
     "title": "Impostazioni",
-    "subtitle": "Come Sbobino registra, trascrive e salva i tuoi Bini.",
+    "subtitle": "Come Memotape registra, trascrive e salva i tuoi Bini.",
     "back": "Indietro",
     "transcription": {
       "title": "Trascrizione",
@@ -157,9 +157,9 @@
       "title": "Generale",
       "description": "La Cartella della Libreria, il formato di Copia testo, il tema e la Lingua dell'interfaccia.",
       "folder": "Cartella della Libreria",
-      "folderDescription": "Dove Sbobino salva i Bini: le sue cartelle sono le Raccolte. Se non esiste viene creata; cambiarla non sposta i Bini della cartella precedente.",
+      "folderDescription": "Dove Memotape salva i Bini: le sue cartelle sono le Raccolte. Se non esiste viene creata; cambiarla non sposta i Bini della cartella precedente.",
       "choose": "Scegli…",
-      "reset": "Usa Documenti\\Sbobino",
+      "reset": "Usa Documenti\\Memotape",
       "language": "Lingua dell'interfaccia",
       "theme": "Tema",
       "themes": {
@@ -167,7 +167,7 @@
         "chiaro": "Chiaro",
         "scuro": "Scuro"
       },
-      "languageRestart": "La nuova lingua si applica al prossimo avvio di Sbobino.",
+      "languageRestart": "La nuova lingua si applica al prossimo avvio di Memotape.",
       "copyAs": "Copia testo come",
       "copyFormats": {
         "testo": "Testo semplice",
@@ -176,7 +176,7 @@
     },
     "assistants": {
       "title": "Assistenti",
-      "description": "Claude e Codex possono cercare e leggere i tuoi Bini attraverso un server MCP, anche con Sbobino chiuso.",
+      "description": "Claude e Codex possono cercare e leggere i tuoi Bini attraverso un server MCP, anche con Memotape chiuso.",
       "allow": "Consenti agli Assistenti di leggere la Libreria",
       "allowDescription": "Gli Assistenti cercano e leggono titoli e testo dei Bini, senza modificarli. Quello che leggono va ai server di Anthropic o di OpenAI: esce dal tuo PC.",
       "connect": "Collega un Assistente",
@@ -245,7 +245,7 @@
     "description": "La versione dell'app e le licenze dei componenti che usa.",
     "version": "Versione {{version}}",
     "source": "Fonte: {{url}}",
-    "converted": "Sbobino scarica la versione convertita in GGUF e quantizzata ({{quantization}}) da handy-computer.",
+    "converted": "Memotape scarica la versione convertita in GGUF e quantizzata ({{quantization}}) da handy-computer.",
     "licenseText": "Testo della licenza",
     "thirdParty": "Avvisi di terze parti",
     "roles": {

@@ -32,7 +32,7 @@ const SKIP_MS = 10_000;
 /** Le barre della forma d'onda: abbastanza fitte per la larghezza del player. */
 const BARS = 180;
 /** Dove resta il volume scelto: una comodità di questo PC, non un'impostazione. */
-const VOLUME_KEY = "sbobino.volume";
+const VOLUME_KEY = "memotape.volume";
 
 /** Lo stato del player di un Tape, condiviso tra il player e il testo che lo segue. */
 export interface PlayerState {

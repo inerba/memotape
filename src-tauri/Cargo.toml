@@ -1,12 +1,12 @@
 [package]
-name = "sbobino"
+name = "memotape"
 version = "0.1.0"
 description = "Trascrizione locale di audio e video"
 edition = "2024"
 
 [lib]
 # Nome diverso dal binario: su Windows lib e bin con lo stesso nome collidono sui .pdb.
-name = "sbobino_lib"
+name = "memotape_lib"
 
 [build-dependencies]
 tauri-build = { version = "2.7.1", features = [] }

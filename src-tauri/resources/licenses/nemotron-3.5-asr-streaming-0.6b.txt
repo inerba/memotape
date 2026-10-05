@@ -3,7 +3,7 @@ Source: https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b
 Governing terms: use of the model is governed by the OpenMDW-1.1 license
 (https://openmdw.ai/license/1-1/).
 
-Sbobino downloads a version converted to GGUF and quantized to Q5_K_M by
+Memotape downloads a version converted to GGUF and quantized to Q5_K_M by
 handy-computer (https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf).
 
 =======================================================================

@@ -27,7 +27,7 @@ pub struct Settings {
     pub channels: Channels,
     /// Hz.
     pub sample_rate: u32,
-    /// La Cartella della Libreria; `null`: `Documenti\Sbobino`.
+    /// La Cartella della Libreria; `null`: `Documenti\Memotape`.
     pub recordings_folder: Option<String>,
     /// `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese.
     pub interface_language: Option<Language>,
@@ -496,7 +496,7 @@ mod tests {
     use super::*;
 
     fn temp_file(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("sbobino-test-impostazioni-{name}"));
+        let dir = std::env::temp_dir().join(format!("memotape-test-impostazioni-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir.join("settings.json")

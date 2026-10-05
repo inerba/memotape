@@ -120,9 +120,9 @@ mod tests {
 
     #[test]
     fn le_scritture_si_rifiutano_solo_sul_tape_dell_attivita() {
-        let raccolta = Path::new(r"C:\Sbobino\Acme");
+        let raccolta = Path::new(r"C:\Memotape\Acme");
         let tape = raccolta.join("Call.bino");
-        let altro = Path::new(r"C:\Sbobino\Altro.bino");
+        let altro = Path::new(r"C:\Memotape\Altro.bino");
         // Senza Attività la scrittura la prende.
         assert!(Activity::default().write(altro).unwrap().is_some());
         let activity = Activity::default();

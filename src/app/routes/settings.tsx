@@ -632,7 +632,7 @@ function Field({
   );
 }
 
-/** La finestra di Sbobino in piccolo, di giorno o di sera, per la scelta del tema. */
+/** La finestra di Memotape in piccolo, di giorno o di sera, per la scelta del tema. */
 function Miniature({ night = false }: { night?: boolean }) {
   const [paper, sidebar, ink] = night
     ? ["bg-night-paper", "bg-night-sidebar", "bg-night-ink"]

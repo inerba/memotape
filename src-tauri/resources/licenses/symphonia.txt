@@ -1,6 +1,6 @@
 Symphonia
 Source code: https://github.com/pdeljanov/Symphonia
-License: Mozilla Public License 2.0 (MPL-2.0). Sbobino uses Symphonia unmodified;
+License: Mozilla Public License 2.0 (MPL-2.0). Memotape uses Symphonia unmodified;
 its source code is available at the address above.
 
 =======================================================================

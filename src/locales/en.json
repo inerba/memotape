@@ -90,7 +90,7 @@
       "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
-      "unsupportedTape": "This Bino comes from a newer version of Sbobino: update the app to open it",
+      "unsupportedTape": "This Bino comes from a newer version of Memotape: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
       "nameTaken": "The name {{detail}} is already used",
       "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Bini first",
@@ -113,7 +113,7 @@
   "settings": {
     "open": "Settings",
     "title": "Settings",
-    "subtitle": "How Sbobino records, transcribes and saves your Bini.",
+    "subtitle": "How Memotape records, transcribes and saves your Bini.",
     "back": "Back",
     "transcription": {
       "title": "Transcription",
@@ -157,9 +157,9 @@
       "title": "General",
       "description": "The Library folder, the Copy text format, the theme and the interface language.",
       "folder": "Library folder",
-      "folderDescription": "Where Sbobino saves Bini: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Bini of the previous folder.",
+      "folderDescription": "Where Memotape saves Bini: its folders are the Collections. Created if it doesn't exist; changing it doesn't move the Bini of the previous folder.",
       "choose": "Choose…",
-      "reset": "Use Documents\\Sbobino",
+      "reset": "Use Documents\\Memotape",
       "language": "Interface language",
       "theme": "Theme",
       "themes": {
@@ -167,7 +167,7 @@
         "chiaro": "Light",
         "scuro": "Dark"
       },
-      "languageRestart": "The new language takes effect the next time Sbobino starts.",
+      "languageRestart": "The new language takes effect the next time Memotape starts.",
       "copyAs": "Copy text as",
       "copyFormats": {
         "testo": "Plain text",
@@ -176,7 +176,7 @@
     },
     "assistants": {
       "title": "Assistants",
-      "description": "Claude and Codex can search and read your Bini through an MCP server, even when Sbobino is closed.",
+      "description": "Claude and Codex can search and read your Bini through an MCP server, even when Memotape is closed.",
       "allow": "Allow assistants to read the Library",
       "allowDescription": "Assistants search and read the titles and text of your Bini without changing them. What they read goes to Anthropic's or OpenAI's servers: it leaves your PC.",
       "connect": "Connect an assistant",
@@ -245,7 +245,7 @@
     "description": "The app version and the licenses of the components it uses.",
     "version": "Version {{version}}",
     "source": "Source: {{url}}",
-    "converted": "Sbobino downloads the version converted to GGUF and quantized ({{quantization}}) by handy-computer.",
+    "converted": "Memotape downloads the version converted to GGUF and quantized ({{quantization}}) by handy-computer.",
     "licenseText": "License text",
     "thirdParty": "Third-party notices",
     "roles": {

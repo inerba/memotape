@@ -33,7 +33,7 @@ use crate::transcript::Ingresso;
 const TICK: Duration = Duration::from_millis(100);
 /// La cartella nascosta degli Ogg delle Registrazioni in corso, dentro la Cartella della Libreria.
 /// Dopo un crash l'audio è lì.
-pub(crate) const TEMP_FOLDER: &str = ".sbobino";
+pub(crate) const TEMP_FOLDER: &str = ".memotape";
 
 /// Durata registrata (pause escluse) e livelli dall'evento precedente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
@@ -370,7 +370,7 @@ pub(crate) fn channel_count(channels: Channels) -> usize {
     }
 }
 
-/// La Cartella della Libreria: quella delle impostazioni, o `Documenti\Sbobino`.
+/// La Cartella della Libreria: quella delle impostazioni, o `Documenti\Memotape`.
 pub fn recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
     match app.state::<SettingsStore>().get().recordings_folder {
         Some(folder) => Ok(PathBuf::from(folder)),
@@ -378,7 +378,7 @@ pub fn recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
     }
 }
 
-/// `Documenti\Sbobino`, la Cartella della Libreria se le impostazioni non ne indicano un'altra.
+/// `Documenti\Memotape`, la Cartella della Libreria se le impostazioni non ne indicano un'altra.
 pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
     app.path()
         .document_dir()
@@ -746,7 +746,7 @@ mod tests {
 
     #[test]
     fn il_nome_ha_prefisso_data_e_ora_e_non_sovrascrive_mai() {
-        let folder = Path::new(r"C:\Users\me\Documents\Sbobino");
+        let folder = Path::new(r"C:\Users\me\Documents\Memotape");
         let start = at("2026-03-07 09:05:01");
         let taken =
             |names: &'static [&str]| move |p: &Path| names.iter().any(|n| p == folder.join(n));

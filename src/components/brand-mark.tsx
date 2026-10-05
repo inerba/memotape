@@ -1,5 +1,5 @@
 /**
- * Il simbolo di Sbobino: le due bobine di una musicassetta unite dal nastro, su un quadrato salvia.
+ * Il simbolo di Memotape: le due bobine di una musicassetta unite dal nastro, su un quadrato salvia.
  * Le geometrie sono quelle di `docs/brand/svg` (`sbobino-simbolo-piccolo` e `sbobino-simbolo`). I
  * colori sono fissi, non token: il logo non cambia con il tema (DESIGN.md).
  */

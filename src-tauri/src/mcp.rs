@@ -1,4 +1,4 @@
-//! Il server MCP degli Assistenti (ADR-0012): `sbobino.exe --mcp`, lanciato da Claude o Codex, parla
+//! Il server MCP degli Assistenti (ADR-0012): `memotape.exe --mcp`, lanciato da Claude o Codex, parla
 //! in stdio e legge la Libreria senza scrivere nulla. Non usa Tauri: le cartelle dell'app vengono da
 //! `dirs`, come le risolve Tauri, e le impostazioni si rileggono a ogni chiamata, così l'interruttore
 //! di Impostazioni vale subito.
@@ -19,7 +19,7 @@ use crate::transcript::Ingresso;
 use crate::{error::AppError, tape};
 
 /// L'identifier di `tauri.conf.json`: il nome delle cartelle dell'app.
-const IDENTIFIER: &str = "it.sbobino.desktop";
+const IDENTIFIER: &str = "it.memotape.desktop";
 /// I Tape di una ricerca, se l'Assistente non ne chiede un altro numero, e al massimo.
 const SEARCH_LIMIT: u32 = 10;
 const SEARCH_MAX: u32 = 25;
@@ -33,10 +33,10 @@ const AROUND_MAX: u32 = 25;
 /// I byte di una pagina del testo: circa 7 000 token, sotto i 10 000 a cui Codex taglia.
 const PAGE_BYTES: usize = 24_000;
 
-const DISABLED: &str = "Sbobino does not allow assistants to read its Library. Ask the user to turn on \
-\"Allow assistants to read the Library\" in Sbobino → Settings → Assistants.";
+const DISABLED: &str = "Memotape does not allow assistants to read its Library. Ask the user to turn on \
+\"Allow assistants to read the Library\" in Memotape → Settings → Assistants.";
 const NOT_INDEXED: &str =
-    "Sbobino has not indexed this Library yet: ask the user to open Sbobino once.";
+    "Memotape has not indexed this Library yet: ask the user to open Memotape once.";
 
 /// Le cartelle dell'app: dove leggere impostazioni e indice.
 #[derive(Clone)]
@@ -75,7 +75,7 @@ pub fn serve() -> ExitCode {
         }
     };
     let result = runtime.block_on(async {
-        Sbobino::new(places)
+        Server::new(places)
             .serve(rmcp::transport::stdio())
             .await?
             .waiting()
@@ -216,18 +216,18 @@ pub struct FraseOut {
 }
 
 #[derive(Clone)]
-pub struct Sbobino {
+pub struct Server {
     places: Places,
 }
 
 #[tool_router]
-impl Sbobino {
+impl Server {
     pub fn new(places: Places) -> Self {
         Self { places }
     }
 
     #[tool(
-        description = "Search the Sbobino Library for words in titles, phrases and speaker names. \
+        description = "Search the Memotape Library for words in titles, phrases and speaker names. \
 Returns the most relevant Tape, each with up to 5 matching phrases (excerpt, Ingresso, phraseId, \
 start time). Rephrase and search again with synonyms if nothing is found; read a hit's context with \
 read_around.",
@@ -261,7 +261,7 @@ read_around.",
     }
 
     #[tool(
-        description = "List the Raccolte (collections) and the Tape of the Sbobino Library, most \
+        description = "List the Raccolte (collections) and the Tape of the Memotape Library, most \
 recent first, optionally only one Raccolta or a range of dates.",
         annotations(title = "List the Library", read_only_hint = true)
     )]
@@ -400,8 +400,8 @@ ends with the `from` to pass to read the next page.",
 }
 
 #[tool_handler(
-    name = "sbobino",
-    instructions = "Sbobino is the user's local transcription app. Its Library is a folder of Tape \
+    name = "memotape",
+    instructions = "Memotape is the user's local transcription app. Its Library is a folder of Tape \
 (.bino files): each Tape is a recording or a transcribed audio/video file, with its transcript split \
 into phrases (start and end in ms), optionally attributed to speakers (Parlanti) and to an Ingresso: \
 mix, microfono (the user's microphone) or sistema (system audio, e.g. the other people in a call). \
@@ -409,9 +409,9 @@ Raccolte are folders that group Tape. Use search to find phrases by words, then 
 context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
 identified by their path relative to the Library, as these tools return it. Everything is read-only."
 )]
-impl ServerHandler for Sbobino {}
+impl ServerHandler for Server {}
 
-impl Sbobino {
+impl Server {
     /// Le impostazioni e la Libreria in sola lettura, se l'utente consente agli Assistenti di
     /// leggerla. L'indice si apre a ogni chiamata, così tra una chiamata e l'altra non resta aperto
     /// e l'app può ricostruirlo.
@@ -431,13 +431,13 @@ impl Sbobino {
             return Err(NOT_INDEXED.into());
         }
         let library = Library::open_read_only(&root, &db)
-            .map_err(|e| format!("Ask the user to open Sbobino to update its index ({e})."))?;
+            .map_err(|e| format!("Ask the user to open Memotape to update its index ({e})."))?;
         Ok((settings, library))
     }
 }
 
 /// Il Tape `tape`, relativo alla Libreria `root`: solo un `.bino` dentro la Libreria, fuori dalle
-/// cartelle con il punto in testa (come `.sbobino`). Un percorso assoluto o con `..` si rifiuta.
+/// cartelle con il punto in testa (come `.memotape`). Un percorso assoluto o con `..` si rifiuta.
 fn resolve(root: &Path, tape: &str) -> Result<PathBuf, String> {
     let relative = Path::new(tape);
     let inside = relative.components().all(|c| match c {
@@ -454,7 +454,7 @@ fn resolve(root: &Path, tape: &str) -> Result<PathBuf, String> {
         Ok(path)
     } else {
         Err(format!(
-            "{tape} is not in the Library any more: search again, or ask the user to open Sbobino \
+            "{tape} is not in the Library any more: search again, or ask the user to open Memotape \
 if it was moved."
         ))
     }
@@ -532,13 +532,13 @@ fn tape_out(root: &Path, entry: library::TapeEntry) -> TapeOut {
 fn read_error(tape: &str, e: &AppError) -> String {
     match e {
         AppError::UnsupportedTape => {
-            format!("{tape} comes from a newer Sbobino: ask the user to update the app.")
+            format!("{tape} comes from a newer Memotape: ask the user to update the app.")
         }
         _ => format!("{tape} cannot be read: {e}"),
     }
 }
 
-/// Il log del server: su stderr, che Claude Desktop salva in `mcp-server-sbobino.log`, e nel log
+/// Il log del server: su stderr, che Claude Desktop salva in `mcp-server-memotape.log`, e nel log
 /// dell'app. Sotto Claude Desktop (MSIX) anche il file finisce nel livello privato di Claude.
 fn start_log() {
     struct ToFile(Option<Mutex<std::fs::File>>);
@@ -573,7 +573,7 @@ fn start_log() {
             std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open(dir.join("Sbobino.log"))
+                .open(dir.join("Memotape.log"))
                 .ok()
         });
     if log::set_boxed_logger(Box::new(ToFile(file.map(Mutex::new)))).is_ok() {
@@ -598,7 +598,7 @@ mod tests {
     fn si_legge_solo_un_tape_dentro_la_libreria() {
         let dir = temp_dir("mcp-percorsi");
         tape_at(&dir.join("Acme").join("Call.bino"), 1000);
-        tape_at(&dir.join(".sbobino").join("Nascosto.bino"), 1000);
+        tape_at(&dir.join(".memotape").join("Nascosto.bino"), 1000);
         std::fs::write(dir.join("Note.md"), "").unwrap();
         assert_eq!(
             resolve(&dir, r"Acme\Call.bino"),
@@ -613,7 +613,7 @@ mod tests {
             "Note.md",
             r"..\fuori.bino",
             r"Acme\..\..\fuori.bino",
-            r".sbobino\Nascosto.bino",
+            r".memotape\Nascosto.bino",
             r"C:\Windows\x.bino",
             r"\x.bino",
             "Assente.bino",
@@ -667,9 +667,9 @@ mod tests {
     }
 
     /// Una Libreria di prova già indicizzata, con le impostazioni che consentono o no di leggerla.
-    fn server(name: &str, assistenti: bool) -> (PathBuf, Sbobino) {
+    fn server(name: &str, assistenti: bool) -> (PathBuf, Server) {
         let dir = temp_dir(&format!("mcp-{name}"));
-        let root = dir.join("Sbobino");
+        let root = dir.join("Memotape");
         let places = Places {
             settings: dir.join("settings.json"),
             index: dir.join("indice"),
@@ -696,7 +696,7 @@ mod tests {
             .unwrap()
             .sync()
             .unwrap();
-        (root, Sbobino::new(places))
+        (root, Server::new(places))
     }
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    fn senza_indice_si_chiede_di_aprire_sbobino() {
+    fn senza_indice_si_chiede_di_aprire_memotape() {
         let (_, server) = server("senza-indice", true);
         std::fs::remove_dir_all(&server.places.index).unwrap();
         let list = server.list_tapes(Parameters(ListParams {

@@ -13,7 +13,7 @@ use crate::tape;
 use crate::transcript::Ingresso;
 
 /// La Cartella della Libreria se le impostazioni non ne indicano un'altra, dentro Documenti.
-pub const DEFAULT_FOLDER: &str = "Sbobino";
+pub const DEFAULT_FOLDER: &str = "Memotape";
 
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
 const SCHEMA: i32 = 3;
@@ -613,7 +613,7 @@ struct Found {
     size: i64,
 }
 
-/// I `.bino` sotto `root`, saltando le cartelle che iniziano con `.` (come `.sbobino`).
+/// I `.bino` sotto `root`, saltando le cartelle che iniziano con `.` (come `.memotape`).
 fn walk(root: &Path, found: &mut Vec<Found>) -> Result<(), AppError> {
     fn visit(root: &Path, dir: &Path, found: &mut Vec<Found>) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)?.filter_map(Result::ok) {
@@ -757,7 +757,7 @@ pub(crate) mod tests {
     /// Una Libreria in una cartella temporanea, con l'indice accanto.
     fn library(name: &str) -> (PathBuf, Library) {
         let dir = temp_dir(&format!("libreria-{name}"));
-        let root = dir.join("Sbobino");
+        let root = dir.join("Memotape");
         let library = Library::open(&root, &db_path(&dir.join("indice"), &root)).unwrap();
         (root, library)
     }
@@ -793,7 +793,7 @@ pub(crate) mod tests {
                 .join("Vecchia.bino"),
             3000,
         );
-        tape_at(&root.join(".sbobino").join("Nascosto.bino"), 1000);
+        tape_at(&root.join(".memotape").join("Nascosto.bino"), 1000);
         tape_at(
             &root.join("Acme").join(".bozze").join("Nascosto.bino"),
             1000,
@@ -899,7 +899,7 @@ pub(crate) mod tests {
     #[test]
     fn un_indice_cancellato_corrotto_o_di_un_altra_versione_si_ricostruisce() {
         let dir = temp_dir("libreria-ricostruzione");
-        let root = dir.join("Sbobino");
+        let root = dir.join("Memotape");
         let db = db_path(&dir.join("indice"), &root);
         tape_at(&root.join("Acme").join("Uno.bino"), 1000);
         tape_at(&root.join("Due.bino"), 2000);
@@ -1071,7 +1071,7 @@ pub(crate) mod tests {
     #[test]
     fn in_sola_lettura_l_indice_si_legge_ma_non_si_crea_ne_si_rifa() {
         let dir = temp_dir("libreria-sola-lettura");
-        let root = dir.join("Sbobino");
+        let root = dir.join("Memotape");
         let db = db_path(&dir.join("indice"), &root);
         std::fs::create_dir_all(db.parent().unwrap()).unwrap();
         assert!(Library::open_read_only(&root, &db).is_err());
@@ -1326,7 +1326,7 @@ pub(crate) mod tests {
     #[test]
     fn un_indice_ricostruito_da_gli_stessi_risultati() {
         let dir = temp_dir("libreria-ricerca-ricostruita");
-        let root = dir.join("Sbobino");
+        let root = dir.join("Memotape");
         let db = db_path(&dir.join("indice"), &root);
         tape_with(
             &root.join("Acme").join("Uno.bino"),
@@ -1356,7 +1356,7 @@ pub(crate) mod tests {
 
     #[test]
     fn la_cartella_di_un_tape_nuovo_e_la_sua_raccolta_o_la_radice() {
-        let root = Path::new(r"C:\Sbobino");
+        let root = Path::new(r"C:\Memotape");
         assert_eq!(Library::raccolta_dir(root, None).unwrap(), root);
         assert_eq!(Library::raccolta_dir(root, Some("")).unwrap(), root);
         assert_eq!(

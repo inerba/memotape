@@ -56,7 +56,7 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
 });
 
 test("a fine Trascrizione mostra il Tape in cui è il testo", () => {
-  const path = String.raw`C:\Sbobino\Acme\Lezione 1.bino`;
+  const path = String.raw`C:\Memotape\Acme\Lezione 1.bino`;
   expect(statusText({ path, phase: "finished" }, t)).toBe(
     `Trascrizione salvata in ${path}`
   );
@@ -188,8 +188,8 @@ test("senza modello la Registrazione continua e la status bar lo dice con il lin
 });
 
 test("un Tape aperto spostato o rinominato resta nella status bar con il percorso nuovo", () => {
-  const from = "C:\\Sbobino\\Call.bino";
-  const to = "C:\\Sbobino\\Acme\\Call.bino";
+  const from = "C:\\Memotape\\Call.bino";
+  const to = "C:\\Memotape\\Acme\\Call.bino";
   expect(withMovedSource({ phase: "idle", source: from }, from, to)).toEqual({
     phase: "idle",
     source: to,

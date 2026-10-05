@@ -806,17 +806,17 @@ mod tests {
         let cwd = Path::new(r"C:\Lavoro");
         assert_eq!(
             from_args(
-                args(&[r"C:\Sbobino\sbobino.exe", r"D:\Note\Lezione.BINO"]),
+                args(&[r"C:\Memotape\memotape.exe", r"D:\Note\Lezione.BINO"]),
                 cwd
             ),
             Some(PathBuf::from(r"D:\Note\Lezione.BINO"))
         );
         assert_eq!(
-            from_args(args(&["sbobino.exe", "--flag", "Lezione.bino"]), cwd),
+            from_args(args(&["memotape.exe", "--flag", "Lezione.bino"]), cwd),
             Some(PathBuf::from(r"C:\Lavoro\Lezione.bino"))
         );
         // L'eseguibile non conta, nemmeno se si chiamasse `.bino`.
         assert_eq!(from_args(args(&["x.bino"]), cwd), None);
-        assert_eq!(from_args(args(&["sbobino.exe", "audio.mp3"]), cwd), None);
+        assert_eq!(from_args(args(&["memotape.exe", "audio.mp3"]), cwd), None);
     }
 }

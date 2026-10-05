@@ -6,7 +6,7 @@ License: NVIDIA Open Model License Agreement
 
 Licensed by NVIDIA Corporation under the NVIDIA Open Model License.
 
-Sbobino downloads a version converted to GGUF and quantized to Q8_0 by handy-computer
+Memotape downloads a version converted to GGUF and quantized to Q8_0 by handy-computer
 (https://huggingface.co/handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf).
 The model is not modified further.
 

@@ -35,7 +35,7 @@ const PILL =
   "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground [&_svg]:size-3.5";
 
 /** L'ordinamento dell'elenco, ricordato in questo PC. */
-const ORDER_KEY = "sbobino.order";
+const ORDER_KEY = "memotape.order";
 
 function savedOrder(): TapeOrder {
   try {

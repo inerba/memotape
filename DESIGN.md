@@ -1,5 +1,5 @@
 ---
-name: Sbobino
+name: Memotape
 description: Trascrizioni locali che si leggono come un documento e si ascoltano come un nastro.
 colors:
   paper: "oklch(0.985 0.006 85)"
@@ -181,7 +181,7 @@ components:
     width: "46px"
 ---
 
-# Design System: Sbobino
+# Design System: Memotape
 
 ## Overview
 
@@ -245,7 +245,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 ### Hierarchy
 - **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Bino nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso font a 2.5rem.
-- **Wordmark** (500, 1.375rem, −0.01em): "sbobino" in minuscolo, come nel logo, nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Sbobino"; Impostazioni usa lo stesso font a 2rem per il titolo della pagina, con un sottotitolo in `ink-muted`.
+- **Wordmark** (500, 1.375rem, −0.01em): "memotape" in minuscolo nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Memotape"; Impostazioni usa lo stesso font a 2rem per il titolo della pagina, con un sottotitolo in `ink-muted`.
 - **Reading** (400, 1.0625rem, 1.7): il testo dei turni, nella colonna da 46rem (circa 70 caratteri a riga dopo il rientro).
 - **Meta** (400, 1.0625rem, cifre tabulari, `ink-muted`): la riga data · ora · durata sotto il titolo e il sottotitolo del benvenuto (con interlinea rilassata).
 - **Body** (400, 0.875rem): l'interfaccia: voci di menu, breadcrumb, ricerca, chip, tempi dei turni, testi d'aiuto.
@@ -314,7 +314,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 
 ### Navigation
-- **Barra laterale:** marchio (simbolo e "sbobino"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
+- **Barra laterale:** marchio (simbolo e "memotape"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
 - **Breadcrumb:** Raccolta / Bino a 14 px, la Raccolta in `ink-muted` e cliccabile, il Bino in inchiostro; separatore `/` tenue.
 - **Schede:** Trascrizione e Parlanti a 44 px, peso 500, `ink-muted`; la scelta passa all'inchiostro con un trattino inferiore da 2 px a capi tondi, sopra il filo della barra. Il conteggio accanto è in cifre tabulari tenui.
 - **Menu a comparsa:** popover nativo ancorato (`position-area`), largo almeno 240 px, voci da 32 px con icona tenue a sinistra, divisori da 1 px e titoletti a 12 px; Elimina in mattone, in fondo.

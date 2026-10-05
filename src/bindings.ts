@@ -120,7 +120,7 @@ export const commands = {
 	 *  `false` se non è in corso.
 	 */
 	stopRecording: () => __TAURI_INVOKE<boolean>("stop_recording"),
-	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Sbobino`. */
+	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`. */
 	recordingsFolder: () => typedError<string, AppError>(__TAURI_INVOKE("recordings_folder")),
 	/**  Apre il dialog di sistema per scegliere una cartella. `null` se l'utente annulla. */
 	pickFolder: () => __TAURI_INVOKE<string | null>("pick_folder"),
@@ -395,7 +395,7 @@ export type Settings = {
 	channels: Channels,
 	/**  Hz. */
 	sampleRate: number,
-	/**  La Cartella della Libreria; `null`: `Documenti\Sbobino`. */
+	/**  La Cartella della Libreria; `null`: `Documenti\Memotape`. */
 	recordingsFolder: string | null,
 	/**  `null`: la lingua di sistema se è tra le sei, altrimenti l'inglese. */
 	interfaceLanguage: Language | null,

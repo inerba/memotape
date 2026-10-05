@@ -124,7 +124,7 @@ mod tests {
         assert_eq!(assign(&phrases, &[]), [None, None, None]);
     }
 
-    /// Smoke test con Silero, Nemotron e Sortformer veri, in `%APPDATA%\it.sbobino.desktop\models`,
+    /// Smoke test con Silero, Nemotron e Sortformer veri, in `%APPDATA%\it.memotape.desktop\models`,
     /// su due voci di sintesi che si alternano (Elsa, Cosimo, Elsa, Cosimo).
     #[test]
     #[ignore = "richiede Nemotron e Sortformer scaricati (Impostazioni → Trascrizione)"]
@@ -139,7 +139,7 @@ mod tests {
 
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.sbobino.desktop/models");
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();

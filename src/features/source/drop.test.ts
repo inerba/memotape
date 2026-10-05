@@ -7,7 +7,7 @@ test("un solo file audio, video o Tape si apre", () => {
     path: "C:\\audio\\Lezione 1.MP3",
   });
   expect(dropVerdict(["D:\\video\\call.mkv"], false).accepted).toBe(true);
-  expect(dropVerdict(["D:\\Sbobino\\Call.bino"], false).accepted).toBe(true);
+  expect(dropVerdict(["D:\\Memotape\\Call.bino"], false).accepted).toBe(true);
 });
 
 test("più di un file si rifiuta, anche se tutti accettati", () => {

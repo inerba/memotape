@@ -424,7 +424,7 @@ impl Models {
     /// `dir` è `app_data_dir/models`.
     pub fn new(dir: PathBuf) -> Result<Self, AppError> {
         let client = reqwest::Client::builder()
-            .user_agent(concat!("sbobino/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("memotape/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(15))
             // Una connessione ferma diventa un'interruzione: il `.partial` resta.
             .read_timeout(Duration::from_secs(60))
@@ -845,7 +845,7 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("sbobino-test-modelli-{name}"));
+        let dir = std::env::temp_dir().join(format!("memotape-test-modelli-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir

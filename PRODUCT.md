@@ -1,4 +1,4 @@
-# Sbobino: requisiti di prodotto
+# Memotape: requisiti di prodotto
 
 Fonte di verità dei requisiti. Nasce dalla spec v1 (`.scratch/sbobino/spec.md`); da qui in poi un requisito cambia qui, non nella spec. I termini in maiuscolo (Sorgente, Attività, Frase, Parziale…) sono definiti in `CONTEXT.md`.
 
@@ -8,11 +8,11 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 
 ## Soluzione
 
-Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
+Memotape è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Bino con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
-- **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
+- **Libreria.** La cartella in cui Memotape salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
 - **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Bino nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Bino si legge a turni, si corregge Frase per Frase e si esporta in Markdown.
-- **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Bini della Libreria attraverso un server MCP, anche con Sbobino chiuso (ADR-0012).
+- **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Bini della Libreria attraverso un server MCP, anche con Memotape chiuso (ADR-0012).
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -45,7 +45,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ## Operating Context
 
-- Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Bino (doppio clic apre Sbobino).
+- Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Bino (doppio clic apre Memotape).
 - Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la sezione Attività della barra laterale dice sempre la fase.
 - Il testo di un Bino si legge a turni e si corregge Frase per Frase; Copia testo ed Esporta Markdown… sono le uscite.
 
@@ -59,7 +59,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ## Brand Commitments
 
-- Nome **Sbobino**, da "sbobinare"; il file delle Registrazioni è il **Bino** (`.bino`, tipo "Bino (Sbobino)" in Esplora file).
+- Nome **Memotape**, memo + tape, la musicassetta delle note vocali (ADR-0014); il file delle Registrazioni è il **Bino** (`.bino`, tipo "Bino (Memotape)" in Esplora file).
 - Icona dell'app in `src-tauri/icons/`, usata anche per i Bino.
 - Voce sobria e chiara: frasi brevi e precise, senza battute, anche negli errori e nelle conferme.
 
@@ -151,7 +151,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 55. Come utente, voglio scegliere il bitrate tra 16, 24, 32, 48, 64, 96, 128, 192 e 320 kbps, così adatto la qualità.
 56. Come utente, voglio scegliere mono o stereo e la frequenza tra 8 000, 16 000, 24 000 e 48 000 Hz, così adatto il file all'uso.
 57. Come utente, voglio come predefiniti 32 kbps, mono, 48 kHz, così ho subito un buon compromesso per la voce.
-58. Come utente, voglio scegliere la Cartella della Libreria, che in mancanza è `Documenti\Sbobino` e viene creata se non esiste, così so dove finiscono i Bini.
+58. Come utente, voglio scegliere la Cartella della Libreria, che in mancanza è `Documenti\Memotape` e viene creata se non esiste, così so dove finiscono i Bini.
 59. Come utente, voglio scegliere la Lingua dell'interfaccia tra it, en, fr, es, de e pl, con un avviso che si applica al riavvio, così uso l'app nella mia lingua.
 60. Come utente al primo avvio, voglio l'interfaccia nella lingua del sistema se è tra le sei, altrimenti in inglese, così non devo cercare l'impostazione.
 61. Come utente, voglio che tutte le impostazioni restino salvate tra un avvio e l'altro, così l'app riparte come l'ho lasciata.
@@ -209,7 +209,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Il timer non conta le pause e il file non ha vuoti al loro posto. Un'interruzione dell'audio dal dispositivo diventa silenzio, così il file resta allineato al tempo.
   - Stop salva `Registrazione AAAA-MM-GG HH-MM-SS.ogg` (OGG/Opus) nella Cartella predefinita, con " 2", " 3"… se il nome c'è già, e il file diventa la Sorgente: Trascrivi è subito disponibile. Il file si scrive mentre si registra.
   - Se il microfono si scollega (o cambia il microfono predefinito di Windows) la Registrazione si ferma e si salva come con Stop, e la status bar mostra l'errore con il nome del dispositivo. Un microfono scelto ma non collegato dà un errore dedicato invece di registrare da un altro.
-  - Impostazioni ha le sezioni Registrazione e audio (microfono, bitrate tra i nove valori, mono/stereo, 8/16/24/48 kHz; predefiniti 32 kbps, mono, 48 kHz) e Generale (Cartella predefinita, `Documenti\Sbobino` se non scelta, creata se manca). Le scelte valgono dalla Registrazione successiva.
+  - Impostazioni ha le sezioni Registrazione e audio (microfono, bitrate tra i nove valori, mono/stereo, 8/16/24/48 kHz; predefiniti 32 kbps, mono, 48 kHz) e Generale (Cartella predefinita, `Documenti\Memotape` se non scelta, creata se manca). Le scelte valgono dalla Registrazione successiva.
 - **M6 (ticket 09)**: storie 40, 41, 44 e 50; della 42 e della 54 anche il dispositivo di uscita e la sorgente di registrazione.
   - In Impostazioni → Registrazione e audio, "Registra da" sceglie Microfono, Audio di sistema o Entrambi (predefinito Microfono), e "Dispositivo di uscita" sceglie da quale uscita prendere l'audio di sistema (predefinito di sistema). Registra usa la scelta salvata.
   - Con Entrambi microfono e audio di sistema finiscono mixati in un solo file, allineati nel tempo. Durante la Registrazione c'è un indicatore di livello per ciascuno.
@@ -221,7 +221,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: Parakeet (CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer), Nemotron (OpenMDW-1.1), Whisper (MIT di OpenAI), Silero VAD, Symphonia (MPL-2.0), transcribe.cpp (con ggml e miniz), ONNX Runtime (con gli avvisi di terze parti) e vad-rs. I testi sono anche file del bundle, nella cartella `licenses`.
   - Se il file impostazioni esiste ma non si legge (per esempio bloccato da un altro programma), l'app parte con i valori predefiniti e la lingua di Windows, e la status bar mostra l'errore. Se il file è bloccato solo per un attimo (fino a circa un secondo) si legge lo stesso. Le impostazioni salvate non si perdono: finché il file non si legge una modifica non si salva e la status bar lo dice; appena si legge, la modifica si aggiunge alle impostazioni del file.
 - **M9 (ticket 12)**: storia 72.
-  - `Sbobino_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Sbobino`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
+  - `Memotape_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Memotape`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
   - La disinstallazione toglie l'app e lascia impostazioni e modelli scaricati, a meno di spuntare la cancellazione dei dati dell'app.
   - L'editore dell'installer non è ancora deciso: oggi è il segnaposto "EDITORE DA DEFINIRE".
 - **V1 (ticket v2/02)**: storie 1–12 della spec v2 (`.scratch/sbobino-v2/spec.md`) sul mix; il testo si salvava nel TXT (dalla V3 è Markdown), il Bino arriva con V2.
@@ -237,12 +237,12 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - In Impostazioni → Generale, "Copia testo come" sceglie testo semplice (predefinito) o Markdown. Copia testo copia l'ultima Trascrizione, anche annullata o in corso, nel formato scelto; se il testo nell'area è stato modificato a mano lo copia com'è.
 - **V2, Bino (ticket v2/04 e v2/05)**: storie 18–25 della spec v2. Sostituisce la storia 47 e il punto di M5 sul file `.ogg`.
   - Stop salva un solo `Registrazione <data ora>.bino` nella Cartella predefinita, con " 2", " 3"… se il nome c'è già, che diventa la Sorgente. Contiene l'audio del mix e il testo con i suoi metadati; con la Trascrizione dal vivo accanto c'è anche il Markdown, che prende il nome dal Bino.
-  - Durante la Registrazione l'audio si scrive in un Ogg nella cartella nascosta `.sbobino` dentro la Cartella predefinita: dopo un crash è lì. A Stop, finita la coda della Trascrizione dal vivo, diventa il Bino e la cartella sparisce se resta vuota. Se il Bino non si può scrivere, la Registrazione resta come `Registrazione <data ora>.ogg` nella Cartella predefinita e diventa la Sorgente, con l'errore nella status bar.
+  - Durante la Registrazione l'audio si scrive in un Ogg nella cartella nascosta `.memotape` dentro la Cartella predefinita: dopo un crash è lì. A Stop, finita la coda della Trascrizione dal vivo, diventa il Bino e la cartella sparisce se resta vuota. Se il Bino non si può scrivere, la Registrazione resta come `Registrazione <data ora>.ogg` nella Cartella predefinita e diventa la Sorgente, con l'errore nella status bar.
   - Annullando il completamento della trascrizione dopo Stop il Bino si salva lo stesso, con le Frasi già pronte e segnato come incompleto, mentre il Markdown no. Senza Trascrizione dal vivo il Bino non ha testo.
   - Sfoglia accetta anche i `.bino`: un Bino si apre con il suo testo nell'area, senza ritrascrivere, e Copia testo lo rende con la sua intestazione. Se l'area contiene già testo chiede conferma. Un Bino di una versione più nuova dell'app dà un errore che chiede di aggiornare.
   - Trascrivi su un Bino ne decodifica l'audio e, dopo la conferma (chiesta sempre, anche con l'area vuota, e che avvisa che cambia anche il Bino), sostituisce il testo dentro il Bino e salva un nuovo Markdown accanto. Annullando, il Bino non cambia.
   - Il clic sul nome di un Bino lo mostra in Esplora file invece di aprirlo. Le vecchie Registrazioni `.ogg` si aprono ancora come Sorgente.
-  - L'installer associa `.bino` a Sbobino (tipo "Bino (Sbobino)", con l'icona dell'app) e la disinstallazione toglie l'associazione. Il doppio clic su un Bino in Esplora file avvia Sbobino con quel Bino come Sorgente; se Sbobino è già aperto, il Bino arriva alla finestra esistente, che torna in primo piano, e non si apre una seconda finestra. Come con Sfoglia, se l'area contiene testo chiede conferma. Durante una Trascrizione o una Registrazione, o con una conferma aperta, il Bino si apre quando finiscono; se è aperta Impostazioni, si chiude.
+  - L'installer associa `.bino` a Memotape (tipo "Bino (Memotape)", con l'icona dell'app) e la disinstallazione toglie l'associazione. Il doppio clic su un Bino in Esplora file avvia Memotape con quel Bino come Sorgente; se Memotape è già aperto, il Bino arriva alla finestra esistente, che torna in primo piano, e non si apre una seconda finestra. Come con Sfoglia, se l'area contiene testo chiede conferma. Durante una Trascrizione o una Registrazione, o con una conferma aperta, il Bino si apre quando finiscono; se è aperta Impostazioni, si chiude.
 - **V4, Ingressi separati (ticket v2/06)**: storie 13–17 della spec v2 e la parte della 29 sugli Ingressi.
   - In Impostazioni → Registrazione, "Trascrizione dal vivo" sceglie tra Mix (predefinito) e Ingressi separati; è attivo solo con "Registra da" su Entrambi e vale solo con "Trascrivi dal vivo" attiva.
   - Con Ingressi separati microfono e audio di sistema si trascrivono in parallelo, ognuno con la sua istanza del modello (il doppio della memoria), caricata all'inizio della Registrazione e liberata alla fine. Se un Ingresso si guasta compare l'avviso e l'altro continua; il Markdown non si salva.
@@ -314,12 +314,12 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Mentre si trascina, un velo su tutta la finestra dice "Rilascia per aprire" oppure perché il rilascio non farà nulla: più di un file, un formato non accettato o una cartella (con i formati accettati), un file audio o video durante una Registrazione o una Trascrizione. In quel caso un Bino si apre in consultazione, come dalla Libreria. Con la conferma di Trascrivi di nuovo aperta il rilascio non conta.
   - Il trascinamento di un Bino su una pillola delle Raccolte di V13 non c'è più: su Windows non convive con il drop dei file. Per spostare un Bino c'è Sposta in….
 - **V15, la Libreria per gli Assistenti (ADR-0012, ricerca in `docs/research/server-mcp.md`)**:
-  - Claude Code, Claude Desktop e Codex collegano Sbobino come server MCP locale: lo avviano loro con `sbobino.exe --mcp` e funziona anche con l'app chiusa.
+  - Claude Code, Claude Desktop e Codex collegano Memotape come server MCP locale: lo avviano loro con `memotape.exe --mcp` e funziona anche con l'app chiusa.
   - In Impostazioni → Assistenti l'interruttore "Consenti agli Assistenti di leggere la Libreria", spento di default, con la nota che il testo letto va ai server dell'Assistente. Da spento ogni richiesta risponde con un errore che dice dove accenderlo. Sotto, "Copia" per il comando di Claude Code, la tabella per `~/.codex/config.toml` e il blocco per `claude_desktop_config.json`, con il percorso vero dell'exe.
   - Un Assistente può: cercare nella Libreria come il campo di ricerca (titoli, Frasi, nomi dei Parlanti; tutta la Libreria o una Raccolta); elencare Raccolte e Bini con titolo, data e durata, anche tra due date; leggere le Frasi intorno a una Frase trovata, con tempi, Ingresso e Parlante; leggere il testo intero di un Bino, come Copia testo, a pagine. Nessuna risposta supera circa 10 000 token.
   - Vede solo la Libreria: un Bino si indica con il percorso relativo alla Libreria. Non modifica nulla e non avvia Attività.
   - Legge l'indice che l'app tiene allineato: un Bino spostato a mano con l'app chiusa non si trova finché l'app non si riapre.
-  - Ogni richiesta lascia una riga nel log di Sbobino.
+  - Ogni richiesta lascia una riga nel log di Memotape.
 - **V16, Copia turno**:
   - Ogni Turno ha in fondo alla sua riga, dalla parte opposta al nome, il pulsantino "Copia turno". Si vede passando il mouse sul Turno o con il focus da tastiera al suo interno; sul Turno in ascolto Riascolta gli sta a sinistra.
   - Copia sempre in testo semplice, qualunque sia "Copia testo come": il nome mostrato nel Turno seguito da due punti (`Mario: …`, con gli Ingressi separati `Microfono · Mario: …`) e le sue Frasi una dopo l'altra, con le correzioni. Senza nome, solo le Frasi. Il Parziale in corso si copia com'è al momento del clic: anche un Turno fatto solo di un Parziale ha il pulsante.

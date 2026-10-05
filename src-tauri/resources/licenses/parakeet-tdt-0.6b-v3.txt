@@ -4,7 +4,7 @@ Source: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
 License: Creative Commons Attribution 4.0 International (CC BY 4.0)
 https://creativecommons.org/licenses/by/4.0/
 
-Changes: Sbobino downloads a version converted to GGUF and quantized to Q5_K_M by
+Changes: Memotape downloads a version converted to GGUF and quantized to Q5_K_M by
 handy-computer (https://huggingface.co/handy-computer/parakeet-tdt-0.6b-v3-gguf).
 The model is not modified further.
 

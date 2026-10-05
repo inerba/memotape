@@ -2,7 +2,7 @@ Whisper Large v3 Turbo
 Source: https://github.com/openai/whisper and https://huggingface.co/openai/whisper-large-v3-turbo
 License: MIT (upstream OpenAI license, reproduced below)
 
-Sbobino downloads a version converted to GGUF and quantized to Q5_K_M by
+Memotape downloads a version converted to GGUF and quantized to Q5_K_M by
 handy-computer (https://huggingface.co/handy-computer/whisper-large-v3-turbo-gguf).
 
 =======================================================================

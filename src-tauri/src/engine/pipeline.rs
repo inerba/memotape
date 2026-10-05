@@ -640,7 +640,7 @@ pub(crate) mod tests {
     }
 
     fn write(name: &str, bytes: &[u8]) -> PathBuf {
-        let path = std::env::temp_dir().join(format!("sbobino-test-{name}"));
+        let path = std::env::temp_dir().join(format!("memotape-test-{name}"));
         std::fs::write(&path, bytes).unwrap();
         path
     }
@@ -1077,7 +1077,7 @@ pub(crate) mod tests {
 
     #[test]
     fn un_file_mancante_e_illeggibile() {
-        let path = std::env::temp_dir().join("sbobino-test-non-esiste.wav");
+        let path = std::env::temp_dir().join("memotape-test-non-esiste.wav");
         let error = run(&path, &mut FakeEngine::default()).unwrap_err();
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
@@ -1192,13 +1192,13 @@ pub(crate) mod tests {
         assert!(matches!(error, AppError::Internal(_)), "{error:?}");
     }
 
-    /// Smoke test con Silero e i tre modelli veri, in `%APPDATA%\it.sbobino.desktop\models`.
+    /// Smoke test con Silero e i tre modelli veri, in `%APPDATA%\it.memotape.desktop\models`.
     #[test]
     #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
     fn i_tre_modelli_trascrivono_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.sbobino.desktop/models");
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();

@@ -12,7 +12,7 @@ export interface Credit {
   notices?: string;
   /** I modelli si scaricano nella versione GGUF di handy-computer, con questa quantizzazione. */
   quantization?: string;
-  /** Quale parte di Sbobino è: la chiave in `about.roles`. */
+  /** Quale parte di Memotape è: la chiave in `about.roles`. */
   role:
     | "decoder"
     | "diarization"

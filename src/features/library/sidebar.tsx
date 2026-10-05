@@ -118,7 +118,7 @@ export function Sidebar({
           className="pointer-events-none font-display font-medium text-[1.375rem] tracking-[-0.01em]"
           data-tauri-drag-region
         >
-          sbobino
+          memotape
         </span>
       </div>
       <div className="flex flex-col gap-1 px-3 pt-1">

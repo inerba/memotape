@@ -28,7 +28,7 @@ export function About() {
         <BrandMark className="size-16" />
         <div>
           <p className="font-display font-medium text-[1.75rem] leading-tight tracking-[-0.01em]">
-            sbobino
+            memotape
           </p>
           {version ? (
             <p className="text-muted-foreground text-sm">

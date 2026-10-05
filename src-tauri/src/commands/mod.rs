@@ -423,7 +423,7 @@ pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
     recorder.stop()
 }
 
-/// La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Sbobino`.
+/// La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`.
 #[tauri::command]
 #[specta::specta]
 pub fn recordings_folder(app: AppHandle) -> Result<String, AppError> {

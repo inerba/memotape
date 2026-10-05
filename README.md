@@ -1,4 +1,4 @@
-# Sbobino
+# Memotape
 
 App desktop per Windows x64 che trasforma in testo, interamente in locale, il parlato di file audio, video e registrazioni fatte dal computer. Tauri 2 + React.
 

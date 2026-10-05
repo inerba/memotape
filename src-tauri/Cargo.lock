@@ -2450,6 +2450,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "memotape"
+version = "0.1.0"
+dependencies = [
+ "audioadapter-buffers",
+ "chrono",
+ "cpal",
+ "dirs",
+ "log",
+ "ogg",
+ "opus",
+ "percent-encoding",
+ "reqwest",
+ "rmcp",
+ "rubato",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "specta-typescript",
+ "symphonia",
+ "symphonia-adapter-libopus",
+ "sys-locale",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-log",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tauri-specta",
+ "thiserror 2.0.21",
+ "tokio",
+ "transcribe-cpp",
+ "vad-rs",
+ "windows-sys 0.61.2",
+ "zip",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3716,45 +3755,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "sbobino"
-version = "0.1.0"
-dependencies = [
- "audioadapter-buffers",
- "chrono",
- "cpal",
- "dirs",
- "log",
- "ogg",
- "opus",
- "percent-encoding",
- "reqwest",
- "rmcp",
- "rubato",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "specta",
- "specta-typescript",
- "symphonia",
- "symphonia-adapter-libopus",
- "sys-locale",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-log",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tauri-specta",
- "thiserror 2.0.21",
- "tokio",
- "transcribe-cpp",
- "vad-rs",
- "windows-sys 0.61.2",
- "zip",
 ]
 
 [[package]]

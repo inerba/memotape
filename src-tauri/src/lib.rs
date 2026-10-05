@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn i_bindings_committati_sono_aggiornati() {
-        let path = std::env::temp_dir().join("sbobino-bindings-test.ts");
+        let path = std::env::temp_dir().join("memotape-bindings-test.ts");
         specta_builder()
             .export(specta_typescript::Typescript::default(), &path)
             .expect("i comandi e gli eventi devono essere esportabili (niente u64/i64)");

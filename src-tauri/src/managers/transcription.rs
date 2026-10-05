@@ -979,7 +979,7 @@ mod tests {
 
     #[test]
     fn salvare_due_volte_non_sovrascrive() {
-        let dir = temp_dir("sbobino-test-md");
+        let dir = temp_dir("memotape-test-md");
         let source = dir.join("Riunione.ogg");
         let first = save_md(&source, "Perché sì.\nVa bene.").unwrap();
         let second = save_md(&source, "altro").unwrap();
@@ -993,7 +993,7 @@ mod tests {
 
     #[test]
     fn la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_tape() {
-        let dir = temp_dir("sbobino-test-dal-vivo");
+        let dir = temp_dir("memotape-test-dal-vivo");
         let document = transcript(&["Uno."]);
         let cancel = CancelToken::new();
         let live = |recording: &str, transcribed, document: &Transcript| {
@@ -1101,7 +1101,7 @@ mod tests {
 
     #[test]
     fn un_tape_aperto_porta_frasi_nomi_e_informazioni() {
-        let dir = temp_dir("sbobino-test-apri");
+        let dir = temp_dir("memotape-test-apri");
         let ogg = dir.join("mix.ogg");
         std::fs::write(&ogg, b"audio").unwrap();
         let mut phrases = transcript(&["Ciao.", "Salve."]).phrases;
@@ -1161,7 +1161,7 @@ mod tests {
 
     #[test]
     fn una_cartella_non_scrivibile_da_errore_dedicato() {
-        let source = std::env::temp_dir().join("sbobino-test-non-esiste/Audio.wav");
+        let source = std::env::temp_dir().join("memotape-test-non-esiste/Audio.wav");
         let error = save_md(&source, "testo").unwrap_err();
         assert!(matches!(error, AppError::UnwritableFolder(_)), "{error:?}");
     }
@@ -1258,7 +1258,7 @@ mod tests {
             ("parlato-it.mp4", 16_000, Channels::Mono),
             ("parlato-it.wav", 48_000, Channels::Stereo),
         ] {
-            let library = temp_dir("sbobino-test-file-tape");
+            let library = temp_dir("memotape-test-file-tape");
             let raccolta = library.join("Acme");
             std::fs::create_dir(&raccolta).unwrap();
             let settings = Settings {
@@ -1325,7 +1325,7 @@ mod tests {
 
     #[test]
     fn annullata_o_senza_parlato_non_resta_nessun_file() {
-        let library = temp_dir("sbobino-test-file-annullato");
+        let library = temp_dir("memotape-test-file-annullato");
         let settings = Settings::default();
         let cancel = CancelToken::new();
         let mut engine = FakeEngine {
@@ -1353,7 +1353,7 @@ mod tests {
 
     #[test]
     fn senza_la_raccolta_il_tape_va_nella_radice() {
-        let library = temp_dir("sbobino-test-file-radice");
+        let library = temp_dir("memotape-test-file-radice");
         let path = file_tape(
             &library,
             &library.join("Sparita"),

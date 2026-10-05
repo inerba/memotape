@@ -77,7 +77,7 @@ test("durante la Registrazione la status bar dice se è in pausa", () => {
 
 test("dopo Stop il file diventa la Sorgente e la status bar dice dov'è", () => {
   const path =
-    "C:\\Users\\me\\Documents\\Sbobino\\Registrazione 2026-10-03 10-00-00.ogg";
+    "C:\\Users\\me\\Documents\\Memotape\\Registrazione 2026-10-03 10-00-00.ogg";
   const after = afterRecording({
     data: { error: null, path, transcription: null },
     status: "ok",
