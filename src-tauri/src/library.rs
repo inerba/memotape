@@ -740,7 +740,7 @@ pub(crate) mod tests {
             durata_ms,
             bino::Modalita::Mix,
             None,
-            SpeechLanguage::It,
+            SpeechLanguage::from("it"),
             true,
             &[Phrase {
                 inizio_ms: 0,

@@ -198,7 +198,7 @@ fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Tran
         date: chrono::Local::now().format("%Y-%m-%d %H:%M").to_string(),
         durata_ms: None,
         model: SettingsStore::model_of(settings).name.clone(),
-        speech_language: settings.speech_language,
+        speech_language: settings.speech_language.clone(),
         phrases: Vec::new(),
         parlanti: BTreeMap::new(),
     };
@@ -309,7 +309,7 @@ pub async fn transcribe(
                 durata_ms,
                 bino::Modalita::Mix,
                 Some(model.id.clone()),
-                settings.speech_language,
+                settings.speech_language.clone(),
                 true,
                 &transcript.phrases,
             )
@@ -905,7 +905,7 @@ mod tests {
             date: "2026-10-03 17:05".into(),
             durata_ms: Some(4000),
             model: "Nemotron".into(),
-            speech_language: SpeechLanguage::Auto,
+            speech_language: SpeechLanguage::auto(),
             phrases: phrases
                 .iter()
                 .map(|text| Phrase {
@@ -1072,7 +1072,7 @@ mod tests {
             4000,
             bino::Modalita::Mix,
             Some(models::default_model().id.clone()),
-            SpeechLanguage::It,
+            SpeechLanguage::from("it"),
             false,
             &phrases,
         );
@@ -1084,7 +1084,7 @@ mod tests {
                 date: "2026-10-03 17:05".into(),
                 durata_ms: Some(4000),
                 model: models::default_model().name.clone(),
-                speech_language: SpeechLanguage::It,
+                speech_language: SpeechLanguage::from("it"),
                 phrases,
                 parlanti: document.parlanti.clone(),
             }
@@ -1112,7 +1112,7 @@ mod tests {
             4000,
             bino::Modalita::IngressiSeparati,
             Some(models::default_model().id.clone()),
-            SpeechLanguage::It,
+            SpeechLanguage::from("it"),
             false,
             &phrases,
         );
@@ -1127,7 +1127,7 @@ mod tests {
                 creato: "2026-10-03T17:05:42+02:00".into(),
                 durata_ms: 4000,
                 modello: Some(models::default_model().name.clone()),
-                lingua_parlato: SpeechLanguage::It,
+                lingua_parlato: SpeechLanguage::from("it"),
                 ingressi_separati: true,
                 completa: false,
                 origine: Some("Call.mp4".into()),
@@ -1217,7 +1217,7 @@ mod tests {
                 durata_ms,
                 bino::Modalita::Mix,
                 None,
-                SpeechLanguage::Auto,
+                SpeechLanguage::auto(),
                 true,
                 &phrases,
             ))

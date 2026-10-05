@@ -11,6 +11,7 @@ import {
 const t = i18n.t.bind(i18n);
 
 const nemotron: ModelInfo = {
+  acceptsLanguage: true,
   error: null,
   id: "nemotron",
   inUse: false,

@@ -304,7 +304,7 @@ mod tests {
             date: String::new(),
             durata_ms: None,
             model: String::new(),
-            speech_language: SpeechLanguage::Auto,
+            speech_language: SpeechLanguage::auto(),
             phrases: Vec::new(),
             parlanti: std::collections::BTreeMap::new(),
         });

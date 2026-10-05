@@ -220,14 +220,7 @@
   "speechLanguage": {
     "label": "Gesprochene Sprache",
     "auto": "Automatisch",
-    "languages": {
-      "it": "Italienisch",
-      "en": "Englisch",
-      "fr": "Französisch",
-      "es": "Spanisch",
-      "de": "Deutsch",
-      "pl": "Polnisch"
-    }
+    "notHonored": "{{model}} erkennt die Sprache selbst: Diese Auswahl verwirft nur Sätze in einer anderen Schrift."
   },
   "recording": {
     "title": "Aufnahme",

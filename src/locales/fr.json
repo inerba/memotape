@@ -220,14 +220,7 @@
   "speechLanguage": {
     "label": "Langue parlée",
     "auto": "Automatique",
-    "languages": {
-      "it": "Italien",
-      "en": "Anglais",
-      "fr": "Français",
-      "es": "Espagnol",
-      "de": "Allemand",
-      "pl": "Polonais"
-    }
+    "notHonored": "{{model}} reconnaît la langue tout seul : ce choix écarte seulement les phrases écrites dans un autre alphabet."
   },
   "recording": {
     "title": "Enregistrement",

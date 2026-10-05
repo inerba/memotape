@@ -337,6 +337,11 @@ export type ModelInfo = {
 	 *  caricato. `null` finché non è stato caricato almeno una volta.
 	 */
 	languages: string[] | null,
+	/**
+	 *  Il modello usa la Lingua del parlato; se no la riconosce da solo e la scelta serve solo a
+	 *  scartare le Frasi in un'altra scrittura.
+	 */
+	acceptsLanguage: boolean,
 	/**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 	inUse: boolean,
 };
@@ -486,8 +491,12 @@ export type SpeakersAssigned = {
 	speakers: SpeakerAssignment[],
 };
 
-/**  La Lingua del parlato: Automatica o una delle sei lingue dell'app. */
-export type SpeechLanguage = "auto" | "it" | "en" | "fr" | "es" | "de" | "pl";
+/**
+ *  La Lingua del parlato: `auto` o il codice ISO 639 di una lingua senza regione (`it`, `ja`,
+ *  `yue`). Si offrono le lingue del modello scelto; `engine::resolve_language` lo traduce nel
+ *  codice del modello (`it-IT` per Nemotron).
+ */
+export type SpeechLanguage = string;
 
 /**  Il tema dell'interfaccia: quello di Windows o uno fisso. */
 export type Tema = "sistema" | "chiaro" | "scuro";

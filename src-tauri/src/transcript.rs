@@ -105,7 +105,7 @@ impl Phrase {
 }
 
 /// I testi dell'intestazione nella Lingua dell'interfaccia, presi dalle traduzioni del frontend.
-pub struct Labels(serde_json::Value);
+pub struct Labels(serde_json::Value, Language);
 
 impl Labels {
     pub fn of(language: Language) -> Self {
@@ -117,7 +117,10 @@ impl Labels {
             Language::De => include_str!("../../src/locales/de.json"),
             Language::Pl => include_str!("../../src/locales/pl.json"),
         };
-        Self(serde_json::from_str(json).expect("le traduzioni sono JSON valido"))
+        Self(
+            serde_json::from_str(json).expect("le traduzioni sono JSON valido"),
+            language,
+        )
     }
 
     /// Il testo in `pointer` (`/transcript/date`); vuoto se manca, ma il test lo esclude.
@@ -134,11 +137,11 @@ impl Labels {
             .unwrap_or_default()
     }
 
-    fn speech_language(&self, language: SpeechLanguage) -> &str {
-        match language.code() {
-            None => self.get("/speechLanguage/auto"),
-            Some(code) => self.get(&format!("/speechLanguage/languages/{code}")),
-        }
+    /// Automatica, o il nome della lingua nella Lingua dell'interfaccia.
+    fn speech_language(&self, language: &SpeechLanguage) -> String {
+        language
+            .name(self.1)
+            .unwrap_or_else(|| self.get("/speechLanguage/auto").to_string())
     }
 }
 
@@ -153,9 +156,7 @@ pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> St
     fields.push((labels.get("/transcript/model"), transcript.model.clone()));
     fields.push((
         labels.get("/speechLanguage/label"),
-        labels
-            .speech_language(transcript.speech_language)
-            .to_string(),
+        labels.speech_language(&transcript.speech_language),
     ));
     let mut out = String::new();
     let _ = writeln!(
@@ -275,7 +276,7 @@ mod tests {
             date: "2026-10-03 17:05".into(),
             durata_ms: Some(3_723_400),
             model: "Nemotron".into(),
-            speech_language: SpeechLanguage::It,
+            speech_language: SpeechLanguage::from("it"),
             phrases,
             parlanti: BTreeMap::new(),
         }
@@ -306,7 +307,7 @@ mod tests {
     fn l_intestazione_segue_la_lingua_dell_interfaccia_e_omette_la_durata_ignota() {
         let mut document = transcript(vec![phrase(0, 900, "Hello.")]);
         document.durata_ms = None;
-        document.speech_language = SpeechLanguage::Auto;
+        document.speech_language = SpeechLanguage::auto();
         let text = render(&document, &Labels::of(Language::En), CopiaCome::Markdown);
         assert!(!text.contains("1:02:03"), "{text}");
         assert!(text.contains("- **Model:** Nemotron\n"), "{text}");
@@ -437,6 +438,16 @@ mod tests {
     }
 
     #[test]
+    fn la_lingua_del_parlato_ha_il_nome_nella_lingua_dell_interfaccia() {
+        let name = |code: &str, language| SpeechLanguage::from(code).name(language);
+        assert_eq!(name("it", Language::It).as_deref(), Some("Italiano"));
+        assert_eq!(name("ja", Language::It).as_deref(), Some("Giapponese"));
+        assert_eq!(name("ja", Language::En).as_deref(), Some("Japanese"));
+        assert_eq!(name("yue", Language::De).as_deref(), Some("Kantonesisch"));
+        assert_eq!(SpeechLanguage::auto().name(Language::It), None);
+    }
+
+    #[test]
     fn la_durata_sotto_l_ora_non_ha_le_ore() {
         assert_eq!(duration(0), "0:00");
         assert_eq!(duration(65_999), "1:05");
@@ -453,15 +464,7 @@ mod tests {
             Language::De,
             Language::Pl,
         ];
-        let speech = [
-            SpeechLanguage::Auto,
-            SpeechLanguage::It,
-            SpeechLanguage::En,
-            SpeechLanguage::Fr,
-            SpeechLanguage::Es,
-            SpeechLanguage::De,
-            SpeechLanguage::Pl,
-        ];
+        let speech = [SpeechLanguage::auto(), SpeechLanguage::from("it")];
         for language in languages {
             let labels = Labels::of(language);
             for pointer in [
@@ -475,7 +478,7 @@ mod tests {
             ] {
                 assert!(!labels.get(pointer).is_empty(), "{language:?} {pointer}");
             }
-            for s in speech {
+            for s in &speech {
                 assert!(!labels.speech_language(s).is_empty(), "{language:?} {s:?}");
             }
         }

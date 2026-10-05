@@ -74,6 +74,9 @@ export const DEFAULT_SETTINGS: Settings = {
   trascrizioneDalVivo: false,
 };
 
+/** `auto` o il codice ISO 639 di una lingua senza regione, come in Rust. */
+const SPEECH_LANGUAGE = /^(auto|[a-z]{2,3})$/;
+
 /** Un numero tra `values`: il tipo resta `number`, come nei bindings. */
 const oneOf = (values: number[]) =>
   z.number().refine((value) => values.includes(value));
@@ -106,7 +109,7 @@ export const settingsSchema = z.object({
   recordingSource: z.enum(["mic", "system", "both"]),
   recordingsFolder: z.string().nullable(),
   sampleRate: oneOf(SAMPLE_RATES),
-  speechLanguage: z.enum(["auto", ...LANGUAGES]),
+  speechLanguage: z.string().regex(SPEECH_LANGUAGE),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   tema: z.enum(["sistema", "chiaro", "scuro"]).optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
@@ -115,31 +118,46 @@ export const settingsSchema = z.object({
 
 /** Cosa mostra il selettore della Lingua del parlato, oltre ad Automatica. */
 export interface SpeechLanguageChoice {
-  options: Language[];
+  options: SpeechLanguage[];
   value: SpeechLanguage;
 }
 
 /**
- * Le Lingue del parlato da offrire: quelle dell'app che il modello accetta, come codice (`it`) o
- * come locale (`it-IT`). `modelLanguages` è `null` finché il modello non è stato caricato: allora
- * si offre solo la scelta salvata, per non perderla. Una scelta salvata che il modello non accetta
- * vale Automatica, come per il backend.
+ * Il nome della Lingua del parlato `code` (`ja`) nella lingua `locale`, con l'iniziale maiuscola,
+ * come `SpeechLanguage::name` in Rust: "Giapponese".
+ */
+export function speechLanguageName(code: SpeechLanguage, locale: string) {
+  const name =
+    new Intl.DisplayNames([locale], { type: "language" }).of(code) ?? code;
+  return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+}
+
+/**
+ * Le Lingue del parlato da offrire: tutte quelle del modello, come codice senza regione (`it-IT` di
+ * Nemotron diventa `it`), in ordine di nome nella lingua `locale`. `modelLanguages` è `null` finché
+ * il modello non è stato caricato: allora si offre solo la scelta salvata, per non perderla. Una
+ * scelta salvata che il modello non accetta vale Automatica, come per il backend.
  */
 export function speechLanguageChoice(
   modelLanguages: string[] | null,
-  current: SpeechLanguage
+  current: SpeechLanguage,
+  locale: string
 ): SpeechLanguageChoice {
-  let options: Language[];
   if (modelLanguages === null) {
-    options = current === "auto" ? [] : [current];
-  } else {
-    const codes = new Set(
-      modelLanguages.map((l) => l.split("-")[0]?.toLowerCase())
-    );
-    options = LANGUAGES.filter((l) => codes.has(l));
+    return { options: current === "auto" ? [] : [current], value: current };
   }
-  const value = options.find((l) => l === current) ?? "auto";
-  return { options, value };
+  const codes = new Set(
+    modelLanguages
+      .map((l) => l.split(LOCALE_SEPARATOR)[0]?.toLowerCase() ?? "")
+      .filter((code) => SPEECH_LANGUAGE.test(code) && code !== "auto")
+  );
+  const named = [...codes].map((code) => ({
+    code,
+    name: speechLanguageName(code, locale),
+  }));
+  named.sort((a, b) => a.name.localeCompare(b.name, locale));
+  const options = named.map((l) => l.code);
+  return { options, value: codes.has(current) ? current : "auto" };
 }
 
 /** Una casella di Riconosci i parlanti delle Registrazioni. */

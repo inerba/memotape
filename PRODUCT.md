@@ -106,7 +106,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 20. Come utente, voglio un pulsante "Annulla" durante la Trascrizione, così fermo un lavoro lungo avviato per sbaglio.
 21. Come utente, voglio che dopo Annulla il testo già comparso di un file resti visibile ma che nessun Bino venga creato o cambiato, così un Bino ha solo Trascrizioni complete.
 22. Come utente, voglio scegliere la Lingua del parlato con un selettore accanto a Trascrivi, così aiuto il modello quando il riconoscimento automatico sbaglia.
-23. Come utente, voglio che il selettore della Lingua del parlato abbia "Automatica" come default e offra solo le lingue tra it, en, fr, es, de e pl supportate dal modello selezionato, così non scelgo combinazioni impossibili.
+23. Come utente, voglio che il selettore della Lingua del parlato abbia "Automatica" come default e offra tutte le lingue riconosciute dal modello selezionato, in ordine di nome, così non scelgo combinazioni impossibili e non sono limitato alle lingue dell'interfaccia.
 24. Come utente, voglio che la Lingua del parlato scelta resti salvata tra un avvio e l'altro, così non la reimposto ogni volta.
 25. Come utente, voglio che la Trascrizione funzioni senza rete una volta scaricato il modello, così lavoro anche offline.
 26. Come utente, voglio che senza un modello scaricato Trascrivi mostri un errore dedicato con un link a Impostazioni → Trascrizione, così so cosa fare.
@@ -196,7 +196,8 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, file incompleto cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
 - **M3, seconda parte (ticket 06)**: storie 22–26, 30, 37, 39 e 62; della 61 restano salvati modello e Lingua del parlato, gli altri campi esistono già nel file e diventano scelte con i ticket 08 e 10.
   - In Impostazioni → Trascrizione si sceglie il modello, Nemotron di default. Si può scegliere anche un modello non scaricato: Trascrivi mostra "modello assente" con il link a Impostazioni → Trascrizione.
-  - Il selettore della Lingua del parlato sta accanto a Trascrivi: "Automatica" e le lingue tra le sei che il modello scelto accetta. Finché il modello non è caricato offre solo la scelta salvata.
+  - Il selettore della Lingua del parlato sta accanto a Trascrivi: "Automatica" e tutte le lingue del modello scelto (32 per Nemotron, 99 per Whisper, 25 per Parakeet), con il nome nella Lingua dell'interfaccia. Finché il modello non è caricato offre solo la scelta salvata.
+  - Con una Lingua del parlato scelta, una Frase con lettere di un'altra scrittura (il cirillico in una Trascrizione in italiano; il latino vale sempre) si scarta: è un'invenzione del modello su audio incomprensibile. Parakeet non usa la lingua indicata e la riconosce Frase per Frase: il menu lo dice, e la scelta serve solo a questo filtro. Whisper scarta la Frase quando la sua confidenza è bassa, invece di ritentare a temperature più alte, che producevano parole a caso in più lingue.
   - Le impostazioni stanno in `settings.json` nella cartella dati dell'app. Un file mancante, corrotto o non valido riporta ai predefiniti senza bloccare l'avvio.
   - Il modello scelto si carica in background all'avvio e quando cambia la scelta, e resta caricato tra una Trascrizione e l'altra: dalla seconda in poi la Trascrizione parte subito. Si ricarica solo se cambia la scelta o se il modello viene eliminato.
   - Elimina è disabilitato ("In uso") per il modello che una Trascrizione sta usando o che si sta caricando.

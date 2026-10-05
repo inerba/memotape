@@ -38,8 +38,17 @@ pub struct Model {
     /// Solo per i modelli di trascrizione.
     #[serde(rename = "modalita", default)]
     pub mode: Option<Mode>,
+    /// Il modello usa la Lingua del parlato indicata. `false` per Parakeet TDT v3, che non ha un
+    /// ingresso per la lingua: transcribe-cpp la ignora e il modello la riconosce Frase per Frase.
+    /// Non si legge dal modello: transcribe-cpp 0.2.4 non lo dice.
+    #[serde(rename = "accettaLingua", default = "yes")]
+    pub accepts_language: bool,
     #[serde(rename = "licenza")]
     pub license: String,
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// Cosa fa un modello: trascrive (si sceglie in Impostazioni), oppure diarizza (uno solo, per
@@ -343,6 +352,9 @@ pub struct ModelInfo {
     /// Le lingue che il modello accetta come indicazione (`it`, `it-IT`…), lette dal modello
     /// caricato. `null` finché non è stato caricato almeno una volta.
     pub languages: Option<Vec<String>>,
+    /// Il modello usa la Lingua del parlato; se no la riconosce da solo e la scelta serve solo a
+    /// scartare le Frasi in un'altra scrittura.
+    pub accepts_language: bool,
     /// Il modello si sta caricando o lo usa una Trascrizione: non si elimina.
     pub in_use: bool,
 }
@@ -447,6 +459,7 @@ impl Models {
                     state,
                     error,
                     languages: languages.get(model.id.as_str()).cloned(),
+                    accepts_language: model.accepts_language,
                     in_use: in_use == Some(model.id.as_str())
                         || (model.kind == ModelKind::Diarizzazione && diarizing),
                 }
@@ -824,6 +837,7 @@ mod tests {
             url: server.url.clone(),
             sha256: hex(&Sha256::digest(body)),
             size: u32::try_from(body.len()).unwrap(),
+            accepts_language: true,
             kind: ModelKind::Trascrizione,
             mode: Some(Mode::Phrase),
             license: "MIT".into(),

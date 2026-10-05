@@ -55,7 +55,8 @@ sys-locale = "0.3.2"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 # Già nel grafo tramite Tauri: l'attributo nascosto della cartella dei temporanei delle Registrazioni.
 # Shell: il Cestino della Libreria (`SHFileOperationW` con `FOF_ALLOWUNDO`).
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
+# Globalization: le ICU di Windows per i nomi delle lingue e la loro scrittura (Lingua del parlato).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globalization", "Win32_Storage_FileSystem", "Win32_UI_Shell"] }
 # L'indice della Libreria (ADR-0008). `bundled`: SQLite compilato con `cc`, FTS5 compreso.
 rusqlite = { version = "0.40", features = ["bundled"] }
 # Già nel grafo tramite Tauri e reqwest: il percorso del Bino nell'URL del protocollo `bino`.

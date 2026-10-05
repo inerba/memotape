@@ -18,6 +18,7 @@ import type { BinoInfo, LibraryList } from "@/bindings";
 import { dateTimeInput, dayText } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
+import { speechLanguageName } from "@/features/settings/settings";
 import { fileName, folderOf } from "@/features/source/file-name";
 
 const EXTENSION = /\.bino$/i;
@@ -221,11 +222,11 @@ function InfoChips({
   info: BinoInfo;
   parlanti: number;
 }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const language =
     info.linguaParlato === "auto"
       ? t("speechLanguage.auto")
-      : t(`speechLanguage.languages.${info.linguaParlato}`);
+      : speechLanguageName(info.linguaParlato, i18n.language);
   return (
     <>
       <Chip

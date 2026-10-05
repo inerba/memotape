@@ -723,7 +723,7 @@ mod tests {
             100,
             bino::Modalita::Mix,
             None,
-            crate::managers::settings::SpeechLanguage::Auto,
+            crate::managers::settings::SpeechLanguage::auto(),
             false,
             &[],
         );

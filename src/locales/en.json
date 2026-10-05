@@ -220,14 +220,7 @@
   "speechLanguage": {
     "label": "Speech language",
     "auto": "Automatic",
-    "languages": {
-      "it": "Italian",
-      "en": "English",
-      "fr": "French",
-      "es": "Spanish",
-      "de": "German",
-      "pl": "Polish"
-    }
+    "notHonored": "{{model}} detects the language by itself: this choice only discards sentences written in another script."
   },
   "recording": {
     "title": "Recording",

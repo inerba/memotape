@@ -220,14 +220,7 @@
   "speechLanguage": {
     "label": "Język mowy",
     "auto": "Automatycznie",
-    "languages": {
-      "it": "Włoski",
-      "en": "Angielski",
-      "fr": "Francuski",
-      "es": "Hiszpański",
-      "de": "Niemiecki",
-      "pl": "Polski"
-    }
+    "notHonored": "{{model}} sam rozpoznaje język: ten wybór odrzuca tylko zdania zapisane innym alfabetem."
   },
   "recording": {
     "title": "Nagrywanie",

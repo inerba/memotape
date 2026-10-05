@@ -7,7 +7,10 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Instant;
 
-use transcribe_cpp::{CancelToken, Diarize, Feature, Model, RunOptions, Session, StreamOptions};
+use transcribe_cpp::{
+    CancelToken, Diarize, Feature, Model, RunExtension, RunOptions, Session, StreamOptions,
+    WhisperRunOptions,
+};
 
 use super::diarize::Turn;
 use super::{EngineError, TranscriptionEngine};
@@ -20,6 +23,8 @@ pub struct TranscribeCpp {
     languages: Vec<String>,
     /// `capabilities().supports_streaming`: fra i modelli del catalogo, solo Nemotron.
     streaming: bool,
+    /// `Feature::TemperatureFallback`: fra i modelli del catalogo, solo Whisper.
+    fallback: bool,
 }
 
 impl TranscribeCpp {
@@ -28,19 +33,24 @@ impl TranscribeCpp {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
         init_backends()?;
-        let (session, capabilities) = catch_native(|| {
+        let (session, capabilities, fallback) = catch_native(|| {
             let model = Model::load(path)?;
             if !model.supports(Feature::Cancellation) {
                 log::info!(
                     "il modello non supporta la cancellazione: Annulla aspetta la fine della Frase"
                 );
             }
-            Ok((model.session()?, model.capabilities()))
+            Ok((
+                model.session()?,
+                model.capabilities(),
+                model.supports(Feature::TemperatureFallback),
+            ))
         })?;
         let mut engine = Self {
             session,
             languages: capabilities.languages,
             streaming: capabilities.supports_streaming,
+            fallback,
         };
         engine.warm_up();
         Ok(engine)
@@ -81,7 +91,19 @@ impl TranscriptionEngine for TranscribeCpp {
     ) -> Result<String, EngineError> {
         let run = RunOptions {
             language: language.and_then(|l| super::resolve_language(l, &self.languages)),
+            family: self
+                .fallback
+                .then(|| RunExtension::Whisper(confident_only())),
             ..RunOptions::default()
+        };
+        // Una Frase in una scrittura che la lingua scelta non usa è inventata: si scarta.
+        let keep = |text: String| {
+            let text = text.trim();
+            if language.is_some_and(|l| super::foreign_script(text, l)) {
+                log::info!("Frase scartata, scrittura estranea alla Lingua del parlato: {text}");
+                return String::new();
+            }
+            text.to_string()
         };
         // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
         // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
@@ -89,7 +111,7 @@ impl TranscriptionEngine for TranscribeCpp {
             let pcm: Vec<f32> = frames.flatten().collect();
             let session = &mut self.session;
             let transcript = catch_native(|| session.run(&pcm, &run))?;
-            return Ok(transcript.text.trim().to_string());
+            return Ok(keep(transcript.text));
         };
         // Uno stream per Frase. Senza estensione vale l'attenzione a destra predefinita del modello,
         // la prima del menu e la più accurata (`parakeet.h` di transcribe-cpp 0.2.4): per Nemotron
@@ -109,7 +131,20 @@ impl TranscriptionEngine for TranscribeCpp {
             }
         }
         catch_native(|| stream.finalize())?;
-        Ok(stream.text().full.trim().to_string())
+        Ok(keep(stream.text().full))
+    }
+}
+
+/// Whisper senza invenzioni: con la confidenza media sotto `logprob_thold` (−1, il predefinito) la
+/// Frase si scarta subito, invece di ritentare a temperature più alte. Se nessun tentativo supera le
+/// soglie transcribe-cpp tiene l'ultimo, campionato a temperatura 1: su audio incomprensibile erano
+/// parole a caso in più lingue. La regola di salto è `no_speech_prob > no_speech_thold` e
+/// confidenza sotto soglia, quindi con `no_speech_thold` 0 basta la confidenza. Su una
+/// Registrazione di 7 minuti (76 Frasi) ha scartato le 7 inventate e lasciato identiche le altre.
+fn confident_only() -> WhisperRunOptions {
+    WhisperRunOptions {
+        no_speech_thold: Some(0.0),
+        ..WhisperRunOptions::default()
     }
 }
 

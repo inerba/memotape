@@ -7,22 +7,35 @@ import { PopoverMenu } from "@/components/popover-menu";
 import { Button } from "@/components/ui/button";
 import { useModels } from "@/features/models/use-models";
 import { SettingCheckbox } from "@/features/settings/setting-checkbox";
-import { speechLanguageChoice } from "@/features/settings/settings";
+import {
+  speechLanguageChoice,
+  speechLanguageName,
+} from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 
-/** La Lingua del parlato scelta, come si mostra: "Automatica" o il nome della lingua. */
+/**
+ * La Lingua del parlato scelta, come si mostra: "Automatica" o il nome della lingua, e `nameOf` per
+ * i nomi delle altre. `ignoredBy` è il nome del modello scelto se non usa la lingua (Parakeet).
+ */
 function useSpeechLanguage() {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const { settings } = useSettings();
   const models = useModels();
-  const modelLanguages =
-    models.find((m) => m.id === settings.model)?.languages ?? null;
-  const choice = speechLanguageChoice(modelLanguages, settings.speechLanguage);
-  const name =
-    choice.value === "auto"
+  const model = models.find((m) => m.id === settings.model);
+  const choice = speechLanguageChoice(
+    model?.languages ?? null,
+    settings.speechLanguage,
+    i18n.language
+  );
+  const nameOf = (code: string) =>
+    code === "auto"
       ? t("speechLanguage.auto")
-      : t(`speechLanguage.languages.${choice.value}`);
-  return { ...choice, name };
+      : speechLanguageName(code, i18n.language);
+  const ignoredBy =
+    model && !model.acceptsLanguage && choice.value !== "auto"
+      ? model.name
+      : null;
+  return { ...choice, ignoredBy, name: nameOf(choice.value), nameOf };
 }
 
 /** Le scelte della prossima Trascrizione: modello, Lingua del parlato e Riconosci i parlanti. */
@@ -34,7 +47,12 @@ export function TranscribeOptions({
   const { t } = useTranslation();
   const { save, settings } = useSettings();
   const models = useModels();
-  const { options: languages, value: language } = useSpeechLanguage();
+  const {
+    ignoredBy,
+    nameOf,
+    options: languages,
+    value: language,
+  } = useSpeechLanguage();
   const modelId = useId();
   const languageId = useId();
   // Quelli scaricati, più quello scelto anche se non lo è: Trascrivi dirà che manca.
@@ -95,10 +113,15 @@ export function TranscribeOptions({
           <option value="auto">{t("speechLanguage.auto")}</option>
           {languages.map((l) => (
             <option key={l} value={l}>
-              {t(`speechLanguage.languages.${l}`)}
+              {nameOf(l)}
             </option>
           ))}
         </NativeSelect>
+        {ignoredBy ? (
+          <p className="max-w-64 text-muted-foreground text-xs">
+            {t("speechLanguage.notHonored", { model: ignoredBy })}
+          </p>
+        ) : null}
       </div>
       <SettingCheckbox
         label={t("transcription.parlanti")}

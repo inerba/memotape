@@ -187,37 +187,79 @@ impl Language {
         }
     }
 
+    /// Il codice ISO 639 (`it`).
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::It => "it",
+            Self::En => "en",
+            Self::Fr => "fr",
+            Self::Es => "es",
+            Self::De => "de",
+            Self::Pl => "pl",
+        }
+    }
+
     /// La lingua di visualizzazione di Windows, se è tra le sei, altrimenti l'inglese.
     pub fn system() -> Self {
         sys_locale::get_locale().map_or(Self::En, |locale| Self::from_locale(&locale))
     }
 }
 
-/// La Lingua del parlato: Automatica o una delle sei lingue dell'app.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum SpeechLanguage {
-    Auto,
-    It,
-    En,
-    Fr,
-    Es,
-    De,
-    Pl,
-}
+/// La Lingua del parlato: `auto` o il codice ISO 639 di una lingua senza regione (`it`, `ja`,
+/// `yue`). Si offrono le lingue del modello scelto; `engine::resolve_language` lo traduce nel
+/// codice del modello (`it-IT` per Nemotron).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(transparent)]
+pub struct SpeechLanguage(String);
 
 impl SpeechLanguage {
+    pub fn auto() -> Self {
+        Self("auto".into())
+    }
+
     /// Il codice da indicare al modello; `None` per il riconoscimento automatico.
-    pub fn code(self) -> Option<&'static str> {
-        match self {
-            Self::Auto => None,
-            Self::It => Some("it"),
-            Self::En => Some("en"),
-            Self::Fr => Some("fr"),
-            Self::Es => Some("es"),
-            Self::De => Some("de"),
-            Self::Pl => Some("pl"),
+    pub fn code(&self) -> Option<&str> {
+        Some(self.0.as_str()).filter(|c| *c != "auto")
+    }
+
+    /// `auto` o 2–3 lettere minuscole.
+    fn is_valid(&self) -> bool {
+        self.0 == "auto"
+            || (2..=3).contains(&self.0.len()) && self.0.bytes().all(|b| b.is_ascii_lowercase())
+    }
+
+    /// Il nome della lingua nella lingua `interface`, con l'iniziale maiuscola (`Italiano`), dalle
+    /// ICU di Windows. `None` per Automatica.
+    pub fn name(&self, interface: Language) -> Option<String> {
+        use windows_sys::Win32::Globalization::uloc_getDisplayLanguage;
+        let code = std::ffi::CString::new(self.code()?).ok()?;
+        let display = std::ffi::CString::new(interface.code()).ok()?;
+        let mut buffer = [0u16; 64];
+        let mut status = 0;
+        // SAFETY: stringhe terminate da zero e un buffer della capacità dichiarata.
+        let len = unsafe {
+            uloc_getDisplayLanguage(
+                code.as_ptr().cast(),
+                display.as_ptr().cast(),
+                buffer.as_mut_ptr(),
+                buffer.len() as i32,
+                &mut status,
+            )
+        };
+        if status > 0 || len <= 0 {
+            return Some(self.0.clone());
         }
+        let name = String::from_utf16_lossy(&buffer[..len as usize]);
+        let mut chars = name.chars();
+        Some(chars.next().map_or_else(String::new, |first| {
+            first.to_uppercase().chain(chars).collect()
+        }))
+    }
+}
+
+impl From<&str> for SpeechLanguage {
+    fn from(code: &str) -> Self {
+        Self(code.into())
     }
 }
 
@@ -228,7 +270,7 @@ impl Default for Settings {
             microphone: None,
             output_device: None,
             model: models::default_model().id.clone(),
-            speech_language: SpeechLanguage::Auto,
+            speech_language: SpeechLanguage::auto(),
             bitrate_kbps: 32,
             channels: Channels::Mono,
             sample_rate: 48_000,
@@ -337,6 +379,7 @@ impl Settings {
     fn is_valid(&self) -> bool {
         BITRATES_KBPS.contains(&self.bitrate_kbps)
             && SAMPLE_RATES.contains(&self.sample_rate)
+            && self.speech_language.is_valid()
             && valid_guadagno(self.guadagno_microfono)
             && valid_guadagno(self.guadagno_sistema)
     }
@@ -464,7 +507,7 @@ mod tests {
         let settings = Settings::load(&temp_file("assente")).unwrap();
         assert_eq!(settings, Settings::default());
         assert_eq!(settings.model, "nemotron-3.5-streaming-0.6b-q5km");
-        assert_eq!(settings.speech_language, SpeechLanguage::Auto);
+        assert_eq!(settings.speech_language, SpeechLanguage::auto());
         assert_eq!(settings.recording_source, RecordingSource::Mic);
         assert_eq!(
             (
@@ -608,7 +651,8 @@ mod tests {
             r#"{"model": "nemotron-3.5-streaming-0.6b-q5km"}"#.to_string(),
             with(&valid, "bitrateKbps", 33.into()),
             with(&valid, "sampleRate", 44_100.into()),
-            with(&valid, "speechLanguage", "ja".into()),
+            with(&valid, "speechLanguage", "JA".into()),
+            with(&valid, "speechLanguage", "italiano".into()),
             with(&valid, "speechLanguage", serde_json::Value::Null),
         ];
         for content in invalid {
@@ -625,7 +669,7 @@ mod tests {
         let path = temp_file("modello-sconosciuto");
         let saved = Settings {
             model: "whisper-large-v3-turbo-q5km".into(),
-            speech_language: SpeechLanguage::De,
+            speech_language: SpeechLanguage::from("de"),
             bitrate_kbps: 64,
             ..Settings::default()
         };
@@ -657,7 +701,7 @@ mod tests {
             microphone: Some("Microfono USB".into()),
             output_device: Some("Cuffie".into()),
             model: "whisper-large-v3-turbo-q5km".into(),
-            speech_language: SpeechLanguage::It,
+            speech_language: SpeechLanguage::from("it"),
             bitrate_kbps: 128,
             channels: Channels::Stereo,
             sample_rate: 24_000,
@@ -680,7 +724,7 @@ mod tests {
         assert_eq!(Settings::load(&path), Ok(settings.clone()));
         // Un secondo salvataggio sostituisce il primo.
         let again = Settings {
-            speech_language: SpeechLanguage::Auto,
+            speech_language: SpeechLanguage::auto(),
             // Senza raccolta.
             raccolta: Some(String::new()),
             ..settings

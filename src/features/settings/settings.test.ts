@@ -8,6 +8,7 @@ import {
   parlantiRegistrazione,
   settingsSchema,
   speechLanguageChoice,
+  speechLanguageName,
   withInput,
 } from "@/features/settings/settings";
 
@@ -89,7 +90,8 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
   const invalid = [
     { ...defaults, bitrateKbps: 33 },
     { ...defaults, sampleRate: 44_100 },
-    { ...defaults, speechLanguage: "ja" },
+    { ...defaults, speechLanguage: "JA" },
+    { ...defaults, speechLanguage: "it-IT" },
     { ...defaults, speechLanguage: null },
     { ...defaults, recordingSource: "line-in" },
     { ...defaults, model: "" },
@@ -105,36 +107,47 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
   }
 });
 
-test("il selettore offre le lingue dell'app che il modello accetta, anche come locale", () => {
-  // Nemotron: locale.
+test("il selettore offre tutte le lingue del modello, senza regione e in ordine di nome", () => {
+  // Nemotron: locale, anche due per la stessa lingua.
   expect(
-    speechLanguageChoice(["en-US", "it-IT", "de-DE", "ja-JP"], "it")
-  ).toEqual({ options: ["it", "en", "de"], value: "it" });
-  // Whisper e Parakeet: codici.
+    speechLanguageChoice(
+      ["en-US", "en-GB", "it-IT", "ja-JP", "zh-CN"],
+      "it",
+      "it"
+    )
+  ).toEqual({ options: ["zh", "ja", "en", "it"], value: "it" });
+  // Whisper e Parakeet: codici, anche di tre lettere. L'ordine segue la lingua dell'interfaccia.
   expect(
-    speechLanguageChoice(["pl", "es", "fr", "de", "en", "it", "ja"], "auto")
-      .options
-  ).toEqual(["it", "en", "fr", "es", "de", "pl"]);
-  // Un prefisso che non è il codice non vale; un modello senza lingue offre solo Automatica.
-  expect(speechLanguageChoice(["ita", "eng"], "auto").options).toEqual([]);
-  expect(speechLanguageChoice([], "auto").options).toEqual([]);
+    speechLanguageChoice(["de", "yue", "en"], "auto", "en").options
+  ).toEqual(["yue", "en", "de"]);
+  expect(
+    speechLanguageChoice(["de", "yue", "en"], "auto", "de").options
+  ).toEqual(["de", "en", "yue"]);
+  // Un modello senza lingue offre solo Automatica.
+  expect(speechLanguageChoice([], "auto", "it").options).toEqual([]);
+});
+
+test("il nome della lingua è nella lingua dell'interfaccia, con la maiuscola", () => {
+  expect(speechLanguageName("ja", "it")).toBe("Giapponese");
+  expect(speechLanguageName("it", "en")).toBe("Italian");
+  expect(speechLanguageName("pl", "pl")).toBe("Polski");
 });
 
 test("una lingua salvata che il modello non accetta vale Automatica", () => {
-  expect(speechLanguageChoice(["en-US", "it-IT"], "pl")).toEqual({
-    options: ["it", "en"],
+  expect(speechLanguageChoice(["en-US", "it-IT"], "pl", "it")).toEqual({
+    options: ["en", "it"],
     value: "auto",
   });
 });
 
 test("finché le lingue del modello non sono note resta offerta solo la scelta salvata", () => {
-  expect(speechLanguageChoice(null, "auto")).toEqual({
+  expect(speechLanguageChoice(null, "auto", "it")).toEqual({
     options: [],
     value: "auto",
   });
-  expect(speechLanguageChoice(null, "fr")).toEqual({
-    options: ["fr"],
-    value: "fr",
+  expect(speechLanguageChoice(null, "ja", "it")).toEqual({
+    options: ["ja"],
+    value: "ja",
   });
 });
 

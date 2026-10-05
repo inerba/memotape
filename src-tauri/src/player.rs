@@ -238,7 +238,7 @@ mod tests {
             3000,
             Modalita::Mix,
             None,
-            SpeechLanguage::It,
+            SpeechLanguage::from("it"),
             true,
             &[],
         );

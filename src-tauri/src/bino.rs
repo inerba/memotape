@@ -440,7 +440,7 @@ mod tests {
             durata_ms: 1500,
             modalita: Modalita::Mix,
             modello: Some("nemotron".into()),
-            lingua_parlato: SpeechLanguage::It,
+            lingua_parlato: SpeechLanguage::from("it"),
             completa: true,
             parlanti: BTreeMap::from([("mix:1".into(), "Mario".into())]),
             frasi: frasi
