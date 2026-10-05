@@ -1,6 +1,6 @@
 /**
  * Il simbolo di Memotape: le due bobine di una musicassetta unite dal nastro, su un quadrato salvia.
- * Le geometrie sono quelle di `docs/brand/svg` (`sbobino-simbolo-piccolo` e `sbobino-simbolo`). I
+ * Le geometrie sono quelle di `docs/brand/svg` (`memotape-simbolo-piccolo` e `memotape-simbolo`). I
  * colori sono fissi, non token: il logo non cambia con il tema (DESIGN.md).
  */
 

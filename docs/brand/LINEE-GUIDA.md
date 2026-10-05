@@ -1,23 +1,23 @@
-# Sbobino: regole d'uso del logo
+# Memotape: regole d'uso del logo
 
-![Kit](sbobino-kit.png)
+![Kit](memotape-kit.png)
 
 ## L'idea
 
-Il simbolo mostra le due bobine di una musicassetta unite dal nastro, in nero su un quadrato salvia, con i mozzi dentati in color carta: Sbobino "sbobina" il nastro e lo fa diventare testo. I colori sono quelli dell'app.
+Il simbolo mostra le due bobine di una musicassetta unite dal nastro, in nero su un quadrato salvia, con i mozzi dentati in color carta: Memotape trasforma il nastro delle note vocali in testo. I colori sono quelli dell'app.
 
 ## Versioni
 
 | File (`svg/`) | Quando |
 |---|---|
-| `sbobino-simbolo` | Versione principale: icona dell'app, avatar, dove c'è spazio per un solo segno |
-| `sbobino-simbolo-piccolo` | Sotto i 48 px: quadrato a tutta tela, nastro più grande, mozzi tondi senza denti |
-| `sbobino-orizzontale` / `-negativo` | Simbolo + logotipo, su fondo chiaro / scuro |
-| `sbobino-verticale` / `-negativo` | Simbolo sopra il logotipo, per spazi stretti e alti |
-| `sbobino-logotipo` | Solo la scritta, quando il simbolo è già vicino (per esempio nella barra laterale dell'app) |
-| `sbobino-simbolo-nero` / `-bianco` | A un colore: timbri, incisioni, stampa monocromatica. Il nastro è ritagliato e i mozzi sono pieni |
-| `sbobino-nastro` (inchiostro, `-nero`, `-bianco`, `-salvia`) | Il solo nastro senza quadrato, a un colore: come segno grafico o filigrana |
-| `sbobino-orizzontale-nero` / `-bianco` | Lockup a un colore |
+| `memotape-simbolo` | Versione principale: icona dell'app, avatar, dove c'è spazio per un solo segno |
+| `memotape-simbolo-piccolo` | Sotto i 48 px: quadrato a tutta tela, nastro più grande, mozzi tondi senza denti |
+| `memotape-orizzontale` / `-negativo` | Simbolo + logotipo, su fondo chiaro / scuro |
+| `memotape-verticale` / `-negativo` | Simbolo sopra il logotipo, per spazi stretti e alti |
+| `memotape-logotipo` | Solo la scritta, quando il simbolo è già vicino (per esempio nella barra laterale dell'app) |
+| `memotape-simbolo-nero` / `-bianco` | A un colore: timbri, incisioni, stampa monocromatica. Il nastro è ritagliato e i mozzi sono pieni |
+| `memotape-nastro` (inchiostro, `-nero`, `-bianco`, `-salvia`) | Il solo nastro senza quadrato, a un colore: come segno grafico o filigrana |
+| `memotape-orizzontale-nero` / `-bianco` | Lockup a un colore |
 
 `png/` ha le stesse versioni principali in raster.
 
@@ -35,14 +35,14 @@ Il simbolo mostra le due bobine di una musicassetta unite dal nastro, in nero su
 
 ## Logotipo
 
-"sbobino" in minuscolo, Source Serif 4 (peso 500, dimensione ottica 24, spaziatura −0,01 em), convertito in tracciati: non serve il font per usarlo. Source Serif 4 è sotto SIL Open Font License, che ne permette l'uso in un logo. Il logotipo è sempre in inchiostro (su chiaro) o carta (su scuro), mai salvia.
+Il nome in minuscolo (i tracciati attuali sono ancora del vecchio nome, da rifare col wordmark Memotape), Source Serif 4 (peso 500, dimensione ottica 24, spaziatura −0,01 em), convertito in tracciati: non serve il font per usarlo. Source Serif 4 è sotto SIL Open Font License, che ne permette l'uso in un logo. Il logotipo è sempre in inchiostro (su chiaro) o carta (su scuro), mai salvia.
 
-**Da rifare:** dal 2026-10-04 la scritta "sbobino" nell'app (barra laterale, Informazioni) è in Commissioner (`FLAR` 100, `VOLM` 50), il font dei titoli. Il logotipo e i lockup in `svg/` e `png/` sono ancora in Source Serif 4 e vanno rifatti con Commissioner.
+**Da rifare:** dal 2026-10-04 la scritta "Memotape" nell'app (barra laterale, Informazioni) è in Commissioner (`FLAR` 100, `VOLM` 50), il font dei titoli. Il logotipo e i lockup in `svg/` e `png/` sono ancora in Source Serif 4 e vanno rifatti con Commissioner.
 
 ## Spazio libero e dimensioni minime
 
 - Intorno al logo lascia libero almeno il raggio di una bobina (circa 1/5 del lato del quadrato) su ogni lato.
-- Simbolo: 16 px con `sbobino-simbolo-piccolo`; da 64 px in su la versione con i denti.
+- Simbolo: 16 px con `memotape-simbolo-piccolo`; da 64 px in su la versione con i denti.
 - Lockup orizzontale: almeno 120 px (25 mm) di larghezza.
 
 ## Sfondi
@@ -56,12 +56,12 @@ Il simbolo mostra le due bobine di una musicassetta unite dal nastro, in nero su
 - Cambiare i colori di quadrato, nastro o mozzi, o metterci gradienti e ombre.
 - Usare il simbolo con i denti sotto i 48 px.
 - Allungare, ruotare o ricomporre simbolo e logotipo con altre proporzioni.
-- Riscrivere "sbobino" con un altro font o con la maiuscola nel logo (nel testo resta "Sbobino").
+- Riscrivere "memotape" con un altro font o con la maiuscola nel logo (nel testo resta "Memotape").
 - Mettere il quadrato salvia su un fondo salvia o verde scuro, dove sparisce.
 
 ## Icone dell'app
 
-`src-tauri/icons/` è generata con `bun tauri icon` da `png/sbobino-simbolo-1024.png`. `icon.ico` e `32x32.png` sono rifatti a mano con il taglio piccolo fino a 48 px. Il file `.bino` usa l'icona dell'exe (`bundle.fileAssociations`), quindi prende la stessa.
+`src-tauri/icons/` è generata con `bun tauri icon` da `png/memotape-simbolo-1024.png`. `icon.ico` e `32x32.png` sono rifatti a mano con il taglio piccolo fino a 48 px. Il file `.tape` usa l'icona dell'exe (`bundle.fileAssociations`), quindi prende la stessa.
 
 ## Note
 
