@@ -1,3 +1,4 @@
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { TFunction } from "i18next";
 import { Check, CircleAlert, Copy, FileUp, Mic, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,6 +48,8 @@ import {
 } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
 import { useSettings } from "@/features/settings/settings-context";
+import { dropVerdict } from "@/features/source/drop";
+import { DropVeil } from "@/features/source/drop-veil";
 import { fileName, isBino, movedPath } from "@/features/source/file-name";
 import {
   afterTranscription,
@@ -140,6 +143,9 @@ export function HomePage() {
   const [revision, setRevision] = useState(0);
   // Il Bino del doppio clic in Esplora file, finché non si può aprire.
   const [pendingBino, setPendingBino] = useState<string | null>(null);
+  // I file trascinati da Esplora file sopra la finestra, e quelli appena rilasciati.
+  const [dragged, setDragged] = useState<string[] | null>(null);
+  const [dropped, setDropped] = useState<string[] | null>(null);
   // Il Parlante di cui si sta scrivendo il nome nuovo.
   const [renaming, setRenaming] = useState<Parlante | null>(null);
   // Il Bino aperto dalla barra laterale durante un'Attività.
@@ -205,6 +211,24 @@ export function HomePage() {
       assigned.then((stop) => stop());
       ticks.then((stop) => stop());
       binoRequested.then((stop) => stop());
+    };
+  }, []);
+
+  // Il drop dei file passa da Tauri, che dà i percorsi già all'ingresso (ADR-0011).
+  useEffect(() => {
+    const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      // Un trascinamento senza file (testo da un'altra app) non ha percorsi: niente velo.
+      if (payload.type === "enter") {
+        setDragged(payload.paths.length > 0 ? payload.paths : null);
+      } else if (payload.type === "leave") {
+        setDragged(null);
+      } else if (payload.type === "drop") {
+        setDragged(null);
+        setDropped(payload.paths);
+      }
+    });
+    return () => {
+      unlisten.then((stop) => stop());
     };
   }, []);
 
@@ -391,6 +415,26 @@ export function HomePage() {
       openPath(pendingBino);
     }
   }, [busy, confirmTranscribe, navigate, openPath, pendingBino]);
+
+  // Un file rilasciato si apre come con Apri file, anche da Impostazioni; durante un'Attività solo
+  // un Bino, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
+  useEffect(() => {
+    if (!dropped) {
+      return;
+    }
+    setDropped(null);
+    const verdict = dropVerdict(dropped, busy);
+    if (!verdict.accepted || confirmTranscribe) {
+      return;
+    }
+    navigate("/");
+    setListOpen(false);
+    if (busy) {
+      browse(verdict.path);
+    } else {
+      openPath(verdict.path);
+    }
+  }, [browse, busy, confirmTranscribe, dropped, navigate, openPath]);
 
   const open = useCallback(async () => {
     if (!source) {
@@ -692,6 +736,7 @@ export function HomePage() {
         copied={copied}
         onCancel={cancel}
         onCopy={copyActivity}
+        onError={setNotice}
         onPausedChange={setPaused}
         paused={paused}
         status={status}
@@ -773,6 +818,9 @@ export function HomePage() {
       {dialog}
       {settingsPage}
       <WindowControls />
+      {dragged && !confirmTranscribe ? (
+        <DropVeil verdict={dropVerdict(dragged, busy)} />
+      ) : null}
     </>
   );
 }
@@ -797,6 +845,7 @@ function LiveView({
   copied,
   onCancel,
   onCopy,
+  onError,
   onPausedChange,
   paused,
   status,
@@ -806,6 +855,7 @@ function LiveView({
   copied: boolean;
   onCancel: () => void;
   onCopy: () => void;
+  onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
   status: Status;
@@ -847,7 +897,11 @@ function LiveView({
       />
       <Dock>
         {recording ? (
-          <RecordingPanel onPausedChange={onPausedChange} paused={paused} />
+          <RecordingPanel
+            onError={onError}
+            onPausedChange={onPausedChange}
+            paused={paused}
+          />
         ) : (
           <ProgressDock
             cancelling={cancelling}
@@ -1097,7 +1151,7 @@ function BannerView({
             {" "}
             <Link
               className="whitespace-nowrap font-medium underline underline-offset-4"
-              to="/settings"
+              to="/settings?sezione=trascrizione"
             >
               {t("status.openModels")}
             </Link>

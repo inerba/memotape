@@ -7,7 +7,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { type DragEvent, type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
@@ -75,8 +75,6 @@ export function AllBini({
   const [order, setOrder] = useState(savedOrder);
   // La Raccolta che si sta creando (`""`) o rinominando.
   const [naming, setNaming] = useState<string | null>(null);
-  // Il Bino che si sta trascinando su una Raccolta.
-  const [dragging, setDragging] = useState<BinoEntry | null>(null);
   const sort = useCallback((column: BinoColumn) => {
     setOrder((current) => {
       const next = nextOrder(current, column);
@@ -88,16 +86,6 @@ export function AllBini({
       return next;
     });
   }, []);
-  // La riga può sparire dopo lo spostamento, senza `dragend`: il trascinamento finisce qui.
-  const drop = useCallback(
-    (to: string) => {
-      if (dragging) {
-        onMove(dragging.path, to);
-      }
-      setDragging(null);
-    },
-    [dragging, onMove]
-  );
 
   const submitName = useCallback(
     async (nome: string) => {
@@ -162,15 +150,8 @@ export function AllBini({
         >
           {scopes.map((scope) => (
             <ScopePill
-              // Il Bino trascinato si rilascia in un'altra Raccolta o in Senza raccolta.
-              accepts={
-                dragging !== null &&
-                scope !== null &&
-                scope !== (dragging.raccolta ?? "")
-              }
               key={scope ?? ".all"}
               onChoose={onRaccolta}
-              onDrop={drop}
               scope={scope}
               selected={scope === raccolta}
             />
@@ -265,7 +246,6 @@ export function AllBini({
                 bino={bino}
                 dateFormat={dateFormat}
                 key={bino.path}
-                onDrag={setDragging}
                 onMove={onMove}
                 onOpen={onOpen}
                 onTrash={onTrash}
@@ -280,61 +260,23 @@ export function AllBini({
   );
 }
 
-/**
- * Una pillola delle Raccolte. Con `accepts` riceve il Bino trascinato: il bordo tratteggiato dice
- * dove si può rilasciare, e quella sotto il cursore si evidenzia.
- */
+/** Una pillola delle Raccolte. */
 function ScopePill({
-  accepts,
   onChoose,
-  onDrop,
   scope,
   selected,
 }: {
-  accepts: boolean;
   onChoose: (raccolta: string | null) => void;
-  onDrop: (raccolta: string) => void;
   scope: string | null;
   selected: boolean;
 }) {
   const { t } = useTranslation();
-  const [over, setOver] = useState(false);
   const choose = useCallback(() => onChoose(scope), [onChoose, scope]);
-  const dragOver = useCallback(
-    (e: DragEvent) => {
-      if (accepts) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        setOver(true);
-      }
-    },
-    [accepts]
-  );
-  const dragLeave = useCallback(() => setOver(false), []);
-  const drop = useCallback(
-    (e: DragEvent) => {
-      e.preventDefault();
-      setOver(false);
-      if (accepts && scope !== null) {
-        onDrop(scope);
-      }
-    },
-    [accepts, onDrop, scope]
-  );
-  let className = PILL;
-  if (accepts && over) {
-    className += " border-primary bg-accent";
-  } else if (accepts) {
-    className += " border-muted-foreground/60 border-dashed";
-  }
   return (
     <button
       aria-pressed={selected}
-      className={className}
+      className={PILL}
       onClick={choose}
-      onDragLeave={dragLeave}
-      onDragOver={dragOver}
-      onDrop={drop}
       type="button"
     >
       {raccoltaLabel(scope, t)}
@@ -385,7 +327,6 @@ function SortHeader({
 function BinoRow({
   bino,
   dateFormat,
-  onDrag,
   onMove,
   onOpen,
   onTrash,
@@ -394,8 +335,6 @@ function BinoRow({
 }: {
   bino: BinoEntry;
   dateFormat: Intl.DateTimeFormat;
-  /** Il Bino trascinato, `null` a fine trascinamento. */
-  onDrag: (bino: BinoEntry | null) => void;
   onMove: (path: string, raccolta: string) => void;
   onOpen: (path: string) => void;
   onTrash: (bino: { path: string; titolo: string }) => void;
@@ -409,25 +348,11 @@ function BinoRow({
     [bino.path, onMove]
   );
   const trash = useCallback(() => onTrash(bino), [bino, onTrash]);
-  const dragStart = useCallback(
-    (e: DragEvent) => {
-      // Un tipo tutto suo: rilasciato in un campo di testo non scrive nulla.
-      e.dataTransfer.setData("application/x-sbobino-bino", bino.path);
-      e.dataTransfer.effectAllowed = "move";
-      onDrag(bino);
-    },
-    [bino, onDrag]
-  );
-  const dragEnd = useCallback(() => onDrag(null), [onDrag]);
   return (
     <li className="group flex items-center gap-4 py-2.5">
-      {/* Il titolo si apre con un clic e si trascina su una Raccolta per spostarlo. */}
       <button
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        draggable
         onClick={open}
-        onDragEnd={dragEnd}
-        onDragStart={dragStart}
         title={bino.path}
         type="button"
       >

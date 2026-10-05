@@ -17,7 +17,7 @@ test("Informazioni elenca le licenze della spec, Parakeet per primo", () => {
     ["ONNX Runtime", "MIT"],
     ["vad-rs", "MIT"],
     ["Inter", "OFL-1.1"],
-    ["Source Serif 4", "OFL-1.1"],
+    ["Commissioner", "OFL-1.1"],
   ]);
 });
 

@@ -30,14 +30,14 @@ colors:
   close: "#c42b1c"
 typography:
   display:
-    fontFamily: "Source Serif 4 Variable, ui-serif, Georgia, serif"
+    fontFamily: "Commissioner Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "2.75rem"
     fontWeight: 500
     lineHeight: 1.1
     letterSpacing: "-0.015em"
-    fontFeature: "font-optical-sizing: auto"
+    fontFeature: "font-variation-settings: 'FLAR' 100, 'VOLM' 50"
   wordmark:
-    fontFamily: "Source Serif 4 Variable, ui-serif, Georgia, serif"
+    fontFamily: "Commissioner Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 500
     letterSpacing: "-0.01em"
@@ -191,13 +191,13 @@ Un Bino si legge come un documento e si ascolta come un nastro, e le due cose so
 
 La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema segue Windows con `prefers-color-scheme`; in Impostazioni → Generale si può fissarlo chiaro o scuro.
 
-Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tiene preciso con la tipografia (serif solo per i titoli, sans leggibile per tutto il resto, cifre tabulari per i tempi), con il ritmo della colonna e con l'accento usato con parsimonia.
+Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tiene preciso con la tipografia (un sans glifico solo per i titoli, sans leggibile per tutto il resto, cifre tabulari per i tempi), con il ritmo della colonna e con l'accento usato con parsimonia.
 
 **Key Characteristics:**
 - Carta tiepida, barra laterale di un tono più scura, inchiostro bruno-nero; tema chiaro e scuro gemelli.
 - Un solo accento, salvia (`play`), riservato all'audio: ascolto, avanzamento, conferma.
 - Sei colori tenui per i Parlanti, solo come pallini.
-- Titoli in Source Serif 4 con asse ottico; interfaccia e testo in Inter; tempi in cifre tabulari.
+- Titoli in Commissioner con le aste svasate (`FLAR`); interfaccia e testo in Inter; tempi in cifre tabulari.
 - Bordi da un pixel, angoli morbidi, una sola ombra (`shadow-float`) per gli strati sospesi.
 - Barra del titolo integrata con i pulsanti di Windows a destra.
 
@@ -216,6 +216,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 ### Tertiary
 - **Mattone** (`brick`, il `destructive` di shadcn): errori, Elimina nei menu, chip di avviso (bordo al 30%), pallino della Registrazione in corso.
 - **Rosso di Chiudi** (`close`): solo il fondo in hover e focus del pulsante Chiudi della finestra, uguale nei due temi, come in Windows.
+- **Giorno e sera** (`day-paper`, `day-sidebar`, `day-ink`, `night-paper`, `night-sidebar`, `night-ink`): copie fisse di carta, barra laterale e inchiostro dei due temi, solo per le miniature della scelta del tema in Impostazioni → Generale ("Come Windows" le taglia in diagonale).
 
 ### Neutral
 - **Carta** (`paper`): fondo del pannello centrale.
@@ -236,15 +237,15 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 ## Typography
 
-**Display Font:** Source Serif 4 Variable (con ui-serif, Georgia, serif), asse ottico attivo
+**Display Font:** Commissioner Variable (con ui-sans-serif, system-ui, sans-serif), con `FLAR` 100 (aste svasate alle estremità, come le lettere incise) e `VOLM` 50 (forme più piene)
 **Body Font:** Inter Variable (con ui-sans-serif, system-ui, sans-serif), con `cv11` e `ss01` su tutto il body
 **Label/Mono Font:** nessun mono; i tempi usano le cifre tabulari di Inter (`tabular-nums`)
 
-**Character:** Un serif da libro per il nome delle cose (titolo del Bino, benvenuto, marchio) e un sans neutro e molto leggibile per tutto ciò che si legge a lungo o si usa; l'accoppiamento dà al documento un'aria editoriale senza rendere l'interfaccia decorativa.
+**Character:** Un sans glifico, con le aste svasate, per il nome delle cose (titolo del Bino, benvenuto, marchio) e un sans neutro e molto leggibile per tutto ciò che si legge a lungo o si usa; l'accoppiamento dà al documento un'aria editoriale senza rendere l'interfaccia decorativa.
 
 ### Hierarchy
-- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Bino nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso serif a 2.5rem.
-- **Wordmark** (500, 1.375rem, −0.01em): "sbobino" in minuscolo, come nel logo, nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Sbobino"; Impostazioni usa lo stesso serif a 1.25rem per il titolo della pagina.
+- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Bino nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso font a 2.5rem.
+- **Wordmark** (500, 1.375rem, −0.01em): "sbobino" in minuscolo, come nel logo, nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Sbobino"; Impostazioni usa lo stesso font a 2rem per il titolo della pagina, con un sottotitolo in `ink-muted`.
 - **Reading** (400, 1.0625rem, 1.7): il testo dei turni, nella colonna da 46rem (circa 70 caratteri a riga dopo il rientro).
 - **Meta** (400, 1.0625rem, cifre tabulari, `ink-muted`): la riga data · ora · durata sotto il titolo e il sottotitolo del benvenuto (con interlinea rilassata).
 - **Body** (400, 0.875rem): l'interfaccia: voci di menu, breadcrumb, ricerca, chip, tempi dei turni, testi d'aiuto.
@@ -253,7 +254,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 - **Group label** (500, 0.6875rem, +0.07em, maiuscolo): solo i titoli dei gruppi della barra laterale (ATTIVITÀ, RECENTI, RISULTATI).
 
 ### Named Rules
-**The Serif-Names-Only Rule.** Source Serif 4 compare solo su titoli e marchio; mai su pulsanti, menu, testo dei turni o dati.
+**The Display-Names-Only Rule.** Commissioner compare solo su titoli e marchio; mai su pulsanti, menu, testo dei turni o dati.
 
 **The Tabular Time Rule.** Ogni tempo, durata, conteggio o percentuale che può cambiare usa le cifre tabulari, così non fa saltare la riga.
 
@@ -345,7 +346,7 @@ Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato 
 ### Don't:
 - **Don't** colorare di salvia pulsanti, link, schede scelte o titoli.
 - **Don't** usare i colori dei Parlanti fuori dal pallino.
-- **Don't** usare Source Serif 4 fuori da titoli e marchio, né un font di sistema per i titoli.
+- **Don't** usare Commissioner fuori da titoli e marchio, né un font di sistema per i titoli.
 - **Don't** aggiungere ombre a card, chip, turni o alla barra laterale, né ombre dure sfalsate.
 - **Don't** segnare il turno o la Frase in ascolto con una barra colorata sul bordo sinistro: si usa il fondo salvia tenue.
 - **Don't** usare l'etichetta di gruppo maiuscola e spaziata fuori dalla barra laterale, e mai come occhiello sopra un titolo.

@@ -126,11 +126,11 @@ export const CREDITS: Credit[] = [
     url: "https://github.com/rsms/inter",
   },
   {
-    author: "Adobe (Frank Grießhammer)",
-    file: "source-serif-4.txt",
+    author: "Kostas Bartsokas",
+    file: "commissioner.txt",
     license: "OFL-1.1",
-    name: "Source Serif 4",
+    name: "Commissioner",
     role: "font",
-    url: "https://github.com/adobe-fonts/source-serif",
+    url: "https://github.com/kosbarts/Commissioner",
   },
 ];

@@ -1,6 +1,11 @@
 {
   "source": {
     "browse": "Otwórz plik",
+    "dropBusy": "Podczas nagrywania lub transkrypcji można otworzyć tylko plik Bino",
+    "dropFormat": "Nieobsługiwany format",
+    "dropFormats": "Obsługiwane: {{formats}}",
+    "dropMany": "Jeden plik naraz",
+    "dropOpen": "Upuść, aby otworzyć",
     "filter": "Audio, wideo i Bino",
     "none": "Nie wybrano pliku",
     "open": "{{path}} (kliknij, aby otworzyć w powiązanym programie)",
@@ -108,6 +113,7 @@
   "settings": {
     "open": "Ustawienia",
     "title": "Ustawienia",
+    "subtitle": "Jak Sbobino nagrywa, transkrybuje i zapisuje Twoje pliki Bino.",
     "back": "Wstecz",
     "transcription": {
       "title": "Transkrypcja",
@@ -143,6 +149,7 @@
       "channels": "Kanały",
       "mono": "Mono",
       "stereo": "Stereo",
+      "guadagno": "Wzmocnienie",
       "sampleRate": "Częstotliwość próbkowania",
       "hz": "{{value, number}} Hz"
     },
@@ -237,6 +244,7 @@
       "system": "System"
     },
     "level": "Poziom: {{input}}",
+    "guadagno": "Wzmocnienie: {{input}}",
     "options": "Opcje nagrywania"
   },
   "about": {
@@ -328,7 +336,6 @@
     "importFile": "Importuj plik",
     "search": "Szukaj w Bibliotece",
     "activity": "Aktywność",
-    "noActivity": "Brak trwającej aktywności",
     "recents": "Ostatnie",
     "results": "Wyniki",
     "noRecents": "Tutaj pojawią się Twoje nagrania i transkrybowane pliki.",

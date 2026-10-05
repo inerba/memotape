@@ -143,6 +143,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 51. Come utente, voglio che se un dispositivo si scollega durante la Registrazione questa si fermi come con Stop, salvando quanto registrato, e un avviso mostri l'errore con il nome del dispositivo, così non perdo nulla.
 52. Come utente, voglio che la Registrazione usi il bitrate, i canali e la frequenza delle Impostazioni, così controllo qualità e dimensione.
 53. Come utente, voglio che durante una Registrazione Sfoglia e Trascrivi siano disabilitati, così non avvio due Attività insieme.
+73. Come utente, voglio regolare il Guadagno di ciascun Ingresso accanto al suo indicatore, anche durante la Registrazione, così alzo un microfono troppo basso o abbasso un audio di sistema troppo forte senza fermarmi.
 
 ### Impostazioni
 
@@ -156,6 +157,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 61. Come utente, voglio che tutte le impostazioni restino salvate tra un avvio e l'altro, così l'app riparte come l'ho lasciata.
 62. Come utente, voglio che un file impostazioni corrotto non impedisca l'avvio ma riporti ai valori predefiniti, così l'app parte sempre.
 63. Come utente, voglio una sezione Informazioni con la versione dell'app e le licenze dei componenti (modelli, Symphonia, ONNX Runtime, Silero, transcribe-cpp), così l'app rispetta le attribuzioni richieste.
+74. Come utente, voglio impostare il Guadagno di ciascun Ingresso anche in Impostazioni, prima di registrare, così parto già con i livelli giusti.
 
 ### Finestra e aggiornamenti
 
@@ -293,9 +295,9 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Il clic su una Frase trovata con la ricerca porta lì anche il player, in pausa.
   - Correzioni e rinomine dei Parlanti si salvano anche mentre il player suona: il Bino non resta aperto tra una lettura dell'audio e l'altra.
 - **V12, ridisegno della finestra (contratto in `.impeccable/surfaces/src-app-routes-home-tsx.md`)**: cambiano le storie 5, 14, 16, 17, 28, 51, 64 e 65. Dove le voci precedenti dicono "status bar", da qui vale la sezione Attività per la fase e l'avviso per errori ed esiti.
-  - Aspetto chiaro e caldo (carta tiepida, inchiostro bruno, salvia per l'audio in ascolto) e una variante scura calda; segue sempre il tema di Windows. Titoli in serif (Source Serif 4), testo in Inter.
+  - Aspetto chiaro e caldo (carta tiepida, inchiostro bruno, salvia per l'audio in ascolto) e una variante scura calda; segue sempre il tema di Windows. Titoli in Commissioner, testo in Inter.
   - La finestra non ha la cornice di Windows: Riduci a icona, Ingrandisci e Chiudi sono disegnati nell'app, e si trascina dalla barra in alto e dal marchio. Il riquadro di Snap Layouts sul pulsante Ingrandisci non c'è.
-  - Barra laterale: Nuova registrazione ▾ (Trascrivi dal vivo e Riconosci i parlanti nel menu), Importa un file, ricerca in tutta la Libreria (Ctrl+K, Esc la svuota), Attività (con l'avanzamento, un clic riporta alla sua vista), Recenti di tutta la Libreria per giorno, in fondo Libreria con il numero dei Bini, Impostazioni e "Solo sul tuo PC".
+  - Barra laterale: Nuova registrazione ▾ (Registra da, Trascrivi dal vivo e Riconosci i parlanti nel menu), Importa un file, ricerca in tutta la Libreria (Ctrl+K, Esc la svuota), Attività (con l'avanzamento, un clic riporta alla sua vista), Recenti di tutta la Libreria per giorno, in fondo Libreria con il numero dei Bini, Impostazioni e "Solo sul tuo PC".
   - Niente status bar: la fase sta in Attività e in fondo alla vista (avanzamento con Annulla); errori ed esiti compaiono in un avviso sopra il pannello centrale, con il link alle Impostazioni quando serve. Gli esiti spariscono da soli dopo qualche secondo, gli errori restano finché non si chiudono.
   - Le Raccolte stanno nella Libreria: Tutta la Libreria, Senza raccolta, le Raccolte e Nuova Raccolta, con Rinomina ed Elimina di quella scelta. La Raccolta scelta è anche quella in cui vanno le Registrazioni e i file importati, e la Libreria lo dice. In alto il percorso "Raccolta / titolo" porta alla Libreria su quella Raccolta.
   - Un Bino si legge come un documento: titolo grande (un clic lo rinomina), giorno, ora e durata, etichette (file d'origine o Registrazione, Parlanti, modello e Lingua del parlato, incompleto, fuori dalla Libreria). In alto Copia testo e "…" con Esporta Markdown…, Mostra in Esplora file, Sposta in…, Trascrivi di nuovo con le sue scelte ed Elimina.
@@ -306,6 +308,10 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - La data di un Bino è l'ora in cui è stato registrato: per una Registrazione l'inizio, per un file importato la sua data di modifica (prima era l'inizio della Trascrizione; i Bini già creati restano come sono). Un clic sulla riga "giorno · ora · durata" del Bino aperto apre il campo data e ora: Invio o l'uscita dal campo salvano, Esc annulla. Il nome del file non cambia, Recenti e Libreria si riordinano. Non si cambia mentre un'Attività lavora su quel Bino.
   - Nella Libreria le intestazioni Titolo, Data e Durata ordinano l'elenco: il primo clic va dalla più recente o più lunga (il titolo dalla A), il secondo inverte. Si parte dalla Data più recente e la scelta si ricorda su questo PC. Il menu "Ordina per" non c'è più.
   - Il titolo di una riga della Libreria si trascina su una pillola delle Raccolte, compresa Senza raccolta, per spostare il Bino: le pillole che lo accettano hanno il bordo tratteggiato e quella sotto il cursore si evidenzia. Tutta la Libreria e la Raccolta in cui il Bino sta già non lo accettano. Sposta in… resta per la tastiera.
+- **V14, importa trascinando un file (ticket libreria/05, ADR-0011)**:
+  - Un file audio, video o Bino trascinato da Esplora file in un punto qualsiasi della finestra si apre come con Importa un file: un file diventa la Sorgente e aspetta Trascrivi, un Bino si apre (fuori dalla Libreria resta dov'è). Funziona anche con Impostazioni aperto, che si chiude.
+  - Mentre si trascina, un velo su tutta la finestra dice "Rilascia per aprire" oppure perché il rilascio non farà nulla: più di un file, un formato non accettato o una cartella (con i formati accettati), un file audio o video durante una Registrazione o una Trascrizione. In quel caso un Bino si apre in consultazione, come dalla Libreria. Con la conferma di Trascrivi di nuovo aperta il rilascio non conta.
+  - Il trascinamento di un Bino su una pillola delle Raccolte di V13 non c'è più: su Windows non convive con il drop dei file. Per spostare un Bino c'è Sposta in….
 - **V15, la Libreria per gli Assistenti (ADR-0012, ricerca in `docs/research/server-mcp.md`)**:
   - Claude Code, Claude Desktop e Codex collegano Sbobino come server MCP locale: lo avviano loro con `sbobino.exe --mcp` e funziona anche con l'app chiusa.
   - In Impostazioni → Assistenti l'interruttore "Consenti agli Assistenti di leggere la Libreria", spento di default, con la nota che il testo letto va ai server dell'Assistente. Da spento ogni richiesta risponde con un errore che dice dove accenderlo. Sotto, "Copia" per il comando di Claude Code, la tabella per `~/.codex/config.toml` e il blocco per `claude_desktop_config.json`, con il percorso vero dell'exe.
@@ -318,6 +324,15 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Copia sempre in testo semplice, qualunque sia "Copia testo come": il nome mostrato nel Turno seguito da due punti (`Mario: …`, con gli Ingressi separati `Microfono · Mario: …`) e le sue Frasi una dopo l'altra, con le correzioni. Senza nome, solo le Frasi. Il Parziale in corso si copia com'è al momento del clic: anche un Turno fatto solo di un Parziale ha il pulsante.
   - Per circa 1,5 s l'icona diventa una spunta e il tooltip dice "Copiato"; nessun avviso.
   - C'è ovunque si vede il testo a turni: Registrazione dal vivo, Bino aperto (anche consultato durante un'Attività), file trascritto o annullato.
+
+- **V17, Guadagno degli Ingressi (storie 73 e 74)**:
+  - Ogni Ingresso ha il suo Guadagno, indipendente dall'altro (per esempio Microfono +6 dB e Audio di sistema 0 dB), da −12 a +24 dB a passi di 3 dB; il predefinito è 0 dB. Si sceglie da una tendina: "0 dB", gli altri con il segno ("+6 dB", "−3 dB").
+  - Nella barra della Registrazione c'è una tendina accanto all'indicatore di ogni Ingresso registrato. Si cambia anche in Pausa (vale dalla ripresa), non dopo Stop. Il cambio passa in pochi millisecondi, senza scatti udibili.
+  - In Impostazioni → Registrazione e audio la tendina "Guadagno" sta sotto il suo dispositivo e si disattiva con lui quando l'Ingresso non si registra. Il menu ▾ di Nuova registrazione non lo mostra.
+  - È un solo valore per Ingresso: cambiarlo dalla barra lo cambia anche in Impostazioni e vale per le Registrazioni successive. Non dipende dal dispositivo scelto.
+  - Il Guadagno cambia l'audio prima che i due Ingressi si uniscano: il mix salvato, l'audio di ogni Ingresso con gli Ingressi separati e quello che riceve la Trascrizione dal vivo. Non tocca il volume di Windows né le altre app.
+  - L'indicatore mostra il livello dopo il Guadagno. I picchi oltre il massimo si tagliano come oggi; il rosso dell'indicatore avvisa di abbassare.
+  - Il Bino non ricorda il Guadagno usato: è già dentro l'audio.
 
 ## Fuori dal perimetro
 

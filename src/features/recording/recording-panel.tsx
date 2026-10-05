@@ -1,23 +1,32 @@
 import { Circle, Pause, Play, Square } from "lucide-react";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { commands, events, type RecordingTick } from "@/bindings";
+import {
+  type AppError,
+  commands,
+  events,
+  type RecordingTick,
+} from "@/bindings";
 import { Button } from "@/components/ui/button";
 import {
   elapsedText,
   meters,
   silentLevels,
 } from "@/features/recording/recording";
+import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { useSettings } from "@/features/settings/settings-context";
 
 /**
- * La Registrazione in corso: timer, un livello per ingresso, Pausa/Riprendi e Stop. L'esito arriva
- * a chi ha chiamato `record`; `onPausedChange` riceve la pausa confermata dal backend.
+ * La Registrazione in corso: timer, un livello per ingresso con il suo Guadagno, Pausa/Riprendi e
+ * Stop. L'esito arriva a chi ha chiamato `record`; `onPausedChange` riceve la pausa confermata dal
+ * backend, `onError` l'errore di un Guadagno non salvato.
  */
 export function RecordingPanel({
+  onError,
   onPausedChange,
   paused,
 }: {
+  onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
 }) {
@@ -70,7 +79,7 @@ export function RecordingPanel({
           {elapsedText(tick.elapsedMs)}
         </span>
       </span>
-      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
+      <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1.5">
         {meters(tick.levels).map(({ input, percent }) => (
           <Fragment key={input}>
             <span aria-hidden className="text-muted-foreground text-xs">
@@ -88,6 +97,18 @@ export function RecordingPanel({
               min={0}
               optimum={0}
               value={paused ? 0 : percent}
+            />
+            {/* Si cambia anche in Pausa, non dopo Stop: l'audio è già tutto scritto. */}
+            <GuadagnoSelect
+              aria-label={t("recording.guadagno", {
+                input: t(`recording.levels.${input}`),
+              })}
+              className="h-7 text-xs"
+              disabled={stopping}
+              name={
+                input === "microphone" ? "guadagnoMicrofono" : "guadagnoSistema"
+              }
+              onError={onError}
             />
           </Fragment>
         ))}

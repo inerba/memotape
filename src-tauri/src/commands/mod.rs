@@ -333,16 +333,18 @@ pub fn system_language() -> Language {
 
 /// Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
 /// sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background; se
-/// cambia il tema, lo applica subito.
+/// cambia il tema, lo applica subito. Il Guadagno vale subito anche per la Registrazione in corso.
 #[tauri::command]
 #[specta::specta]
 pub fn set_settings(
     app: AppHandle,
     store: State<'_, SettingsStore>,
+    recorder: State<'_, Recorder>,
     settings: Settings,
 ) -> Result<Settings, AppError> {
     let previous = store.set(settings)?;
     let saved = store.get();
+    recorder.set_guadagni(&store);
     if previous.model != saved.model {
         managers::transcription::preload(&app);
     }
@@ -579,4 +581,18 @@ pub async fn trash_bino(
 fn raccolta_path(app: &AppHandle, nome: &str) -> Result<PathBuf, AppError> {
     crate::library::validate_name(nome)?;
     Ok(managers::recording::recordings_folder(app)?.join(nome))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SOURCE_EXTENSIONS;
+
+    #[test]
+    fn il_drop_accetta_le_estensioni_di_apri_file() {
+        let drop = include_str!("../../../src/features/source/drop.ts");
+        let start = drop.find("SOURCE_EXTENSIONS = [").unwrap();
+        let end = start + drop[start..].find(']').unwrap();
+        let mirror: Vec<&str> = drop[start..end].split('"').skip(1).step_by(2).collect();
+        assert_eq!(mirror, SOURCE_EXTENSIONS);
+    }
 }

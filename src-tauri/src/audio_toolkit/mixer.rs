@@ -24,6 +24,8 @@ const MAX_HOLE_NS: u64 = 10 * NS_PER_S;
 /// i blocchi arrivano al worker, anche dai dispositivi lenti (Bluetooth): un blocco che arriva dopo
 /// il silenzio messo al suo posto si scarta.
 const LAG_NS: u64 = 500_000_000;
+/// Quanto dura il passaggio a un nuovo Guadagno: abbastanza da non sentire uno scatto.
+const GUADAGNO_RAMP_NS: u64 = 20_000_000;
 /// -3 dB: il peso del canale centrale e dei surround nel downmix.
 const MINUS_3_DB: f32 = std::f32::consts::FRAC_1_SQRT_2;
 
@@ -52,7 +54,12 @@ struct Input {
     frames: u64,
     /// Frame alla frequenza della Registrazione già sommati nel mix.
     mixed: usize,
+    /// Il picco dopo il Guadagno.
     peak: f32,
+    /// Il Guadagno (lineare) applicato adesso, quello verso cui va e di quanto si muove a frame.
+    guadagno: f32,
+    guadagno_target: f32,
+    guadagno_step: f32,
     resampled: Vec<f32>,
     /// Per il log a fine Registrazione: frame di silenzio inseriti e scartati, e per misurare la
     /// deriva del clock del dispositivo rispetto a QPC i frame ricevuti (pause comprese) tra il
@@ -123,6 +130,22 @@ impl Input {
         }
     }
 
+    /// Applica il Guadagno ai frame di `samples` (nei canali `channels`), andando verso quello
+    /// scelto a passi di `guadagno_step`.
+    fn apply_guadagno(&mut self, samples: &mut [f32], channels: usize) {
+        for frame in samples.chunks_exact_mut(channels) {
+            if self.guadagno != self.guadagno_target {
+                self.guadagno += self.guadagno_step;
+                if (self.guadagno_target - self.guadagno) * self.guadagno_step <= 0.0 {
+                    self.guadagno = self.guadagno_target;
+                }
+            }
+            for s in frame {
+                *s *= self.guadagno;
+            }
+        }
+    }
+
     fn feed_silence(&mut self, frames: u64, mix: &mut Mix) {
         self.silence += frames;
         self.feed(&vec![0.0; frames as usize * mix.channels], mix);
@@ -182,6 +205,9 @@ impl Mixer {
                     frames: 0,
                     mixed: 0,
                     peak: 0.0,
+                    guadagno: 1.0,
+                    guadagno_target: 1.0,
+                    guadagno_step: 0.0,
                     resampled: Vec::new(),
                     silence: 0,
                     dropped: 0,
@@ -245,10 +271,6 @@ impl Mixer {
         if paused {
             return;
         }
-        input.peak = samples
-            .iter()
-            .fold(input.peak, |peak, s| peak.max(s.abs()))
-            .min(1.0);
         let start = input.frame_at(t);
         let position = input.frames as i64;
         let tolerance = input.frame_at(HOLE_NS as i64);
@@ -264,6 +286,10 @@ impl Mixer {
         for frame in samples[skip * input.channels..].chunks_exact(input.channels) {
             downmix(frame, mix.channels, converted);
         }
+        input.apply_guadagno(converted, mix.channels);
+        // Il picco dei campioni del dispositivo, con il Guadagno a fine blocco.
+        let raw = samples.iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
+        input.peak = input.peak.max(raw * input.guadagno).min(1.0);
         input.feed(converted, mix);
         self.emit(out);
     }
@@ -332,7 +358,19 @@ impl Mixer {
         u32::try_from(end / 1_000_000).unwrap_or(u32::MAX)
     }
 
-    /// Il picco (0–1) di ogni ingresso dalla chiamata precedente.
+    /// Il Guadagno (lineare) dell'ingresso `input`. Prima del suo primo audio vale da subito,
+    /// poi ci arriva in `GUADAGNO_RAMP_NS`, senza scatti.
+    pub fn set_guadagno(&mut self, input: usize, guadagno: f32) {
+        let input = &mut self.inputs[input];
+        input.guadagno_target = guadagno;
+        if input.received == 0 {
+            input.guadagno = guadagno;
+        }
+        let ramp = (input.rate * GUADAGNO_RAMP_NS / NS_PER_S).max(1);
+        input.guadagno_step = (guadagno - input.guadagno) / ramp as f32;
+    }
+
+    /// Il picco (0–1) di ogni ingresso, dopo il Guadagno, dalla chiamata precedente.
     pub fn take_peaks(&mut self) -> Vec<f32> {
         self.inputs
             .iter_mut()
@@ -690,6 +728,53 @@ mod tests {
         assert!((at(&tracks[1], 0.3) - 0.5).abs() < 0.01);
         assert!(at(&tracks[1], 0.7).abs() < 1e-4);
         assert!((at(&tracks[0], 0.3) - 0.25).abs() < 0.01);
+    }
+
+    #[test]
+    fn il_guadagno_di_un_ingresso_cambia_il_mix_e_il_suo_livello() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1), (48_000, 1)], (48_000, 1)).unwrap();
+        // +6 dB al microfono (× 2), 0 dB all'audio di sistema.
+        mixer.set_guadagno(0, 2.0);
+        let mut out = Vec::new();
+        mixer.push(0, 0, &[0.2; 480], &mut out);
+        mixer.push(1, 0, &[0.1; 480], &mut out);
+        assert_eq!(out.len(), 480);
+        assert!(
+            out.iter().all(|s| (s - 0.5).abs() < 1e-6),
+            "{:?}",
+            &out[..4]
+        );
+        let peaks = mixer.take_peaks();
+        assert!((peaks[0] - 0.4).abs() < 1e-6 && (peaks[1] - 0.1).abs() < 1e-6);
+    }
+
+    #[test]
+    fn un_guadagno_cambiato_durante_la_registrazione_arriva_senza_scatti() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1)], (48_000, 1))
+            .unwrap()
+            .with_tracks();
+        let mut out = Vec::new();
+        let mut track = Vec::new();
+        for k in 0..100u64 {
+            if k == 50 {
+                // Da 0 a +12 dB (× 4) a metà.
+                mixer.set_guadagno(0, 4.0);
+            }
+            mixer.push(0, k * 10 * MS, &[0.1; 480], &mut out);
+            track.append(&mut mixer.tracks()[0]);
+        }
+        mixer.finish(1_000 * MS, &mut out);
+        track.append(&mut mixer.tracks()[0]);
+        assert_eq!(out.len(), 48_000);
+        assert!((out[24_000 - 1] - 0.1).abs() < 1e-6);
+        assert!((out[47_999] - 0.4).abs() < 1e-6);
+        let jump = out
+            .windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(jump < 0.001, "salto di {jump}");
+        // L'audio dell'Ingresso, con gli Ingressi separati, è quello con il Guadagno.
+        assert_eq!(track, out);
     }
 
     #[test]

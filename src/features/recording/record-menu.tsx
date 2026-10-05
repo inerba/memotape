@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { AppError } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
 import { Button } from "@/components/ui/button";
+import { RecordingInputs } from "@/features/settings/recording-inputs";
 import { SettingCheckbox } from "@/features/settings/setting-checkbox";
 import {
   PARLANTI_LABELS,
@@ -11,8 +12,8 @@ import {
 import { useSettings } from "@/features/settings/settings-context";
 
 /**
- * Nuova registrazione ▾, l'azione principale della barra laterale: il menu sceglie Trascrivi dal vivo
- * e Riconosci i parlanti della Registrazione, che vale solo dal vivo.
+ * Nuova registrazione ▾, l'azione principale della barra laterale: il menu sceglie da cosa registrare,
+ * Trascrivi dal vivo e Riconosci i parlanti della Registrazione, che vale solo dal vivo.
  */
 export function RecordMenu({
   disabled,
@@ -45,6 +46,12 @@ export function RecordMenu({
         variant="default"
       >
         <div className="flex flex-col gap-3 p-1.5">
+          <fieldset className="flex flex-col">
+            <legend className="mb-2 text-muted-foreground text-xs">
+              {t("settings.recording.input")}
+            </legend>
+            <RecordingInputs compact onError={onError} />
+          </fieldset>
           <SettingCheckbox
             label={t("recording.live")}
             name="trascrizioneDalVivo"

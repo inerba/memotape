@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
 /**
  * Un `<select>` nativo (tastiera, lettore di schermo e tema di Windows nell'elenco) con il disegno
@@ -13,7 +14,10 @@ export function NativeSelect({
   return (
     <span className={`relative inline-flex min-w-0 ${wrapperClassName}`}>
       <select
-        className={`h-8 w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-input bg-card pr-8 pl-2.5 text-foreground text-sm transition-colors hover:bg-accent focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:cursor-default disabled:opacity-50 ${className}`}
+        className={cn(
+          "h-8 w-full min-w-0 cursor-pointer appearance-none truncate rounded-md border border-input bg-card pr-8 pl-2.5 text-foreground text-sm transition-colors hover:bg-accent focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/30 disabled:cursor-default disabled:opacity-50",
+          className
+        )}
         {...props}
       />
       <ChevronDown

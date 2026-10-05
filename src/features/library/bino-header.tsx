@@ -263,7 +263,7 @@ export function DocumentHeader({
 }) {
   return (
     <header className="flex flex-col gap-2 pt-12 pb-6">
-      <h1 className="font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em] [font-optical-sizing:auto]">
+      <h1 className="font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em]">
         {title}
       </h1>
       {meta ? (

@@ -37,6 +37,8 @@ Il simbolo mostra le due bobine di una musicassetta unite dal nastro, in nero su
 
 "sbobino" in minuscolo, Source Serif 4 (peso 500, dimensione ottica 24, spaziatura −0,01 em), convertito in tracciati: non serve il font per usarlo. Source Serif 4 è sotto SIL Open Font License, che ne permette l'uso in un logo. Il logotipo è sempre in inchiostro (su chiaro) o carta (su scuro), mai salvia.
 
+**Da rifare:** dal 2026-10-04 la scritta "sbobino" nell'app (barra laterale, Informazioni) è in Commissioner (`FLAR` 100, `VOLM` 50), il font dei titoli. Il logotipo e i lockup in `svg/` e `png/` sono ancora in Source Serif 4 e vanno rifatti con Commissioner.
+
 ## Spazio libero e dimensioni minime
 
 - Intorno al logo lascia libero almeno il raggio di una bobina (circa 1/5 del lato del quadrato) su ogni lato.

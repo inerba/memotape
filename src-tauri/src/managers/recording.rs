@@ -5,7 +5,7 @@
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI8, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
@@ -23,7 +23,9 @@ use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::library::Library;
 use crate::managers::activity::Activity;
-use crate::managers::settings::{Channels, RecordingSource, Settings, SettingsStore};
+use crate::managers::settings::{
+    Channels, RecordingSource, Settings, SettingsStore, guadagno_factor,
+};
 use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgress};
 use crate::transcript::Ingresso;
 
@@ -66,6 +68,26 @@ pub struct RecordingSaved {
 struct Controls {
     paused: AtomicBool,
     stop: AtomicBool,
+    /// Il Guadagno in dB del microfono e dell'audio di sistema.
+    guadagno_microfono: AtomicI8,
+    guadagno_sistema: AtomicI8,
+}
+
+impl Controls {
+    fn set_guadagni(&self, settings: &Settings) {
+        self.guadagno_microfono
+            .store(settings.guadagno_microfono, Ordering::Relaxed);
+        self.guadagno_sistema
+            .store(settings.guadagno_sistema, Ordering::Relaxed);
+    }
+
+    /// Il Guadagno in dB dell'ingresso `kind`.
+    fn guadagno(&self, kind: Kind) -> i8 {
+        match kind {
+            Kind::Microphone => self.guadagno_microfono.load(Ordering::Relaxed),
+            Kind::System => self.guadagno_sistema.load(Ordering::Relaxed),
+        }
+    }
 }
 
 /// Pausa e Stop della Registrazione in corso. In `tauri::State`.
@@ -83,6 +105,12 @@ impl Recorder {
     /// Ferma e salva. Restituisce `false` se non c'è una Registrazione.
     pub fn stop(&self) -> bool {
         self.with(|c| c.stop.store(true, Ordering::Relaxed))
+    }
+
+    /// Il Guadagno salvato in `store`, per la Registrazione in corso se c'è. Legge `store` sotto il
+    /// lock dei controlli, come `record` quando li pubblica: vince sempre l'ultimo salvato.
+    pub fn set_guadagni(&self, store: &SettingsStore) {
+        self.with(|c| c.set_guadagni(&store.get()));
     }
 
     fn with(&self, f: impl FnOnce(&Controls)) -> bool {
@@ -147,7 +175,12 @@ pub async fn record(
         });
         (feeds, Some(live))
     };
-    *recorder.current() = Some(Arc::clone(&controls));
+    {
+        // Sotto lo stesso lock di `Recorder::set_guadagni`: un Guadagno salvato intanto non si perde.
+        let mut current = recorder.current();
+        controls.set_guadagni(&app.state::<SettingsStore>().get());
+        *current = Some(Arc::clone(&controls));
+    }
     let recorded = tauri::async_runtime::spawn_blocking({
         let (app, controls, settings) = (app.clone(), Arc::clone(&controls), settings.clone());
         let (folder, prefix) = (folder.clone(), prefix.clone());
@@ -475,7 +508,15 @@ fn run(
     let mut out = Vec::new();
     let mut last_tick = Instant::now();
     let mut error = None;
+    let mut guadagni = vec![None; kinds.len()];
     while !controls.stop.load(Ordering::Relaxed) {
+        for ((input, &kind), applied) in kinds.iter().enumerate().zip(&mut guadagni) {
+            let db = controls.guadagno(kind);
+            if *applied != Some(db) {
+                *applied = Some(db);
+                mixer.set_guadagno(input, guadagno_factor(db));
+            }
+        }
         if let Some((capture, e)) = captures
             .iter()
             .find_map(|c| device_error(c).map(|e| (c, e)))

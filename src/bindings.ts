@@ -93,7 +93,7 @@ export const commands = {
 	/**
 	 *  Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
 	 *  sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background; se
-	 *  cambia il tema, lo applica subito.
+	 *  cambia il tema, lo applica subito. Il Guadagno vale subito anche per la Registrazione in corso.
 	 */
 	setSettings: (settings: Settings) => typedError<Settings, AppError>(__TAURI_INVOKE("set_settings", { settings })),
 	/**
@@ -463,6 +463,13 @@ export type Settings = {
 	 *  salvati prima che esistesse: allora è spenta.
 	 */
 	assistenti?: boolean,
+	/**
+	 *  Il Guadagno del microfono e dell'audio di sistema in dB, da −12 a +24 a passi di 3: vale
+	 *  per la prossima Registrazione e, cambiato durante una Registrazione, anche per quella.
+	 *  Mancano nei file salvati prima che esistessero: allora sono 0 dB.
+	 */
+	guadagnoMicrofono?: number,
+	guadagnoSistema?: number,
 };
 
 export type SpeakerAssignment = {

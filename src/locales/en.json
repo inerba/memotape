@@ -1,6 +1,11 @@
 {
   "source": {
     "browse": "Open file",
+    "dropBusy": "During a recording or a transcription you can only open a Bino",
+    "dropFormat": "Format not supported",
+    "dropFormats": "Supported: {{formats}}",
+    "dropMany": "One file at a time",
+    "dropOpen": "Drop to open",
     "filter": "Audio, video and Bino",
     "none": "No file selected",
     "open": "{{path}} (click to open with the default app)",
@@ -108,6 +113,7 @@
   "settings": {
     "open": "Settings",
     "title": "Settings",
+    "subtitle": "How Sbobino records, transcribes and saves your Bini.",
     "back": "Back",
     "transcription": {
       "title": "Transcription",
@@ -143,6 +149,7 @@
       "channels": "Channels",
       "mono": "Mono",
       "stereo": "Stereo",
+      "guadagno": "Gain",
       "sampleRate": "Sample rate",
       "hz": "{{value, number}} Hz"
     },
@@ -237,6 +244,7 @@
       "system": "System"
     },
     "level": "Level: {{input}}",
+    "guadagno": "{{input}} gain",
     "options": "Recording options"
   },
   "about": {
@@ -328,7 +336,6 @@
     "importFile": "Import a file",
     "search": "Search the Library",
     "activity": "Activity",
-    "noActivity": "Nothing in progress",
     "recents": "Recent",
     "results": "Results",
     "noRecents": "Your recordings and transcribed files will appear here.",

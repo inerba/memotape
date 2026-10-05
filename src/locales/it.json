@@ -1,6 +1,11 @@
 {
   "source": {
     "browse": "Apri file",
+    "dropBusy": "Durante una Registrazione o una Trascrizione si apre solo un Bino",
+    "dropFormat": "Formato non accettato",
+    "dropFormats": "Si aprono: {{formats}}",
+    "dropMany": "Un file alla volta",
+    "dropOpen": "Rilascia per aprire",
     "filter": "Audio, video e Bino",
     "none": "Nessun file scelto",
     "open": "{{path}} (clic per aprire con il programma associato)",
@@ -108,6 +113,7 @@
   "settings": {
     "open": "Impostazioni",
     "title": "Impostazioni",
+    "subtitle": "Come Sbobino registra, trascrive e salva i tuoi Bini.",
     "back": "Indietro",
     "transcription": {
       "title": "Trascrizione",
@@ -143,6 +149,7 @@
       "channels": "Canali",
       "mono": "Mono",
       "stereo": "Stereo",
+      "guadagno": "Guadagno",
       "sampleRate": "Frequenza",
       "hz": "{{value, number}} Hz"
     },
@@ -237,6 +244,7 @@
       "system": "Sistema"
     },
     "level": "Livello: {{input}}",
+    "guadagno": "Guadagno: {{input}}",
     "options": "Opzioni di Registrazione"
   },
   "about": {
@@ -328,7 +336,6 @@
     "importFile": "Importa un file",
     "search": "Cerca nella Libreria",
     "activity": "Attività",
-    "noActivity": "Nessuna attività in corso",
     "recents": "Recenti",
     "results": "Risultati",
     "noRecents": "Le tue registrazioni e i file trascritti compariranno qui.",

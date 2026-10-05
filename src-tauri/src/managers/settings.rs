@@ -68,6 +68,22 @@ pub struct Settings {
     /// salvati prima che esistesse: allora è spenta.
     #[serde(default)]
     pub assistenti: bool,
+    /// Il Guadagno del microfono e dell'audio di sistema in dB, da −12 a +24 a passi di 3: vale
+    /// per la prossima Registrazione e, cambiato durante una Registrazione, anche per quella.
+    /// Mancano nei file salvati prima che esistessero: allora sono 0 dB.
+    #[serde(default)]
+    pub guadagno_microfono: i8,
+    #[serde(default)]
+    pub guadagno_sistema: i8,
+}
+
+/// Il fattore per cui un Guadagno di `db` moltiplica i campioni.
+pub fn guadagno_factor(db: i8) -> f32 {
+    10_f32.powf(f32::from(db) / 20.0)
+}
+
+fn valid_guadagno(db: i8) -> bool {
+    (-12..=24).contains(&db) && db % 3 == 0
 }
 
 /// Il tema dell'interfaccia: quello di Windows o uno fisso.
@@ -228,6 +244,8 @@ impl Default for Settings {
             raccolta: None,
             tema: Tema::Sistema,
             assistenti: false,
+            guadagno_microfono: 0,
+            guadagno_sistema: 0,
         }
     }
 }
@@ -317,7 +335,10 @@ impl Settings {
     }
 
     fn is_valid(&self) -> bool {
-        BITRATES_KBPS.contains(&self.bitrate_kbps) && SAMPLE_RATES.contains(&self.sample_rate)
+        BITRATES_KBPS.contains(&self.bitrate_kbps)
+            && SAMPLE_RATES.contains(&self.sample_rate)
+            && valid_guadagno(self.guadagno_microfono)
+            && valid_guadagno(self.guadagno_sistema)
     }
 }
 
@@ -652,6 +673,8 @@ mod tests {
             raccolta: Some("Ferrara Quarzi".into()),
             tema: Tema::Scuro,
             assistenti: true,
+            guadagno_microfono: 6,
+            guadagno_sistema: -3,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));
@@ -785,6 +808,37 @@ mod tests {
         ];
         for (locale, expected) in cases {
             assert_eq!(Language::from_locale(locale), expected, "{locale}");
+        }
+    }
+
+    #[test]
+    fn il_guadagno_va_da_meno_12_a_piu_24_db_a_passi_di_3_e_manca_nei_file_di_prima() {
+        let path = temp_file("guadagno");
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.remove("guadagnoMicrofono");
+        object.remove("guadagnoSistema");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let settings = Settings::load(&path).unwrap();
+        assert_eq!(
+            (settings.guadagno_microfono, settings.guadagno_sistema),
+            (0, 0)
+        );
+        for (microfono, sistema) in [(-12, 24), (6, -3)] {
+            let valid = Settings {
+                guadagno_microfono: microfono,
+                guadagno_sistema: sistema,
+                ..Settings::default()
+            };
+            assert!(valid.save(&path).is_ok(), "{microfono} {sistema}");
+        }
+        for (microfono, sistema) in [(-15, 0), (0, 27), (5, 0), (0, -1)] {
+            let invalid = Settings {
+                guadagno_microfono: microfono,
+                guadagno_sistema: sistema,
+                ..Settings::default()
+            };
+            assert!(invalid.save(&path).is_err(), "{microfono} {sistema}");
         }
     }
 

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { Language, Settings, SpeechLanguage } from "@/bindings";
+import type {
+  Language,
+  RecordingSource,
+  Settings,
+  SpeechLanguage,
+} from "@/bindings";
 import catalog from "../../../src-tauri/src/managers/models.json";
 
 /** Le sei lingue dell'app, nell'ordine dei selettori. */
@@ -40,12 +45,17 @@ export const BITRATES_KBPS = [16, 24, 32, 48, 64, 96, 128, 192, 320];
 /** Le frequenze di una Registrazione, in Hz, come in Rust. */
 export const SAMPLE_RATES = [8000, 16_000, 24_000, 48_000];
 
+/** I valori del Guadagno in dB, come `valid_gain` in Rust. */
+export const GUADAGNI = Array.from({ length: 13 }, (_, i) => i * 3 - 12);
+
 /** I predefiniti, come `Settings::default` in Rust: valgono se all'avvio non si leggono. */
 export const DEFAULT_SETTINGS: Settings = {
   assistenti: false,
   bitrateKbps: 32,
   channels: "mono",
   copiaCome: "testo",
+  guadagnoMicrofono: 0,
+  guadagnoSistema: 0,
   interfaceLanguage: null,
   microphone: null,
   modalitaDalVivo: "mix",
@@ -76,6 +86,9 @@ export const settingsSchema = z.object({
   channels: z.enum(["mono", "stereo"]),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   copiaCome: z.enum(["testo", "markdown"]).optional(),
+  // Facoltative come nei bindings: i file salvati prima che esistessero non ce l'hanno.
+  guadagnoMicrofono: oneOf(GUADAGNI).optional(),
+  guadagnoSistema: oneOf(GUADAGNI).optional(),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
@@ -155,4 +168,35 @@ export function parlantiRegistrazione(
     settings.modalitaDalVivo === "ingressiSeparati"
     ? ["parlantiMicrofono", "parlantiSistema"]
     : ["parlantiMix"];
+}
+
+/** Le due caselle di "Registra da": accese, o spente, compongono la sorgente di registrazione. */
+export type RecordingInput = "mic" | "system";
+
+/**
+ * La sorgente con la casella `input` accesa o spenta. Spegnere l'ultima accesa non cambia nulla:
+ * si registra sempre da qualcosa.
+ */
+export function withInput(
+  source: RecordingSource,
+  input: RecordingInput,
+  on: boolean
+): RecordingSource {
+  const mic = input === "mic" ? on : source !== "system";
+  const system = input === "system" ? on : source !== "mic";
+  if (mic && system) {
+    return "both";
+  }
+  if (mic) {
+    return "mic";
+  }
+  return system ? "system" : source;
+}
+
+/** Il Guadagno nella tendina: "0 dB", gli altri con il segno ("+6 dB", "−3 dB"). */
+export function guadagnoText(db: number): string {
+  if (db === 0) {
+    return "0 dB";
+  }
+  return db > 0 ? `+${db} dB` : `−${-db} dB`;
 }

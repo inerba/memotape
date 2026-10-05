@@ -18,6 +18,10 @@ _Avoid_: job, task, operazione
 L'Attività che cattura microfono, audio di sistema o entrambi in un unico file.
 _Avoid_: recording, cattura
 
+**Continuazione**:
+Una Registrazione che, invece di creare un Bino nuovo, accoda il suo audio e le sue Frasi a un Bino esistente; il Bino ricorda dove e quando comincia ogni Continuazione.
+_Avoid_: ripresa, riprendere (è il contrario di Pausa), append, prosecuzione
+
 **Trascrizione**:
 L'Attività che trasforma in testo il parlato della Sorgente.
 _Avoid_: sbobinatura, riconoscimento
@@ -29,6 +33,10 @@ _Avoid_: live, trascrizione in tempo reale
 **Ingresso**:
 Il microfono o l'audio di sistema (loopback del dispositivo di uscita) catturati da una Registrazione; la sorgente di registrazione nelle impostazioni dice quali (Microfono, Audio di sistema, Entrambi).
 _Avoid_: sorgente (è la Sorgente), input
+
+**Guadagno**:
+Quanto Sbobino alza o abbassa l'audio di un Ingresso durante una Registrazione, prima di unirlo agli altri: cambia l'audio salvato e quello trascritto, non il volume di Windows né quello delle altre app.
+_Avoid_: volume (è quello del player o di Windows), gain, livello (è quello che mostra l'indicatore)
 
 **Bino**:
 Il file `.bino` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.

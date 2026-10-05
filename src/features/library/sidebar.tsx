@@ -1,11 +1,4 @@
-import {
-  AudioLines,
-  FileUp,
-  Library,
-  Lock,
-  Search,
-  Settings,
-} from "lucide-react";
+import { AudioLines, FileUp, Library, Search, Settings } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -34,8 +27,8 @@ export interface ActivitySummary {
 
 /**
  * La barra laterale: il marchio, Nuova registrazione (`record`) e Importa un file, la ricerca
- * (Ctrl+K), l'Attività in corso, i Bini recenti di tutta la Libreria per giorno (o i risultati della
- * ricerca) e in fondo la Libreria completa, Impostazioni e la promessa che tutto resta sul PC.
+ * (Ctrl+K), i Bini recenti di tutta la Libreria per giorno (o i risultati della ricerca), l'Attività
+ * in corso (solo se c'è) e in fondo la Libreria completa e Impostazioni.
  */
 export function Sidebar({
   activity,
@@ -159,12 +152,6 @@ export function Sidebar({
           Ctrl K
         </kbd>
       </label>
-      <section aria-labelledby="sidebar-activity" className="mt-5 px-3">
-        <SectionTitle id="sidebar-activity">
-          {t("sidebar.activity")}
-        </SectionTitle>
-        <ActivityCard activity={activity} onActivity={onActivity} />
-      </section>
       <nav
         aria-labelledby="sidebar-recents"
         className="mt-5 flex min-h-0 flex-1 flex-col"
@@ -210,6 +197,14 @@ export function Sidebar({
           )}
         </div>
       </nav>
+      {activity ? (
+        <section aria-labelledby="sidebar-activity" className="px-3 pb-3">
+          <SectionTitle id="sidebar-activity">
+            {t("sidebar.activity")}
+          </SectionTitle>
+          <ActivityCard activity={activity} onActivity={onActivity} />
+        </section>
+      ) : null}
       <div className="flex flex-col gap-0.5 border-sidebar-border border-t px-3 py-2.5">
         <Button
           aria-current={showingAll ? "page" : undefined}
@@ -233,13 +228,6 @@ export function Sidebar({
             {t("settings.open")}
           </Link>
         </Button>
-        <p
-          className="flex items-center gap-2.5 px-2.5 pt-1.5 text-muted-foreground text-xs"
-          title={t("sidebar.localOnlyNote")}
-        >
-          <Lock aria-hidden className="size-3.5" />
-          {t("sidebar.localOnly")}
-        </p>
       </div>
     </aside>
   );
@@ -264,25 +252,15 @@ function SectionTitle({
   );
 }
 
-/**
- * L'Attività in corso: un clic riporta alla sua vista. Senza Attività lo dice, così la sezione non
- * sparisce e non sposta i Recenti.
- */
+/** L'Attività in corso: un clic riporta alla sua vista. */
 function ActivityCard({
   activity,
   onActivity,
 }: {
-  activity: ActivitySummary | null;
+  activity: ActivitySummary;
   onActivity: () => void;
 }) {
   const { t } = useTranslation();
-  if (!activity) {
-    return (
-      <p className="px-2 text-muted-foreground text-sm">
-        {t("sidebar.noActivity")}
-      </p>
-    );
-  }
   return (
     <button
       className="flex w-full flex-col gap-2 rounded-lg border border-sidebar-border bg-background/70 px-3 py-2.5 text-left text-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"

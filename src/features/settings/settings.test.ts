@@ -2,10 +2,13 @@ import { expect, test } from "bun:test";
 import type { Settings } from "@/bindings";
 import {
   DEFAULT_SETTINGS as defaults,
+  GUADAGNI,
+  guadagnoText,
   languageOf,
   parlantiRegistrazione,
   settingsSchema,
   speechLanguageChoice,
+  withInput,
 } from "@/features/settings/settings";
 
 test("i predefiniti sono quelli di Rust", () => {
@@ -133,4 +136,23 @@ test("finché le lingue del modello non sono note resta offerta solo la scelta s
     options: ["fr"],
     value: "fr",
   });
+});
+
+test("le caselle di Registra da compongono la sorgente e non si spengono tutte", () => {
+  expect(withInput("mic", "system", true)).toBe("both");
+  expect(withInput("both", "mic", false)).toBe("system");
+  expect(withInput("both", "system", false)).toBe("mic");
+  expect(withInput("system", "mic", true)).toBe("both");
+  expect(withInput("mic", "mic", false)).toBe("mic");
+  expect(withInput("system", "system", false)).toBe("system");
+});
+
+test("la tendina del Guadagno va da −12 a +24 dB a passi di 3, con il segno", () => {
+  expect(GUADAGNI).toEqual([-12, -9, -6, -3, 0, 3, 6, 9, 12, 15, 18, 21, 24]);
+  expect([
+    guadagnoText(0),
+    guadagnoText(6),
+    guadagnoText(-3),
+    guadagnoText(24),
+  ]).toEqual(["0 dB", "+6 dB", "−3 dB", "+24 dB"]);
 });
