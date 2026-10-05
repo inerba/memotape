@@ -64,6 +64,10 @@ pub struct Settings {
     /// Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows.
     #[serde(default)]
     pub tema: Tema,
+    /// Consenti agli Assistenti di leggere la Libreria con il server MCP (ADR-0012). Manca nei file
+    /// salvati prima che esistesse: allora è spenta.
+    #[serde(default)]
+    pub assistenti: bool,
 }
 
 /// Il tema dell'interfaccia: quello di Windows o uno fisso.
@@ -223,6 +227,7 @@ impl Default for Settings {
             parlanti_sistema: false,
             raccolta: None,
             tema: Tema::Sistema,
+            assistenti: false,
         }
     }
 }
@@ -459,6 +464,7 @@ mod tests {
         );
         assert_eq!(settings.raccolta, None);
         assert_eq!(settings.tema, Tema::Sistema);
+        assert!(!settings.assistenti);
     }
 
     #[test]
@@ -547,6 +553,7 @@ mod tests {
         object.remove("parlantiMicrofono");
         object.remove("parlantiSistema");
         object.remove("tema");
+        object.remove("assistenti");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
@@ -559,6 +566,7 @@ mod tests {
         );
         assert_eq!(settings.raccolta, None);
         assert_eq!(settings.tema, Tema::Sistema);
+        assert!(!settings.assistenti);
     }
 
     #[test]
@@ -643,6 +651,7 @@ mod tests {
             parlanti_sistema: true,
             raccolta: Some("Ferrara Quarzi".into()),
             tema: Tema::Scuro,
+            assistenti: true,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

@@ -31,6 +31,15 @@ pub fn app_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+/// Il percorso dell'exe in esecuzione, per la configurazione degli Assistenti (`<exe> --mcp`).
+#[tauri::command]
+#[specta::specta]
+pub fn app_exe() -> Result<String, AppError> {
+    std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
 /// Apre il dialog di sistema sui file accettati. `filter_name` è l'etichetta tradotta del filtro.
 /// Restituisce il percorso scelto, o `null` se l'utente annulla.
 #[tauri::command]

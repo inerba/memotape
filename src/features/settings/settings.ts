@@ -42,6 +42,7 @@ export const SAMPLE_RATES = [8000, 16_000, 24_000, 48_000];
 
 /** I predefiniti, come `Settings::default` in Rust: valgono se all'avvio non si leggono. */
 export const DEFAULT_SETTINGS: Settings = {
+  assistenti: false,
   bitrateKbps: 32,
   channels: "mono",
   copiaCome: "testo",
@@ -69,6 +70,8 @@ const oneOf = (values: number[]) =>
 
 /** Le stesse regole che Rust applica al file impostazioni. */
 export const settingsSchema = z.object({
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  assistenti: z.boolean().optional(),
   bitrateKbps: oneOf(BITRATES_KBPS),
   channels: z.enum(["mono", "stereo"]),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.

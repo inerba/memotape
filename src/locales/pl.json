@@ -165,6 +165,19 @@
         "testo": "Zwykły tekst",
         "markdown": "Markdown"
       }
+    },
+    "assistants": {
+      "title": "Asystenci",
+      "description": "Claude i Codex mogą przeszukiwać i czytać Twoje Bini przez serwer MCP, nawet gdy Sbobino jest zamknięte.",
+      "allow": "Pozwól asystentom czytać Bibliotekę",
+      "allowDescription": "Asystenci przeszukują i czytają tytuły oraz tekst Twoich Bini, nie zmieniając ich. To, co czytają, trafia na serwery Anthropic lub OpenAI: opuszcza Twój komputer.",
+      "connect": "Połącz asystenta",
+      "connectDescription": "Skopiuj konfigurację do asystenta i uruchom go ponownie.",
+      "claudeCode": "Claude Code: uruchom polecenie w terminalu",
+      "codex": "Codex: dodaj do ~/.codex/config.toml",
+      "claudeDesktop": "Claude Desktop: scal z claude_desktop_config.json",
+      "copy": "Kopiuj",
+      "copied": "Skopiowano"
     }
   },
   "models": {

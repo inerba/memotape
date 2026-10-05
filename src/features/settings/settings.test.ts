@@ -31,6 +31,8 @@ test("i predefiniti sono quelli di Rust", () => {
   ]).toEqual([false, false, false]);
   // Il tema segue Windows finché l'utente non ne sceglie uno.
   expect(defaults.tema).toBe("sistema");
+  // Gli Assistenti non leggono la Libreria finché l'utente non lo consente.
+  expect(defaults.assistenti).toBe(false);
 });
 
 test("Riconosci i parlanti delle Registrazioni ha una casella per Ingresso solo con gli Ingressi separati", () => {

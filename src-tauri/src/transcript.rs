@@ -94,9 +94,7 @@ impl Phrase {
             .parlante
             .map(|n| match parlanti.get(&self.ingresso.parlante_key(n)) {
                 Some(nome) => nome.clone(),
-                None => labels
-                    .get("/transcript/parlante")
-                    .replace("{{n}}", &n.to_string()),
+                None => labels.parlante(n),
             });
         match (ingresso, parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
@@ -123,6 +121,12 @@ impl Labels {
     }
 
     /// Il testo in `pointer` (`/transcript/date`); vuoto se manca, ma il test lo esclude.
+    /// L'etichetta del Parlante `n` non rinominato: `Parlante 2`.
+    pub fn parlante(&self, n: u32) -> String {
+        self.get("/transcript/parlante")
+            .replace("{{n}}", &n.to_string())
+    }
+
     fn get(&self, pointer: &str) -> &str {
         self.0
             .pointer(pointer)

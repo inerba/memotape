@@ -14,7 +14,11 @@ export function SettingCheckbox({
 }: {
   disabled?: boolean;
   label: string;
-  name: "parlantiFile" | "trascrizioneDalVivo" | ParlantiRegistrazione;
+  name:
+    | "assistenti"
+    | "parlantiFile"
+    | "trascrizioneDalVivo"
+    | ParlantiRegistrazione;
   note?: string;
   onError: (error: AppError) => void;
 }) {

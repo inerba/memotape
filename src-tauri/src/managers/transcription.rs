@@ -207,7 +207,7 @@ fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Tran
 }
 
 /// Il nome della Sorgente senza l'ultima estensione: il titolo del documento.
-fn title_of(source: &Path) -> String {
+pub(crate) fn title_of(source: &Path) -> String {
     source
         .file_stem()
         .unwrap_or_default()

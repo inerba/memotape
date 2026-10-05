@@ -7,6 +7,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Versione dell'app, dal `Cargo.toml`. */
 	appVersion: () => __TAURI_INVOKE<string>("app_version"),
+	/**  Il percorso dell'exe in esecuzione, per la configurazione degli Assistenti (`<exe> --mcp`). */
+	appExe: () => typedError<string, AppError>(__TAURI_INVOKE("app_exe")),
 	/**
 	 *  Apre il dialog di sistema sui file accettati. `filter_name` è l'etichetta tradotta del filtro.
 	 *  Restituisce il percorso scelto, o `null` se l'utente annulla.
@@ -456,6 +458,11 @@ export type Settings = {
 	raccolta?: string | null,
 	/**  Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows. */
 	tema?: Tema,
+	/**
+	 *  Consenti agli Assistenti di leggere la Libreria con il server MCP (ADR-0012). Manca nei file
+	 *  salvati prima che esistesse: allora è spenta.
+	 */
+	assistenti?: boolean,
 };
 
 export type SpeakerAssignment = {

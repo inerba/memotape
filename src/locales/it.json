@@ -165,6 +165,19 @@
         "testo": "Testo semplice",
         "markdown": "Markdown"
       }
+    },
+    "assistants": {
+      "title": "Assistenti",
+      "description": "Claude e Codex possono cercare e leggere i tuoi Bini attraverso un server MCP, anche con Sbobino chiuso.",
+      "allow": "Consenti agli Assistenti di leggere la Libreria",
+      "allowDescription": "Gli Assistenti cercano e leggono titoli e testo dei Bini, senza modificarli. Quello che leggono va ai server di Anthropic o di OpenAI: esce dal tuo PC.",
+      "connect": "Collega un Assistente",
+      "connectDescription": "Copia la configurazione nell'Assistente e riavvialo.",
+      "claudeCode": "Claude Code: lancia il comando in un terminale",
+      "codex": "Codex: aggiungi a ~/.codex/config.toml",
+      "claudeDesktop": "Claude Desktop: unisci a claude_desktop_config.json",
+      "copy": "Copia",
+      "copied": "Copiato"
     }
   },
   "models": {

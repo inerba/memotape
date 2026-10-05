@@ -349,7 +349,7 @@ pub fn recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
 pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
     app.path()
         .document_dir()
-        .map(|documents| documents.join("Sbobino"))
+        .map(|documents| documents.join(crate::library::DEFAULT_FOLDER))
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 

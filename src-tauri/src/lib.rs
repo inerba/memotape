@@ -5,9 +5,11 @@ mod engine;
 mod error;
 mod library;
 mod managers;
+mod mcp;
 mod player;
 mod transcript;
 
+pub use mcp::serve as serve_mcp;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands, collect_events};
 
@@ -20,6 +22,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::app_version,
+            commands::app_exe,
             commands::pick_source,
             commands::open_source,
             commands::transcribe,

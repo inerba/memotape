@@ -46,6 +46,10 @@ _Avoid_: Cartella predefinita, archivio, storico, database
 Una cartella di primo livello della Libreria che raggruppa Bini, per esempio le call con un cliente; un Bino sta in una Raccolta o in nessuna.
 _Avoid_: progetto, cartella, etichetta, fascicolo
 
+**Assistente**:
+Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Bini della Libreria; non li modifica e non avvia Attività.
+_Avoid_: agente, bot, integrazione, MCP
+
 ### Testo
 
 **Frase**:

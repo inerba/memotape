@@ -6,11 +6,14 @@ use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use chrono::{DateTime, Local};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, params};
 
 use crate::bino;
 use crate::error::AppError;
 use crate::transcript::Ingresso;
+
+/// La Cartella della Libreria se le impostazioni non ne indicano un'altra, dentro Documenti.
+pub const DEFAULT_FOLDER: &str = "Sbobino";
 
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
 const SCHEMA: i32 = 2;
@@ -111,6 +114,28 @@ impl Library {
             }
             connect(db).map_err(|e| AppError::Internal(format!("{}: {e}", db.display())))
         })?;
+        Ok(Self {
+            root: root.to_path_buf(),
+            db,
+        })
+    }
+
+    /// Apre l'indice in sola lettura, per il server MCP (ADR-0012): non lo crea, non lo ricostruisce
+    /// e rifiuta un indice di un'altra versione, che è dell'app aprire e rifare.
+    pub fn open_read_only(root: &Path, db: &Path) -> Result<Self, AppError> {
+        let db = Connection::open_with_flags(
+            db,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map_err(internal)?;
+        let version: i32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .map_err(internal)?;
+        if version != SCHEMA {
+            return Err(AppError::Internal(format!(
+                "indice della Libreria alla versione {version} invece di {SCHEMA}"
+            )));
+        }
         Ok(Self {
             root: root.to_path_buf(),
             db,
@@ -633,7 +658,7 @@ fn walk(root: &Path, found: &mut Vec<Found>) -> Result<(), AppError> {
 
 /// La Raccolta di un Bino dal percorso relativo alla Libreria: la cartella di primo livello, se
 /// non sta nella radice.
-fn raccolta_of(relative: &str) -> Option<String> {
+pub(crate) fn raccolta_of(relative: &str) -> Option<String> {
     let mut components = Path::new(relative).components();
     let first = components.next()?;
     components.next()?;
@@ -1040,6 +1065,35 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn in_sola_lettura_l_indice_si_legge_ma_non_si_crea_ne_si_rifa() {
+        let dir = temp_dir("libreria-sola-lettura");
+        let root = dir.join("Sbobino");
+        let db = db_path(&dir.join("indice"), &root);
+        std::fs::create_dir_all(db.parent().unwrap()).unwrap();
+        assert!(Library::open_read_only(&root, &db).is_err());
+        assert!(!db.exists());
+        bino_at(&root.join("Uno.bino"), 1000);
+        Library::open(&root, &db).unwrap().sync().unwrap();
+        let read_only = Library::open_read_only(&root, &db).unwrap();
+        assert_eq!(read_only.list().unwrap().bini.len(), 1);
+        assert_eq!(read_only.search("buongiorno", None).unwrap().len(), 1);
+        drop(read_only);
+        // Un indice di un'altra versione si rifiuta e resta com'è: lo rifà l'app.
+        Connection::open(&db)
+            .unwrap()
+            .pragma_update(None, "user_version", 99)
+            .unwrap();
+        assert!(Library::open_read_only(&root, &db).is_err());
+        assert_eq!(
+            Connection::open(&db)
+                .unwrap()
+                .pragma_query_value(None, "user_version", |r| r.get::<_, i32>(0))
+                .unwrap(),
+            99
+        );
+    }
+
+    #[test]
     fn eliminare_un_bino_lo_manda_nel_cestino() {
         let (root, mut library) = library("cestino");
         let path = root.join("Da buttare.bino");
@@ -1055,7 +1109,7 @@ pub(crate) mod tests {
     }
 
     /// Un Bino vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
-    fn bino_with(path: &Path, frasi: &[(&str, Option<u32>)], parlanti: &[(&str, &str)]) {
+    pub fn bino_with(path: &Path, frasi: &[(&str, Option<u32>)], parlanti: &[(&str, &str)]) {
         bino_at(path, 1000);
         let mut document = bino::read(path).unwrap();
         document.frasi = frasi

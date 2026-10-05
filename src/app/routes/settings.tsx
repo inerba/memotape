@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { About } from "@/features/about/about";
 import { ModelList } from "@/features/models/model-list";
+import { AssistantsSection } from "@/features/settings/assistants-section";
 import {
   BITRATES_KBPS,
   LANGUAGE_NAMES,
@@ -454,6 +455,13 @@ export function SettingsPage() {
               {t("settings.general.languageRestart")}
             </p>
           </div>
+        </Section>
+        <Section
+          description={t("settings.assistants.description")}
+          id="settings-assistants"
+          title={t("settings.assistants.title")}
+        >
+          <AssistantsSection onError={setError} />
         </Section>
         <Section
           description={t("about.description")}

@@ -12,6 +12,7 @@ Sbobino è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Bino con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
 - **Libreria.** La cartella in cui Sbobino salva i Bini, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
 - **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Bino nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Bino si legge a turni, si corregge Frase per Frase e si esporta in Markdown.
+- **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Bini della Libreria attraverso un server MCP, anche con Sbobino chiuso (ADR-0012).
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -305,6 +306,13 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - La data di un Bino è l'ora in cui è stato registrato: per una Registrazione l'inizio, per un file importato la sua data di modifica (prima era l'inizio della Trascrizione; i Bini già creati restano come sono). Un clic sulla riga "giorno · ora · durata" del Bino aperto apre il campo data e ora: Invio o l'uscita dal campo salvano, Esc annulla. Il nome del file non cambia, Recenti e Libreria si riordinano. Non si cambia mentre un'Attività lavora su quel Bino.
   - Nella Libreria le intestazioni Titolo, Data e Durata ordinano l'elenco: il primo clic va dalla più recente o più lunga (il titolo dalla A), il secondo inverte. Si parte dalla Data più recente e la scelta si ricorda su questo PC. Il menu "Ordina per" non c'è più.
   - Il titolo di una riga della Libreria si trascina su una pillola delle Raccolte, compresa Senza raccolta, per spostare il Bino: le pillole che lo accettano hanno il bordo tratteggiato e quella sotto il cursore si evidenzia. Tutta la Libreria e la Raccolta in cui il Bino sta già non lo accettano. Sposta in… resta per la tastiera.
+- **V15, la Libreria per gli Assistenti (ADR-0012, ricerca in `docs/research/server-mcp.md`)**:
+  - Claude Code, Claude Desktop e Codex collegano Sbobino come server MCP locale: lo avviano loro con `sbobino.exe --mcp` e funziona anche con l'app chiusa.
+  - In Impostazioni → Assistenti l'interruttore "Consenti agli Assistenti di leggere la Libreria", spento di default, con la nota che il testo letto va ai server dell'Assistente. Da spento ogni richiesta risponde con un errore che dice dove accenderlo. Sotto, "Copia" per il comando di Claude Code, la tabella per `~/.codex/config.toml` e il blocco per `claude_desktop_config.json`, con il percorso vero dell'exe.
+  - Un Assistente può: cercare nella Libreria come il campo di ricerca (titoli, Frasi, nomi dei Parlanti; tutta la Libreria o una Raccolta); elencare Raccolte e Bini con titolo, data e durata, anche tra due date; leggere le Frasi intorno a una Frase trovata, con tempi, Ingresso e Parlante; leggere il testo intero di un Bino, come Copia testo, a pagine. Nessuna risposta supera circa 10 000 token.
+  - Vede solo la Libreria: un Bino si indica con il percorso relativo alla Libreria. Non modifica nulla e non avvia Attività.
+  - Legge l'indice che l'app tiene allineato: un Bino spostato a mano con l'app chiusa non si trova finché l'app non si riapre.
+  - Ogni richiesta lascia una riga nel log di Sbobino.
 
 ## Fuori dal perimetro
 
@@ -315,4 +323,5 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.
+- Assistenti che modificano i Bini o avviano Attività, ricerca per significato, server MCP su HTTP e pacchetto `.mcpb` per Claude Desktop.
 - La scelta della GPU: `transcribe-cpp` usa Vulkan se disponibile, altrimenti la CPU.
