@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   fileName,
   folderOf,
-  isBino,
+  isTape,
   movedPath,
 } from "@/features/source/file-name";
 
@@ -13,14 +13,14 @@ test("il nome della Sorgente è l'ultimo segmento del percorso Windows", () => {
   expect(folderOf("D:/audio/intervista.wav")).toBe("D:/audio");
 });
 
-test("un Bino si riconosce dall'estensione, maiuscole comprese", () => {
-  expect(isBino("C:\\Sbobino\\Registrazione.bino")).toBe(true);
-  expect(isBino("D:/a/RIUNIONE.BINO")).toBe(true);
-  expect(isBino("D:/a/Registrazione.ogg")).toBe(false);
-  expect(isBino("D:/a.bino/intervista.wav")).toBe(false);
+test("un Tape si riconosce dall'estensione, maiuscole comprese", () => {
+  expect(isTape("C:\\Sbobino\\Registrazione.bino")).toBe(true);
+  expect(isTape("D:/a/RIUNIONE.BINO")).toBe(true);
+  expect(isTape("D:/a/Registrazione.ogg")).toBe(false);
+  expect(isTape("D:/a.bino/intervista.wav")).toBe(false);
 });
 
-test("un percorso segue il Bino o la cartella spostati o rinominati", () => {
+test("un percorso segue il Tape o la cartella spostati o rinominati", () => {
   const call = "C:\\Sbobino\\Acme\\Call.bino";
   expect(movedPath(call, call, "C:\\Sbobino\\Call.bino")).toBe(
     "C:\\Sbobino\\Call.bino"

@@ -121,17 +121,17 @@ pub enum LiveTranscription {
 
 /// Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni.
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
-pub struct OpenedBino {
+pub struct OpenedTape {
     pub phrases: Vec<TranscriptPhrase>,
     /// Per chiave `<ingresso>:<n>`, come nel Tape.
     pub parlanti: BTreeMap<String, String>,
-    pub info: BinoInfo,
+    pub info: TapeInfo,
 }
 
 /// La riga di informazioni della vista di un Tape.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct BinoInfo {
+pub struct TapeInfo {
     /// Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso.
     pub creato: String,
     pub durata_ms: u32,
@@ -696,7 +696,7 @@ fn save_live(
 
 /// Apre il Tape `source` come Sorgente, senza ritrascrivere: le Frasi, come se arrivassero da una
 /// Trascrizione, i nomi dei Parlanti e le informazioni.
-pub fn open_tape(source: &Path) -> Result<OpenedBino, AppError> {
+pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
     let document = tape::read(source)?;
     let phrases = document
         .frasi
@@ -710,9 +710,9 @@ pub fn open_tape(source: &Path) -> Result<OpenedBino, AppError> {
             parlante: frase.parlante,
         })
         .collect();
-    Ok(OpenedBino {
+    Ok(OpenedTape {
         phrases,
-        info: BinoInfo {
+        info: TapeInfo {
             creato: document.creato.clone(),
             durata_ms: document.durata_ms,
             modello: document.modello.as_deref().map(model_name),
@@ -1123,7 +1123,7 @@ mod tests {
         let opened = open_tape(&path).unwrap();
         assert_eq!(
             opened.info,
-            BinoInfo {
+            TapeInfo {
                 creato: "2026-10-03T17:05:42+02:00".into(),
                 durata_ms: 4000,
                 modello: Some(models::default_model().name.clone()),

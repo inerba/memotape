@@ -1,13 +1,13 @@
 import type { TFunction } from "i18next";
-import type { BinoEntry } from "@/bindings";
+import type { TapeEntry } from "@/bindings";
 
 /**
  * Un gruppo della barra laterale: `today`, `yesterday`, `week` (il resto della settimana, da
  * lunedì) o un mese, `AAAA-MM`.
  */
 export interface DateGroup {
-  bini: BinoEntry[];
   key: string;
+  tapes: TapeEntry[];
 }
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -36,23 +36,23 @@ function groupKey(date: Date, today: Date): string {
   return `${date.getFullYear()}-${two(date.getMonth() + 1)}`;
 }
 
-/** I Bini dal più recente, raggruppati in Oggi, Ieri, Questa settimana e poi per mese. */
-export function groupByDate(bini: BinoEntry[], today: Date): DateGroup[] {
+/** I Tape dal più recente, raggruppati in Oggi, Ieri, Questa settimana e poi per mese. */
+export function groupByDate(tapes: TapeEntry[], today: Date): DateGroup[] {
   const groups: DateGroup[] = [];
   let last: DateGroup | undefined;
-  for (const bino of sortBini(bini, DEFAULT_ORDER)) {
-    const key = groupKey(new Date(bino.creato), today);
+  for (const tape of sortTapes(tapes, DEFAULT_ORDER)) {
+    const key = groupKey(new Date(tape.creato), today);
     if (last?.key === key) {
-      last.bini.push(bino);
+      last.tapes.push(tape);
     } else {
-      last = { bini: [bino], key };
+      last = { key, tapes: [tape] };
       groups.push(last);
     }
   }
   return groups;
 }
 
-/** L'ora di un Bino, `HH:mm`. */
+/** L'ora di un Tape, `HH:mm`. */
 export function clockText(creato: string): string {
   const date = new Date(creato);
   return `${two(date.getHours())}:${two(date.getMinutes())}`;
@@ -65,27 +65,27 @@ export function dateTimeInput(creato: string): string {
 }
 
 /** Le colonne dell'elenco completo per cui si ordina. */
-export type BinoColumn = "date" | "title" | "duration";
-const COLUMNS: BinoColumn[] = ["date", "title", "duration"];
+export type TapeColumn = "date" | "title" | "duration";
+const COLUMNS: TapeColumn[] = ["date", "title", "duration"];
 
-export interface BinoOrder {
-  column: BinoColumn;
+export interface TapeOrder {
+  column: TapeColumn;
   descending: boolean;
 }
 
 /** Dal più recente. */
-export const DEFAULT_ORDER: BinoOrder = { column: "date", descending: true };
+export const DEFAULT_ORDER: TapeOrder = { column: "date", descending: true };
 
-const COMPARE: Record<BinoColumn, (a: BinoEntry, b: BinoEntry) => number> = {
+const COMPARE: Record<TapeColumn, (a: TapeEntry, b: TapeEntry) => number> = {
   date: (a, b) => Date.parse(a.creato) - Date.parse(b.creato),
-  // Senza durata (Bino illeggibile) è il più corto.
+  // Senza durata (Tape illeggibile) è il più corto.
   duration: (a, b) => (a.durataMs ?? -1) - (b.durataMs ?? -1),
   title: (a, b) => a.titolo.localeCompare(b.titolo),
 };
 
-export function sortBini(bini: BinoEntry[], order: BinoOrder): BinoEntry[] {
+export function sortTapes(tapes: TapeEntry[], order: TapeOrder): TapeEntry[] {
   const compare = COMPARE[order.column];
-  return [...bini].sort((a, b) =>
+  return [...tapes].sort((a, b) =>
     order.descending ? compare(b, a) : compare(a, b)
   );
 }
@@ -94,7 +94,7 @@ export function sortBini(bini: BinoEntry[], order: BinoOrder): BinoEntry[] {
  * Il clic sull'intestazione `column`: la stessa colonna inverte il verso, un'altra parte dal più
  * recente o più lungo, il titolo dalla A.
  */
-export function nextOrder(current: BinoOrder, column: BinoColumn): BinoOrder {
+export function nextOrder(current: TapeOrder, column: TapeColumn): TapeOrder {
   if (current.column === column) {
     return { column, descending: !current.descending };
   }
@@ -102,7 +102,7 @@ export function nextOrder(current: BinoOrder, column: BinoColumn): BinoOrder {
 }
 
 /** L'ordinamento ricordato (JSON), o quello predefinito se manca o non vale. */
-export function orderOf(saved: string | null): BinoOrder {
+export function orderOf(saved: string | null): TapeOrder {
   try {
     const order = JSON.parse(saved ?? "null");
     if (
@@ -136,22 +136,22 @@ export function raccoltaLabel(raccolta: string | null, t: TFunction): string {
   return raccolta === "" ? t("library.none") : raccolta;
 }
 
-/** I Bini della Raccolta `raccolta` (vedi `chosenRaccolta`). */
-export function biniOf(
-  bini: BinoEntry[],
+/** I Tape della Raccolta `raccolta` (vedi `chosenRaccolta`). */
+export function tapesOf(
+  tapes: TapeEntry[],
   raccolta: string | null
-): BinoEntry[] {
+): TapeEntry[] {
   if (raccolta === null) {
-    return bini;
+    return tapes;
   }
-  return bini.filter((b) => (b.raccolta ?? "") === raccolta);
+  return tapes.filter((b) => (b.raccolta ?? "") === raccolta);
 }
 
 const FORBIDDEN = /[<>:"/\\|?*\p{Cc}]/u;
 const DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 /**
- * Perché `name` non va bene per una Raccolta o il titolo di un Bino, come `library::validate_name`
+ * Perché `name` non va bene per una Raccolta o il titolo di un Tape, come `library::validate_name`
  * in Rust: `invalidName` (vuoto, caratteri non ammessi da Windows, nome riservato, punto o spazio in
  * fondo, punto in testa) o `nameTaken` (uno di `taken`, senza distinguere maiuscole e minuscole).
  * `null` se va bene.
@@ -176,7 +176,7 @@ export function nameProblem(
 }
 
 /**
- * Il giorno di un Bino per il suo titolo: "Oggi, 4 ottobre", "Ieri, 3 ottobre", senza l'anno se è
+ * Il giorno di un Tape per il suo titolo: "Oggi, 4 ottobre", "Ieri, 3 ottobre", senza l'anno se è
  * quello di `today`, altrimenti la data intera.
  */
 export function dayText(

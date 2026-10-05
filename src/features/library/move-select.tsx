@@ -9,8 +9,8 @@ export const SELECT =
 const PROMPT = ".";
 
 /**
- * "Sposta in…" (o "Aggiungi alla Libreria…" per un Bino da fuori): sceglie Senza raccolta o una
- * Raccolta, tranne quella in cui il Bino sta già (`current`, `""` Senza raccolta).
+ * "Sposta in…" (o "Aggiungi alla Libreria…" per un Tape da fuori): sceglie Senza raccolta o una
+ * Raccolta, tranne quella in cui il Tape sta già (`current`, `""` Senza raccolta).
  */
 export function MoveSelect({
   className = "",

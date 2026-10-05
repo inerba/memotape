@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import type { BinoInfo, LibraryList } from "@/bindings";
+import type { LibraryList, TapeInfo } from "@/bindings";
 import { dateTimeInput, dayText } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
@@ -23,13 +23,13 @@ import { fileName, folderOf } from "@/features/source/file-name";
 
 const EXTENSION = /\.bino$/i;
 
-/** La voce del Bino `path` nella Libreria, se ci sta, senza distinguere maiuscole e minuscole. */
+/** La voce del Tape `path` nella Libreria, se ci sta, senza distinguere maiuscole e minuscole. */
 export function entryOf(library: LibraryList, path: string) {
   const lower = path.toLowerCase();
-  return library.bini.find((b) => b.path.toLowerCase() === lower);
+  return library.tapes.find((b) => b.path.toLowerCase() === lower);
 }
 
-/** Il titolo del Bino `path`: quello della Libreria, o il nome del file. */
+/** Il titolo del Tape `path`: quello della Libreria, o il nome del file. */
 export function titleOf(library: LibraryList, path: string): string {
   return (
     entryOf(library, path)?.titolo ?? fileName(path).replace(EXTENSION, "")
@@ -37,10 +37,10 @@ export function titleOf(library: LibraryList, path: string): string {
 }
 
 /**
- * La testata del documento di un Bino: il titolo grande, che un clic rinomina, il giorno, l'ora e la
+ * La testata del documento di un Tape: il titolo grande, che un clic rinomina, il giorno, l'ora e la
  * durata, e le informazioni essenziali come etichette.
  */
-export function BinoHeader({
+export function TapeHeader({
   disabled,
   info,
   library,
@@ -51,7 +51,7 @@ export function BinoHeader({
 }: {
   /** Ci lavora l'Attività in corso: niente rinomina né cambio di data. */
   disabled: boolean;
-  info: BinoInfo | null;
+  info: TapeInfo | null;
   library: LibraryList;
   /** La data e l'ora nuove, locali: `2026-10-03T17:05`. */
   onCreato: (path: string, local: string) => void;
@@ -65,7 +65,7 @@ export function BinoHeader({
   const entry = entryOf(library, path);
   const titolo = titleOf(library, path);
   const folder = folderOf(path.toLowerCase());
-  const siblings = library.bini
+  const siblings = library.tapes
     .filter((b) => b !== entry && folderOf(b.path.toLowerCase()) === folder)
     .map((b) => b.titolo);
 
@@ -148,7 +148,7 @@ function CreatoMeta({
   text,
 }: {
   disabled: boolean;
-  info: BinoInfo;
+  info: TapeInfo;
   onChange: (local: string) => void;
   text: string;
 }) {
@@ -178,7 +178,7 @@ function CreatoMeta({
   if (editing) {
     return (
       <input
-        aria-label={t("bino.dateLabel")}
+        aria-label={t("tape.dateLabel")}
         autoFocus
         className="h-8 rounded-md border bg-card px-2 text-base text-foreground tabular-nums"
         defaultValue={initial}
@@ -193,7 +193,7 @@ function CreatoMeta({
       className="cursor-text rounded-md text-left decoration-muted-foreground/30 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
       disabled={disabled}
       onClick={start}
-      title={t("bino.changeDate")}
+      title={t("tape.changeDate")}
       type="button"
     >
       {text}
@@ -202,24 +202,24 @@ function CreatoMeta({
 }
 
 /**
- * Da dove viene il Bino: il file d'origine, o per una Registrazione con gli Ingressi separati
+ * Da dove viene il Tape: il file d'origine, o per una Registrazione con gli Ingressi separati
  * microfono e audio di sistema. Del mix di una Registrazione gli ingressi non si sanno.
  */
-function sourceText(info: BinoInfo, t: TFunction): string {
+function sourceText(info: TapeInfo, t: TFunction): string {
   if (info.origine) {
-    return t("bino.file", { name: info.origine });
+    return t("tape.file", { name: info.origine });
   }
-  return info.ingressiSeparati ? t("bino.ingressi") : t("bino.recording");
+  return info.ingressiSeparati ? t("tape.ingressi") : t("tape.recording");
 }
 
-/** Le informazioni essenziali di un Bino come etichette. */
+/** Le informazioni essenziali di un Tape come etichette. */
 function InfoChips({
   inLibrary,
   info,
   parlanti,
 }: {
   inLibrary: boolean;
-  info: BinoInfo;
+  info: TapeInfo;
   parlanti: number;
 }) {
   const { i18n, t } = useTranslation();
@@ -236,9 +236,9 @@ function InfoChips({
         {sourceText(info, t)}
       </Chip>
       {parlanti > 0 ? (
-        <Chip icon={<Users />}>{t("bino.parlanti", { count: parlanti })}</Chip>
+        <Chip icon={<Users />}>{t("tape.parlanti", { count: parlanti })}</Chip>
       ) : null}
-      {/* Senza modello il Bino non ha testo: niente modello, lingua né "incompleto". */}
+      {/* Senza modello il Tape non ha testo: niente modello, lingua né "incompleto". */}
       {info.modello ? (
         <Chip icon={<Languages />}>{`${info.modello} · ${language}`}</Chip>
       ) : null}

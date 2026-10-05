@@ -41,7 +41,7 @@ pub enum AppError {
     LiveTranscriptionUnavailable(String),
     /// Il Tape è stato scritto da una versione più nuova dell'app, con uno schema che non conosce.
     #[error("Tape di una versione più nuova")]
-    UnsupportedBino,
+    UnsupportedTape,
     /// Il nome di una Raccolta o il titolo di un Tape non è ammesso da Windows.
     #[error("nome non valido: {0}")]
     InvalidName(String),
@@ -53,7 +53,7 @@ pub enum AppError {
     RaccoltaNotEmpty(String),
     /// Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app.
     #[error("Tape non trovato: {0}")]
-    BinoNotFound(String),
+    TapeNotFound(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

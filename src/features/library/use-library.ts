@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { type AppError, commands, events, type LibraryList } from "@/bindings";
 
-const EMPTY: LibraryList = { bini: [], raccolte: [] };
+const EMPTY: LibraryList = { raccolte: [], tapes: [] };
 
 /** L'elenco della Libreria, riletto a ogni `library-changed`. */
 export function useLibrary(onError: (error: AppError) => void): LibraryList {

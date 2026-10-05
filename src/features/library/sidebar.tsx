@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import type { AppError, BinoEntry, LibraryList } from "@/bindings";
+import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { clockText, groupByDate } from "@/features/library/library";
@@ -27,7 +27,7 @@ export interface ActivitySummary {
 
 /**
  * La barra laterale: il marchio, Nuova registrazione (`record`) e Importa un file, la ricerca
- * (Ctrl+K), i Bini recenti di tutta la Libreria per giorno (o i risultati della ricerca), l'Attività
+ * (Ctrl+K), i Tape recenti di tutta la Libreria per giorno (o i risultati della ricerca), l'Attività
  * in corso (solo se c'è) e in fondo la Libreria completa e Impostazioni.
  */
 export function Sidebar({
@@ -51,11 +51,11 @@ export function Sidebar({
   onActivity: () => void;
   onError: (error: AppError) => void;
   onImport: () => void;
-  /** Un Bino della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
+  /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: PhraseRef) => void;
   onShowAll: () => void;
   record: ReactNode;
-  /** Il Bino aperto. */
+  /** Il Tape aperto. */
   selected: string | null;
   /** La Libreria completa è aperta. */
   showingAll: boolean;
@@ -102,7 +102,7 @@ export function Sidebar({
     const [year, month] = key.split("-").map(Number);
     return monthFormat.format(new Date(year ?? 0, (month ?? 1) - 1, 1));
   };
-  const groups = groupByDate(list.bini, new Date());
+  const groups = groupByDate(list.tapes, new Date());
 
   return (
     <aside
@@ -181,12 +181,12 @@ export function Sidebar({
                     {groupLabel(group.key)}
                   </h3>
                   <ul className="flex flex-col gap-0.5">
-                    {group.bini.map((bino) => (
-                      <li key={bino.path}>
-                        <BinoItem
-                          bino={bino}
+                    {group.tapes.map((tape) => (
+                      <li key={tape.path}>
+                        <TapeItem
                           onOpen={onOpen}
-                          selected={bino.path === selected}
+                          selected={tape.path === selected}
+                          tape={tape}
                         />
                       </li>
                     ))}
@@ -215,7 +215,7 @@ export function Sidebar({
           <Library />
           <span className="flex-1 text-left">{t("library.title")}</span>
           <span className="text-muted-foreground text-xs tabular-nums">
-            {list.bini.length}
+            {list.tapes.length}
           </span>
         </Button>
         <Button
@@ -297,22 +297,22 @@ function ActivityCard({
   );
 }
 
-function BinoItem({
-  bino,
+function TapeItem({
+  tape,
   onOpen,
   selected,
 }: {
-  bino: BinoEntry;
+  tape: TapeEntry;
   onOpen: (path: string) => void;
   selected: boolean;
 }) {
-  const open = useCallback(() => onOpen(bino.path), [bino.path, onOpen]);
+  const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
   return (
     <button
       aria-current={selected ? "page" : undefined}
       className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
       onClick={open}
-      title={bino.path}
+      title={tape.path}
       type="button"
     >
       <AudioLines
@@ -321,11 +321,11 @@ function BinoItem({
       />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm group-aria-[current=page]:font-medium">
-          {bino.titolo}
+          {tape.titolo}
         </span>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {clockText(bino.creato)}
-          {bino.durataMs === null ? "" : ` · ${elapsedText(bino.durataMs)}`}
+          {clockText(tape.creato)}
+          {tape.durataMs === null ? "" : ` · ${elapsedText(tape.durataMs)}`}
         </span>
       </span>
     </button>

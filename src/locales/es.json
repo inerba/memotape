@@ -90,11 +90,11 @@
       "outputDeviceMissing": "No hay ningún dispositivo de salida para el audio del sistema, o el elegido en Configuración no está disponible",
       "unreadableSettings": "No se puede leer la configuración, la aplicación usa los valores predeterminados: {{detail}}",
       "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
-      "unsupportedBino": "Este Bino viene de una versión más reciente de Sbobino: actualiza la aplicación para abrirlo",
+      "unsupportedTape": "Este Bino viene de una versión más reciente de Sbobino: actualiza la aplicación para abrirlo",
       "invalidName": "Nombre no válido: {{detail}}. No se admiten < > : \" / \\ | ? *, los nombres reservados como CON, un punto al principio ni un punto o espacio al final",
       "nameTaken": "El nombre {{detail}} ya está en uso",
       "raccoltaNotEmpty": "La Colección {{detail}} no está vacía: mueve o elimina antes sus Bini",
-      "binoNotFound": "El Bino ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
+      "tapeNotFound": "El Bino ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
       "activityInProgress": "Hay otra actividad en curso: espera a que termine o cancélala",
       "cancelled": "Transcripción cancelada",
       "internal": "Error interno: {{detail}}"
@@ -346,7 +346,7 @@
     "waiting": "El texto aparecerá aquí mientras hablas.",
     "off": "La transcripción en directo está desactivada: después de Detener podrás transcribir la grabación."
   },
-  "bino": {
+  "tape": {
     "recording": "Grabación",
     "file": "Archivo {{name}}",
     "parlanti_one": "{{count}} hablante",

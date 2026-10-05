@@ -15,7 +15,7 @@ Spec: `.scratch/rebrand-memotape/spec.md` (storie 24, 25, 28).
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] In `src/` e nei comandi Rust nessun identificatore, nome di file, chiave i18n o commento usa `bino`/`bini`. Fanno eccezione i valori tradotti e le stringhe dell'estensione `.bino`
 - [ ] `bindings.ts` è rigenerato con `bun tauri dev` e committato, e `i_bindings_committati_sono_aggiornati` è verde

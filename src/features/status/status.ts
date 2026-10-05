@@ -95,7 +95,7 @@ export function withLiveError(status: Status, liveError: AppError): Status {
 }
 
 /**
- * La status bar dopo che il Bino o la Raccolta `from`, forse con la Sorgente che mostra, è diventato
+ * La status bar dopo che il Tape o la Raccolta `from`, forse con la Sorgente che mostra, è diventato
  * `to`.
  */
 export function withMovedSource(

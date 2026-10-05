@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { dropVerdict } from "@/features/source/drop";
 
-test("un solo file audio, video o Bino si apre", () => {
+test("un solo file audio, video o Tape si apre", () => {
   expect(dropVerdict(["C:\\audio\\Lezione 1.MP3"], false)).toEqual({
     accepted: true,
     path: "C:\\audio\\Lezione 1.MP3",
@@ -27,7 +27,7 @@ test("un formato non accettato o una cartella si rifiutano", () => {
   expect(dropVerdict([], false).accepted).toBe(false);
 });
 
-test("durante un'Attività si apre solo un Bino", () => {
+test("durante un'Attività si apre solo un Tape", () => {
   expect(dropVerdict(["C:\\Call.bino"], true).accepted).toBe(true);
   expect(dropVerdict(["C:\\a.wav"], true)).toEqual({
     accepted: false,

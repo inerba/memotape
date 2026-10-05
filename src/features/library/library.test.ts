@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
-import type { BinoEntry } from "@/bindings";
+import type { TapeEntry } from "@/bindings";
 import {
-  type BinoColumn,
-  biniOf,
   chosenRaccolta,
   clockText,
   DEFAULT_ORDER,
@@ -14,15 +12,17 @@ import {
   nameProblem,
   nextOrder,
   orderOf,
-  sortBini,
+  sortTapes,
+  type TapeColumn,
+  tapesOf,
 } from "./library";
 
-/** Un Bino creato all'ora locale indicata. */
-function bino(
+/** Un Tape creato all'ora locale indicata. */
+function tape(
   titolo: string,
   [y, mo, d, h = 12, mi = 0]: number[],
   raccolta: string | null = null
-): BinoEntry {
+): TapeEntry {
   return {
     creato: new Date(y ?? 0, (mo ?? 1) - 1, d, h, mi).toISOString(),
     durataMs: 60_000,
@@ -32,8 +32,8 @@ function bino(
   };
 }
 
-const groups = (bini: BinoEntry[], today: Date) =>
-  groupByDate(bini, today).map((g) => [g.key, g.bini.map((b) => b.titolo)]);
+const groups = (tapes: TapeEntry[], today: Date) =>
+  groupByDate(tapes, today).map((g) => [g.key, g.tapes.map((b) => b.titolo)]);
 
 describe("raggruppamento per data", () => {
   test("a cavallo di mezzanotte", () => {
@@ -42,11 +42,11 @@ describe("raggruppamento per data", () => {
     expect(
       groups(
         [
-          bino("mezzanotte", [2026, 10, 7, 0, 0]),
-          bino("prima", [2026, 10, 6, 23, 59]),
-          bino("ieri mattina", [2026, 10, 6, 0, 0]),
-          bino("lunedì", [2026, 10, 5, 9, 0]),
-          bino("futuro", [2026, 10, 8]),
+          tape("mezzanotte", [2026, 10, 7, 0, 0]),
+          tape("prima", [2026, 10, 6, 23, 59]),
+          tape("ieri mattina", [2026, 10, 6, 0, 0]),
+          tape("lunedì", [2026, 10, 5, 9, 0]),
+          tape("futuro", [2026, 10, 8]),
         ],
         today
       )
@@ -63,9 +63,9 @@ describe("raggruppamento per data", () => {
     expect(
       groups(
         [
-          bino("domenica", [2026, 10, 4]),
-          bino("sabato", [2026, 10, 3]),
-          bino("oggi", [2026, 10, 5, 8]),
+          tape("domenica", [2026, 10, 4]),
+          tape("sabato", [2026, 10, 3]),
+          tape("oggi", [2026, 10, 5, 8]),
         ],
         today
       )
@@ -82,10 +82,10 @@ describe("raggruppamento per data", () => {
     expect(
       groups(
         [
-          bino("martedì", [2026, 9, 29]),
-          bino("domenica", [2026, 9, 27]),
-          bino("agosto", [2026, 8, 31]),
-          bino("dicembre", [2025, 12, 31]),
+          tape("martedì", [2026, 9, 29]),
+          tape("domenica", [2026, 9, 27]),
+          tape("agosto", [2026, 8, 31]),
+          tape("dicembre", [2025, 12, 31]),
         ],
         today
       )
@@ -104,18 +104,18 @@ test("l'ora è HH:mm nell'ora locale", () => {
 });
 
 test("l'elenco completo si ordina per data, titolo o durata, nei due versi", () => {
-  const bini = [
-    { ...bino("beta", [2026, 10, 1]), durataMs: 5000 },
-    { ...bino("Alfa", [2026, 9, 1]), durataMs: null },
-    { ...bino("gamma", [2026, 10, 3]), durataMs: 9000 },
+  const tapes = [
+    { ...tape("beta", [2026, 10, 1]), durataMs: 5000 },
+    { ...tape("Alfa", [2026, 9, 1]), durataMs: null },
+    { ...tape("gamma", [2026, 10, 3]), durataMs: 9000 },
   ];
-  const titoli = (column: BinoColumn, descending: boolean) =>
-    sortBini(bini, { column, descending }).map((b) => b.titolo);
+  const titoli = (column: TapeColumn, descending: boolean) =>
+    sortTapes(tapes, { column, descending }).map((b) => b.titolo);
   expect(titoli("date", true)).toEqual(["gamma", "beta", "Alfa"]);
   expect(titoli("date", false)).toEqual(["Alfa", "beta", "gamma"]);
   expect(titoli("title", false)).toEqual(["Alfa", "beta", "gamma"]);
   expect(titoli("title", true)).toEqual(["gamma", "beta", "Alfa"]);
-  // Senza durata (Bino illeggibile) viene dopo i più corti.
+  // Senza durata (Tape illeggibile) viene dopo i più corti.
   expect(titoli("duration", true)).toEqual(["gamma", "beta", "Alfa"]);
   expect(titoli("duration", false)).toEqual(["Alfa", "beta", "gamma"]);
 });
@@ -149,20 +149,20 @@ test("l'ordinamento ricordato si rilegge, o vale quello predefinito", () => {
   );
 });
 
-test("la data e l'ora di un Bino per il campo data e ora, nell'ora locale", () => {
+test("la data e l'ora di un Tape per il campo data e ora, nell'ora locale", () => {
   expect(dateTimeInput(new Date(2026, 9, 3, 7, 5, 42).toISOString())).toBe(
     "2026-10-03T07:05"
   );
 });
 
 test("la Raccolta scelta, Senza raccolta e Tutta la Libreria", () => {
-  const bini = [
-    bino("sciolto", [2026, 10, 1]),
-    bino("call", [2026, 10, 2], "Acme"),
-    bino("altra", [2026, 10, 3], "Beta"),
+  const tapes = [
+    tape("sciolto", [2026, 10, 1]),
+    tape("call", [2026, 10, 2], "Acme"),
+    tape("altra", [2026, 10, 3], "Beta"),
   ];
   const titoli = (raccolta: string | null) =>
-    biniOf(bini, raccolta).map((b) => b.titolo);
+    tapesOf(tapes, raccolta).map((b) => b.titolo);
   expect(titoli(null)).toEqual(["sciolto", "call", "altra"]);
   expect(titoli("")).toEqual(["sciolto"]);
   expect(titoli("Acme")).toEqual(["call"]);

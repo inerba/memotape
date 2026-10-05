@@ -34,10 +34,10 @@ const BARS = 180;
 /** Dove resta il volume scelto: una comodità di questo PC, non un'impostazione. */
 const VOLUME_KEY = "sbobino.volume";
 
-/** Lo stato del player di un Bino, condiviso tra il player e il testo che lo segue. */
+/** Lo stato del player di un Tape, condiviso tra il player e il testo che lo segue. */
 export interface PlayerState {
   audio: RefObject<HTMLAudioElement | null>;
-  /** La durata dal mix; prima dei metadati quella del Bino. */
+  /** La durata dal mix; prima dei metadati quella del Tape. */
   durationMs: number;
   follow: Follow;
   /** Porta il player a `ms` senza cambiare Play/Pausa; il testo torna a seguire l'audio. */
@@ -52,7 +52,7 @@ export interface PlayerState {
   setPositionMs: (ms: number) => void;
 }
 
-/** Il player di un Bino lungo `durataMs`. */
+/** Il player di un Tape lungo `durataMs`. */
 export function usePlayer(durataMs: number): PlayerState {
   const audio = useRef<HTMLAudioElement>(null);
   const [positionMs, setPositionMs] = useState(0);
@@ -125,7 +125,7 @@ const ICON_BUTTON =
   "flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50 [&_svg]:size-4";
 
 /**
- * Il player del mix di un Bino: indietro e avanti di 10 s, Play/Pausa (anche con Spazio), posizione,
+ * Il player del mix di un Tape: indietro e avanti di 10 s, Play/Pausa (anche con Spazio), posizione,
  * forma d'onda che fa da barra di avanzamento, durata, velocità e volume. `label` dice che audio è.
  * `disabled` durante una Registrazione, che registrerebbe l'audio riascoltato.
  */
@@ -461,7 +461,7 @@ function usePeaks(path: string): number[] | null {
   useEffect(() => {
     let stale = false;
     setPeaks(null);
-    commands.binoPeaks(path, BARS).then((result) => {
+    commands.tapePeaks(path, BARS).then((result) => {
       if (!stale && result.status === "ok") {
         setPeaks(result.data.map((p) => p ?? 0));
       }

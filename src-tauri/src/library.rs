@@ -54,16 +54,14 @@ pub struct LibraryList {
     /// I nomi delle Raccolte, in ordine alfabetico.
     pub raccolte: Vec<String>,
     /// Dal più recente.
-    #[serde(rename = "bini")]
-    pub tapes: Vec<BinoEntry>,
+    pub tapes: Vec<TapeEntry>,
 }
 
 /// Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
 /// solo il titolo).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 pub struct SearchResult {
-    #[serde(rename = "bino")]
-    pub tape: BinoEntry,
+    pub tape: TapeEntry,
     pub frasi: Vec<SearchHit>,
 }
 
@@ -80,7 +78,7 @@ pub struct SearchHit {
 /// Un Tape della Libreria, come lo mostra la barra laterale.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct BinoEntry {
+pub struct TapeEntry {
     pub path: String,
     /// `null`: Senza raccolta.
     pub raccolta: Option<String>,
@@ -271,8 +269,8 @@ impl Library {
     }
 
     /// Il Tape dalle prime cinque colonne di `r`: percorso, Raccolta, titolo, `creato`, durata.
-    fn entry(&self, r: &rusqlite::Row) -> rusqlite::Result<BinoEntry> {
-        Ok(BinoEntry {
+    fn entry(&self, r: &rusqlite::Row) -> rusqlite::Result<TapeEntry> {
+        Ok(TapeEntry {
             path: self.root.join(r.get::<_, String>(0)?).display().to_string(),
             raccolta: r.get(1)?,
             titolo: r.get(2)?,
@@ -704,7 +702,7 @@ fn existing_tape(path: &Path) -> Result<(), AppError> {
     if tape::is_tape(path) && path.is_file() {
         Ok(())
     } else {
-        Err(AppError::BinoNotFound(path.display().to_string()))
+        Err(AppError::TapeNotFound(path.display().to_string()))
     }
 }
 
@@ -1042,7 +1040,7 @@ pub(crate) mod tests {
             library
                 .move_tape(&root.join("Assente.bino"), None)
                 .unwrap_err(),
-            AppError::BinoNotFound(_)
+            AppError::TapeNotFound(_)
         ));
         assert_eq!(
             titoli(&mut library),
@@ -1110,7 +1108,7 @@ pub(crate) mod tests {
         assert_eq!(library.list().unwrap().tapes, []);
         assert!(matches!(
             library.trash_tape(&path).unwrap_err(),
-            AppError::BinoNotFound(_)
+            AppError::TapeNotFound(_)
         ));
     }
 

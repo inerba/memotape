@@ -55,7 +55,7 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
   expect(withDiarizing(cancelled)).toBe(cancelled);
 });
 
-test("a fine Trascrizione mostra il Bino in cui è il testo", () => {
+test("a fine Trascrizione mostra il Tape in cui è il testo", () => {
   const path = String.raw`C:\Sbobino\Acme\Lezione 1.bino`;
   expect(statusText({ path, phase: "finished" }, t)).toBe(
     `Trascrizione salvata in ${path}`
@@ -106,7 +106,7 @@ test("una Trascrizione senza Frasi dice che non c'è parlato", () => {
   expect(statusText(status, t)).toBe("Nessun parlato rilevato");
 });
 
-test("una Trascrizione salvata porta il percorso del Bino", () => {
+test("una Trascrizione salvata porta il percorso del Tape", () => {
   expect(
     afterTranscription({
       data: { outcome: "saved", path: "a.bino" },
@@ -187,7 +187,7 @@ test("senza modello la Registrazione continua e la status bar lo dice con il lin
   expect(withLiveError(recorded, error)).toBe(recorded);
 });
 
-test("un Bino aperto spostato o rinominato resta nella status bar con il percorso nuovo", () => {
+test("un Tape aperto spostato o rinominato resta nella status bar con il percorso nuovo", () => {
   const from = "C:\\Sbobino\\Call.bino";
   const to = "C:\\Sbobino\\Acme\\Call.bino";
   expect(withMovedSource({ phase: "idle", source: from }, from, to)).toEqual({

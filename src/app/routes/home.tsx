@@ -6,10 +6,10 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
 import {
   type AppError,
-  type BinoInfo,
   commands,
   events,
   type LibraryList,
+  type TapeInfo,
 } from "@/bindings";
 import {
   AlertDialog,
@@ -23,18 +23,18 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { WindowControls } from "@/components/window-controls";
-import { AllBini } from "@/features/library/all-bini";
-import { BinoMenu } from "@/features/library/bino-actions";
-import {
-  BinoHeader,
-  DocumentHeader,
-  entryOf,
-  titleOf,
-} from "@/features/library/bino-header";
+import { AllTapes } from "@/features/library/all-tapes";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { Sidebar } from "@/features/library/sidebar";
-import { useBinoOperations } from "@/features/library/use-bino-operations";
+import { TapeMenu } from "@/features/library/tape-actions";
+import {
+  DocumentHeader,
+  entryOf,
+  TapeHeader,
+  titleOf,
+} from "@/features/library/tape-header";
 import { useLibrary } from "@/features/library/use-library";
+import { useTapeOperations } from "@/features/library/use-tape-operations";
 import {
   keepFocus,
   Player,
@@ -50,7 +50,7 @@ import { RecordingPanel } from "@/features/recording/recording-panel";
 import { useSettings } from "@/features/settings/settings-context";
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
-import { fileName, isBino, movedPath } from "@/features/source/file-name";
+import { fileName, isTape, movedPath } from "@/features/source/file-name";
 import {
   afterTranscription,
   type Banner,
@@ -85,17 +85,17 @@ const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
 const NOTICE_MS = 6000;
 
-/** Un Bino aperto: le Frasi e le informazioni. */
-interface BinoView {
+/** Un Tape aperto: le Frasi e le informazioni. */
+interface TapeView {
   conversation: Conversation;
-  info: BinoInfo | null;
+  info: TapeInfo | null;
   path: string;
 }
 
-/** Il Bino evidenziato nella barra laterale: quello mostrato nell'area principale. */
-function selectedBino(
+/** Il Tape evidenziato nella barra laterale: quello mostrato nell'area principale. */
+function selectedTape(
   listOpen: boolean,
-  browsed: BinoView | null,
+  browsed: TapeView | null,
   recording: boolean,
   source: string | null
 ): string | null {
@@ -112,12 +112,12 @@ function internalError(e: unknown): AppError {
 export function HomePage() {
   const { t } = useTranslation();
   const [source, setSource] = useState<string | null>(null);
-  // Le Frasi della Sorgente: quelle del Bino aperto, o quelle che arrivano da un'Attività con i
+  // Le Frasi della Sorgente: quelle del Tape aperto, o quelle che arrivano da un'Attività con i
   // Parziali in corso (Nemotron), uno per Ingresso.
   const [conversation, setConversation] =
     useState<Conversation>(EMPTY_CONVERSATION);
-  // Le informazioni del Bino aperto come Sorgente.
-  const [info, setInfo] = useState<BinoInfo | null>(null);
+  // Le informazioni del Tape aperto come Sorgente.
+  const [info, setInfo] = useState<TapeInfo | null>(null);
   // Gli eventi possono arrivare dopo la risposta di `record`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
   const { loadError, save, settings } = useSettings();
@@ -127,7 +127,7 @@ export function HomePage() {
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null }
   );
-  // L'errore di un'operazione su un Bino o sulla Libreria, o un avviso (il Markdown esportato): la
+  // L'errore di un'operazione su un Tape o sulla Libreria, o un avviso (il Markdown esportato): la
   // status bar lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -135,22 +135,22 @@ export function HomePage() {
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
   const [dismissed, setDismissed] = useState<Status | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  // Trascrivi su un Bino aspetta la conferma: il testo e le correzioni si sostituiscono.
+  // Trascrivi su un Tape aspetta la conferma: il testo e le correzioni si sostituiscono.
   const [confirmTranscribe, setConfirmTranscribe] = useState(false);
-  // La Frase di un risultato della ricerca, evidenziata nel Bino aperto.
+  // La Frase di un risultato della ricerca, evidenziata nel Tape aperto.
   const [highlight, setHighlight] = useState<PhraseRef | null>(null);
-  // Cambia per riaprire il Bino già aperto dall'inizio del testo.
+  // Cambia per riaprire il Tape già aperto dall'inizio del testo.
   const [revision, setRevision] = useState(0);
-  // Il Bino del doppio clic in Esplora file, finché non si può aprire.
-  const [pendingBino, setPendingBino] = useState<string | null>(null);
+  // Il Tape del doppio clic in Esplora file, finché non si può aprire.
+  const [pendingTape, setPendingTape] = useState<string | null>(null);
   // I file trascinati da Esplora file sopra la finestra, e quelli appena rilasciati.
   const [dragged, setDragged] = useState<string[] | null>(null);
   const [dropped, setDropped] = useState<string[] | null>(null);
   // Il Parlante di cui si sta scrivendo il nome nuovo.
   const [renaming, setRenaming] = useState<Parlante | null>(null);
-  // Il Bino aperto dalla barra laterale durante un'Attività.
-  const [browsed, setBrowsed] = useState<BinoView | null>(null);
-  // L'elenco completo dei Bini della Raccolta nell'area principale.
+  // Il Tape aperto dalla barra laterale durante un'Attività.
+  const [browsed, setBrowsed] = useState<TapeView | null>(null);
+  // L'elenco completo dei Tape della Raccolta nell'area principale.
   const [listOpen, setListOpen] = useState(false);
   // Il timer della Registrazione per la barra laterale.
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -196,12 +196,12 @@ export function HomePage() {
     const ticks = events.recordingTick.listen(({ payload }) => {
       setElapsedMs(payload.elapsedMs);
     });
-    // Il Bino dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
+    // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
     // il listener, così uno arrivato nel frattempo non si perde.
-    const takeBino = () =>
-      commands.takePendingBino().then((path) => path && setPendingBino(path));
-    const binoRequested = events.binoRequested.listen(takeBino);
-    binoRequested.then(takeBino);
+    const takeTape = () =>
+      commands.takePendingTape().then((path) => path && setPendingTape(path));
+    const tapeRequested = events.tapeRequested.listen(takeTape);
+    tapeRequested.then(takeTape);
     return () => {
       phrases.then((stop) => stop());
       partials.then((stop) => stop());
@@ -210,7 +210,7 @@ export function HomePage() {
       diarizing.then((stop) => stop());
       assigned.then((stop) => stop());
       ticks.then((stop) => stop());
-      binoRequested.then((stop) => stop());
+      tapeRequested.then((stop) => stop());
     };
   }, []);
 
@@ -251,10 +251,10 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [notice, message]);
 
-  // Il Bino diventa la Sorgente, con il suo testo, senza ritrascrivere; da un risultato della
+  // Il Tape diventa la Sorgente, con il suo testo, senza ritrascrivere; da un risultato della
   // ricerca con la Frase trovata evidenziata. Restituisce l'errore, se non si apre.
-  const loadBino = useCallback(async (path: string, phrase?: PhraseRef) => {
-    const result = await commands.openBino(path);
+  const loadTape = useCallback(async (path: string, phrase?: PhraseRef) => {
+    const result = await commands.openTape(path);
     if (result.status === "error") {
       return result.error;
     }
@@ -267,28 +267,28 @@ export function HomePage() {
     return null;
   }, []);
 
-  const openBino = useCallback(
+  const openTape = useCallback(
     async (path: string, phrase?: PhraseRef) => {
-      const error = await loadBino(path, phrase);
+      const error = await loadTape(path, phrase);
       setStatus(
         error ? { error, phase: "failed" } : { phase: "idle", source: path }
       );
     },
-    [loadBino]
+    [loadTape]
   );
 
-  // Durante un'Attività un Bino della Libreria si consulta accanto, senza toccarla; quello su cui
+  // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla; quello su cui
   // lavora l'Attività riporta alla sua vista.
   const browse = useCallback(
     async (path: string, phrase?: PhraseRef) => {
       setHighlight(phrase ?? null);
       setRenaming(null);
-      // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Bino come gli altri.
+      // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Tape come gli altri.
       if (path === source && running) {
         setBrowsed(null);
         return;
       }
-      const result = await commands.openBino(path);
+      const result = await commands.openTape(path);
       if (result.status === "error") {
         setNotice(result.error);
         return;
@@ -303,18 +303,18 @@ export function HomePage() {
     [running, source]
   );
 
-  // Finita l'Attività torna la sua vista, con il suo esito aperto (il Bino di una Registrazione).
+  // Finita l'Attività torna la sua vista, con il suo esito aperto (il Tape di una Registrazione).
   useEffect(() => {
     if (!busy) {
       setBrowsed(null);
     }
   }, [busy]);
 
-  // Una Sorgente scelta con Apri file o con il doppio clic su un Bino in Esplora file.
+  // Una Sorgente scelta con Apri file o con il doppio clic su un Tape in Esplora file.
   const openPath = useCallback(
     (path: string, phrase?: PhraseRef) => {
-      if (isBino(path)) {
-        openBino(path, phrase);
+      if (isTape(path)) {
+        openTape(path, phrase);
         return;
       }
       setSource(path);
@@ -323,7 +323,7 @@ export function HomePage() {
       setHighlight(null);
       setStatus({ phase: "idle", source: path });
     },
-    [openBino]
+    [openTape]
   );
 
   const pickFile = useCallback(async () => {
@@ -334,14 +334,14 @@ export function HomePage() {
     }
   }, [openPath, t]);
 
-  // Un Bino della barra laterale, dell'elenco completo o della ricerca, con la Frase trovata.
+  // Un Tape della barra laterale, dell'elenco completo o della ricerca, con la Frase trovata.
   const openFromLibrary = useCallback(
     (path: string, phrase?: PhraseRef) => {
       setListOpen(false);
       if (busy) {
         browse(path, phrase);
       } else if (path === source) {
-        // Il Bino già aperto: torna alla Frase trovata, o all'inizio del testo.
+        // Il Tape già aperto: torna alla Frase trovata, o all'inizio del testo.
         setHighlight(phrase ?? null);
         setRevision((n) => n + 1);
       } else {
@@ -354,7 +354,7 @@ export function HomePage() {
   // "Attività in corso" riporta alla sua vista.
   const showActivity = useCallback(() => {
     setBrowsed(null);
-    // La Frase trovata era del Bino consultato.
+    // La Frase trovata era del Tape consultato.
     setHighlight(null);
     setListOpen(false);
   }, []);
@@ -371,7 +371,7 @@ export function HomePage() {
     [save, settings]
   );
 
-  // Un Bino aperto e spostato o rinominato resta aperto, con il percorso nuovo.
+  // Un Tape aperto e spostato o rinominato resta aperto, con il percorso nuovo.
   const moved = useCallback((from: string, to: string) => {
     setSource((current) => current && movedPath(current, from, to));
     setBrowsed(
@@ -381,7 +381,7 @@ export function HomePage() {
     setStatus((current) => withMovedSource(current, from, to));
   }, []);
 
-  // Il Bino nel Cestino, se era aperto, non lo è più; la vista di un'Attività però resta.
+  // Il Tape nel Cestino, se era aperto, non lo è più; la vista di un'Attività però resta.
   const trashed = useCallback(
     (path: string) => {
       setBrowsed((current) => (current?.path === path ? null : current));
@@ -397,27 +397,27 @@ export function HomePage() {
     [busy, source]
   );
 
-  const { dialog, moveBino, renameBino, requestTrash, reveal } =
-    useBinoOperations({
+  const { dialog, moveTape, renameTape, requestTrash, reveal } =
+    useTapeOperations({
       onError: setNotice,
       onMoved: moved,
       onTrashed: trashed,
     });
 
-  // Un Bino arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
+  // Un Tape arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
   // intanto è disabilitata) e che si chiuda la conferma di Trascrivi. Si apre sulla finestra
   // principale, anche se c'era Impostazioni sopra.
   useEffect(() => {
-    if (pendingBino && !busy && !confirmTranscribe) {
-      setPendingBino(null);
+    if (pendingTape && !busy && !confirmTranscribe) {
+      setPendingTape(null);
       setListOpen(false);
       navigate("/");
-      openPath(pendingBino);
+      openPath(pendingTape);
     }
-  }, [busy, confirmTranscribe, navigate, openPath, pendingBino]);
+  }, [busy, confirmTranscribe, navigate, openPath, pendingTape]);
 
   // Un file rilasciato si apre come con Apri file, anche da Impostazioni; durante un'Attività solo
-  // un Bino, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
+  // un Tape, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
   useEffect(() => {
     if (!dropped) {
       return;
@@ -446,8 +446,8 @@ export function HomePage() {
     }
   }, [source]);
 
-  // Un file diventa un Bino nella Raccolta scelta; un Bino si ritrascrive. Finita (o annullata) la
-  // Trascrizione, il Bino si rilegge dal disco.
+  // Un file diventa un Tape nella Raccolta scelta; un Tape si ritrascrive. Finita (o annullata) la
+  // Trascrizione, il Tape si rilegge dal disco.
   const transcribe = useCallback(async () => {
     if (!source) {
       return;
@@ -459,11 +459,11 @@ export function HomePage() {
     setStatus({ percent: null, phase: "transcribing" });
     try {
       const result = await commands.transcribe(source, raccolta);
-      let opened: string | null = isBino(source) ? source : null;
+      let opened: string | null = isTape(source) ? source : null;
       if (result.status === "ok" && result.data.outcome === "saved") {
         opened = result.data.path;
       }
-      const error = opened ? await loadBino(opened) : null;
+      const error = opened ? await loadTape(opened) : null;
       setStatus(
         error ? { error, phase: "failed" } : afterTranscription(result)
       );
@@ -471,9 +471,9 @@ export function HomePage() {
       // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
       setStatus({ error: internalError(e), phase: "failed" });
     }
-  }, [loadBino, raccolta, source]);
+  }, [loadTape, raccolta, source]);
 
-  // Il Bino della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
+  // Il Tape della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
   const record = useCallback(async () => {
     const before = source;
     setConversation(EMPTY_CONVERSATION);
@@ -493,10 +493,10 @@ export function HomePage() {
       setConversation(withoutPartials);
       const opened = after.source ?? before;
       let error: AppError | null = null;
-      if (opened && isBino(opened)) {
-        error = await loadBino(opened);
+      if (opened && isTape(opened)) {
+        error = await loadTape(opened);
       } else if (after.source) {
-        // Il Bino non si è scritto: la Sorgente è l'Ogg, con il testo dal vivo.
+        // Il Tape non si è scritto: la Sorgente è l'Ogg, con il testo dal vivo.
         setSource(after.source);
       }
       setStatus(
@@ -509,7 +509,7 @@ export function HomePage() {
     } finally {
       acceptPartials.current = false;
     }
-  }, [loadBino, raccolta, settings.trascrizioneDalVivo, source, t]);
+  }, [loadTape, raccolta, settings.trascrizioneDalVivo, source, t]);
 
   const setPaused = useCallback((value: boolean) => {
     setStatus((current) =>
@@ -517,9 +517,9 @@ export function HomePage() {
     );
   }, []);
 
-  // Ritrascrivere un Bino ne sostituisce il testo, correzioni comprese: prima si conferma.
+  // Ritrascrivere un Tape ne sostituisce il testo, correzioni comprese: prima si conferma.
   const requestTranscription = useCallback(() => {
-    if (source && isBino(source)) {
+    if (source && isTape(source)) {
       setConfirmTranscribe(true);
     } else {
       transcribe();
@@ -547,13 +547,13 @@ export function HomePage() {
     }
   }, []);
 
-  // Il documento del Bino `path`, o senza Bino quello della Trascrizione in corso o appena finita,
+  // Il documento del Tape `path`, o senza Tape quello della Trascrizione in corso o appena finita,
   // in testo semplice o Markdown secondo le impostazioni.
   const copy = useCallback(async (path: string | null) => {
     try {
       let text: string | null;
       if (path) {
-        const result = await commands.binoText(path);
+        const result = await commands.tapeText(path);
         if (result.status === "error") {
           setNotice(result.error);
           return;
@@ -574,7 +574,7 @@ export function HomePage() {
     [t]
   );
 
-  // Una correzione o un nome salvati nel Bino `path` valgono per la sua vista.
+  // Una correzione o un nome salvati nel Tape `path` valgono per la sua vista.
   const updateView = useCallback(
     (path: string, change: (c: Conversation) => Conversation) => {
       setBrowsed((current) =>
@@ -626,7 +626,7 @@ export function HomePage() {
     [updateView]
   );
 
-  // La data e l'ora nuove del Bino `path`, nell'ora locale del campo.
+  // La data e l'ora nuove del Tape `path`, nell'ora locale del campo.
   const changeCreato = useCallback(
     async (path: string, local: string) => {
       const result = await commands.setCreato(path, local);
@@ -649,7 +649,7 @@ export function HomePage() {
 
   const copyActivity = useCallback(() => copy(null), [copy]);
 
-  // La Raccolta di un Bino dal suo percorso nella barra in alto: apre la Libreria lì.
+  // La Raccolta di un Tape dal suo percorso nella barra in alto: apre la Libreria lì.
   const openRaccolta = useCallback(
     (value: string) => {
       chooseRaccolta(value);
@@ -675,9 +675,9 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [status, statusBanner?.tone]);
 
-  // La vista di un Bino; `own`: è la Sorgente, che Trascrivi trascrive.
-  const binoPane = (view: BinoView, own: boolean) => (
-    <BinoPane
+  // La vista di un Tape; `own`: è la Sorgente, che Trascrivi trascrive.
+  const tapePane = (view: TapeView, own: boolean) => (
+    <TapePane
       busy={busy}
       cancelling={cancelling}
       copied={copied}
@@ -692,10 +692,10 @@ export function HomePage() {
       onEdit={edit}
       onError={setNotice}
       onExported={exported}
-      onMove={moveBino}
+      onMove={moveTape}
       onRaccolta={openRaccolta}
       onRenameParlante={rename}
-      onRenameTitle={renameBino}
+      onRenameTitle={renameTape}
       onRenaming={setRenaming}
       onReveal={reveal}
       onTranscribe={requestTranscription}
@@ -714,10 +714,10 @@ export function HomePage() {
     mainView = (
       <>
         <TopBar crumbs={<Crumb current>{t("library.title")}</Crumb>} />
-        <AllBini
+        <AllTapes
           list={library}
           onError={setNotice}
-          onMove={moveBino}
+          onMove={moveTape}
           onMoved={moved}
           onOpen={openFromLibrary}
           onRaccolta={chooseRaccolta}
@@ -727,7 +727,7 @@ export function HomePage() {
       </>
     );
   } else if (browsed) {
-    mainView = binoPane(browsed, false);
+    mainView = tapePane(browsed, false);
   } else if (recording || completing) {
     mainView = (
       <LiveView
@@ -742,8 +742,8 @@ export function HomePage() {
         status={status}
       />
     );
-  } else if (source && isBino(source)) {
-    mainView = binoPane({ conversation, info, path: source }, true);
+  } else if (source && isTape(source)) {
+    mainView = tapePane({ conversation, info, path: source }, true);
   } else if (source) {
     mainView = (
       <FileView
@@ -780,7 +780,7 @@ export function HomePage() {
           record={
             <RecordMenu disabled={busy} onError={failed} onRecord={record} />
           }
-          selected={selectedBino(
+          selected={selectedTape(
             listOpen,
             browsed,
             recording || completing,
@@ -1185,7 +1185,7 @@ function Welcome({
   return (
     <>
       <div className="h-20 shrink-0 border-b" data-tauri-drag-region />
-      {/* Sulla stessa colonna e alla stessa altezza del titolo di un Bino: lo stesso foglio, vuoto. */}
+      {/* Sulla stessa colonna e alla stessa altezza del titolo di un Tape: lo stesso foglio, vuoto. */}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         <section className="mx-auto flex w-full max-w-[46rem] flex-col items-start px-10 pt-12">
           <h1 className="max-w-[20ch] text-balance font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em]">
@@ -1216,12 +1216,12 @@ function Welcome({
 }
 
 /**
- * La vista di un Bino: la barra in alto con il percorso, Copia testo e "…"; il documento con
+ * La vista di un Tape: la barra in alto con il percorso, Copia testo e "…"; il documento con
  * testata, schede Trascrizione e Parlanti e Segui l'audio; in fondo il player, o l'avanzamento
  * mentre lo si trascrive. `editable`: non ci lavora l'Attività in corso; `own`: è la Sorgente, che
  * Trascrivi trascrive; `recording`: il player è disabilitato.
  */
-function BinoPane({
+function TapePane({
   busy,
   cancelling,
   copied,
@@ -1268,13 +1268,13 @@ function BinoPane({
   onRenaming: (voce: Parlante | null) => void;
   onReveal: (path: string) => void;
   onTranscribe: () => void;
-  onTrash: (bino: { path: string; titolo: string }) => void;
+  onTrash: (tape: { path: string; titolo: string }) => void;
   own: boolean;
   recording: boolean;
   renaming: Parlante | null;
   running: boolean;
   status: Status;
-  view: BinoView;
+  view: TapeView;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"transcript" | "parlanti">("transcript");
@@ -1319,7 +1319,7 @@ function BinoPane({
 
   const header = (
     <>
-      <BinoHeader
+      <TapeHeader
         disabled={!editable}
         info={info}
         library={library}
@@ -1340,7 +1340,7 @@ function BinoPane({
   );
 
   const empty = (
-    <BinoEmpty
+    <TapeEmpty
       busy={busy}
       onError={onError}
       onTranscribe={own ? onTranscribe : undefined}
@@ -1360,7 +1360,7 @@ function BinoPane({
                 onCopy={copy}
               />
             ) : null}
-            <BinoMenu
+            <TapeMenu
               disabled={!editable}
               library={library}
               onError={onError}
@@ -1436,8 +1436,8 @@ function BinoPane({
   );
 }
 
-/** Il documento di un Bino senza Frasi: in Trascrizione, o da trascrivere (se `onTranscribe`). */
-function BinoEmpty({
+/** Il documento di un Tape senza Frasi: in Trascrizione, o da trascrivere (se `onTranscribe`). */
+function TapeEmpty({
   busy,
   onError,
   onTranscribe,
@@ -1457,9 +1457,9 @@ function BinoEmpty({
   return (
     <div className="flex flex-col items-start gap-5 py-6">
       <div className="flex flex-col gap-1.5">
-        <p className="font-medium">{t("bino.noText")}</p>
+        <p className="font-medium">{t("tape.noText")}</p>
         <p className="max-w-[34rem] text-muted-foreground text-sm leading-relaxed">
-          {t("bino.noTextDescription")}
+          {t("tape.noTextDescription")}
         </p>
       </div>
       {onTranscribe ? (

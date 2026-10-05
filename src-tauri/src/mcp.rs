@@ -517,7 +517,7 @@ fn bold(estratto: &str) -> String {
     estratto.replace([MARK_START, MARK_END], "**")
 }
 
-fn tape_out(root: &Path, entry: library::BinoEntry) -> TapeOut {
+fn tape_out(root: &Path, entry: library::TapeEntry) -> TapeOut {
     TapeOut {
         tape: Path::new(&entry.path)
             .strip_prefix(root)
@@ -531,7 +531,7 @@ fn tape_out(root: &Path, entry: library::BinoEntry) -> TapeOut {
 
 fn read_error(tape: &str, e: &AppError) -> String {
     match e {
-        AppError::UnsupportedBino => {
+        AppError::UnsupportedTape => {
             format!("{tape} comes from a newer Sbobino: ask the user to update the app.")
         }
         _ => format!("{tape} cannot be read: {e}"),

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { nameProblem } from "@/features/library/library";
 
 /**
- * Il campo del nome di una Raccolta o del titolo di un Bino: Invio conferma un nome valido, Esc o
+ * Il campo del nome di una Raccolta o del titolo di un Tape: Invio conferma un nome valido, Esc o
  * l'uscita dal campo annullano. Sotto, perché il nome non va.
  */
 export function NameInput({

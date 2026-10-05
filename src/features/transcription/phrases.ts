@@ -23,7 +23,7 @@ export const EMPTY_CONVERSATION: Conversation = {
   phrases: [],
 };
 
-/** La chiave del Parlante `n` di un Ingresso tra i nomi, come nel Bino: `sistema:2`. */
+/** La chiave del Parlante `n` di un Ingresso tra i nomi, come nel Tape: `sistema:2`. */
 function parlanteKey(ingresso: Ingresso, n: number): string {
   return `${ingresso}:${n}`;
 }
@@ -183,7 +183,7 @@ export function nomeTaken(
   );
 }
 
-/** Una Frase di un Bino, come nei `TranscriptPhrase`. */
+/** Una Frase di un Tape, come nei `TranscriptPhrase`. */
 export interface PhraseRef {
   ingresso: Ingresso;
   phraseId: number;

@@ -12,7 +12,7 @@ export function folderOf(path: string) {
 }
 
 /**
- * Il percorso di `path` dopo che il Bino o la cartella `from`, che lo è o lo contiene, è diventato
+ * Il percorso di `path` dopo che il Tape o la cartella `from`, che lo è o lo contiene, è diventato
  * `to`; altrimenti `path`. Windows non distingue maiuscole e minuscole.
  */
 export function movedPath(path: string, from: string, to: string): string {
@@ -26,7 +26,7 @@ export function movedPath(path: string, from: string, to: string): string {
   return inside ? to + path.slice(from.length) : path;
 }
 
-/** Se la Sorgente è un Bino: si apre con il suo testo e il clic sul nome la mostra nella cartella. */
-export function isBino(path: string) {
+/** Se la Sorgente è un Tape: si apre con il suo testo e il clic sul nome la mostra nella cartella. */
+export function isTape(path: string) {
   return fileName(path).toLowerCase().endsWith(".bino");
 }

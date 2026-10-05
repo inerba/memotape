@@ -156,7 +156,7 @@ pub fn write(
     written
 }
 
-/// Legge `trascrizione.json`. Una `version` più nuova di `VERSION` dà `unsupportedBino`.
+/// Legge `trascrizione.json`. Una `version` più nuova di `VERSION` dà `unsupportedTape`.
 pub fn read(path: &Path) -> Result<Document, AppError> {
     #[derive(serde::Deserialize)]
     struct Version {
@@ -170,7 +170,7 @@ pub fn read(path: &Path) -> Result<Document, AppError> {
         .map_err(|e| unreadable(path, &e))?;
     let version: Version = serde_json::from_slice(&json).map_err(|e| unreadable(path, &e))?;
     if version.version > VERSION {
-        return Err(AppError::UnsupportedBino);
+        return Err(AppError::UnsupportedTape);
     }
     serde_json::from_slice(&json).map_err(|e| unreadable(path, &e))
 }
@@ -589,7 +589,7 @@ mod tests {
         let path = dir.join("Futuro.bino");
         // Anche se il resto dello schema è cambiato.
         tape_with(&path, r#"{ "version": 2, "testo": {} }"#);
-        assert_eq!(read(&path).unwrap_err(), AppError::UnsupportedBino);
+        assert_eq!(read(&path).unwrap_err(), AppError::UnsupportedTape);
         let error = read(&dir.join("Non esiste.bino")).unwrap_err();
         assert!(matches!(error, AppError::UnreadableFile(_)), "{error:?}");
     }
@@ -685,7 +685,7 @@ mod tests {
         assert!(rewrite(&path, &document(&["Due."])).is_err());
         drop(lock);
         assert_eq!(std::fs::read(&path).unwrap(), before);
-        assert!(!dir.join("Registrazione.bino.tmp").exists());
+        assert!(!dir.join("Registrazione.tape.tmp").exists());
     }
 
     #[test]

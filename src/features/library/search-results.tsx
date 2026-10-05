@@ -2,11 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
-  type BinoEntry,
   commands,
   events,
   type SearchHit,
   type SearchResult,
+  type TapeEntry,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import { raccoltaLabel } from "@/features/library/library";
@@ -20,7 +20,7 @@ const DEBOUNCE_MS = 150;
 /**
  * I risultati della ricerca di `query` nella Raccolta `raccolta` (`null` Tutta la Libreria, `""`
  * Senza raccolta) e in fondo "Cerca in tutta la Libreria". Si ricerca a ogni `library-changed`: un
- * Bino rinominato o spostato ha un altro percorso.
+ * Tape rinominato o spostato ha un altro percorso.
  */
 export function SearchResults({
   onError,
@@ -75,10 +75,10 @@ export function SearchResults({
       ) : null}
       {results?.map((result) => (
         <ResultItem
-          key={result.bino.path}
+          key={result.tape.path}
           onOpen={onOpen}
           result={result}
-          selected={result.bino.path === selected}
+          selected={result.tape.path === selected}
           showRaccolta={scope === null}
         />
       ))}
@@ -103,28 +103,28 @@ function ResultItem({
   showRaccolta: boolean;
 }) {
   const { t } = useTranslation();
-  const { bino } = result;
-  const open = useCallback(() => onOpen(bino.path), [bino.path, onOpen]);
+  const { tape } = result;
+  const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
   return (
     <section>
       <button
         aria-current={selected ? "page" : undefined}
         className="flex w-full items-baseline gap-2 rounded-lg px-2 py-1.5 text-left font-medium text-sm transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
         onClick={open}
-        title={bino.path}
+        title={tape.path}
         type="button"
       >
-        <span className="min-w-0 flex-1 truncate">{bino.titolo}</span>
+        <span className="min-w-0 flex-1 truncate">{tape.titolo}</span>
         {showRaccolta ? (
           <span className="max-w-24 shrink-0 truncate font-normal text-muted-foreground text-xs">
-            {raccoltaLabel(bino.raccolta ?? "", t)}
+            {raccoltaLabel(tape.raccolta ?? "", t)}
           </span>
         ) : null}
       </button>
       <ul>
         {result.frasi.map((hit) => (
           <li key={`${hit.ingresso}:${hit.phraseId}`}>
-            <HitItem bino={bino} hit={hit} onOpen={onOpen} />
+            <HitItem hit={hit} onOpen={onOpen} tape={tape} />
           </li>
         ))}
       </ul>
@@ -133,17 +133,17 @@ function ResultItem({
 }
 
 function HitItem({
-  bino,
+  tape,
   hit,
   onOpen,
 }: {
-  bino: BinoEntry;
+  tape: TapeEntry;
   hit: SearchHit;
   onOpen: (path: string, phrase?: PhraseRef) => void;
 }) {
   const open = useCallback(
-    () => onOpen(bino.path, { ingresso: hit.ingresso, phraseId: hit.phraseId }),
-    [bino.path, hit.ingresso, hit.phraseId, onOpen]
+    () => onOpen(tape.path, { ingresso: hit.ingresso, phraseId: hit.phraseId }),
+    [tape.path, hit.ingresso, hit.phraseId, onOpen]
   );
   return (
     <button

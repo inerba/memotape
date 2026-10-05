@@ -36,9 +36,9 @@ export const commands = {
 	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
 	/**
 	 *  Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
-	 *  informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
+	 *  informazioni. `unsupportedTape` se viene da una versione più nuova dell'app.
 	 */
-	openBino: (source: string) => typedError<OpenedBino, AppError>(__TAURI_INVOKE("open_bino", { source })),
+	openTape: (source: string) => typedError<OpenedTape, AppError>(__TAURI_INVOKE("open_tape", { source })),
 	/**
 	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`. Rifiuta un nome vuoto, e
 	 *  con `activityInProgress` il Tape su cui lavora l'Attività in corso.
@@ -55,12 +55,12 @@ export const commands = {
 	 */
 	setCreato: (path: string, local: string) => typedError<string, AppError>(__TAURI_INVOKE("set_creato", { path, local })),
 	/**  Il testo di Copia testo del Tape `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`. */
-	binoText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("bino_text", { path })),
+	tapeText: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("tape_text", { path })),
 	/**
 	 *  La Forma d'onda del mix del Tape `path` per il player: `count` picchi (0–1), meno se l'audio è
 	 *  più corto di `count` × 20 ms. Salvata nel Tape; se manca si calcola e si prova a salvarla.
 	 */
-	binoPeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("bino_peaks", { path, count })),
+	tapePeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("tape_peaks", { path, count })),
 	/**
 	 *  Salva il Markdown del Tape `path` dove sceglie l'utente nel dialog di sistema, proponendo
 	 *  `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
@@ -68,9 +68,9 @@ export const commands = {
 	exportMarkdown: (path: string) => typedError<string | null, AppError>(__TAURI_INVOKE("export_markdown", { path })),
 	/**
 	 *  Il Tape arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
-	 *  la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
+	 *  la chiamata non c'è più. `tape-requested` avvisa quando ne arriva uno con l'app già aperta.
 	 */
-	takePendingBino: () => __TAURI_INVOKE<string | null>("take_pending_bino"),
+	takePendingTape: () => __TAURI_INVOKE<string | null>("take_pending_tape"),
 	/**  I modelli del catalogo con il loro stato. */
 	listModels: () => __TAURI_INVOKE<ModelInfo[]>("list_models"),
 	/**
@@ -147,19 +147,18 @@ export const commands = {
 	 *  Rinomina il file del Tape in `<titolo>.bino` e restituisce il percorso nuovo. Rifiuta con
 	 *  `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
-	renameBino: (path: string, titolo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_bino", { path, titolo })),
+	renameTape: (path: string, titolo: string) => typedError<string, AppError>(__TAURI_INVOKE("rename_tape", { path, titolo })),
 	/**
 	 *  Sposta il Tape nella Raccolta `raccolta` (`null` o `""`: la radice), anche da fuori della
 	 *  Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
 	 */
-	moveBino: (path: string, raccolta: string | null) => typedError<string, AppError>(__TAURI_INVOKE("move_bino", { path, raccolta })),
+	moveTape: (path: string, raccolta: string | null) => typedError<string, AppError>(__TAURI_INVOKE("move_tape", { path, raccolta })),
 	/**  Manda il Tape nel Cestino di Windows. */
-	trashBino: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("trash_bino", { path })),
+	trashTape: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("trash_tape", { path })),
 };
 
 /** Events */
 export const events = {
-	binoRequested: makeEvent<BinoRequested>("bino-requested"),
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
@@ -167,6 +166,7 @@ export const events = {
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
 	recordingTick: makeEvent<RecordingTick>("recording-tick"),
 	speakersAssigned: makeEvent<SpeakersAssigned>("speakers-assigned"),
+	tapeRequested: makeEvent<TapeRequested>("tape-requested"),
 	transcriptPartial: makeEvent<TranscriptPartial>("transcript-partial"),
 	transcriptPhrase: makeEvent<TranscriptPhrase>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
@@ -197,7 +197,7 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
  */
 { code: "liveTranscriptionUnavailable"; detail: string } | 
 /**  Il Tape è stato scritto da una versione più nuova dell'app, con uno schema che non conosce. */
-{ code: "unsupportedBino" } | 
+{ code: "unsupportedTape" } | 
 /**  Il nome di una Raccolta o il titolo di un Tape non è ammesso da Windows. */
 { code: "invalidName"; detail: string } | 
 /**  C'è già una Raccolta, o un Tape nella stessa cartella, con questo nome. */
@@ -205,7 +205,7 @@ export type AppError = { code: "unreadableFile"; detail: string } | { code: "uns
 /**  Si elimina solo una Raccolta vuota. */
 { code: "raccoltaNotEmpty"; detail: string } | 
 /**  Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
-{ code: "binoNotFound"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "tapeNotFound"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -214,36 +214,6 @@ export type AudioDevice = {
 	name: string,
 	isDefault: boolean,
 };
-
-/**  Un Tape della Libreria, come lo mostra la barra laterale. */
-export type BinoEntry = {
-	path: string,
-	/**  `null`: Senza raccolta. */
-	raccolta: string | null,
-	/**  Il nome del file senza estensione. */
-	titolo: string,
-	/**  `creato` del Tape; per un Tape illeggibile la data di modifica del file. */
-	creato: string,
-	/**  `null` per un Tape illeggibile o di una versione futura. */
-	durataMs: number | null,
-};
-
-/**  La riga di informazioni della vista di un Tape. */
-export type BinoInfo = {
-	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
-	creato: string,
-	durataMs: number,
-	/**  Il nome del modello; `null` se il testo non è stato trascritto. */
-	modello: string | null,
-	linguaParlato: SpeechLanguage,
-	ingressiSeparati: boolean,
-	completa: boolean,
-	/**  Il nome del file audio o video da cui viene. */
-	origine: string | null,
-};
-
-/**  È arrivato un Tape da aprire: la finestra lo prende con `take_pending_bino`. */
-export type BinoRequested = null;
 
 export type Channels = "mono" | "stereo";
 
@@ -277,7 +247,7 @@ export type LibraryList = {
 	/**  I nomi delle Raccolte, in ordine alfabetico. */
 	raccolte: string[],
 	/**  Dal più recente. */
-	bini: BinoEntry[],
+	tapes: TapeEntry[],
 };
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
@@ -367,11 +337,11 @@ export type ModelStateChanged = {
 };
 
 /**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
-export type OpenedBino = {
+export type OpenedTape = {
 	phrases: TranscriptPhrase[],
 	/**  Per chiave `<ingresso>:<n>`, come nel Tape. */
 	parlanti: { [key in string]: string },
-	info: BinoInfo,
+	info: TapeInfo,
 };
 
 /**  La Registrazione salvata, che diventa la Sorgente. */
@@ -408,7 +378,7 @@ export type SearchHit = {
  *  solo il titolo).
  */
 export type SearchResult = {
-	bino: BinoEntry,
+	tape: TapeEntry,
 	frasi: SearchHit[],
 };
 
@@ -497,6 +467,36 @@ export type SpeakersAssigned = {
  *  codice del modello (`it-IT` per Nemotron).
  */
 export type SpeechLanguage = string;
+
+/**  Un Tape della Libreria, come lo mostra la barra laterale. */
+export type TapeEntry = {
+	path: string,
+	/**  `null`: Senza raccolta. */
+	raccolta: string | null,
+	/**  Il nome del file senza estensione. */
+	titolo: string,
+	/**  `creato` del Tape; per un Tape illeggibile la data di modifica del file. */
+	creato: string,
+	/**  `null` per un Tape illeggibile o di una versione futura. */
+	durataMs: number | null,
+};
+
+/**  La riga di informazioni della vista di un Tape. */
+export type TapeInfo = {
+	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
+	creato: string,
+	durataMs: number,
+	/**  Il nome del modello; `null` se il testo non è stato trascritto. */
+	modello: string | null,
+	linguaParlato: SpeechLanguage,
+	ingressiSeparati: boolean,
+	completa: boolean,
+	/**  Il nome del file audio o video da cui viene. */
+	origine: string | null,
+};
+
+/**  È arrivato un Tape da aprire: la finestra lo prende con `take_pending_tape`. */
+export type TapeRequested = null;
 
 /**  Il tema dell'interfaccia: quello di Windows o uno fisso. */
 export type Tema = "sistema" | "chiaro" | "scuro";

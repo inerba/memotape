@@ -90,11 +90,11 @@
       "outputDeviceMissing": "Brak urządzenia wyjściowego dla dźwięku systemowego albo urządzenie wybrane w Ustawieniach jest niedostępne",
       "unreadableSettings": "Nie można odczytać ustawień, aplikacja używa wartości domyślnych: {{detail}}",
       "liveTranscriptionUnavailable": "Transkrypcja na żywo niedostępna: model {{detail}} nie jest pobrany lub nie daje się załadować (nagranie i tak zostanie zapisane)",
-      "unsupportedBino": "Ten plik Bino pochodzi z nowszej wersji Sbobino: zaktualizuj aplikację, aby go otworzyć",
+      "unsupportedTape": "Ten plik Bino pochodzi z nowszej wersji Sbobino: zaktualizuj aplikację, aby go otworzyć",
       "invalidName": "Nieprawidłowa nazwa: {{detail}}. Niedozwolone są < > : \" / \\ | ? *, nazwy zastrzeżone, takie jak CON, kropka na początku oraz kropka lub spacja na końcu",
       "nameTaken": "Nazwa {{detail}} jest już używana",
       "raccoltaNotEmpty": "Kolekcja {{detail}} nie jest pusta: najpierw przenieś lub usuń jej pliki Bino",
-      "binoNotFound": "Pliku Bino nie ma już na miejscu (przeniesiony, zmieniony lub usunięty poza aplikacją): {{detail}}",
+      "tapeNotFound": "Pliku Bino nie ma już na miejscu (przeniesiony, zmieniony lub usunięty poza aplikacją): {{detail}}",
       "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
       "cancelled": "Transkrypcja anulowana",
       "internal": "Błąd wewnętrzny: {{detail}}"
@@ -346,7 +346,7 @@
     "waiting": "Tekst pojawi się tutaj, gdy będziesz mówić.",
     "off": "Transkrypcja na żywo jest wyłączona: po Zatrzymaj możesz transkrybować nagranie."
   },
-  "bino": {
+  "tape": {
     "recording": "Nagranie",
     "file": "Plik {{name}}",
     "parlanti_one": "{{count}} mówca",

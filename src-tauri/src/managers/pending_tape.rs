@@ -19,9 +19,9 @@ impl PendingTape {
     }
 }
 
-/// È arrivato un Tape da aprire: la finestra lo prende con `take_pending_bino`.
+/// È arrivato un Tape da aprire: la finestra lo prende con `take_pending_tape`.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
-pub struct BinoRequested;
+pub struct TapeRequested;
 
 /// Tiene il Tape tra gli argomenti `args` di un avvio, se c'è, e avvisa la finestra.
 pub fn request(app: &AppHandle, args: impl IntoIterator<Item = String>, cwd: &Path) {
@@ -32,7 +32,7 @@ pub fn request(app: &AppHandle, args: impl IntoIterator<Item = String>, cwd: &Pa
         .0
         .lock()
         .unwrap_or_else(PoisonError::into_inner) = Some(path.display().to_string());
-    if let Err(e) = BinoRequested.emit(app) {
-        log::error!("bino-requested: {e}");
+    if let Err(e) = TapeRequested.emit(app) {
+        log::error!("tape-requested: {e}");
     }
 }

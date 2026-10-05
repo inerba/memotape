@@ -84,13 +84,13 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
 }
 
 /// Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
-/// informazioni. `unsupportedBino` se viene da una versione più nuova dell'app.
+/// informazioni. `unsupportedTape` se viene da una versione più nuova dell'app.
 #[tauri::command]
 #[specta::specta]
-pub fn open_bino(
+pub fn open_tape(
     app: AppHandle,
     source: String,
-) -> Result<managers::transcription::OpenedBino, AppError> {
+) -> Result<managers::transcription::OpenedTape, AppError> {
     let path = tape_path(&source)?;
     // Un Tape sparito o cambiato in Esplora file si vede anche nella barra laterale.
     managers::library::sync(&app);
@@ -111,10 +111,10 @@ fn tape_path(path: &str) -> Result<PathBuf, AppError> {
 }
 
 /// Il Tape arrivato con un avvio (doppio clic in Esplora file) e non ancora aperto, se c'è; dopo
-/// la chiamata non c'è più. `bino-requested` avvisa quando ne arriva uno con l'app già aperta.
+/// la chiamata non c'è più. `tape-requested` avvisa quando ne arriva uno con l'app già aperta.
 #[tauri::command]
 #[specta::specta]
-pub fn take_pending_bino(pending: State<'_, PendingTape>) -> Option<String> {
+pub fn take_pending_tape(pending: State<'_, PendingTape>) -> Option<String> {
     pending.take()
 }
 
@@ -163,7 +163,7 @@ pub fn transcript_text(
 /// Il testo di Copia testo del Tape `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`.
 #[tauri::command]
 #[specta::specta]
-pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError> {
+pub async fn tape_text(app: AppHandle, path: String) -> Result<String, AppError> {
     let path = tape_path(&path)?;
     blocking(app, move |app| {
         let settings = app.state::<SettingsStore>().get();
@@ -176,7 +176,7 @@ pub async fn bino_text(app: AppHandle, path: String) -> Result<String, AppError>
 /// più corto di `count` × 20 ms. Salvata nel Tape; se manca si calcola e si prova a salvarla.
 #[tauri::command]
 #[specta::specta]
-pub async fn bino_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
+pub async fn tape_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
     let path = tape_path(&path)?;
     blocking(app, move |app| {
         crate::player::forma_onda(&path, count as usize, &app.state::<Activity>())
@@ -526,7 +526,7 @@ pub async fn delete_raccolta(
 /// `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]
 #[specta::specta]
-pub async fn rename_bino(
+pub async fn rename_tape(
     app: AppHandle,
     activity: State<'_, Activity>,
     path: String,
@@ -545,7 +545,7 @@ pub async fn rename_bino(
 /// Libreria (Aggiungi alla Libreria…), e restituisce il percorso nuovo.
 #[tauri::command]
 #[specta::specta]
-pub async fn move_bino(
+pub async fn move_tape(
     app: AppHandle,
     activity: State<'_, Activity>,
     path: String,
@@ -565,7 +565,7 @@ pub async fn move_bino(
 /// Manda il Tape nel Cestino di Windows.
 #[tauri::command]
 #[specta::specta]
-pub async fn trash_bino(
+pub async fn trash_tape(
     app: AppHandle,
     activity: State<'_, Activity>,
     path: String,

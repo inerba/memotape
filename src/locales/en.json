@@ -90,11 +90,11 @@
       "outputDeviceMissing": "No output device for system audio, or the one chosen in Settings is not available",
       "unreadableSettings": "Cannot read the settings, the app is using the defaults: {{detail}}",
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
-      "unsupportedBino": "This Bino comes from a newer version of Sbobino: update the app to open it",
+      "unsupportedTape": "This Bino comes from a newer version of Sbobino: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
       "nameTaken": "The name {{detail}} is already used",
       "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Bini first",
-      "binoNotFound": "The Bino is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
+      "tapeNotFound": "The Bino is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}"
@@ -346,7 +346,7 @@
     "waiting": "The text will appear here as you speak.",
     "off": "Live transcription is off: after Stop you can transcribe the recording."
   },
-  "bino": {
+  "tape": {
     "recording": "Recording",
     "file": "File {{name}}",
     "parlanti_one": "{{count}} speaker",

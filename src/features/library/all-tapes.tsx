@@ -11,23 +11,23 @@ import { type ReactNode, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
-  type BinoEntry,
   commands,
   type LibraryList,
+  type TapeEntry,
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import { DocumentHeader } from "@/features/library/bino-header";
 import {
-  type BinoColumn,
-  type BinoOrder,
-  biniOf,
   nextOrder,
   orderOf,
   raccoltaLabel,
-  sortBini,
+  sortTapes,
+  type TapeColumn,
+  type TapeOrder,
+  tapesOf,
 } from "@/features/library/library";
 import { MoveSelect } from "@/features/library/move-select";
 import { NameInput } from "@/features/library/name-input";
+import { DocumentHeader } from "@/features/library/tape-header";
 import { elapsedText } from "@/features/recording/recording";
 import { folderOf } from "@/features/source/file-name";
 
@@ -37,7 +37,7 @@ const PILL =
 /** L'ordinamento dell'elenco, ricordato in questo PC. */
 const ORDER_KEY = "sbobino.order";
 
-function savedOrder(): BinoOrder {
+function savedOrder(): TapeOrder {
   try {
     return orderOf(localStorage.getItem(ORDER_KEY));
   } catch {
@@ -47,10 +47,10 @@ function savedOrder(): BinoOrder {
 
 /**
  * La Libreria completa: le Raccolte (Tutta la Libreria, Senza raccolta, le altre e Nuova Raccolta,
- * con rinomina ed eliminazione di quella scelta) e i suoi Bini, ordinabili, con Sposta in… ed
+ * con rinomina ed eliminazione di quella scelta) e i suoi Tape, ordinabili, con Sposta in… ed
  * Elimina. La Raccolta scelta è anche quella in cui finiscono le Registrazioni e i file nuovi.
  */
-export function AllBini({
+export function AllTapes({
   list,
   onError,
   onMove,
@@ -67,7 +67,7 @@ export function AllBini({
   onMoved: (from: string, to: string) => void;
   onOpen: (path: string) => void;
   onRaccolta: (raccolta: string | null) => void;
-  onTrash: (bino: { path: string; titolo: string }) => void;
+  onTrash: (tape: { path: string; titolo: string }) => void;
   /** `null` Tutta la Libreria, `""` Senza raccolta. */
   raccolta: string | null;
 }) {
@@ -75,7 +75,7 @@ export function AllBini({
   const [order, setOrder] = useState(savedOrder);
   // La Raccolta che si sta creando (`""`) o rinominando.
   const [naming, setNaming] = useState<string | null>(null);
-  const sort = useCallback((column: BinoColumn) => {
+  const sort = useCallback((column: TapeColumn) => {
     setOrder((current) => {
       const next = nextOrder(current, column);
       try {
@@ -105,7 +105,7 @@ export function AllBini({
         onError(result.error);
         return;
       }
-      // Il Bino aperto in quella Raccolta resta aperto, nella cartella nuova.
+      // Il Tape aperto in quella Raccolta resta aperto, nella cartella nuova.
       onMoved(`${folderOf(result.data)}\\${renaming}`, result.data);
       onRaccolta(nome);
     },
@@ -130,7 +130,7 @@ export function AllBini({
     dateStyle: "medium",
     timeStyle: "short",
   });
-  const bini = biniOf(list.bini, raccolta);
+  const tapes = tapesOf(list.tapes, raccolta);
   const scopes: (string | null)[] = [null, "", ...list.raccolte];
 
   return (
@@ -237,20 +237,20 @@ export function AllBini({
           />
           <span className="w-44 shrink-0" />
         </div>
-        {bini.length === 0 ? (
+        {tapes.length === 0 ? (
           <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
         ) : (
           <ul className="flex flex-col divide-y">
-            {sortBini(bini, order).map((bino) => (
-              <BinoRow
-                bino={bino}
+            {sortTapes(tapes, order).map((tape) => (
+              <TapeRow
                 dateFormat={dateFormat}
-                key={bino.path}
+                key={tape.path}
                 onMove={onMove}
                 onOpen={onOpen}
                 onTrash={onTrash}
                 raccolte={list.raccolte}
                 showRaccolta={raccolta === null}
+                tape={tape}
               />
             ))}
           </ul>
@@ -293,10 +293,10 @@ function SortHeader({
   order,
 }: {
   className: string;
-  column: BinoColumn;
+  column: TapeColumn;
   label: string;
-  onSort: (column: BinoColumn) => void;
-  order: BinoOrder;
+  onSort: (column: TapeColumn) => void;
+  order: TapeOrder;
 }) {
   const { t } = useTranslation();
   const sort = useCallback(() => onSort(column), [column, onSort]);
@@ -324,8 +324,8 @@ function SortHeader({
   );
 }
 
-function BinoRow({
-  bino,
+function TapeRow({
+  tape,
   dateFormat,
   onMove,
   onOpen,
@@ -333,27 +333,27 @@ function BinoRow({
   raccolte,
   showRaccolta,
 }: {
-  bino: BinoEntry;
+  tape: TapeEntry;
   dateFormat: Intl.DateTimeFormat;
   onMove: (path: string, raccolta: string) => void;
   onOpen: (path: string) => void;
-  onTrash: (bino: { path: string; titolo: string }) => void;
+  onTrash: (tape: { path: string; titolo: string }) => void;
   raccolte: string[];
   showRaccolta: boolean;
 }) {
   const { t } = useTranslation();
-  const open = useCallback(() => onOpen(bino.path), [bino.path, onOpen]);
+  const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
   const move = useCallback(
-    (raccolta: string) => onMove(bino.path, raccolta),
-    [bino.path, onMove]
+    (raccolta: string) => onMove(tape.path, raccolta),
+    [tape.path, onMove]
   );
-  const trash = useCallback(() => onTrash(bino), [bino, onTrash]);
+  const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
   return (
     <li className="group flex items-center gap-4 py-2.5">
       <button
         className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
         onClick={open}
-        title={bino.path}
+        title={tape.path}
         type="button"
       >
         <AudioLines
@@ -361,25 +361,25 @@ function BinoRow({
           className="size-4 shrink-0 text-muted-foreground"
         />
         <span className="truncate decoration-muted-foreground/50 underline-offset-4 group-hover:underline">
-          {bino.titolo}
+          {tape.titolo}
         </span>
       </button>
       {showRaccolta ? (
         <span className="w-32 shrink-0 truncate text-muted-foreground text-sm">
-          {bino.raccolta ?? t("library.none")}
+          {tape.raccolta ?? t("library.none")}
         </span>
       ) : null}
       <span className="w-40 shrink-0 text-muted-foreground text-sm tabular-nums">
-        {dateFormat.format(new Date(bino.creato))}
+        {dateFormat.format(new Date(tape.creato))}
       </span>
       <span className="w-16 shrink-0 text-right text-muted-foreground text-sm tabular-nums">
-        {bino.durataMs === null ? "" : elapsedText(bino.durataMs)}
+        {tape.durataMs === null ? "" : elapsedText(tape.durataMs)}
       </span>
       {/* Le azioni della riga compaiono passandoci sopra o con il focus: pochi comandi in vista. */}
       <span className="flex w-44 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
         <MoveSelect
           className="min-w-0 flex-1"
-          current={bino.raccolta ?? ""}
+          current={tape.raccolta ?? ""}
           label={t("library.moveTo")}
           onMove={move}
           raccolte={raccolte}

@@ -10,8 +10,8 @@ import { type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands, type LibraryList } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
-import { entryOf, titleOf } from "@/features/library/bino-header";
 import { raccoltaLabel } from "@/features/library/library";
+import { entryOf, titleOf } from "@/features/library/tape-header";
 import { TranscribeOptions } from "@/features/transcription/transcribe-menu";
 
 function closeMenu() {
@@ -22,11 +22,11 @@ export const MENU_ITEM =
   "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-left text-sm transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground";
 
 /**
- * "…" del Bino aperto, con le azioni meno frequenti: Esporta Markdown…, Mostra in Esplora file,
- * Sposta in… (o Aggiungi alla Libreria… per un Bino da fuori), Trascrivi di nuovo con le sue scelte
+ * "…" del Tape aperto, con le azioni meno frequenti: Esporta Markdown…, Mostra in Esplora file,
+ * Sposta in… (o Aggiungi alla Libreria… per un Tape da fuori), Trascrivi di nuovo con le sue scelte
  * (se `onTranscribe`) ed Elimina.
  */
-export function BinoMenu({
+export function TapeMenu({
   disabled,
   library,
   onError,
@@ -44,9 +44,9 @@ export function BinoMenu({
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
   onReveal: (path: string) => void;
-  /** Trascrivi di nuovo; assente se il Bino non è la Sorgente o un'Attività è in corso. */
+  /** Trascrivi di nuovo; assente se il Tape non è la Sorgente o un'Attività è in corso. */
   onTranscribe?: () => void;
-  onTrash: (bino: { path: string; titolo: string }) => void;
+  onTrash: (tape: { path: string; titolo: string }) => void;
   path: string;
 }) {
   const { t } = useTranslation();

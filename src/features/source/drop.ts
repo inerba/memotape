@@ -1,4 +1,4 @@
-import { fileName, isBino } from "@/features/source/file-name";
+import { fileName, isTape } from "@/features/source/file-name";
 
 /** Le estensioni di Apri file: specchio di `SOURCE_EXTENSIONS` in `commands/mod.rs`. */
 export const SOURCE_EXTENSIONS = [
@@ -25,7 +25,7 @@ export type DropVerdict =
 
 /**
  * Cosa succede ai percorsi trascinati da Esplora file: un solo file accettato da Apri file si apre;
- * durante un'Attività solo un Bino, in consultazione. Una cartella non ha un'estensione accettata.
+ * durante un'Attività solo un Tape, in consultazione. Una cartella non ha un'estensione accettata.
  */
 export function dropVerdict(paths: string[], busy: boolean): DropVerdict {
   const [path] = paths;
@@ -39,7 +39,7 @@ export function dropVerdict(paths: string[], busy: boolean): DropVerdict {
   if (!(path && SOURCE_EXTENSIONS.includes(extension))) {
     return { accepted: false, reason: "format" };
   }
-  if (busy && !isBino(path)) {
+  if (busy && !isTape(path)) {
     return { accepted: false, reason: "busy" };
   }
   return { accepted: true, path };

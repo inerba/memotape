@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-/** La risposta di un comando che restituisce il percorso nuovo del Bino. */
+/** La risposta di un comando che restituisce il percorso nuovo del Tape. */
 type Moved =
   | { status: "ok"; data: string }
   | { status: "error"; error: AppError };
@@ -23,11 +23,11 @@ interface Trashing {
 }
 
 /**
- * Rinomina, Sposta in…, Mostra in Esplora file ed Elimina (con la conferma in `dialog`) di un Bino.
- * `onMoved` riceve il percorso vecchio e quello nuovo, `onTrashed` quello del Bino nel Cestino; gli
+ * Rinomina, Sposta in…, Mostra in Esplora file ed Elimina (con la conferma in `dialog`) di un Tape.
+ * `onMoved` riceve il percorso vecchio e quello nuovo, `onTrashed` quello del Tape nel Cestino; gli
  * errori vanno a `onError`.
  */
-export function useBinoOperations({
+export function useTapeOperations({
   onError,
   onMoved,
   onTrashed,
@@ -37,9 +37,9 @@ export function useBinoOperations({
   onTrashed: (path: string) => void;
 }): {
   dialog: ReactNode;
-  moveBino: (path: string, raccolta: string) => void;
-  renameBino: (path: string, titolo: string) => void;
-  requestTrash: (bino: Trashing) => void;
+  moveTape: (path: string, raccolta: string) => void;
+  renameTape: (path: string, titolo: string) => void;
+  requestTrash: (tape: Trashing) => void;
   reveal: (path: string) => void;
 } {
   const { t } = useTranslation();
@@ -56,14 +56,14 @@ export function useBinoOperations({
     },
     [onError, onMoved]
   );
-  const renameBino = useCallback(
+  const renameTape = useCallback(
     (path: string, titolo: string) =>
-      moved(path, commands.renameBino(path, titolo)),
+      moved(path, commands.renameTape(path, titolo)),
     [moved]
   );
-  const moveBino = useCallback(
+  const moveTape = useCallback(
     (path: string, raccolta: string) =>
-      moved(path, commands.moveBino(path, raccolta)),
+      moved(path, commands.moveTape(path, raccolta)),
     [moved]
   );
   const reveal = useCallback(
@@ -84,7 +84,7 @@ export function useBinoOperations({
     if (!trashing) {
       return;
     }
-    const result = await commands.trashBino(trashing.path);
+    const result = await commands.trashTape(trashing.path);
     if (result.status === "error") {
       onError(result.error);
     } else {
@@ -110,5 +110,5 @@ export function useBinoOperations({
       </AlertDialogContent>
     </AlertDialog>
   );
-  return { dialog, moveBino, renameBino, requestTrash: setTrashing, reveal };
+  return { dialog, moveTape, renameTape, requestTrash: setTrashing, reveal };
 }
