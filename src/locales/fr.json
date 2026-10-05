@@ -130,15 +130,9 @@
         "system": "Audio système",
         "both": "Les deux"
       },
-      "liveMode": "Transcription en direct",
-      "liveModes": {
-        "mix": "Mixage",
-        "ingressiSeparati": "Entrées séparées"
-      },
-      "liveModeDescription": "Uniquement avec Les deux : Entrées séparées transcrit le microphone et l'audio système chacun de son côté, comme une conversation, avec deux instances du modèle (le double de mémoire).",
       "parlanti": "Reconnaître les locuteurs",
       "parlantiMix": "Sur le mixage",
-      "parlantiDescription": "Après Stop, sur les phrases de la transcription en direct : avec les entrées séparées, choisit sur quelles entrées. Reconnaît au maximum 4 locuteurs par audio et nécessite le modèle de reconnaissance des locuteurs.",
+      "parlantiDescription": "Après Stop, sur les phrases de la transcription en direct. Avec Les deux, chaque entrée a ses propres locuteurs : le microphone reste une seule personne si vous ne le choisissez pas. Reconnaît au maximum 4 locuteurs par audio et nécessite le modèle de reconnaissance des locuteurs.",
       "microphone": "Microphone",
       "outputDevice": "Périphérique de sortie",
       "defaultDevice": "Par défaut du système",

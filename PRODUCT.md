@@ -144,13 +144,17 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 52. Come utente, voglio che la Registrazione usi il bitrate, i canali e la frequenza delle Impostazioni, così controllo qualità e dimensione.
 53. Come utente, voglio che durante una Registrazione Sfoglia e Trascrivi siano disabilitati, così non avvio due Attività insieme.
 73. Come utente, voglio regolare il Guadagno di ciascun Ingresso accanto al suo indicatore, anche durante la Registrazione, così alzo un microfono troppo basso o abbasso un audio di sistema troppo forte senza fermarmi.
+75. Come utente che registra da Entrambi, voglio che Microfono e Audio di sistema non finiscano mai nello stesso Parlante né nella stessa Frase, dal vivo, trascrivendo dopo o ritrascrivendo il Tape, così chi parla al microfono resta distinto da chi arriva dalla videochiamata (ADR-0015).
+76. Come utente che registra da Entrambi, voglio che il Tape contenga sempre l'audio di ogni Ingresso, anche senza Trascrivi dal vivo, così posso trascriverlo dopo per Ingresso.
+77. Come utente, voglio che con "Riconosci i parlanti" si distinguano le voci dell'Audio di sistema e che il Microfono resti una persona sola, salvo che attivi la sua casella (più persone allo stesso microfono), così la videochiamata ha i suoi Parlanti e io resto "Microfono". Ritrascrivendo un Tape da Entrambi vale la stessa regola, con la casella del Microfono di Impostazioni → Registrazione.
+78. Come utente, voglio che una Continuazione da Entrambi su un Tape senza l'audio degli Ingressi lo aggiunga, con silenzio per la parte già registrata, così le Frasi nuove sono separate per Ingresso.
 
 ### Impostazioni
 
 54. Come utente, voglio scegliere la sorgente di registrazione predefinita e i dispositivi, così non li reimposto ogni volta.
 55. Come utente, voglio scegliere il bitrate tra 16, 24, 32, 48, 64, 96, 128, 192 e 320 kbps, così adatto la qualità.
 56. Come utente, voglio scegliere mono o stereo e la frequenza tra 8 000, 16 000, 24 000 e 48 000 Hz, così adatto il file all'uso.
-57. Come utente, voglio come predefiniti 32 kbps, mono, 48 kHz, così ho subito un buon compromesso per la voce.
+57. Come utente, voglio come predefiniti 16 kbps, mono, 16 kHz, così ho subito un audio sufficiente per la voce e Tape piccoli. Chi ha già le impostazioni salvate le tiene.
 58. Come utente, voglio scegliere la Cartella della Libreria, che in mancanza è `Documenti\Memotape` e viene creata se non esiste, così so dove finiscono i Tape.
 59. Come utente, voglio scegliere la Lingua dell'interfaccia tra it, en, fr, es, de e pl, con un avviso che si applica al riavvio, così uso l'app nella mia lingua.
 60. Come utente al primo avvio, voglio l'interfaccia nella lingua del sistema se è tra le sei, altrimenti in inglese, così non devo cercare l'impostazione.
@@ -244,10 +248,10 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
   - Il clic sul nome di un Tape lo mostra in Esplora file invece di aprirlo. Le vecchie Registrazioni `.ogg` si aprono ancora come Sorgente.
   - L'installer associa `.tape` a Memotape (tipo "Tape (Memotape)", con l'icona dell'app) e la disinstallazione toglie l'associazione. Il doppio clic su un Tape in Esplora file avvia Memotape con quel Tape come Sorgente; se Memotape è già aperto, il Tape arriva alla finestra esistente, che torna in primo piano, e non si apre una seconda finestra. Come con Sfoglia, se l'area contiene testo chiede conferma. Durante una Trascrizione o una Registrazione, o con una conferma aperta, il Tape si apre quando finiscono; se è aperta Impostazioni, si chiude.
 - **V4, Ingressi separati (ticket v2/06)**: storie 13–17 della spec v2 e la parte della 29 sugli Ingressi.
-  - In Impostazioni → Registrazione, "Trascrizione dal vivo" sceglie tra Mix (predefinito) e Ingressi separati; è attivo solo con "Registra da" su Entrambi e vale solo con "Trascrivi dal vivo" attiva.
+  - In Impostazioni → Registrazione, "Trascrizione dal vivo" sceglie tra Mix (predefinito) e Ingressi separati; è attivo solo con "Registra da" su Entrambi e vale solo con "Trascrivi dal vivo" attiva. Superato dalle storie 75–78 (ADR-0015): da Entrambi si trascrive sempre per Ingresso e il selettore sparisce.
   - Con Ingressi separati microfono e audio di sistema si trascrivono in parallelo, ognuno con la sua istanza del modello (il doppio della memoria), caricata all'inizio della Registrazione e liberata alla fine. Se un Ingresso si guasta compare l'avviso e l'altro continua; il Markdown non si salva.
   - Il testo è una conversazione: le Frasi in ordine di inizio, non di arrivo, e ogni turno di un Ingresso comincia con l'etichetta "Microfono:" o "Audio di sistema:" su una riga. Con Nemotron ogni Ingresso ha i suoi Parziali, al loro posto.
-  - Il Tape contiene anche `microfono.ogg` e `sistema.ogg` ed è segnato come Ingressi separati; riaperto mostra la conversazione. Il Markdown e Copia testo hanno un paragrafo per turno, `**Microfono:**` e `**Audio di sistema:**`. Trascrivi su un Tape trascrive sempre il mix.
+  - Il Tape contiene anche `microfono.ogg` e `sistema.ogg` ed è segnato come Ingressi separati; riaperto mostra la conversazione. Il Markdown e Copia testo hanno un paragrafo per turno, `**Microfono:**` e `**Audio di sistema:**`. Trascrivi su un Tape trascrive sempre il mix (superato dalla storia 75: un Tape con l'audio degli Ingressi si ritrascrive per Ingresso).
 - **V5, Diarizzazione dei file (ticket v2/07)**: storie 31 e 34–38 della spec v2 per i file e la parte della 29 sui Parlanti; le Registrazioni (32, 33) sono arrivate con il ticket v2/08.
   - Impostazioni → Trascrizione ha, separato dai modelli di trascrizione, "Riconoscimento dei parlanti" con Sortformer 4spk v2.1 (133 MB, NVIDIA Open Model License): download con percentuale, verifica, ripresa ed Elimina come gli altri, ma non si sceglie. Informazioni ne mostra la licenza.
   - La casella "Riconosci i parlanti" accanto a Trascrivi, spenta per default e salvata tra un avvio e l'altro, dice nel suggerimento che si riconoscono al massimo 4 Parlanti. Senza Sortformer scaricato Trascrivi mostra subito l'errore "il modello per Riconosci i parlanti non è scaricato" con il link alle Impostazioni, e durante la Trascrizione Sortformer non si può eliminare.

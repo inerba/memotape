@@ -268,16 +268,6 @@ export type LiveTranscriptionFailed = {
 	error: AppError,
 };
 
-/**  La modalità della Trascrizione dal vivo. */
-export type ModalitaDalVivo = 
-/**  Si trascrive il mix. */
-"mix" | 
-/**
- *  Ogni Ingresso si trascrive per conto suo, con una sua istanza del modello. Vale solo
- *  registrando da Entrambi.
- */
-"ingressiSeparati";
-
 /**  Come compare il testo: con i Parziali mentre la Frase è in corso, o a fine Frase. */
 export type Mode = "stream" | "frase";
 
@@ -404,25 +394,23 @@ export type Settings = {
 	 *  prima che esistesse: allora è spenta.
 	 */
 	trascrizioneDalVivo?: boolean,
-	/**
-	 *  Cosa trascrive dal vivo una Registrazione da Entrambi. Manca nei file salvati prima che
-	 *  esistesse: allora è il mix.
-	 */
-	modalitaDalVivo?: ModalitaDalVivo,
 	/**  Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo. */
 	copiaCome?: CopiaCome,
 	/**
-	 *  Riconosci i parlanti: Trascrivi su un file diarizza dopo la Trascrizione. Manca nei file
-	 *  salvati prima che esistesse: allora è spenta.
+	 *  Riconosci i parlanti: Trascrivi su un file o su un Tape diarizza dopo la Trascrizione. Manca
+	 *  nei file salvati prima che esistesse: allora è spenta.
 	 */
 	parlantiFile?: boolean,
 	/**
-	 *  Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (Trascrizione dal vivo del
-	 *  mix) o con gli Ingressi separati sul microfono e sull'audio di sistema. Mancano nei file
-	 *  salvati prima che esistessero: allora sono spente.
+	 *  Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (da un solo Ingresso) o, da
+	 *  Entrambi, sul microfono e sull'audio di sistema. Mancano nei file salvati prima che
+	 *  esistessero: allora sono spente.
 	 */
 	parlantiMix?: boolean,
-	/**  Riconosci i parlanti sul microfono, con gli Ingressi separati. */
+	/**
+	 *  Riconosci i parlanti sul microfono, con gli Ingressi separati. Spenta, il microfono è una
+	 *  persona sola (ADR-0015).
+	 */
 	parlantiMicrofono?: boolean,
 	/**  Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati. */
 	parlantiSistema?: boolean,

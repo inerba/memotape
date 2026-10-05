@@ -313,7 +313,17 @@ fn writing() -> MutexGuard<'static, ()> {
     WRITING.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// L'audio di `mix.ogg`, letto direttamente dentro lo zip: la voce non è compressa.
+/// Se il Tape `path` ha l'audio di ogni Ingresso: allora si trascrive per Ingresso (ADR-0015).
+pub fn has_ingressi(path: &Path) -> Result<bool, AppError> {
+    let zip = open(path)?;
+    let names: Vec<_> = zip.file_names().collect();
+    Ok([Ingresso::Microfono, Ingresso::Sistema]
+        .into_iter()
+        .all(|ingresso| names.contains(&audio_entry(ingresso))))
+}
+
+/// L'audio di `mix.ogg` (o di un Ingresso), letto direttamente dentro lo zip: la voce non è
+/// compressa.
 pub struct Mix {
     file: File,
     start: u64,
@@ -323,8 +333,13 @@ pub struct Mix {
 
 impl Mix {
     pub fn open(path: &Path) -> Result<Self, AppError> {
+        Self::open_ingresso(path, Ingresso::Mix)
+    }
+
+    /// L'audio di `ingresso`: `microfono.ogg` e `sistema.ogg` ci sono con gli Ingressi separati.
+    pub fn open_ingresso(path: &Path, ingresso: Ingresso) -> Result<Self, AppError> {
         let mut zip = open(path)?;
-        let name = audio_entry(Ingresso::Mix);
+        let name = audio_entry(ingresso);
         let entry = zip.by_name(name).map_err(|e| unreadable(path, &e))?;
         let (Some(start), CompressionMethod::Stored) = (entry.data_start(), entry.compression())
         else {

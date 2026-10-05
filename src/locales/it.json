@@ -130,15 +130,9 @@
         "system": "Audio di sistema",
         "both": "Entrambi"
       },
-      "liveMode": "Trascrizione dal vivo",
-      "liveModes": {
-        "mix": "Mix",
-        "ingressiSeparati": "Ingressi separati"
-      },
-      "liveModeDescription": "Solo con Entrambi: Ingressi separati trascrive microfono e audio di sistema ognuno per conto suo, come una conversazione, con due istanze del modello (il doppio della memoria).",
       "parlanti": "Riconosci i parlanti",
       "parlantiMix": "Sul mix",
-      "parlantiDescription": "Dopo Stop, sulle Frasi della Trascrizione dal vivo: con gli Ingressi separati sceglie su quali Ingressi. Riconosce al massimo 4 Parlanti per audio e richiede il modello di Riconoscimento dei parlanti.",
+      "parlantiDescription": "Dopo Stop, sulle Frasi della Trascrizione dal vivo. Da Entrambi ogni Ingresso ha i suoi Parlanti: il Microfono resta una persona sola se non lo scegli. Riconosce al massimo 4 Parlanti per audio e richiede il modello di Riconoscimento dei parlanti.",
       "microphone": "Microfono",
       "outputDevice": "Dispositivo di uscita",
       "defaultDevice": "Predefinito di sistema",

@@ -35,23 +35,20 @@ pub struct Settings {
     /// prima che esistesse: allora è spenta.
     #[serde(default)]
     pub trascrizione_dal_vivo: bool,
-    /// Cosa trascrive dal vivo una Registrazione da Entrambi. Manca nei file salvati prima che
-    /// esistesse: allora è il mix.
-    #[serde(default)]
-    pub modalita_dal_vivo: ModalitaDalVivo,
     /// Il formato di Copia testo. Manca nei file salvati prima che esistesse: allora è testo.
     #[serde(default)]
     pub copia_come: CopiaCome,
-    /// Riconosci i parlanti: Trascrivi su un file diarizza dopo la Trascrizione. Manca nei file
-    /// salvati prima che esistesse: allora è spenta.
+    /// Riconosci i parlanti: Trascrivi su un file o su un Tape diarizza dopo la Trascrizione. Manca
+    /// nei file salvati prima che esistesse: allora è spenta.
     #[serde(default)]
     pub parlanti_file: bool,
-    /// Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (Trascrizione dal vivo del
-    /// mix) o con gli Ingressi separati sul microfono e sull'audio di sistema. Mancano nei file
-    /// salvati prima che esistessero: allora sono spente.
+    /// Riconosci i parlanti di una Registrazione, dopo Stop, sul mix (da un solo Ingresso) o, da
+    /// Entrambi, sul microfono e sull'audio di sistema. Mancano nei file salvati prima che
+    /// esistessero: allora sono spente.
     #[serde(default)]
     pub parlanti_mix: bool,
-    /// Riconosci i parlanti sul microfono, con gli Ingressi separati.
+    /// Riconosci i parlanti sul microfono, con gli Ingressi separati. Spenta, il microfono è una
+    /// persona sola (ADR-0015).
     #[serde(default)]
     pub parlanti_microfono: bool,
     /// Riconosci i parlanti sull'audio di sistema, con gli Ingressi separati.
@@ -129,20 +126,6 @@ pub enum CopiaCome {
     #[default]
     Testo,
     Markdown,
-}
-
-/// La modalità della Trascrizione dal vivo.
-#[derive(
-    Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
-)]
-#[serde(rename_all = "camelCase")]
-pub enum ModalitaDalVivo {
-    /// Si trascrive il mix.
-    #[default]
-    Mix,
-    /// Ogni Ingresso si trascrive per conto suo, con una sua istanza del modello. Vale solo
-    /// registrando da Entrambi.
-    IngressiSeparati,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -271,13 +254,12 @@ impl Default for Settings {
             output_device: None,
             model: models::default_model().id.clone(),
             speech_language: SpeechLanguage::auto(),
-            bitrate_kbps: 32,
+            bitrate_kbps: 16,
             channels: Channels::Mono,
-            sample_rate: 48_000,
+            sample_rate: 16_000,
             recordings_folder: None,
             interface_language: None,
             trascrizione_dal_vivo: false,
-            modalita_dal_vivo: ModalitaDalVivo::Mix,
             copia_come: CopiaCome::Testo,
             parlanti_file: false,
             parlanti_mix: false,
@@ -293,9 +275,9 @@ impl Default for Settings {
 }
 
 impl Settings {
-    /// Gli audio da diarizzare dopo Stop: quelli trascritti dal vivo (il mix, o con gli Ingressi
-    /// separati ogni Ingresso) con la loro casella attiva. Senza Trascrizione dal vivo nessuno: non
-    /// ci sono Frasi da attribuire.
+    /// Gli audio da diarizzare dopo Stop: quelli trascritti dal vivo (il mix, o da Entrambi ogni
+    /// Ingresso) con la loro casella attiva. Senza Trascrizione dal vivo nessuno: non ci sono Frasi
+    /// da attribuire.
     pub fn parlanti_registrazione(&self) -> Vec<Ingresso> {
         if !self.trascrizione_dal_vivo {
             return Vec::new();
@@ -315,12 +297,28 @@ impl Settings {
             .collect()
     }
 
-    /// Se la Registrazione trascrive dal vivo ogni Ingresso per conto suo: con la Trascrizione dal
-    /// vivo, la modalità Ingressi separati e la sorgente di registrazione Entrambi.
+    /// Gli audio da diarizzare con Riconosci i parlanti di Trascrivi: il mix di un file o di un Tape
+    /// con solo il mix; di un Tape con l'audio di ogni Ingresso (`separate`) l'Audio di sistema e,
+    /// solo con la casella del Microfono della Registrazione, il Microfono (ADR-0015).
+    pub fn parlanti_trascrivi(&self, separate: bool) -> Vec<Ingresso> {
+        if !self.parlanti_file {
+            return Vec::new();
+        }
+        if !separate {
+            return vec![Ingresso::Mix];
+        }
+        let mut chosen = Vec::new();
+        if self.parlanti_microfono {
+            chosen.push(Ingresso::Microfono);
+        }
+        chosen.push(Ingresso::Sistema);
+        chosen
+    }
+
+    /// Se la Registrazione è a Ingressi separati: da Entrambi sempre (ADR-0015). Salva l'audio di
+    /// ogni Ingresso e, dal vivo, li trascrive ognuno per conto suo.
     pub fn ingressi_separati(&self) -> bool {
-        self.trascrizione_dal_vivo
-            && self.modalita_dal_vivo == ModalitaDalVivo::IngressiSeparati
-            && self.recording_source == RecordingSource::Both
+        self.recording_source == RecordingSource::Both
     }
 
     /// Legge `path`. Se manca, è corrotto o non è valido restituisce i predefiniti: l'avvio non si
@@ -515,12 +513,11 @@ mod tests {
                 settings.channels,
                 settings.sample_rate
             ),
-            (32, Channels::Mono, 48_000)
+            (16, Channels::Mono, 16_000)
         );
         assert_eq!(settings.recordings_folder, None);
         assert_eq!(settings.interface_language, None);
         assert!(!settings.trascrizione_dal_vivo);
-        assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
         assert!(!settings.parlanti_file);
         assert!(
@@ -541,63 +538,75 @@ mod tests {
             parlanti_sistema: true,
             ..Settings::default()
         };
-        assert_eq!(tutte.parlanti_registrazione(), [Ingresso::Mix]);
-        let separati = Settings {
-            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
-            ..tutte.clone()
-        };
+        // Da Entrambi mai il mix: i Parlanti di un Ingresso non si mescolano con quelli dell'altro.
         assert_eq!(
-            separati.parlanti_registrazione(),
+            tutte.parlanti_registrazione(),
             [Ingresso::Microfono, Ingresso::Sistema]
         );
         let solo_sistema = Settings {
             parlanti_microfono: false,
-            ..separati.clone()
+            ..tutte.clone()
         };
         assert_eq!(solo_sistema.parlanti_registrazione(), [Ingresso::Sistema]);
-        // Ingressi separati scelti ma registrando dal solo microfono: vale il mix.
-        let mic = Settings {
-            recording_source: RecordingSource::Mic,
-            ..separati.clone()
-        };
-        assert_eq!(mic.parlanti_registrazione(), [Ingresso::Mix]);
+        // Da un solo Ingresso vale il mix.
+        for recording_source in [RecordingSource::Mic, RecordingSource::System] {
+            let one = Settings {
+                recording_source,
+                ..tutte.clone()
+            };
+            assert_eq!(one.parlanti_registrazione(), [Ingresso::Mix]);
+        }
         // Senza Trascrizione dal vivo non ci sono Frasi.
         let spenta = Settings {
             trascrizione_dal_vivo: false,
-            ..separati
+            ..tutte
         };
         assert_eq!(spenta.parlanti_registrazione(), []);
     }
 
     #[test]
-    fn gli_ingressi_separati_valgono_solo_dal_vivo_e_registrando_da_entrambi() {
-        let separati = Settings {
-            trascrizione_dal_vivo: true,
-            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
-            recording_source: RecordingSource::Both,
+    fn da_entrambi_la_registrazione_e_sempre_a_ingressi_separati() {
+        for trascrizione_dal_vivo in [false, true] {
+            let both = Settings {
+                trascrizione_dal_vivo,
+                recording_source: RecordingSource::Both,
+                ..Settings::default()
+            };
+            assert!(both.ingressi_separati());
+        }
+        for recording_source in [RecordingSource::Mic, RecordingSource::System] {
+            let one = Settings {
+                trascrizione_dal_vivo: true,
+                recording_source,
+                ..Settings::default()
+            };
+            assert!(!one.ingressi_separati());
+        }
+    }
+
+    #[test]
+    fn un_tape_con_l_audio_degli_ingressi_diarizza_il_sistema_e_il_microfono_solo_a_richiesta() {
+        let file = Settings {
+            parlanti_file: true,
             ..Settings::default()
         };
-        assert!(separati.ingressi_separati());
-        for settings in [
-            Settings {
-                trascrizione_dal_vivo: false,
-                ..separati.clone()
-            },
-            Settings {
-                modalita_dal_vivo: ModalitaDalVivo::Mix,
-                ..separati.clone()
-            },
-            Settings {
-                recording_source: RecordingSource::Mic,
-                ..separati.clone()
-            },
-            Settings {
-                recording_source: RecordingSource::System,
-                ..separati.clone()
-            },
-        ] {
-            assert!(!settings.ingressi_separati(), "{settings:?}");
-        }
+        assert_eq!(file.parlanti_trascrivi(true), [Ingresso::Sistema]);
+        let microfono = Settings {
+            parlanti_microfono: true,
+            ..file.clone()
+        };
+        assert_eq!(
+            microfono.parlanti_trascrivi(true),
+            [Ingresso::Microfono, Ingresso::Sistema]
+        );
+        // Un file, o un Tape con solo il mix.
+        assert_eq!(microfono.parlanti_trascrivi(false), [Ingresso::Mix]);
+        let spenta = Settings {
+            parlanti_file: false,
+            ..microfono
+        };
+        assert_eq!(spenta.parlanti_trascrivi(true), []);
+        assert_eq!(spenta.parlanti_trascrivi(false), []);
     }
 
     #[test]
@@ -610,7 +619,8 @@ mod tests {
         .unwrap();
         let object = value.as_object_mut().unwrap();
         object.remove("trascrizioneDalVivo");
-        object.remove("modalitaDalVivo");
+        // La modalità della Trascrizione dal vivo di prima dell'ADR-0015 si ignora.
+        object.insert("modalitaDalVivo".into(), "mix".into());
         object.remove("copiaCome");
         object.remove("parlantiFile");
         object.remove("parlantiMix");
@@ -622,7 +632,6 @@ mod tests {
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
         assert!(!settings.trascrizione_dal_vivo);
-        assert_eq!(settings.modalita_dal_vivo, ModalitaDalVivo::Mix);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
         assert!(!settings.parlanti_file);
         assert!(
@@ -708,7 +717,6 @@ mod tests {
             recordings_folder: Some(r"D:\Registrazioni".into()),
             interface_language: Some(Language::Pl),
             trascrizione_dal_vivo: true,
-            modalita_dal_vivo: ModalitaDalVivo::IngressiSeparati,
             copia_come: CopiaCome::Markdown,
             parlanti_file: true,
             parlanti_mix: true,

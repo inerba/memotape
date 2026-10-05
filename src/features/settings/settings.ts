@@ -51,14 +51,13 @@ export const GUADAGNI = Array.from({ length: 13 }, (_, i) => i * 3 - 12);
 /** I predefiniti, come `Settings::default` in Rust: valgono se all'avvio non si leggono. */
 export const DEFAULT_SETTINGS: Settings = {
   assistenti: false,
-  bitrateKbps: 32,
+  bitrateKbps: 16,
   channels: "mono",
   copiaCome: "testo",
   guadagnoMicrofono: 0,
   guadagnoSistema: 0,
   interfaceLanguage: null,
   microphone: null,
-  modalitaDalVivo: "mix",
   model: catalog.predefinito,
   outputDevice: null,
   parlantiFile: false,
@@ -68,7 +67,7 @@ export const DEFAULT_SETTINGS: Settings = {
   raccolta: null,
   recordingSource: "mic",
   recordingsFolder: null,
-  sampleRate: 48_000,
+  sampleRate: 16_000,
   speechLanguage: "auto",
   tema: "sistema",
   trascrizioneDalVivo: false,
@@ -94,8 +93,6 @@ export const settingsSchema = z.object({
   guadagnoSistema: oneOf(GUADAGNI).optional(),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
-  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
-  modalitaDalVivo: z.enum(["mix", "ingressiSeparati"]).optional(),
   model: z.string().min(1),
   outputDevice: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
@@ -174,16 +171,15 @@ export const PARLANTI_LABELS: Record<ParlantiRegistrazione, string> = {
 };
 
 /**
- * Le caselle di Riconosci i parlanti delle Registrazioni da mostrare: con gli Ingressi separati
- * (registrando da Entrambi) una per Ingresso, altrimenti una per il mix. È la scelta degli Ingressi
- * di `Settings::parlanti_registrazione` in Rust, che in più vale solo con la Trascrizione dal vivo e
- * guarda quali caselle sono attive.
+ * Le caselle di Riconosci i parlanti delle Registrazioni da mostrare: registrando da Entrambi (sempre
+ * a Ingressi separati, ADR-0015) una per Ingresso, altrimenti una per il mix. È la scelta degli
+ * Ingressi di `Settings::parlanti_registrazione` in Rust, che in più vale solo con la Trascrizione
+ * dal vivo e guarda quali caselle sono attive.
  */
 export function parlantiRegistrazione(
   settings: Settings
 ): ParlantiRegistrazione[] {
-  return settings.recordingSource === "both" &&
-    settings.modalitaDalVivo === "ingressiSeparati"
+  return settings.recordingSource === "both"
     ? ["parlantiMicrofono", "parlantiSistema"]
     : ["parlantiMix"];
 }

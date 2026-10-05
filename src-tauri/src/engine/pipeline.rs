@@ -5,7 +5,6 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
@@ -185,12 +184,14 @@ impl Shared {
 /// può anticipare il motore di altrettanto. Se c'è, `audio` riceve tutti i frame dati alla
 /// pipeline (la Diarizzazione vuole l'audio intero). Se c'è, `copy` riceve tutto l'audio decodificato
 /// e si chiude a fine file, prima della fine della Trascrizione.
+/// Nell'app passa da `transcribe_decoded`, che sceglie l'Ingresso di un Tape.
+#[cfg(test)]
 #[expect(
     clippy::too_many_arguments,
     reason = "le due destinazioni dell'audio decodificato sono facoltative e indipendenti"
 )]
 pub fn transcribe_file(
-    source: &Path,
+    source: &std::path::Path,
     engine: &mut dyn TranscriptionEngine,
     detector: &mut dyn VoiceDetector,
     language: Option<&str>,
@@ -199,7 +200,28 @@ pub fn transcribe_file(
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
-    let frames = FileFrames::open(source, copy)?;
+    let decoder = Decoder::open(source)?;
+    transcribe_decoded(
+        decoder, engine, detector, language, audio, copy, cancel, on_event,
+    )
+}
+
+/// Come `transcribe_file`, dall'audio di `decoder`: per esempio un Ingresso di un Tape.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "le due destinazioni dell'audio decodificato sono facoltative e indipendenti"
+)]
+pub fn transcribe_decoded(
+    decoder: Decoder,
+    engine: &mut dyn TranscriptionEngine,
+    detector: &mut dyn VoiceDetector,
+    language: Option<&str>,
+    audio: Option<&mut Vec<f32>>,
+    copy: Option<OggCopy>,
+    cancel: &CancelToken,
+    on_event: &mut dyn FnMut(PipelineEvent),
+) -> Result<u32, AppError> {
+    let frames = FileFrames::new(decoder, copy);
     let progress = frames.progress;
     on_event(PipelineEvent::Progress(progress));
     let shared = Shared {
@@ -376,16 +398,15 @@ struct FileFrames {
 }
 
 impl FileFrames {
-    fn open(path: &Path, copy: Option<OggCopy>) -> Result<Self, AppError> {
-        let decoder = Decoder::open(path)?;
-        Ok(Self {
+    fn new(decoder: Decoder, copy: Option<OggCopy>) -> Self {
+        Self {
             progress: decoder.progress(),
             decoder,
             copy,
             resampler: None,
             ready: VecDeque::new(),
             decoded_all: false,
-        })
+        }
     }
 
     /// Decodifica il blocco successivo in `ready`.
@@ -519,7 +540,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::audio_toolkit::resample::FRAME_SAMPLES;
     use crate::engine::EngineError;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

@@ -39,7 +39,7 @@ Quanto Memotape alza o abbassa l'audio di un Ingresso durante una Registrazione,
 _Avoid_: volume (è quello del player o di Windows), gain, livello (è quello che mostra l'indicatore)
 
 **Tape**:
-Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (solo con gli Ingressi separati), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
+Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (quando la Registrazione è da Entrambi), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
 _Avoid_: Bino (il nome di prima), progetto, archivio, pacchetto, nastro, cassetta
 
 **Forma d'onda**:
@@ -69,7 +69,7 @@ Il testo provvisorio di una Frase ancora in corso.
 _Avoid_: anteprima, testo tentativo
 
 **Ingressi separati**:
-Modalità della Trascrizione dal vivo in cui ogni Ingresso è trascritto per conto suo e le Frasi compaiono come una conversazione, ognuna con l'Ingresso da cui viene.
+Il modo in cui si trascrive sempre una Registrazione da Entrambi, dal vivo o dopo: ogni Ingresso è trascritto per conto suo e le Frasi compaiono come una conversazione, ognuna con l'Ingresso da cui viene. Non è una scelta dell'utente.
 _Avoid_: canali, flussi, modalità chat
 
 **Diarizzazione**:
@@ -77,7 +77,7 @@ L'attribuzione di ogni Frase a un Parlante.
 _Avoid_: speaker detection, riconoscimento dei parlanti
 
 **Parlante**:
-Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa.
+Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa. Con gli Ingressi separati appartiene sempre a un solo Ingresso e si numera per Ingresso: la stessa voce non è mai un Parlante del Microfono e dell'Audio di sistema insieme.
 _Avoid_: speaker, voce, utente
 
 **Turno**:

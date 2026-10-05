@@ -18,12 +18,10 @@ test("i predefiniti sono quelli di Rust", () => {
     defaults.bitrateKbps,
     defaults.channels,
     defaults.sampleRate,
-  ]).toEqual([32, "mono", 48_000]);
+  ]).toEqual([16, "mono", 16_000]);
   expect(defaults.interfaceLanguage).toBeNull();
   // Trascrivi dal vivo è spenta finché l'utente non la attiva.
   expect(defaults.trascrizioneDalVivo).toBe(false);
-  // Dal vivo si trascrive il mix finché l'utente non sceglie gli Ingressi separati.
-  expect(defaults.modalitaDalVivo).toBe("mix");
   // Copia testo copia testo semplice finché l'utente non sceglie Markdown.
   expect(defaults.copiaCome).toBe("testo");
   // Riconosci i parlanti è spenta finché l'utente non la attiva.
@@ -39,18 +37,23 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.assistenti).toBe(false);
 });
 
-test("Riconosci i parlanti delle Registrazioni ha una casella per Ingresso solo con gli Ingressi separati", () => {
+test("Riconosci i parlanti delle Registrazioni da Entrambi ha una casella per Ingresso, mai il mix", () => {
   const both = { ...defaults, recordingSource: "both" as const };
-  expect(parlantiRegistrazione(both)).toEqual(["parlantiMix"]);
-  const separati = { ...both, modalitaDalVivo: "ingressiSeparati" as const };
-  expect(parlantiRegistrazione(separati)).toEqual([
+  expect(parlantiRegistrazione(both)).toEqual([
     "parlantiMicrofono",
     "parlantiSistema",
   ]);
-  // Ingressi separati vale solo registrando da Entrambi.
+  for (const recordingSource of ["mic", "system"] as const) {
+    expect(parlantiRegistrazione({ ...both, recordingSource })).toEqual([
+      "parlantiMix",
+    ]);
+  }
+});
+
+test("le impostazioni salvate con la modalità dal vivo di prima si leggono ancora", () => {
   expect(
-    parlantiRegistrazione({ ...separati, recordingSource: "system" })
-  ).toEqual(["parlantiMix"]);
+    settingsSchema.safeParse({ ...defaults, modalitaDalVivo: "mix" }).success
+  ).toBe(true);
 });
 
 test("senza backend la Lingua dell'interfaccia è quella di sistema se supportata, altrimenti l'inglese", () => {
@@ -71,7 +74,6 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     copiaCome: "markdown",
     interfaceLanguage: "pl",
     microphone: "Microfono USB",
-    modalitaDalVivo: "ingressiSeparati",
     outputDevice: "Cuffie",
     parlantiFile: true,
     parlantiMicrofono: false,
@@ -97,7 +99,6 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, model: "" },
     { ...defaults, trascrizioneDalVivo: "sì" },
     { ...defaults, copiaCome: "html" },
-    { ...defaults, modalitaDalVivo: "canali" },
     { ...defaults, parlantiFile: "sì" },
     { ...defaults, parlantiSistema: 1 },
     { model: defaults.model },

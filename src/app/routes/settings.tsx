@@ -24,7 +24,6 @@ import {
   type AudioDevice,
   type CopiaCome,
   commands,
-  type ModalitaDalVivo,
   type Settings,
   type Tema,
 } from "@/bindings";
@@ -50,7 +49,6 @@ import { useSettings } from "@/features/settings/settings-context";
 import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
-const LIVE_MODES: ModalitaDalVivo[] = ["mix", "ingressiSeparati"];
 const TEMI: Tema[] = ["sistema", "chiaro", "scuro"];
 
 /** Le sezioni, una per volta: `?sezione=` le sceglie (l'avviso dei modelli apre Trascrizione). */
@@ -97,15 +95,6 @@ export function SettingsPage() {
       })();
     },
     [handleSubmit, reset, save, settings]
-  );
-  const chooseLiveMode = useCallback(
-    (e: ChangeEvent<HTMLSelectElement>) =>
-      choose({
-        modalitaDalVivo:
-          LIVE_MODES.find((m) => m === e.target.value) ??
-          settings.modalitaDalVivo,
-      }),
-    [choose, settings.modalitaDalVivo]
   );
   const chooseOutput = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
@@ -322,26 +311,6 @@ export function SettingsPage() {
                       />
                     </Field>
                   </div>
-                  <Field
-                    description={t("settings.recording.liveModeDescription")}
-                    id="live-mode"
-                    label={t("settings.recording.liveMode")}
-                  >
-                    <NativeSelect
-                      aria-describedby="live-mode-description"
-                      className="h-9"
-                      disabled={settings.recordingSource !== "both"}
-                      id="live-mode"
-                      onChange={chooseLiveMode}
-                      value={settings.modalitaDalVivo ?? "mix"}
-                    >
-                      {LIVE_MODES.map((value) => (
-                        <option key={value} value={value}>
-                          {t(`settings.recording.liveModes.${value}`)}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </Field>
                   <fieldset
                     aria-describedby="recording-parlanti-description"
                     className="flex flex-col gap-2"

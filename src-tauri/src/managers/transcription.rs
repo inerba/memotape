@@ -14,10 +14,11 @@ use tauri::{AppHandle, Manager};
 use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
 
+use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
-use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_file};
+use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_decoded};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
@@ -247,40 +248,61 @@ pub async fn transcribe(
     let tape = tape::is_tape(&source)
         .then(|| tape::read(&source))
         .transpose()?;
+    let ingressi = ingressi_of(&source)?;
+    let separate = ingressi != [Ingresso::Mix];
+    // Gli Ingressi da diarizzare: con gli Ingressi separati il Microfono solo a richiesta.
+    let diarized = settings.parlanti_trascrivi(separate);
     // Senza Sortformer lo si dice subito, non dopo aver trascritto.
-    let diarizer = settings
-        .parlanti_file
+    let diarizer = (!diarized.is_empty())
         .then(|| app.state::<Models>().reserve_diarizer(&app))
         .transpose()?;
-    let diarize = diarizer.is_some();
     let started = chrono::Local::now();
     let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     tauri::async_runtime::spawn_blocking(move || {
-        // La Trascrizione, con la Diarizzazione; `copy` riceve l'audio di un file.
-        let run = |copy: Option<OggCopy>| {
+        // La Trascrizione di ogni Ingresso, uno dopo l'altro con lo stesso motore, con la
+        // Diarizzazione; `copy` riceve l'audio di un file.
+        let run = |mut copy: Option<OggCopy>| {
             let models = app.state::<Models>();
             let mut engine = models.take(&app, || model.id.as_str())?;
             let mut audio = Vec::new();
-            let transcribed = run_pipeline(
-                &app,
-                &mut engine,
-                &silero,
-                &cancel,
-                Ingresso::Mix,
-                &transcript,
-                |engine, detector, on_event| {
-                    transcribe_file(
-                        &source,
-                        engine,
-                        detector,
-                        settings.speech_language.code(),
-                        diarize.then_some(&mut audio),
-                        copy,
-                        &cancel,
-                        on_event,
-                    )
-                },
-            );
+            let mut transcribed = Ok(());
+            for (index, &ingresso) in ingressi.iter().enumerate() {
+                let mut pcm = Vec::new();
+                let keep = diarized.contains(&ingresso);
+                transcribed = run_pipeline(
+                    &app,
+                    &mut engine,
+                    &silero,
+                    &cancel,
+                    ingresso,
+                    &transcript,
+                    |engine, detector, on_event| {
+                        transcribe_decoded(
+                            Decoder::open_ingresso(&source, ingresso)?,
+                            engine,
+                            detector,
+                            settings.speech_language.code(),
+                            keep.then_some(&mut pcm),
+                            copy.take(),
+                            &cancel,
+                            &mut |event| match event {
+                                PipelineEvent::Progress(percent) => {
+                                    on_event(PipelineEvent::Progress(
+                                        percent.map(|p| overall_percent(index, ingressi.len(), p)),
+                                    ));
+                                }
+                                event => on_event(event),
+                            },
+                        )
+                    },
+                );
+                if keep {
+                    audio.push((ingresso, pcm));
+                }
+                if transcribed.is_err() {
+                    break;
+                }
+            }
             models.release(&app, engine, keep_engine(&transcribed));
             transcribed?;
             let mut transcript = transcript
@@ -289,13 +311,7 @@ pub async fn transcribe(
             if let Some(diarizer) = diarizer
                 && !cancel.is_cancelled()
             {
-                diarize_phrases(
-                    &app,
-                    &diarizer,
-                    &[(Ingresso::Mix, audio)],
-                    &mut transcript,
-                    &cancel,
-                )?;
+                diarize_phrases(&app, &diarizer, &audio, &mut transcript, &cancel)?;
             }
             // Annulla premuto dopo l'ultima Frase: il Tape non cambia e non nasce.
             if cancel.is_cancelled() {
@@ -307,7 +323,11 @@ pub async fn transcribe(
             tape::Document::new(
                 creato,
                 durata_ms,
-                tape::Modalita::Mix,
+                if separate {
+                    tape::Modalita::IngressiSeparati
+                } else {
+                    tape::Modalita::Mix
+                },
                 Some(model.id.clone()),
                 settings.speech_language.clone(),
                 true,
@@ -346,6 +366,23 @@ pub async fn transcribe(
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Gli Ingressi da trascrivere di `source`, uno dopo l'altro: di un Tape con l'audio di ogni
+/// Ingresso il Microfono e l'Audio di sistema, mai il mix, così i loro Parlanti non si mescolano
+/// (ADR-0015); altrimenti il mix.
+fn ingressi_of(source: &Path) -> Result<Vec<Ingresso>, AppError> {
+    Ok(if tape::is_tape(source) && tape::has_ingressi(source)? {
+        vec![Ingresso::Microfono, Ingresso::Sistema]
+    } else {
+        vec![Ingresso::Mix]
+    })
+}
+
+/// Il progresso di tutta la Trascrizione con `percent` dell'Ingresso `index` di `count`, trascritti
+/// uno dopo l'altro.
+fn overall_percent(index: usize, count: usize, percent: u8) -> u8 {
+    u8::try_from((index * 100 + usize::from(percent)) / count.max(1)).unwrap_or(100)
 }
 
 /// Il Tape `<nome del file>.tape` del file audio o video `source`, nella cartella `destination` (la
@@ -895,9 +932,138 @@ fn md_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audio_toolkit::ogg_opus::OggOpusWriter;
     use crate::audio_toolkit::ogg_opus::tests::decoded_seconds;
     use crate::engine::pipeline::tests::{EnergyDetector, FakeEngine, fixture, wav};
+    use crate::engine::pipeline::transcribe_file;
     use crate::managers::settings::Channels;
+
+    /// Un Ogg a 16 kHz mono con un tono nei tratti `true` di `parts` (secondi, parlato).
+    fn tone_ogg(path: &Path, parts: &[(f32, bool)]) {
+        let samples: Vec<f32> = parts
+            .iter()
+            .flat_map(|&(seconds, voiced)| {
+                (0..(seconds * 16_000.0) as usize).map(move |i| {
+                    if voiced {
+                        0.5 * (i as f32 * 440.0 * std::f32::consts::TAU / 16_000.0).sin()
+                    } else {
+                        0.0
+                    }
+                })
+            })
+            .collect();
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(path).unwrap(), 16_000, 1, 32).unwrap();
+        writer.write(&samples).unwrap();
+        writer.finish().unwrap();
+    }
+
+    /// Un Tape di una Registrazione da Entrambi senza Frasi: il Microfono parla in 0–1 s, l'Audio
+    /// di sistema in 2–3 s, e il mix li somma.
+    fn tape_da_entrambi(dir: &Path) -> PathBuf {
+        let mic = dir.join("mic.ogg");
+        let sys = dir.join("sys.ogg");
+        let mix = dir.join("mix.ogg");
+        tone_ogg(&mic, &[(1.0, true), (3.0, false)]);
+        tone_ogg(&sys, &[(2.0, false), (1.0, true), (1.0, false)]);
+        tone_ogg(
+            &mix,
+            &[(1.0, true), (1.0, false), (1.0, true), (1.0, false)],
+        );
+        let path = dir.join("Call.tape");
+        tape::write(
+            &path,
+            &[
+                (Ingresso::Mix, &mix),
+                (Ingresso::Microfono, &mic),
+                (Ingresso::Sistema, &sys),
+            ],
+            &tape::Document::new(
+                "2026-10-05T14:24:24+02:00".into(),
+                4000,
+                tape::Modalita::IngressiSeparati,
+                None,
+                SpeechLanguage::auto(),
+                false,
+                &[],
+            ),
+            None,
+        )
+        .unwrap();
+        path
+    }
+
+    #[test]
+    fn un_tape_con_l_audio_degli_ingressi_si_trascrive_per_ingresso_e_mai_sul_mix() {
+        let dir = temp_dir("memotape-test-tape-ingressi");
+        let path = tape_da_entrambi(&dir);
+        let ingressi = ingressi_of(&path).unwrap();
+        assert_eq!(ingressi, [Ingresso::Microfono, Ingresso::Sistema]);
+        // Ogni Ingresso dà le Frasi del suo audio, non di quello dell'altro.
+        let starts: Vec<_> = ingressi
+            .iter()
+            .map(|&ingresso| {
+                let mut starts = Vec::new();
+                transcribe_decoded(
+                    Decoder::open_ingresso(&path, ingresso).unwrap(),
+                    &mut FakeEngine::default(),
+                    &mut EnergyDetector,
+                    None,
+                    None,
+                    None,
+                    &CancelToken::new(),
+                    &mut |event| {
+                        if let PipelineEvent::Phrase { inizio_ms, .. } = event {
+                            starts.push(inizio_ms);
+                        }
+                    },
+                )
+                .unwrap();
+                starts
+            })
+            .collect();
+        assert_eq!(starts.len(), 2);
+        assert!(matches!(starts[0][..], [s] if s < 500), "{starts:?}");
+        assert!(
+            matches!(starts[1][..], [s] if (1500..2100).contains(&s)),
+            "{starts:?}"
+        );
+    }
+
+    #[test]
+    fn un_file_o_un_tape_senza_l_audio_degli_ingressi_si_trascrive_sul_mix() {
+        let dir = temp_dir("memotape-test-tape-mix");
+        let mix = dir.join("mix.ogg");
+        tone_ogg(&mix, &[(1.0, true)]);
+        let path = dir.join("Solo mix.tape");
+        tape::write(
+            &path,
+            &[(Ingresso::Mix, &mix)],
+            &tape::Document::new(
+                "2026-10-05T14:24:24+02:00".into(),
+                1000,
+                tape::Modalita::Mix,
+                None,
+                SpeechLanguage::auto(),
+                false,
+                &[],
+            ),
+            None,
+        )
+        .unwrap();
+        assert_eq!(ingressi_of(&path).unwrap(), [Ingresso::Mix]);
+        assert_eq!(ingressi_of(&mix).unwrap(), [Ingresso::Mix]);
+    }
+
+    #[test]
+    fn il_progresso_degli_ingressi_trascritti_uno_dopo_l_altro_va_da_0_a_100() {
+        assert_eq!(overall_percent(0, 1, 40), 40);
+        assert_eq!([0, 100].map(|p| overall_percent(0, 2, p)), [0, 50]);
+        assert_eq!(
+            [0, 50, 100].map(|p| overall_percent(1, 2, p)),
+            [50, 75, 100]
+        );
+    }
 
     fn transcript(phrases: &[&str]) -> Transcript {
         Transcript {

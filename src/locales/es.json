@@ -130,15 +130,9 @@
         "system": "Audio del sistema",
         "both": "Ambos"
       },
-      "liveMode": "Transcripción en directo",
-      "liveModes": {
-        "mix": "Mezcla",
-        "ingressiSeparati": "Entradas separadas"
-      },
-      "liveModeDescription": "Solo con Ambos: Entradas separadas transcribe el micrófono y el audio del sistema cada uno por su cuenta, como una conversación, con dos instancias del modelo (el doble de memoria).",
       "parlanti": "Reconocer hablantes",
       "parlantiMix": "En la mezcla",
-      "parlantiDescription": "Después de Stop, en las frases de la transcripción en directo: con entradas separadas elige en qué entradas. Reconoce como máximo 4 hablantes por audio y requiere el modelo de reconocimiento de hablantes.",
+      "parlantiDescription": "Después de Stop, en las frases de la transcripción en directo. Con Ambos cada entrada tiene sus propios hablantes: el micrófono sigue siendo una sola persona si no lo eliges. Reconoce como máximo 4 hablantes por audio y requiere el modelo de reconocimiento de hablantes.",
       "microphone": "Micrófono",
       "outputDevice": "Dispositivo de salida",
       "defaultDevice": "Predeterminado del sistema",

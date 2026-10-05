@@ -130,15 +130,9 @@
         "system": "Systemaudio",
         "both": "Beides"
       },
-      "liveMode": "Live-Transkription",
-      "liveModes": {
-        "mix": "Mix",
-        "ingressiSeparati": "Getrennte Eingänge"
-      },
-      "liveModeDescription": "Nur mit Beides: Getrennte Eingänge transkribiert Mikrofon und Systemaudio jeweils für sich, als Gespräch, mit zwei Instanzen des Modells (doppelter Speicherbedarf).",
       "parlanti": "Sprecher erkennen",
       "parlantiMix": "Im Mix",
-      "parlantiDescription": "Nach Stopp, auf den Sätzen der Live-Transkription: mit getrennten Eingängen wählt man die Eingänge. Erkennt höchstens 4 Sprecher pro Audio und benötigt das Modell zur Sprechererkennung.",
+      "parlantiDescription": "Nach Stopp, auf den Sätzen der Live-Transkription. Mit Beides hat jeder Eingang eigene Sprecher: Das Mikrofon bleibt eine einzige Person, wenn du es nicht auswählst. Erkennt höchstens 4 Sprecher pro Audio und benötigt das Modell zur Sprechererkennung.",
       "microphone": "Mikrofon",
       "outputDevice": "Ausgabegerät",
       "defaultDevice": "Systemstandard",

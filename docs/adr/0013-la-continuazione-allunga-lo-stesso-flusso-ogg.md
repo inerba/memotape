@@ -16,3 +16,5 @@ Alternative scartate:
 - **ricodifica completa**: circa 50 s per ora di audio e una perdita di qualità a ogni Continuazione.
 
 Conseguenza: canali e frequenza della Continuazione sono quelli del Bino, non quelli delle impostazioni, perché un flusso Ogg Opus ha un solo `OpusHead`.
+
+Corretto dall'ADR-0015: una Continuazione da Entrambi su un Tape senza `microfono.ogg` e `sistema.ogg` li crea, con silenzio per la parte vecchia.

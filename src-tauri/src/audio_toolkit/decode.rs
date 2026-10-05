@@ -14,6 +14,7 @@ use symphonia::core::meta::MetadataOptions;
 use crate::audio_toolkit::forma_onda::Picchi;
 use crate::error::AppError;
 use crate::tape;
+use crate::transcript::Ingresso;
 
 static CODECS: LazyLock<CodecRegistry> = LazyLock::new(|| {
     let mut registry = CodecRegistry::new();
@@ -33,14 +34,18 @@ pub struct Decoder {
 
 impl Decoder {
     pub fn open(path: &Path) -> Result<Self, AppError> {
+        Self::open_ingresso(path, Ingresso::Mix)
+    }
+
+    /// Come `open`, ma di un Tape decodifica l'audio di `ingresso` invece del mix.
+    pub fn open_ingresso(path: &Path, ingresso: Ingresso) -> Result<Self, AppError> {
         let unreadable = |e: &dyn std::fmt::Display| {
             AppError::UnreadableFile(format!("{}: {e}", path.display()))
         };
         let mut hint = Hint::new();
-        // Di un Tape si decodifica il mix.
         let source: Box<dyn MediaSource> = if tape::is_tape(path) {
             hint.with_extension("ogg");
-            Box::new(tape::Mix::open(path)?)
+            Box::new(tape::Mix::open_ingresso(path, ingresso)?)
         } else {
             if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 hint.with_extension(ext);

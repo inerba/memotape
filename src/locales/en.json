@@ -130,15 +130,9 @@
         "system": "System audio",
         "both": "Both"
       },
-      "liveMode": "Live transcription",
-      "liveModes": {
-        "mix": "Mix",
-        "ingressiSeparati": "Separate inputs"
-      },
-      "liveModeDescription": "Only with Both: Separate inputs transcribes the microphone and system audio each on its own, as a conversation, with two instances of the model (twice the memory).",
       "parlanti": "Recognize speakers",
       "parlantiMix": "On the mix",
-      "parlantiDescription": "After Stop, on the phrases of the live transcription: with separate inputs it chooses which inputs. It recognizes at most 4 speakers per audio and needs the speaker recognition model.",
+      "parlantiDescription": "After Stop, on the phrases of the live transcription. With Both each input has its own speakers: the microphone stays a single person unless you choose it. It recognizes at most 4 speakers per audio and needs the speaker recognition model.",
       "microphone": "Microphone",
       "outputDevice": "Output device",
       "defaultDevice": "System default",
