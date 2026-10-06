@@ -4,6 +4,7 @@ import type { Ingresso } from "@/bindings";
 import {
   type Conversation,
   EMPTY_CONVERSATION,
+  mergeDestination,
   nomeTaken,
   parlanteStats,
   parlantiOf,
@@ -20,6 +21,50 @@ import {
   withPhrase,
   withTesto,
 } from "@/features/transcription/phrases";
+
+test("l'unione considera solo il vicino e richiede una voce nota dello stesso Ingresso", () => {
+  const conversation: Conversation = {
+    ...EMPTY_CONVERSATION,
+    phrases: [
+      { ...phrase(0, 0, "Mario."), parlante: 1 },
+      { ...phrase(1, 1000, "Anna."), parlante: 2 },
+      { ...phrase(2, 2000, "Mario."), parlante: 1 },
+    ],
+  };
+  const [above, source, below] = turnsOf(conversation, t);
+  if (!(above && source && below)) {
+    throw new Error("tre Turni attesi");
+  }
+  const [targetPhrase] = below.items;
+  const [sourcePhrase] = source.items;
+  if (!(targetPhrase && sourcePhrase)) {
+    throw new Error("Frasi attese");
+  }
+  expect(mergeDestination(source, above, [])).toMatchObject({
+    ingresso: "mix",
+    phraseId: 0,
+  });
+  expect(mergeDestination(source, below, [])).toMatchObject({
+    ingresso: "mix",
+    phraseId: 2,
+  });
+  expect(mergeDestination(above, undefined, [])).toBeNull();
+  expect(
+    mergeDestination(source, { ...below, ingresso: "sistema" }, [])
+  ).toBeNull();
+  expect(
+    mergeDestination(
+      source,
+      {
+        ...below,
+        items: [{ ...targetPhrase, parlanteNonDeterminato: true }],
+      },
+      []
+    )
+  ).toBeNull();
+  expect(mergeDestination(source, { ...below, label: null }, [])).toBeNull();
+  expect(mergeDestination(source, below, [sourcePhrase])).toBeNull();
+});
 
 test("le rettifiche dal vivo scartano revisioni vecchie e non ripristinano Parziali conclusi", () => {
   const partial = {
@@ -185,6 +230,7 @@ test("il Parlante non determinato si legge e si copia senza diventare il nome de
   const named = withNome(conversation, "microfono", null, "Mario");
   const turns = turnsOf(named, t);
   expect(turns[0]?.label).toBe("Microfono · Parlante non determinato");
+  expect(turns[0]?.name).toBe("Parlante non determinato");
   expect(turns.map(turnText)).toEqual([
     "Microfono · Parlante non determinato: Due voci nella stessa frase.",
   ]);
@@ -471,6 +517,12 @@ test("un nome già di un altro Parlante dello stesso Ingresso non si accetta", (
 
 test("ogni turno ha la voce da rinominare e una chiave stabile", () => {
   const turns = turnsOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
+  expect(turns.map((turn) => turn.name)).toEqual([
+    "Parlante 1",
+    "Parlante 1",
+    "Lucia",
+    "Parlante 1",
+  ]);
   expect(
     turns.map(({ ingresso, key, label, parlante }) => ({
       ingresso,

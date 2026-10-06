@@ -4,6 +4,7 @@ import {
   AudioLines,
   FileAudio,
   Languages,
+  Pencil,
   Users,
 } from "lucide-react";
 import {
@@ -238,6 +239,9 @@ function InfoChips({
       </Chip>
       {parlanti > 0 ? (
         <Chip icon={<Users />}>{t("tape.parlanti", { count: parlanti })}</Chip>
+      ) : null}
+      {info.correttoAMano ? (
+        <Chip icon={<Pencil />}>{t("tape.manuallyCorrected")}</Chip>
       ) : null}
       {/* Senza modello il Tape non ha testo: niente modello, lingua né "incompleto". */}
       {info.modello ? (

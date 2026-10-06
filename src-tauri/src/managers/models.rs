@@ -406,17 +406,6 @@ pub struct DiarizerLease {
 }
 
 impl DiarizerLease {
-    /// Uno stream indipendente dalla sessione dell'analisi finale. Solo Nemotron lo supporta.
-    pub fn live_diarizer(
-        &self,
-    ) -> Option<(
-        crate::engine::live_diarization::DiarizationFeed,
-        crate::engine::live_diarization::LiveDiarizer,
-    )> {
-        self.local_path
-            .as_ref()
-            .map(|path| crate::engine::live_diarization::LiveDiarizer::channel(path.clone()))
-    }
     fn load(&self) -> Result<OfflineDiarizer, AppError> {
         if let Some(local) = &self.local_path {
             Ok(OfflineDiarizer::load_nemotron3(local)?)
@@ -430,6 +419,21 @@ impl DiarizerLease {
     pub fn diarize_saved(&self, path: &Path, cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
         self.load()?
             .diarize_saved(crate::audio_toolkit::decode::Decoder::open(path)?, cancel)
+    }
+    /// Un'analisi indipendente sull'audio salvato dell'Ingresso, senza usare il mix degli altri.
+    pub fn diarize_ingresso(
+        &self,
+        path: &Path,
+        ingresso: crate::transcript::Ingresso,
+        cancel: &CancelToken,
+    ) -> Result<Vec<Turn>, AppError> {
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        self.load()?.diarize_saved(
+            crate::audio_toolkit::decode::Decoder::open_ingresso(path, ingresso)?,
+            cancel,
+        )
     }
     /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio.
     /// Il modello si carica qui e non resta in memoria.

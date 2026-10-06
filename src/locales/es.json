@@ -24,7 +24,8 @@
       "title": "¿Volver a transcribir el Tape?",
       "description": "El texto del Tape se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes.",
       "keep": "Conservar el texto",
-      "confirm": "Reemplazar"
+      "confirm": "Reemplazar",
+      "manualDescription": "Este Tape contiene correcciones manuales. Una nueva transcripción sustituirá el texto, las atribuciones y los nombres de los hablantes, incluidas las correcciones manuales."
     },
     "parlanti": "Reconocer hablantes",
     "nemotron3Note": "Nemotron 3 experimental: admite hasta 8 hablantes por entrada, pero puede confundir o unir las voces.",
@@ -38,7 +39,23 @@
     "edit": "Haz clic para corregir: Intro guarda, Esc cancela",
     "export": "Exportar Markdown…",
     "exported": "Exportado a {{path}}",
-    "again": "Transcribir de nuevo"
+    "again": "Transcribir de nuevo",
+    "merge": "Unir",
+    "mergeAbove": "Unir con la intervención anterior",
+    "mergeBelow": "Unir con la intervención siguiente",
+    "mergeCancel": "Cancelar"
+  },
+  "diarization": {
+    "start": "Diarizar",
+    "again": "Diarizar de nuevo",
+    "saved": "Diarización guardada en {{path}}",
+    "cancelled": "Diarización cancelada. El Tape no se ha modificado.",
+    "replace": {
+      "title": "¿Identificar de nuevo a los hablantes?",
+      "description": "Este Tape contiene correcciones manuales. Se conservarán el texto corregido, las atribuciones modificadas a mano y los nombres personalizados. La diarización actualizará las demás atribuciones.",
+      "keep": "Cancelar",
+      "confirm": "Diarizar"
+    }
   },
   "player": {
     "label": "Reproductor",
@@ -131,8 +148,8 @@
       "diarizer": "Modelo de hablantes",
       "nemotron3": "Nemotron 3 Diarization (experimental)",
       "localModel": "Modelo local",
-      "experimentalDescription": "Función experimental: puede confundir hablantes, especialmente con voces superpuestas o muchas personas. Las atribuciones en directo son provisionales y se vuelven a analizar después de Detener.",
-      "experimentalLiveDescription": "Se recomienda una GPU compatible con Vulkan para reconocer hablantes en directo. Con solo CPU, el reconocimiento puede interrumpirse si no sigue el ritmo; el audio y la transcripción continúan y los hablantes se vuelven a analizar después de Detener.",
+      "experimentalDescription": "Función experimental: puede confundir hablantes, especialmente con voces superpuestas o muchas personas.",
+      "recordingDiarizationDescription": "Los hablantes de las grabaciones se reconocen solo después de Detener. La transcripción en directo continúa durante la grabación, sin reconocimiento de hablantes.",
       "localModelDescription": "Selecciona el modelo BF16 compatible de Nemotron 3 Diarization. Se usa para archivos, Tape y grabaciones, también con entradas separadas.",
       "localModelMissing": "Ningún modelo local seleccionado",
       "chooseLocalModel": "Elegir modelo local…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Reconocer hablantes",
       "parlantiMix": "En la mezcla",
-      "parlantiDescription": "Con transcripción en directo, Nemotron muestra hablantes provisionales de cada entrada seleccionada y realiza el análisis final después de Detener. Sortformer reconoce hasta 4 hablantes después de Detener. Con Ambas, cada entrada tiene sus hablantes; el micrófono se analiza solo si se selecciona.",
+      "parlantiDescription": "Con transcripción en directo, los hablantes de cada entrada seleccionada se reconocen después de Detener, con Nemotron o Sortformer. Con Ambas, cada entrada tiene sus hablantes; el micrófono se analiza solo si se selecciona.",
       "microphone": "Micrófono",
       "outputDevice": "Dispositivo de salida",
       "defaultDevice": "Predeterminado del sistema",
@@ -371,7 +388,8 @@
     "noTextDescription": "Transcríbelo para leer, buscar y volver a escuchar lo que se dijo.",
     "ingressi": "Micrófono + audio del sistema",
     "changeDate": "Haz clic para cambiar la fecha y la hora: Intro confirma, Esc cancela",
-    "dateLabel": "Fecha y hora de la grabación"
+    "dateLabel": "Fecha y hora de la grabación",
+    "manuallyCorrected": "Corregido a mano"
   },
   "tabs": {
     "label": "Vistas del Tape",

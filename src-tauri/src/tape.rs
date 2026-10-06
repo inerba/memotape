@@ -78,6 +78,10 @@ pub struct Frase {
     pub parlante_provvisorio: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tempi: Vec<crate::transcript::TempoTesto>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub testo_corretto: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub parlante_corretto: bool,
 }
 
 fn is_false(value: &bool) -> bool {
@@ -90,6 +94,14 @@ pub fn creato(start: DateTime<Local>) -> String {
 }
 
 impl Document {
+    pub fn corretto_a_mano(&self) -> bool {
+        !self.parlanti.is_empty()
+            || self
+                .frasi
+                .iter()
+                .any(|f| f.testo_corretto || f.parlante_corretto)
+    }
+
     /// La data e l'ora locali di `creato`, ai minuti: `2026-10-03 17:05`.
     pub fn date(&self) -> String {
         self.creato
@@ -132,6 +144,8 @@ impl Document {
                     parlante_non_determinato: phrase.parlante_non_determinato,
                     parlante_provvisorio: phrase.parlante_provvisorio,
                     tempi: phrase.tempi.clone(),
+                    testo_corretto: false,
+                    parlante_corretto: false,
                 })
                 .collect(),
             origine: None,
@@ -225,11 +239,41 @@ pub fn rewrite(path: &Path, document: &Document) -> Result<(), AppError> {
     })
 }
 
+/// Come `rewrite`, ma Annulla durante la copia dello zip impedisce la sostituzione finale.
+pub fn rewrite_cancellable(
+    path: &Path,
+    document: &Document,
+    cancel: &transcribe_cpp::CancelToken,
+) -> Result<(), AppError> {
+    let _writing = writing();
+    replace_checked(
+        path,
+        DOCUMENT,
+        |zip, temp| write_document(zip, temp, document),
+        || {
+            if cancel.is_cancelled() {
+                Err(AppError::Cancelled)
+            } else {
+                Ok(())
+            }
+        },
+    )
+}
+
 /// Riscrive il Tape con la voce `name` scritta da `add` al posto di quella che c'era, se c'era.
 fn replace(
     path: &Path,
     name: &str,
     add: impl FnOnce(&mut ZipWriter<File>, &Path) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    replace_checked(path, name, add, || Ok(()))
+}
+
+fn replace_checked(
+    path: &Path,
+    name: &str,
+    add: impl FnOnce(&mut ZipWriter<File>, &Path) -> Result<(), AppError>,
+    before_replace: impl FnOnce() -> Result<(), AppError>,
 ) -> Result<(), AppError> {
     let mut temp = path.as_os_str().to_owned();
     temp.push(".tmp");
@@ -248,6 +292,7 @@ fn replace(
         zip.finish().map_err(|e| unwritable(&temp, &e))?;
         // Il vecchio Tape si chiude prima del rename.
         drop(old);
+        before_replace()?;
         std::fs::rename(&temp, path).map_err(|e| unwritable(path, &e))
     })();
     if written.is_err() {
@@ -270,9 +315,89 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
                     path.display()
                 ))
             })?;
-        testo.clone_into(&mut frase.testo);
-        // I tempi ASR si riferiscono al testo originale, non alla correzione dell'utente.
-        frase.tempi.clear();
+        if frase.testo != testo {
+            testo.clone_into(&mut frase.testo);
+            // I tempi ASR si riferiscono al testo originale, non alla correzione dell'utente.
+            frase.tempi.clear();
+            frase.testo_corretto = true;
+        }
+        Ok(())
+    })
+}
+
+/// Attribuisce un Turno intero al Parlante del Turno immediatamente adiacente.
+/// I riferimenti, il testo e i tempi restano invariati; richieste obsolete non scrivono nulla.
+pub fn unisci_turno(
+    path: &Path,
+    ingresso: Ingresso,
+    ids: &[u32],
+    destinazione: u32,
+) -> Result<(), AppError> {
+    update(path, |document| {
+        let invalid =
+            || AppError::Internal("il Turno o la destinazione non sono più disponibili".into());
+        let mut ordered: Vec<_> = document.frasi.iter().enumerate().collect();
+        ordered.sort_by_key(|(_, f)| f.inizio_ms);
+        let same = |a: &Frase, b: &Frase| {
+            a.ingresso == b.ingresso
+                && (a.parlante_non_determinato || a.parlante == b.parlante)
+                && a.parlante_non_determinato == b.parlante_non_determinato
+                && a.parlante_provvisorio == b.parlante_provvisorio
+        };
+        let positions: Vec<_> = ordered
+            .iter()
+            .enumerate()
+            .filter(|(_, (_, f))| f.ingresso == ingresso && ids.contains(&f.id))
+            .map(|(position, _)| position)
+            .collect();
+        let (&start, &end) = positions
+            .first()
+            .zip(positions.last())
+            .ok_or_else(invalid)?;
+        let source = ordered[start].1;
+        if positions.len() != ids.len()
+            || end - start + 1 != ids.len()
+            || ordered[start..=end].iter().any(|(_, f)| !same(source, f))
+            || (start > 0 && same(source, ordered[start - 1].1))
+            || (end + 1 < ordered.len() && same(source, ordered[end + 1].1))
+        {
+            return Err(invalid());
+        }
+        let target = ordered
+            .iter()
+            .position(|(_, f)| f.ingresso == ingresso && f.id == destinazione)
+            .ok_or_else(invalid)?;
+        let boundary = if target < start {
+            start - 1
+        } else if target > end && end + 1 < ordered.len() {
+            end + 1
+        } else {
+            return Err(invalid());
+        };
+        let voice = ordered[target].1;
+        if voice.parlante_non_determinato
+            || voice.parlante_provvisorio
+            || (voice.parlante.is_none()
+                && ingresso == Ingresso::Mix
+                && !document.parlanti.contains_key("mix"))
+            || ordered[target.min(boundary)..=target.max(boundary)]
+                .iter()
+                .any(|(_, f)| !same(voice, f))
+        {
+            return Err(invalid());
+        }
+        let speaker = voice.parlante;
+        let selected: Vec<_> = ordered[start..=end]
+            .iter()
+            .map(|(index, _)| *index)
+            .collect();
+        for index in selected {
+            let frase = &mut document.frasi[index];
+            frase.parlante = speaker;
+            frase.parlante_non_determinato = false;
+            frase.parlante_provvisorio = false;
+            frase.parlante_corretto = true;
+        }
         Ok(())
     })
 }
@@ -545,6 +670,8 @@ mod tests {
                     parlante_non_determinato: false,
                     parlante_provvisorio: false,
                     tempi: Vec::new(),
+                    testo_corretto: false,
+                    parlante_corretto: false,
                 })
                 .collect(),
             origine: None,
@@ -799,6 +926,100 @@ mod tests {
     }
 
     #[test]
+    fn una_correzione_testuale_si_ricorda_alla_riapertura_del_tape() {
+        let dir = temp_dir("tape-testo-manuale");
+        let path = dir.join("Call.tape");
+        write(
+            &path,
+            &[(Ingresso::Mix, &ogg(&dir))],
+            &document(&["Errore."]),
+            None,
+        )
+        .unwrap();
+        edit_frase(&path, Ingresso::Mix, 0, "Corretto.").unwrap();
+        let json = serde_json::to_value(read(&path).unwrap()).unwrap();
+        assert_eq!(json["frasi"][0]["testo_corretto"], true);
+    }
+
+    #[test]
+    fn unione_corregge_solo_il_turno_scelto_e_conserva_i_riferimenti() {
+        for target in [0, 3] {
+            let dir = temp_dir(&format!("unisci-{target}"));
+            let path = dir.join("Call.tape");
+            let mut doc = document(&["Mario.", "Anna.", "Ancora Anna.", "Mario.", "Altra Anna."]);
+            for (f, speaker) in doc.frasi.iter_mut().zip([1, 2, 2, 1, 2]) {
+                f.parlante = Some(speaker);
+            }
+            write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
+            let audio = std::fs::read(&path).unwrap();
+            let mut library = crate::library::Library::open(&dir, &dir.join("indice.db")).unwrap();
+            library.sync().unwrap();
+            assert!(library.search("Mario Ancora", None).unwrap().is_empty());
+            for (ids, destination) in [(vec![1], target), (vec![1, 2], 4), (vec![1, 1], target)] {
+                assert!(unisci_turno(&path, Ingresso::Mix, &ids, destination).is_err());
+                assert_eq!(std::fs::read(&path).unwrap(), audio);
+            }
+            unisci_turno(&path, Ingresso::Mix, &[1, 2], target).unwrap();
+            let after = read(&path).unwrap();
+            let mut expected = doc.clone();
+            for f in &mut expected.frasi[1..=2] {
+                f.parlante = Some(1);
+                f.parlante_corretto = true;
+            }
+            assert_eq!(after, expected);
+            assert!(after.corretto_a_mano());
+            library.sync().unwrap();
+            let found = library.search("Mario Ancora", None).unwrap();
+            assert_eq!(found[0].frasi[0].phrase_id, 2);
+        }
+    }
+
+    #[test]
+    fn aprire_senza_modificare_non_segna_il_testo_e_una_copia_conserva_la_correzione() {
+        let dir = temp_dir("correzione-noop-copia");
+        let path = dir.join("Call.tape");
+        let mut doc = document(&["Originale."]);
+        doc.parlanti.clear();
+        write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
+        edit_frase(&path, Ingresso::Mix, 0, "Originale.").unwrap();
+        assert_eq!(read(&path).unwrap(), doc);
+        assert!(
+            !crate::managers::transcription::open_tape(&path)
+                .unwrap()
+                .info
+                .corretto_a_mano
+        );
+        edit_frase(&path, Ingresso::Mix, 0, "Corretto.").unwrap();
+        let copy = dir.join("Copia.tape");
+        std::fs::copy(&path, &copy).unwrap();
+        assert!(
+            crate::managers::transcription::open_tape(&copy)
+                .unwrap()
+                .info
+                .corretto_a_mano
+        );
+        assert_eq!(read(&copy).unwrap().frasi[0].testo, "Corretto.");
+    }
+
+    #[test]
+    fn unione_non_attraversa_ingressi_o_destinazioni_non_determinate() {
+        let dir = temp_dir("unisci-invalidi");
+        let path = dir.join("Call.tape");
+        let mut doc = document(&["Uno.", "Due.", "Tre."]);
+        doc.frasi[0].ingresso = Ingresso::Microfono;
+        doc.frasi[1].parlante = Some(2);
+        doc.frasi[2].parlante_non_determinato = true;
+        write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        assert!(unisci_turno(&path, Ingresso::Mix, &[1], 0).is_err());
+        assert!(unisci_turno(&path, Ingresso::Mix, &[1], 2).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        // La sorgente non determinata, invece, può essere corretta verso una voce nota.
+        unisci_turno(&path, Ingresso::Mix, &[2], 1).unwrap();
+        assert!(!read(&path).unwrap().frasi[2].parlante_non_determinato);
+    }
+
+    #[test]
     fn la_correzione_cambia_solo_il_testo_di_quella_frase() {
         let dir = temp_dir("tape-correzione");
         let mix = ogg(&dir);
@@ -811,10 +1032,12 @@ mod tests {
         edit_frase(&path, Ingresso::Mix, 1, "Iniziamo.").unwrap();
         let mut expected = before.clone();
         expected.frasi[1].testo = "Iniziamo.".into();
+        expected.frasi[1].testo_corretto = true;
         assert_eq!(read(&path).unwrap(), expected);
         // Lo stesso id in un altro Ingresso è un'altra Frase; una Frase svuotata resta.
         edit_frase(&path, Ingresso::Sistema, 1, "").unwrap();
         expected.frasi[2].testo = String::new();
+        expected.frasi[2].testo_corretto = true;
         assert_eq!(read(&path).unwrap(), expected);
         let mut audio = Vec::new();
         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
@@ -870,6 +1093,34 @@ mod tests {
         // Un valore che non è data e ora si rifiuta e non cambia nulla.
         assert!(set_creato(&path, "31/12/2025").is_err());
         assert_eq!(read(&path).unwrap().creato, creato);
+    }
+
+    #[test]
+    fn annulla_dopo_la_copia_del_tape_impedisce_la_sostituzione_e_rimuove_il_temporaneo() {
+        let dir = temp_dir("tape-annulla-sostituzione");
+        let path = dir.join("Call.tape");
+        let before = document(&["Il testo precedente."]);
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &before, None).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let changed = document(&["Il risultato nuovo."]);
+        // Il controllo avviene dopo aver scritto e chiuso l'intero zip temporaneo.
+        let result = replace_checked(
+            &path,
+            DOCUMENT,
+            |zip, temp| write_document(zip, temp, &changed),
+            || Err(AppError::Cancelled),
+        );
+        assert_eq!(result, Err(AppError::Cancelled));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert!(!path.with_extension("tape.tmp").exists());
+        let cancel = transcribe_cpp::CancelToken::new();
+        cancel.cancel();
+        assert_eq!(
+            rewrite_cancellable(&path, &changed, &cancel),
+            Err(AppError::Cancelled)
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert!(!path.with_extension("tape.tmp").exists());
     }
 
     #[test]

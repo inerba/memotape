@@ -24,7 +24,8 @@
       "title": "Transkrybować plik Tape ponownie?",
       "description": "Tekst pliku Tape zostanie zastąpiony nową transkrypcją: poprawki i nazwy mówców zostaną utracone.",
       "keep": "Zachowaj tekst",
-      "confirm": "Zastąp"
+      "confirm": "Zastąp",
+      "manualDescription": "Ten Tape zawiera ręczne poprawki. Nowa transkrypcja zastąpi tekst, przypisania mówców i ich nazwy, w tym ręczne poprawki."
     },
     "parlanti": "Rozpoznaj mówców",
     "nemotron3Note": "Eksperymentalny Nemotron 3: obsługuje do 8 mówców na wejście, ale może mylić lub łączyć głosy.",
@@ -38,7 +39,23 @@
     "edit": "Kliknij, aby poprawić: Enter zapisuje, Esc anuluje",
     "export": "Eksportuj Markdown…",
     "exported": "Wyeksportowano do {{path}}",
-    "again": "Transkrybuj ponownie"
+    "again": "Transkrybuj ponownie",
+    "merge": "Połącz",
+    "mergeAbove": "Połącz z poprzednią wypowiedzią",
+    "mergeBelow": "Połącz z następną wypowiedzią",
+    "mergeCancel": "Anuluj"
+  },
+  "diarization": {
+    "start": "Diaryzuj",
+    "again": "Diaryzuj ponownie",
+    "saved": "Diaryzacja zapisana w {{path}}",
+    "cancelled": "Diaryzacja anulowana. Tape nie został zmieniony.",
+    "replace": {
+      "title": "Ponownie rozpoznać mówców?",
+      "description": "Ten Tape zawiera ręczne poprawki. Poprawiony tekst, ręcznie zmienione przypisania mówców i własne nazwy zostaną zachowane. Diaryzacja zaktualizuje pozostałe przypisania.",
+      "keep": "Anuluj",
+      "confirm": "Diaryzuj"
+    }
   },
   "player": {
     "label": "Odtwarzacz",
@@ -131,8 +148,8 @@
       "diarizer": "Model mówców",
       "nemotron3": "Nemotron 3 Diarization (eksperymentalny)",
       "localModel": "Model lokalny",
-      "experimentalDescription": "Funkcja eksperymentalna: mówcy mogą być myleni, szczególnie przy nakładających się głosach lub wielu osobach. Przypisania na żywo są tymczasowe i analizowane ponownie po zatrzymaniu.",
-      "experimentalLiveDescription": "Do rozpoznawania mówców na żywo zalecana jest karta graficzna zgodna z Vulkan. Przy samym CPU rozpoznawanie może się przerwać, jeśli nie nadąża; dźwięk i transkrypcja są kontynuowane, a mówcy analizowani ponownie po zatrzymaniu.",
+      "experimentalDescription": "Funkcja eksperymentalna: mówcy mogą być myleni, szczególnie przy nakładających się głosach lub wielu osobach.",
+      "recordingDiarizationDescription": "Mówcy w nagraniach są rozpoznawani dopiero po zatrzymaniu. Transkrypcja na żywo trwa podczas nagrywania, bez rozpoznawania mówców.",
       "localModelDescription": "Wybierz zgodny model BF16 Nemotron 3 Diarization. Jest używany do plików, Tape i nagrań, również z oddzielnymi wejściami.",
       "localModelMissing": "Nie wybrano modelu lokalnego",
       "chooseLocalModel": "Wybierz model lokalny…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Rozpoznawaj mówców",
       "parlantiMix": "W miksie",
-      "parlantiDescription": "Z transkrypcją na żywo Nemotron pokazuje tymczasowych mówców każdego wybranego wejścia i analizuje ponownie po zatrzymaniu. Sortformer rozpoznaje do 4 mówców po zatrzymaniu. Przy opcji Oba każde wejście ma własnych mówców; mikrofon jest analizowany tylko po wybraniu.",
+      "parlantiDescription": "Przy włączonej transkrypcji na żywo mówcy każdego wybranego wejścia są rozpoznawani po zatrzymaniu przez Nemotron lub Sortformer. Przy opcji Oba każde wejście ma własnych mówców; mikrofon jest analizowany tylko po wybraniu.",
       "microphone": "Mikrofon",
       "outputDevice": "Urządzenie wyjściowe",
       "defaultDevice": "Domyślne systemowe",
@@ -372,7 +389,8 @@
     "noTextDescription": "Transkrybuj go, aby czytać, wyszukiwać i ponownie odsłuchać, co zostało powiedziane.",
     "ingressi": "Mikrofon + dźwięk systemowy",
     "changeDate": "Kliknij, aby zmienić datę i godzinę: Enter zatwierdza, Esc anuluje",
-    "dateLabel": "Data i godzina nagrania"
+    "dateLabel": "Data i godzina nagrania",
+    "manuallyCorrected": "Poprawiono ręcznie"
   },
   "tabs": {
     "label": "Widoki pliku Tape",

@@ -53,19 +53,22 @@ import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
 import { fileName, isTape, movedPath } from "@/features/source/file-name";
 import {
+  afterDiarization,
   afterTranscription,
   type Banner,
   bannerOf,
   errorText,
-  progressPercent,
   type Status,
-  statusText,
   withDiarizing,
   withLiveDiarizationError,
   withLiveError,
   withMovedSource,
   withProgress,
 } from "@/features/status/status";
+import {
+  diarizationNeedsConfirmation,
+  wasDiarized,
+} from "@/features/transcription/diarization";
 import { ParlantiTab } from "@/features/transcription/parlanti-tab";
 import {
   type Conversation,
@@ -73,6 +76,7 @@ import {
   type Parlante,
   type PhraseRef,
   parlantiOf,
+  type Turn,
   visiblePhrases,
   withLiveTranscript,
   withNome,
@@ -144,6 +148,9 @@ export function HomePage() {
   const [cancelling, setCancelling] = useState(false);
   // Trascrivi su un Tape aspetta la conferma: il testo e le correzioni si sostituiscono.
   const [confirmTranscribe, setConfirmTranscribe] = useState(false);
+  const [confirmDiarize, setConfirmDiarize] = useState(false);
+  const diarizationInFlight = useRef(false);
+  const confirmationOpen = confirmTranscribe || confirmDiarize;
   // La Frase di un risultato della ricerca, evidenziata nel Tape aperto.
   const [highlight, setHighlight] = useState<PhraseRef | null>(null);
   // Cambia per riaprire il Tape già aperto dall'inizio del testo.
@@ -162,12 +169,13 @@ export function HomePage() {
   // Il timer della Registrazione per la barra laterale.
   const [elapsedMs, setElapsedMs] = useState(0);
   const running = status.phase === "transcribing";
+  const diarizing = status.phase === "diarizing";
   const recording = status.phase === "recording";
   // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
   const completing = status.phase === "completing";
   const paused = status.phase === "recording" && status.paused;
   // Una Attività alla volta: durante l'una, l'altra e Apri file sono disabilitate.
-  const busy = running || recording || completing;
+  const busy = running || diarizing || recording || completing;
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
   const navigate = useNavigate();
@@ -196,12 +204,14 @@ export function HomePage() {
       setStatus((current) => withProgress(current, payload.percent));
     });
     // Finita la Trascrizione, Riconosci i parlanti attribuisce le Frasi ai Parlanti.
-    const diarizing = events.diarizationStarted.listen(({ payload }) => {
-      if (!inEventSession(payload, recordingSession.current)) {
-        return;
+    const diarizationStarted = events.diarizationStarted.listen(
+      ({ payload }) => {
+        if (!inEventSession(payload, recordingSession.current)) {
+          return;
+        }
+        setStatus(withDiarizing);
       }
-      setStatus(withDiarizing);
-    });
+    );
     const diarizerFailed = events.liveDiarizationFailed.listen(
       ({ payload }) => {
         if (!inEventSession(payload, recordingSession.current)) {
@@ -244,7 +254,7 @@ export function HomePage() {
       liveText.then((stop) => stop());
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
-      diarizing.then((stop) => stop());
+      diarizationStarted.then((stop) => stop());
       diarizerFailed.then((stop) => stop());
       assigned.then((stop) => stop());
       ticks.then((stop) => stop());
@@ -328,7 +338,7 @@ export function HomePage() {
       setHighlight(phrase ?? null);
       setRenaming(null);
       // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Tape come gli altri.
-      if (path === source && running) {
+      if (path === source && (running || diarizing)) {
         setBrowsed(null);
         return;
       }
@@ -344,7 +354,7 @@ export function HomePage() {
         path,
       });
     },
-    [running, source]
+    [diarizing, running, source]
   );
 
   // Finita l'Attività torna la sua vista, con il suo esito aperto (il Tape di una Registrazione).
@@ -453,13 +463,13 @@ export function HomePage() {
   // intanto è disabilitata) e che si chiuda la conferma di Trascrivi. Si apre sulla finestra
   // principale, anche se c'era Impostazioni sopra.
   useEffect(() => {
-    if (pendingTape && !busy && !confirmTranscribe) {
+    if (pendingTape && !busy && !confirmationOpen) {
       setPendingTape(null);
       setListOpen(false);
       navigate("/");
       openPath(pendingTape);
     }
-  }, [busy, confirmTranscribe, navigate, openPath, pendingTape]);
+  }, [busy, confirmationOpen, navigate, openPath, pendingTape]);
 
   // Un file rilasciato si apre come con Apri file, anche da Impostazioni; durante un'Attività solo
   // un Tape, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
@@ -469,7 +479,7 @@ export function HomePage() {
     }
     setDropped(null);
     const verdict = dropVerdict(dropped, busy);
-    if (!verdict.accepted || confirmTranscribe) {
+    if (!verdict.accepted || confirmationOpen) {
       return;
     }
     navigate("/");
@@ -479,7 +489,7 @@ export function HomePage() {
     } else {
       openPath(verdict.path);
     }
-  }, [browse, busy, confirmTranscribe, dropped, navigate, openPath]);
+  }, [browse, busy, confirmationOpen, dropped, navigate, openPath]);
 
   const open = useCallback(async () => {
     if (!source) {
@@ -518,6 +528,51 @@ export function HomePage() {
       setStatus({ error: internalError(e), phase: "failed" });
     }
   }, [loadTape, raccolta, source]);
+
+  // La nuova Diarizzazione lascia in vista il risultato precedente fino al salvataggio riuscito.
+  const diarize = useCallback(async () => {
+    if (!source || busy || diarizationInFlight.current) {
+      return;
+    }
+    diarizationInFlight.current = true;
+    setConfirmDiarize(false);
+    recordingSession.current = null;
+    setRenaming(null);
+    setCancelling(false);
+    setStatus({ phase: "diarizing" });
+    try {
+      const result = await commands.diarize(source);
+      const error = result.status === "ok" ? await loadTape(source) : null;
+      if (result.status === "ok" && !error) {
+        setRevision((current) => current + 1);
+      }
+      setStatus(
+        error ? { error, phase: "failed" } : afterDiarization(result, source)
+      );
+    } catch (e) {
+      setStatus({ error: internalError(e), phase: "failed" });
+    } finally {
+      diarizationInFlight.current = false;
+      setCancelling(false);
+    }
+  }, [busy, loadTape, source]);
+
+  const requestDiarization = useCallback(() => {
+    if (busy || !conversation.phrases.length) {
+      return;
+    }
+    if (diarizationNeedsConfirmation(info, conversation.parlanti)) {
+      setConfirmDiarize(true);
+    } else {
+      diarize();
+    }
+  }, [busy, conversation.parlanti, conversation.phrases.length, diarize, info]);
+
+  const closeDiarizationConfirm = useCallback((opened: boolean) => {
+    if (!opened) {
+      setConfirmDiarize(false);
+    }
+  }, []);
 
   // Il Tape della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
   const record = useCallback(async () => {
@@ -640,6 +695,56 @@ export function HomePage() {
     [source]
   );
 
+  // Il dato manuale viene mostrato soltanto dopo una scrittura riuscita.
+  const markCorrected = useCallback(
+    (path: string) => {
+      setBrowsed((current) =>
+        current?.path === path && current.info
+          ? { ...current, info: { ...current.info, correttoAMano: true } }
+          : current
+      );
+      if (path === source) {
+        setInfo((current) => current && { ...current, correttoAMano: true });
+      }
+    },
+    [source]
+  );
+
+  const merge = useCallback(
+    async (path: string, turn: Turn, target: PhraseRef) => {
+      try {
+        const result = await commands.unisciTurno(
+          path,
+          turn.ingresso,
+          turn.items.map((item) => item.phraseId),
+          target.phraseId
+        );
+        if (result.status === "error") {
+          setNotice(result.error);
+          return false;
+        }
+        const opened = await commands.openTape(path);
+        if (opened.status === "error") {
+          setNotice(opened.error);
+          return false;
+        }
+        const { info: updated, parlanti, phrases } = opened.data;
+        updateView(path, (c) => ({ ...c, parlanti, phrases }));
+        setBrowsed((current) =>
+          current?.path === path ? { ...current, info: updated } : current
+        );
+        if (path === source) {
+          setInfo(updated);
+        }
+        return true;
+      } catch (e) {
+        setNotice(internalError(e));
+        return false;
+      }
+    },
+    [source, updateView]
+  );
+
   const rename = useCallback(
     async (path: string, voce: Parlante, nome: string) => {
       setRenaming(null);
@@ -654,8 +759,11 @@ export function HomePage() {
         return;
       }
       updateView(path, (c) => withNome(c, voce.ingresso, voce.parlante, nome));
+      if (nome.trim() !== voce.nome) {
+        markCorrected(path);
+      }
     },
-    [updateView]
+    [markCorrected, updateView]
   );
 
   // Una correzione non salvata resta scritta nella Frase, con l'errore nella status bar.
@@ -672,9 +780,10 @@ export function HomePage() {
         return false;
       }
       updateView(path, (c) => withTesto(c, phrase, text));
+      markCorrected(path);
       return true;
     },
-    [updateView]
+    [markCorrected, updateView]
   );
 
   // La data e l'ora nuove del Tape `path`, nell'ora locale del campo.
@@ -739,19 +848,19 @@ export function HomePage() {
   const tapePane = (view: TapeView, own: boolean) => (
     <TapePane
       busy={busy}
-      cancelling={cancelling}
       copied={copied}
       // Non ci lavora l'Attività in corso.
       editable={!(own && busy)}
       highlight={highlight}
       key={`${view.path}:${revision}`}
       library={library}
-      onCancel={cancel}
       onCopy={copy}
       onCreato={changeCreato}
+      onDiarize={requestDiarization}
       onEdit={edit}
       onError={setNotice}
       onExported={exported}
+      onMerge={merge}
       onMove={moveTape}
       onRaccolta={openRaccolta}
       onRenameParlante={rename}
@@ -761,10 +870,10 @@ export function HomePage() {
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
       own={own}
+      processing={own && (running || diarizing)}
       recording={recording}
       renaming={renaming}
       running={running}
-      status={status}
       view={view}
     />
   );
@@ -791,10 +900,8 @@ export function HomePage() {
   } else if (recording || completing) {
     mainView = (
       <LiveView
-        cancelling={cancelling}
         conversation={conversation}
         copied={copied}
-        onCancel={cancel}
         onCopy={copyActivity}
         onError={setNotice}
         onPausedChange={setPaused}
@@ -808,17 +915,14 @@ export function HomePage() {
     mainView = (
       <FileView
         busy={busy}
-        cancelling={cancelling}
         conversation={conversation}
         copied={copied}
-        onCancel={cancel}
         onCopy={copyActivity}
         onError={failed}
         onOpen={open}
         onTranscribe={requestTranscription}
         running={running}
         source={source}
-        status={status}
       />
     );
   } else {
@@ -831,8 +935,10 @@ export function HomePage() {
         <Sidebar
           activity={activitySummary(status, elapsedMs, t)}
           busy={busy}
+          cancelling={cancelling}
           list={library}
           onActivity={showActivity}
+          onCancel={cancel}
           onError={setNotice}
           onImport={pickFile}
           onOpen={openFromLibrary}
@@ -862,7 +968,11 @@ export function HomePage() {
               {t("transcription.replace.title")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("transcription.replace.description")}
+              {t(
+                info?.correttoAMano
+                  ? "transcription.replace.manualDescription"
+                  : "transcription.replace.description"
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -875,10 +985,30 @@ export function HomePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog onOpenChange={closeDiarizationConfirm} open={confirmDiarize}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("diarization.replace.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("diarization.replace.description")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              {t("diarization.replace.keep")}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={diarize}>
+              {t("diarization.replace.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {dialog}
       {settingsPage}
       <WindowControls />
-      {dragged && !confirmTranscribe ? (
+      {dragged && !confirmationOpen ? (
         <DropVeil verdict={dropVerdict(dragged, busy)} />
       ) : null}
     </>
@@ -911,20 +1041,16 @@ function shownBanner(
 
 /** La Registrazione in corso, o il suo completamento dopo Stop, con il testo dal vivo. */
 function LiveView({
-  cancelling,
   conversation,
   copied,
-  onCancel,
   onCopy,
   onError,
   onPausedChange,
   paused,
   status,
 }: {
-  cancelling: boolean;
   conversation: Conversation;
   copied: boolean;
-  onCancel: () => void;
   onCopy: () => void;
   onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
@@ -969,8 +1095,8 @@ function LiveView({
         }
         parlanti={[]}
       />
-      <Dock>
-        {recording ? (
+      {recording ? (
+        <Dock>
           <RecordingPanel
             key={conversation.sessionId}
             onError={onError}
@@ -978,14 +1104,8 @@ function LiveView({
             paused={paused}
             sessionId={conversation.sessionId}
           />
-        ) : (
-          <ProgressDock
-            cancelling={cancelling}
-            onCancel={onCancel}
-            status={status}
-          />
-        )}
-      </Dock>
+        </Dock>
+      ) : null}
     </>
   );
 }
@@ -996,30 +1116,24 @@ function LiveView({
  */
 function FileView({
   busy,
-  cancelling,
   conversation,
   copied,
-  onCancel,
   onCopy,
   onError,
   onOpen,
   onTranscribe,
   running,
   source,
-  status,
 }: {
   busy: boolean;
-  cancelling: boolean;
   conversation: Conversation;
   copied: boolean;
-  onCancel: () => void;
   onCopy: () => void;
   onError: (error: AppError) => void;
   onOpen: () => void;
   onTranscribe: () => void;
   running: boolean;
   source: string;
-  status: Status;
 }) {
   const { t } = useTranslation();
   return (
@@ -1058,15 +1172,6 @@ function FileView({
         }
         parlanti={[]}
       />
-      {running ? (
-        <Dock>
-          <ProgressDock
-            cancelling={cancelling}
-            onCancel={onCancel}
-            status={status}
-          />
-        </Dock>
-      ) : null}
     </>
   );
 }
@@ -1142,60 +1247,9 @@ function Crumb({
   );
 }
 
-/** Il posto in fondo al pannello centrale per il player, la Registrazione o l'avanzamento. */
+/** Il posto in fondo al pannello centrale per il player o la Registrazione. */
 function Dock({ children }: { children: React.ReactNode }) {
   return <div className="shrink-0 px-8 pt-1 pb-5">{children}</div>;
-}
-
-/** L'avanzamento di una Trascrizione o del suo completamento dopo Stop, con Annulla. */
-function ProgressDock({
-  cancelling,
-  onCancel,
-  status,
-}: {
-  cancelling: boolean;
-  onCancel: () => void;
-  status: Status;
-}) {
-  const { t } = useTranslation();
-  const percent = progressPercent(status);
-  return (
-    <section
-      aria-live="polite"
-      className="mx-auto flex w-full max-w-[52rem] items-center gap-5 rounded-2xl border bg-card px-5 py-3.5 shadow-float"
-    >
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="truncate text-sm tabular-nums">
-          {statusText(status, t)}
-        </span>
-        <span
-          aria-label={t("status.progress")}
-          aria-valuemax={100}
-          aria-valuemin={0}
-          aria-valuenow={percent ?? undefined}
-          className="relative h-1.5 overflow-hidden rounded-full bg-play-soft"
-          role="progressbar"
-        >
-          {percent === null ? (
-            <span className="absolute inset-y-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-play" />
-          ) : (
-            <span
-              className="absolute inset-y-0 left-0 rounded-full bg-play transition-[width] duration-300"
-              style={{ width: `${percent}%` }}
-            />
-          )}
-        </span>
-      </div>
-      <Button
-        className="h-10"
-        disabled={cancelling}
-        onClick={onCancel}
-        variant="outline"
-      >
-        {cancelling ? t("transcription.cancelling") : t("transcription.cancel")}
-      </Button>
-    </section>
-  );
 }
 
 /** L'avviso sospeso sotto la barra in alto, con il link alle Impostazioni quando serve. */
@@ -1311,21 +1365,21 @@ function Welcome({
 
 /**
  * La vista di un Tape: la barra in alto con il percorso, Copia testo e "…"; il documento con
- * testata, schede Trascrizione e Parlanti e Segui l'audio; in fondo il player, o l'avanzamento
+ * testata, schede Trascrizione e Parlanti e Segui l'audio; in fondo il player, nascosto
  * mentre lo si trascrive. `editable`: non ci lavora l'Attività in corso; `own`: è la Sorgente, che
  * Trascrivi trascrive; `recording`: il player è disabilitato.
  */
 function TapePane({
   busy,
-  cancelling,
   copied,
   editable,
   highlight,
   library,
-  onCancel,
   onCopy,
   onCreato,
+  onDiarize,
   onEdit,
+  onMerge,
   onError,
   onExported,
   onMove,
@@ -1337,22 +1391,22 @@ function TapePane({
   onTranscribe,
   onTrash,
   own,
+  processing,
   recording,
   renaming,
   running,
-  status,
   view: { conversation, info, path },
 }: {
   busy: boolean;
-  cancelling: boolean;
   copied: boolean;
   editable: boolean;
   highlight: PhraseRef | null;
   library: LibraryList;
-  onCancel: () => void;
   onCopy: (path: string) => void;
   onCreato: (path: string, local: string) => void;
+  onDiarize: () => void;
   onEdit: (path: string, phrase: PhraseRef, text: string) => Promise<boolean>;
+  onMerge: (path: string, turn: Turn, target: PhraseRef) => Promise<boolean>;
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
@@ -1364,10 +1418,10 @@ function TapePane({
   onTranscribe: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
   own: boolean;
+  processing: boolean;
   recording: boolean;
   renaming: Parlante | null;
   running: boolean;
-  status: Status;
   view: TapeView;
 }) {
   const { t } = useTranslation();
@@ -1401,6 +1455,10 @@ function TapePane({
     (phrase: PhraseRef, text: string) => onEdit(path, phrase, text),
     [onEdit, path]
   );
+  const merge = useCallback(
+    (turn: Turn, target: PhraseRef) => onMerge(path, turn, target),
+    [onMerge, path]
+  );
   const entry = entryOf(library, path);
   const raccolta = entry ? (entry.raccolta ?? "") : null;
   const toRaccolta = useCallback(
@@ -1408,8 +1466,9 @@ function TapePane({
     [onRaccolta, raccolta]
   );
   // Durante una Registrazione niente salti né evidenziazione: il player è disabilitato.
-  const listening = transcribing || recording ? undefined : player;
+  const listening = processing || recording ? undefined : player;
   const hasText = conversation.phrases.length > 0;
+  const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
 
   const header = (
     <>
@@ -1455,8 +1514,11 @@ function TapePane({
               />
             ) : null}
             <TapeMenu
+              diarized={wasDiarized(info, conversation.phrases)}
+              diarizingDisabled={busy || !hasText}
               disabled={!editable}
               library={library}
+              onDiarize={own ? onDiarize : undefined}
               onError={onError}
               onExported={onExported}
               onMove={onMove}
@@ -1498,7 +1560,7 @@ function TapePane({
           empty={empty}
           header={header}
           highlight={highlight}
-          onEdit={editable ? edit : undefined}
+          {...editingActions}
           onRename={rename}
           onRenaming={onRenaming}
           parlanti={parlanti}
@@ -1506,27 +1568,44 @@ function TapePane({
           renaming={renaming}
         />
       )}
-      <Dock>
-        {transcribing ? (
-          <ProgressDock
-            cancelling={cancelling}
-            onCancel={onCancel}
-            status={status}
-          />
-        ) : (
-          <Player
-            disabled={recording}
-            label={
-              info?.origine
-                ? t("player.file", { name: info.origine })
-                : t("player.recording")
-            }
-            path={path}
-            player={player}
-          />
-        )}
-      </Dock>
+      <TapePlayer
+        disabled={recording}
+        info={info}
+        path={path}
+        player={player}
+        processing={processing}
+      />
     </>
+  );
+}
+
+function TapePlayer({
+  disabled,
+  info,
+  path,
+  player,
+  processing,
+}: {
+  disabled: boolean;
+  info: TapeInfo | null;
+  path: string;
+  player: PlayerState;
+  processing: boolean;
+}) {
+  const { t } = useTranslation();
+  return processing ? null : (
+    <Dock>
+      <Player
+        disabled={disabled}
+        label={
+          info?.origine
+            ? t("player.file", { name: info.origine })
+            : t("player.recording")
+        }
+        path={path}
+        player={player}
+      />
+    </Dock>
   );
 }
 

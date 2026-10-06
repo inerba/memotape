@@ -54,7 +54,7 @@ export function ParlanteNameInput({
   const [nome, setNome] = useState(voce.nome);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    input.current?.focus();
+    input.current?.focus({ preventScroll: true });
     input.current?.select();
   }, []);
   const change = useCallback(
@@ -66,7 +66,11 @@ export function ParlanteNameInput({
   const keyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" && valid) {
-        onRename(voce, nome.trim());
+        if (nome.trim() === voce.nome) {
+          onCancel();
+        } else {
+          onRename(voce, nome.trim());
+        }
       } else if (e.key === "Escape") {
         onCancel();
       }

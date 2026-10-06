@@ -5,6 +5,7 @@ import {
   FolderOpen,
   RefreshCcw,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import { type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
@@ -28,7 +29,10 @@ export const MENU_ITEM =
  */
 export function TapeMenu({
   disabled,
+  diarized,
+  diarizingDisabled,
   library,
+  onDiarize,
   onError,
   onExported,
   onMove,
@@ -39,7 +43,10 @@ export function TapeMenu({
 }: {
   /** Ci lavora l'Attività in corso: niente spostamento, Trascrivi né Cestino. */
   disabled: boolean;
+  diarized: boolean;
+  diarizingDisabled: boolean;
   library: LibraryList;
+  onDiarize?: () => void;
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
@@ -80,6 +87,10 @@ export function TapeMenu({
     closeMenu();
     onTranscribe?.();
   }, [onTranscribe]);
+  const diarize = useCallback(() => {
+    closeMenu();
+    onDiarize?.();
+  }, [onDiarize]);
   const trash = useCallback(() => {
     closeMenu();
     onTrash({ path, titolo: titleOf(library, path) });
@@ -125,6 +136,15 @@ export function TapeMenu({
             {t("transcription.again")}
           </MenuItem>
         </>
+      ) : null}
+      {onDiarize ? (
+        <MenuItem
+          disabled={diarizingDisabled}
+          icon={<UsersRound aria-hidden="true" />}
+          onClick={diarize}
+        >
+          {t(diarized ? "diarization.again" : "diarization.start")}
+        </MenuItem>
       ) : null}
       {raccolta === null ? null : (
         <>

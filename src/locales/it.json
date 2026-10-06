@@ -24,7 +24,8 @@
       "title": "Ritrascrivere il Tape?",
       "description": "Il testo del Tape sarà sostituito dalla nuova Trascrizione: le correzioni e i nomi dei Parlanti andranno persi.",
       "keep": "Mantieni il testo",
-      "confirm": "Sostituisci"
+      "confirm": "Sostituisci",
+      "manualDescription": "Questo Tape contiene correzioni manuali. Una nuova Trascrizione sostituirà il testo, le attribuzioni e i nomi dei Parlanti, comprese le correzioni fatte a mano."
     },
     "parlanti": "Riconosci i parlanti",
     "nemotron3Note": "Nemotron 3 sperimentale: supporta fino a 8 Parlanti per Ingresso, ma può confondere o unire le voci.",
@@ -38,7 +39,23 @@
     "edit": "Clic per correggere: Invio salva, Esc annulla",
     "export": "Esporta Markdown…",
     "exported": "Esportato in {{path}}",
-    "again": "Trascrivi di nuovo"
+    "again": "Trascrivi di nuovo",
+    "merge": "Unisci",
+    "mergeAbove": "Unisci al turno sopra",
+    "mergeBelow": "Unisci al turno sotto",
+    "mergeCancel": "Annulla"
+  },
+  "diarization": {
+    "start": "Diarizza",
+    "again": "Diarizza di nuovo",
+    "saved": "Diarizzazione salvata in {{path}}",
+    "cancelled": "Diarizzazione annullata. Il Tape non è stato modificato.",
+    "replace": {
+      "title": "Ricalcolare i Parlanti?",
+      "description": "Questo Tape contiene correzioni manuali. Il testo corretto, le attribuzioni modificate a mano e i nomi personalizzati saranno conservati. La Diarizzazione aggiornerà le altre attribuzioni.",
+      "keep": "Annulla",
+      "confirm": "Diarizza"
+    }
   },
   "player": {
     "label": "Player",
@@ -131,8 +148,8 @@
       "diarizer": "Modello dei parlanti",
       "nemotron3": "Nemotron 3 Diarization (sperimentale)",
       "localModel": "Modello locale",
-      "experimentalDescription": "Funzione sperimentale: i Parlanti possono essere confusi, soprattutto con voci sovrapposte o molte persone. Le attribuzioni dal vivo sono provvisorie e vengono rianalizzate dopo Stop.",
-      "experimentalLiveDescription": "Per riconoscere i Parlanti dal vivo è consigliata una GPU compatibile con Vulkan. Sulla sola CPU il riconoscimento può interrompersi se non tiene il passo; audio e Trascrizione continuano e i Parlanti vengono rianalizzati dopo Stop.",
+      "experimentalDescription": "Funzione sperimentale: i Parlanti possono essere confusi, soprattutto con voci sovrapposte o molte persone.",
+      "recordingDiarizationDescription": "Nelle Registrazioni i Parlanti vengono riconosciuti solo dopo Stop. Durante la Registrazione continua la Trascrizione dal vivo, senza riconoscimento dei Parlanti.",
       "localModelDescription": "Seleziona il modello BF16 compatibile di Nemotron 3 Diarization. Si usa per file, Tape e Registrazioni, anche con Ingressi separati.",
       "localModelMissing": "Nessun modello locale scelto",
       "chooseLocalModel": "Scegli modello locale…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Riconosci i parlanti",
       "parlantiMix": "Sul mix",
-      "parlantiDescription": "Con Trascrivi dal vivo attiva: Nemotron mostra i Parlanti provvisori di ogni Ingresso selezionato; dopo Stop esegue l’analisi finale. Sortformer riconosce fino a 4 Parlanti solo dopo Stop. Da Entrambi ogni Ingresso ha i suoi Parlanti; il Microfono si riconosce solo se selezionato.",
+      "parlantiDescription": "Con Trascrivi dal vivo attiva, i Parlanti di ogni Ingresso selezionato vengono riconosciuti dopo Stop, con Nemotron o Sortformer. Da Entrambi ogni Ingresso ha i suoi Parlanti; il Microfono viene analizzato solo se selezionato.",
       "microphone": "Microfono",
       "outputDevice": "Dispositivo di uscita",
       "defaultDevice": "Predefinito di sistema",
@@ -371,7 +388,8 @@
     "noTextDescription": "Trascrivilo per leggere, cercare e riascoltare quello che si è detto.",
     "ingressi": "Microfono + audio di sistema",
     "changeDate": "Clic per cambiare data e ora: Invio conferma, Esc annulla",
-    "dateLabel": "Data e ora della registrazione"
+    "dateLabel": "Data e ora della registrazione",
+    "manuallyCorrected": "Corretto a mano"
   },
   "tabs": {
     "label": "Viste del Tape",

@@ -1,7 +1,7 @@
 //! Parlanti dal vivo: audio prima del VAD, coda limitata e attribuzioni rettificabili. Senza Tauri.
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError};
 use std::time::{Duration, Instant};
 
 use transcribe_cpp::CancelToken;
@@ -13,6 +13,7 @@ use crate::error::AppError;
 use crate::transcript::{Ingresso, Phrase};
 
 /// Tre secondi di frame da 30 ms (circa 192 KB). Non è l'obiettivo di latenza del modello.
+#[cfg(test)]
 pub const QUEUE_FRAMES: usize = 100;
 pub const MAX_DELAY: Duration = Duration::from_secs(3);
 
@@ -23,11 +24,6 @@ pub struct LiveDiarizer {
 }
 
 impl LiveDiarizer {
-    pub fn channel(path: std::path::PathBuf) -> (DiarizationFeed, Self) {
-        let (feed, frames) = channel();
-        (feed, Self { path, frames })
-    }
-
     pub fn cancel_token(&self) -> CancelToken {
         self.frames.cancel_token()
     }
@@ -67,8 +63,9 @@ pub struct DiarizationFrames {
     shared: Arc<Shared>,
 }
 
+#[cfg(test)]
 pub fn channel() -> (DiarizationFeed, DiarizationFrames) {
-    let (tx, rx) = sync_channel(QUEUE_FRAMES);
+    let (tx, rx) = std::sync::mpsc::sync_channel(QUEUE_FRAMES);
     let shared = Arc::new(Shared {
         lagging: AtomicBool::new(false),
         cancel: CancelToken::new(),

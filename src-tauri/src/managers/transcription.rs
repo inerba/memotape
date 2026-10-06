@@ -357,6 +357,7 @@ pub struct TapeInfo {
     pub modello: Option<String>,
     pub lingua_parlato: SpeechLanguage,
     pub ingressi_separati: bool,
+    pub corretto_a_mano: bool,
     pub completa: bool,
     /// Il nome del file audio o video da cui viene.
     pub origine: Option<String>,
@@ -597,7 +598,7 @@ pub async fn transcribe(
                     origine: old.origine,
                     ..document(old.creato, old.durata_ms, &transcript)
                 };
-                tape::rewrite(&source, &rewritten)?;
+                tape::rewrite_cancellable(&source, &rewritten, &cancel)?;
                 (!transcript.phrases.is_empty()).then_some(source)
             }
             None => file_to_tape(&library, &destination, &source, &settings, |copy| {
@@ -1066,6 +1067,7 @@ pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
     Ok(OpenedTape {
         phrases,
         info: TapeInfo {
+            corretto_a_mano: document.corretto_a_mano(),
             creato: document.creato.clone(),
             durata_ms: document.durata_ms,
             modello: document.modello.as_deref().map(model_name),
@@ -1829,6 +1831,7 @@ mod tests {
                 modello: Some(models::default_model().name.clone()),
                 lingua_parlato: SpeechLanguage::from("it"),
                 ingressi_separati: true,
+                corretto_a_mano: true,
                 completa: false,
                 origine: Some("Call.mp4".into()),
                 diarizzazione: None,

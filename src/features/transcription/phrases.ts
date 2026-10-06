@@ -227,16 +227,36 @@ function voiceLabel(
   nonDeterminato = false,
   provvisorio = false
 ): string | null {
+  const name = voiceName(
+    conversation,
+    ingresso,
+    parlante,
+    t,
+    nonDeterminato,
+    provvisorio
+  );
+  const parts = [
+    ingresso === "mix" ? null : t(INGRESSO_LABELS[ingresso]),
+    name,
+  ].filter((part) => part !== null);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** Il nome visibile accanto all'icona dell'Ingresso; l'etichetta testuale resta per Copia turno. */
+function voiceName(
+  conversation: Conversation,
+  ingresso: Ingresso,
+  parlante: number | null | undefined,
+  t: TFunction,
+  nonDeterminato = false,
+  provvisorio = false
+): string | null {
   const name = nonDeterminato
     ? t("transcript.unknownSpeaker")
     : nomeOf(conversation, ingresso, parlante ?? null, t);
-  const parts = [
-    ingresso === "mix" ? null : t(INGRESSO_LABELS[ingresso]),
-    provvisorio && name && !nonDeterminato
-      ? t("transcript.provisionalSpeaker", { name })
-      : name,
-  ].filter((part) => part !== null);
-  return parts.length > 0 ? parts.join(" · ") : null;
+  return provvisorio && name && !nonDeterminato
+    ? t("transcript.provisionalSpeaker", { name })
+    : name;
 }
 
 /**
@@ -342,6 +362,8 @@ export interface Turn {
   key: string;
   /** `Microfono · Parlante 2`, `Microfono`, `Parlante 2`; `null` senza etichetta (il mix). */
   label: string | null;
+  /** Il nome del Parlante, senza il prefisso dell'Ingresso. */
+  name: string | null;
   parlante: number | null;
 }
 
@@ -381,7 +403,9 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
     (TranscriptPhrase | ConversationPartial)[]
   >(byStart, conversation.phrases)) {
     const partial = conversation.partials.includes(item as TranscriptPartial);
-    const parlante = item.parlante ?? null;
+    const parlante = item.parlanteNonDeterminato
+      ? null
+      : (item.parlante ?? null);
     const label = voiceLabel(
       conversation,
       item.ingresso,
@@ -395,6 +419,8 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
       last &&
       previous &&
       last.label === label &&
+      last.ingresso === item.ingresso &&
+      last.parlante === parlante &&
       (labeled || silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
     ) {
       last.items.push(item);
@@ -404,6 +430,14 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
         items: [item],
         key: `${phraseKey(item)}${partial ? ":parziale" : ""}`,
         label,
+        name: voiceName(
+          conversation,
+          item.ingresso,
+          parlante,
+          t,
+          item.parlanteNonDeterminato,
+          item.parlanteProvvisorio
+        ),
         parlante,
       };
       turns.push(last);
@@ -416,6 +450,28 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
 export function turnText(turn: Turn): string {
   const text = turn.items.map((item) => item.text).join(" ");
   return turn.label ? `${turn.label}: ${text}` : text;
+}
+
+/** Il Turno adiacente è una destinazione soltanto se ha una voce nota dello stesso Ingresso. */
+export function mergeDestination(
+  source: Turn,
+  target: Turn | undefined,
+  partials: Conversation["partials"]
+): PhraseRef | null {
+  if (
+    !target ||
+    source.ingresso !== target.ingresso ||
+    !target.label ||
+    [...source.items, ...target.items].some((item) =>
+      partials.includes(item as ConversationPartial)
+    ) ||
+    target.items.some(
+      (item) => item.parlanteNonDeterminato || item.parlanteProvvisorio
+    )
+  ) {
+    return null;
+  }
+  return target.items[0] ?? null;
 }
 
 /** Quanti colori hanno le voci: oltre, si ricomincia dal primo. */

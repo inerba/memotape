@@ -24,7 +24,8 @@
       "title": "Tape erneut transkribieren?",
       "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren.",
       "keep": "Text behalten",
-      "confirm": "Ersetzen"
+      "confirm": "Ersetzen",
+      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen."
     },
     "parlanti": "Sprecher erkennen",
     "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
@@ -38,7 +39,23 @@
     "edit": "Zum Korrigieren klicken: Eingabe speichert, Esc bricht ab",
     "export": "Markdown exportieren…",
     "exported": "Exportiert nach {{path}}",
-    "again": "Erneut transkribieren"
+    "again": "Erneut transkribieren",
+    "merge": "Zusammenführen",
+    "mergeAbove": "Mit dem vorherigen Beitrag zusammenführen",
+    "mergeBelow": "Mit dem nächsten Beitrag zusammenführen",
+    "mergeCancel": "Abbrechen"
+  },
+  "diarization": {
+    "start": "Diarisieren",
+    "again": "Erneut diarisieren",
+    "saved": "Diarisierung in {{path}} gespeichert",
+    "cancelled": "Diarisierung abgebrochen. Das Tape wurde nicht verändert.",
+    "replace": {
+      "title": "Sprecher erneut erkennen?",
+      "description": "Dieses Tape enthält manuelle Korrekturen. Bearbeiteter Text, manuell geänderte Sprecherzuordnungen und eigene Namen bleiben erhalten. Die Diarisierung aktualisiert die übrigen Zuordnungen.",
+      "keep": "Abbrechen",
+      "confirm": "Diarisieren"
+    }
   },
   "player": {
     "label": "Player",
@@ -131,8 +148,8 @@
       "diarizer": "Sprechermodell",
       "nemotron3": "Nemotron 3 Diarization (experimentell)",
       "localModel": "Lokales Modell",
-      "experimentalDescription": "Experimentelle Funktion: Sprecher können verwechselt werden, besonders bei überlappenden Stimmen oder vielen Personen. Live-Zuordnungen sind vorläufig und werden nach Stopp erneut analysiert.",
-      "experimentalLiveDescription": "Für die Live-Sprechererkennung wird eine Vulkan-kompatible GPU empfohlen. Mit CPU allein kann die Erkennung stoppen, wenn sie nicht Schritt hält; Audio und Transkription laufen weiter und die Sprecher werden nach Stopp erneut analysiert.",
+      "experimentalDescription": "Experimentelle Funktion: Sprecher können verwechselt werden, besonders bei überlappenden Stimmen oder vielen Personen.",
+      "recordingDiarizationDescription": "Sprecher in Aufnahmen werden erst nach Stopp erkannt. Die Live-Transkription läuft während der Aufnahme weiter, ohne Sprechererkennung.",
       "localModelDescription": "Wähle das kompatible BF16-Modell von Nemotron 3 Diarization. Es wird für Dateien, Tapes und Aufnahmen verwendet, auch mit getrennten Eingängen.",
       "localModelMissing": "Kein lokales Modell ausgewählt",
       "chooseLocalModel": "Lokales Modell wählen…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Sprecher erkennen",
       "parlantiMix": "Im Mix",
-      "parlantiDescription": "Mit Live-Transkription zeigt Nemotron vorläufige Sprecher für jeden ausgewählten Eingang und analysiert nach Stopp erneut. Sortformer erkennt bis zu 4 Sprecher nach Stopp. Bei Beide hat jeder Eingang eigene Sprecher; das Mikrofon wird nur bei Auswahl analysiert.",
+      "parlantiDescription": "Mit Live-Transkription werden die Sprecher jedes ausgewählten Eingangs nach Stopp mit Nemotron oder Sortformer erkannt. Bei Beide hat jeder Eingang eigene Sprecher; das Mikrofon wird nur bei Auswahl analysiert.",
       "microphone": "Mikrofon",
       "outputDevice": "Ausgabegerät",
       "defaultDevice": "Systemstandard",
@@ -370,7 +387,8 @@
     "noTextDescription": "Transkribiere ihn, um das Gesagte zu lesen, zu durchsuchen und erneut anzuhören.",
     "ingressi": "Mikrofon + Systemaudio",
     "changeDate": "Klicken, um Datum und Uhrzeit zu ändern: Eingabe bestätigt, Esc bricht ab",
-    "dateLabel": "Datum und Uhrzeit der Aufnahme"
+    "dateLabel": "Datum und Uhrzeit der Aufnahme",
+    "manuallyCorrected": "Manuell korrigiert"
   },
   "tabs": {
     "label": "Ansichten des Tape",

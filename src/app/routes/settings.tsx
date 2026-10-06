@@ -360,7 +360,7 @@ export function SettingsPage() {
                         id="recording-nemotron-description"
                       >
                         {t(
-                          "settings.transcription.experimentalLiveDescription"
+                          "settings.transcription.recordingDiarizationDescription"
                         )}
                       </p>
                     ) : null}
@@ -605,7 +605,7 @@ function DiarizerSettings({
             </Button>
           </Field>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            {t("settings.transcription.experimentalLiveDescription")}
+            {t("settings.transcription.recordingDiarizationDescription")}
           </p>
         </>
       ) : null}

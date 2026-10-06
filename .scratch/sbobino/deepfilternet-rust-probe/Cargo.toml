@@ -1,0 +1,13 @@
+[package]
+name = "memotape-deepfilternet-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+df = { package = "deep_filter", git = "https://github.com/Rikorose/DeepFilterNet", rev = "978576aa8400552a4ce9730838c635aa30db5e61", default-features = false, features = ["tract"] }
+ndarray = "0.15"
+hound = "3.5"
+

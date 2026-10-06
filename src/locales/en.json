@@ -24,7 +24,8 @@
       "title": "Transcribe the Tape again?",
       "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
       "keep": "Keep the text",
-      "confirm": "Replace"
+      "confirm": "Replace",
+      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections."
     },
     "parlanti": "Recognize speakers",
     "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
@@ -38,7 +39,23 @@
     "edit": "Click to correct: Enter saves, Esc cancels",
     "export": "Export Markdown…",
     "exported": "Exported to {{path}}",
-    "again": "Transcribe again"
+    "again": "Transcribe again",
+    "merge": "Merge",
+    "mergeAbove": "Merge with the turn above",
+    "mergeBelow": "Merge with the turn below",
+    "mergeCancel": "Cancel"
+  },
+  "diarization": {
+    "start": "Diarize",
+    "again": "Diarize again",
+    "saved": "Diarization saved to {{path}}",
+    "cancelled": "Diarization cancelled. The Tape has not been changed.",
+    "replace": {
+      "title": "Identify speakers again?",
+      "description": "This Tape contains manual corrections. Edited text, manually changed speaker assignments and custom names will be preserved. Diarization will update the other assignments.",
+      "keep": "Cancel",
+      "confirm": "Diarize"
+    }
   },
   "player": {
     "label": "Player",
@@ -131,8 +148,8 @@
       "diarizer": "Speaker model",
       "nemotron3": "Nemotron 3 Diarization (experimental)",
       "localModel": "Local model",
-      "experimentalDescription": "Experimental feature: speakers may be confused, especially with overlapping voices or many people. Live assignments are provisional and are analyzed again after Stop.",
-      "experimentalLiveDescription": "A Vulkan-compatible GPU is recommended for live speaker recognition. On CPU alone, recognition may stop if it cannot keep up; audio and transcription continue and speakers are analyzed again after Stop.",
+      "experimentalDescription": "Experimental feature: speakers may be confused, especially with overlapping voices or many people.",
+      "recordingDiarizationDescription": "Speakers in recordings are recognized only after Stop. Live transcription continues during recording, without speaker recognition.",
       "localModelDescription": "Select the compatible Nemotron 3 Diarization BF16 model. It is used for files, Tapes and recordings, including separate inputs.",
       "localModelMissing": "No local model selected",
       "chooseLocalModel": "Choose local model…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Recognize speakers",
       "parlantiMix": "On the mix",
-      "parlantiDescription": "With live transcription enabled, Nemotron shows provisional speakers for each selected input and runs final analysis after Stop. Sortformer recognizes up to 4 speakers after Stop. With Both, each input has separate speakers; the microphone is analyzed only when selected.",
+      "parlantiDescription": "With live transcription enabled, speakers in each selected input are recognized after Stop, with Nemotron or Sortformer. With Both, each input has separate speakers; the microphone is analyzed only when selected.",
       "microphone": "Microphone",
       "outputDevice": "Output device",
       "defaultDevice": "System default",
@@ -370,7 +387,8 @@
     "noTextDescription": "Transcribe it to read, search and listen back to what was said.",
     "ingressi": "Microphone + system audio",
     "changeDate": "Click to change date and time: Enter confirms, Esc cancels",
-    "dateLabel": "Recording date and time"
+    "dateLabel": "Recording date and time",
+    "manuallyCorrected": "Manually corrected"
   },
   "tabs": {
     "label": "Tape views",

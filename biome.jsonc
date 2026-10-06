@@ -5,6 +5,12 @@
     // Solo negazioni: il core di ultracite 7.12 apre già con "**", e ripeterlo è un errore
     // (noBiomeFirstException). Senza un "**" da qualche parte Biome non controlla nulla.
     // I componenti shadcn e i bindings generati non si toccano a mano.
-    "includes": ["!**/components/ui", "!**/bindings.ts"]
+    // Prove temporanee e output Rust non fanno parte dei sorgenti dell'app.
+    "includes": [
+      "!**/components/ui",
+      "!**/bindings.ts",
+      "!.scratch",
+      "!**/target"
+    ]
   }
 }

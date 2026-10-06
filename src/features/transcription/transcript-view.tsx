@@ -1,15 +1,30 @@
-import { ArrowDown, ArrowUp, Check, Copy, Play, RotateCcw } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Merge,
+  Mic,
+  Play,
+  RotateCcw,
+  Speaker,
+  X,
+} from "lucide-react";
 import {
   type FocusEvent,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import type { TranscriptPartial, TranscriptPhrase } from "@/bindings";
+import type { Ingresso, TranscriptPartial, TranscriptPhrase } from "@/bindings";
+import { PopoverMenu } from "@/components/popover-menu";
 import { keepFocus, type PlayerState } from "@/features/player/player";
 import { autoScroll, playingAt } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
@@ -19,6 +34,7 @@ import {
 } from "@/features/transcription/parlante-name";
 import {
   type Conversation,
+  mergeDestination,
   type Parlante,
   type PhraseRef,
   phraseKey,
@@ -50,6 +66,7 @@ export function TranscriptView({
   header,
   highlight,
   onEdit,
+  onMerge,
   onRename,
   onRenaming,
   parlanti,
@@ -63,6 +80,7 @@ export function TranscriptView({
   highlight?: PhraseRef | null;
   /** Salva la correzione; `false` se non si è salvata, e il testo resta com'è scritto. */
   onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
+  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
   onRename?: (voce: Parlante, nome: string) => void;
   /** Apre (o con `null` chiude) il campo del nome di un Parlante. */
   onRenaming?: (voce: Parlante | null) => void;
@@ -76,6 +94,14 @@ export function TranscriptView({
   const section = useRef<HTMLElement>(null);
   // Una Frase in correzione: il testo non scorre da solo.
   const [editing, setEditing] = useState(false);
+  const [renamingTurn, setRenamingTurn] = useState<string | null>(null);
+  const renameAt = useCallback(
+    (voce: Parlante | null, turnKey: string) => {
+      setRenamingTurn(voce ? turnKey : null);
+      onRenaming?.(voce);
+    },
+    [onRenaming]
+  );
   // Dove sta la Frase in ascolto quando il testo non la segue.
   const [away, setAway] = useState<"up" | "down" | null>(null);
   // A riposo, prima del primo ascolto, nessuna Frase è "in ascolto".
@@ -171,13 +197,18 @@ export function TranscriptView({
         {header}
         {turns.length === 0 ? empty : null}
         <div className="flex flex-col gap-1">
-          {turns.map((turn) => {
+          {turns.map((turn, index) => {
             const voce = parlanti.find(
               (p) =>
                 p.ingresso === turn.ingresso && p.parlante === turn.parlante
             );
             return (
               <TurnBlock
+                above={mergeDestination(
+                  turn,
+                  turns[index - 1],
+                  conversation.partials
+                )}
                 active={
                   followed !== undefined &&
                   turn.items.some(
@@ -187,6 +218,11 @@ export function TranscriptView({
                       ) && phraseKey(item) === followed
                   )
                 }
+                below={mergeDestination(
+                  turn,
+                  turns[index + 1],
+                  conversation.partials
+                )}
                 color={turn.label ? colors.get(turn.label) : undefined}
                 followed={followed}
                 highlight={highlight}
@@ -194,12 +230,14 @@ export function TranscriptView({
                 list={parlanti}
                 onEdit={onEdit}
                 onJump={player ? jump : undefined}
+                onMerge={onMerge}
                 onPlay={player?.playFrom}
                 onRename={onRename}
-                onRenaming={onRenaming}
+                onRenaming={onRenaming ? renameAt : undefined}
                 partials={conversation.partials}
                 playing={playing}
                 renaming={
+                  renamingTurn === turn.key &&
                   voce !== undefined &&
                   renaming?.ingresso === voce.ingresso &&
                   renaming.parlante === voce.parlante
@@ -239,12 +277,15 @@ export function TranscriptView({
  * del pallino e Riascolta, che riparte dall'inizio della Frase in ascolto.
  */
 function TurnBlock({
+  above,
+  below,
   active,
   color,
   followed,
   highlight,
   list,
   onEdit,
+  onMerge,
   onJump,
   onPlay,
   onRename,
@@ -255,16 +296,19 @@ function TurnBlock({
   turn,
   voce,
 }: {
+  above: PhraseRef | null;
+  below: PhraseRef | null;
   active: boolean;
   color: number | undefined;
   followed: string | undefined;
   highlight?: PhraseRef | null;
   list: Parlante[];
   onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
+  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
   onJump?: (ms: number) => void;
   onPlay?: (ms: number) => void;
   onRename?: (voce: Parlante, nome: string) => void;
-  onRenaming?: (voce: Parlante | null) => void;
+  onRenaming?: (voce: Parlante | null, turnKey: string) => void;
   partials: TranscriptPartial[];
   playing: string[];
   renaming: boolean;
@@ -282,10 +326,13 @@ function TurnBlock({
     [current, onPlay]
   );
   const startRename = useCallback(
-    () => voce && onRenaming?.(voce),
-    [onRenaming, voce]
+    () => voce && onRenaming?.(voce, turn.key),
+    [onRenaming, turn.key, voce]
   );
-  const cancelRename = useCallback(() => onRenaming?.(null), [onRenaming]);
+  const cancelRename = useCallback(
+    () => onRenaming?.(null, turn.key),
+    [onRenaming, turn.key]
+  );
   const indent = turn.label ? "pl-[1.375rem]" : "";
 
   return (
@@ -298,8 +345,10 @@ function TurnBlock({
         {turn.label ? <VoiceMark active={active} color={color} /> : null}
         {turn.label ? (
           <VoiceName
+            ingresso={turn.ingresso}
             label={turn.label}
             list={list}
+            name={turn.name}
             onCancel={cancelRename}
             onRename={onRename}
             onStart={voce && onRenaming ? startRename : undefined}
@@ -346,29 +395,124 @@ function TurnBlock({
             {t("player.replay")}
           </button>
         ) : null}
+        {onMerge &&
+        !turn.items.some((item) =>
+          partials.includes(item as TranscriptPartial)
+        ) ? (
+          <MergeTurn
+            above={above}
+            below={below}
+            onMerge={onMerge}
+            turn={turn}
+          />
+        ) : null}
         <CopyTurn turn={turn} />
       </div>
-      <p className={`mt-1 text-[1.0625rem] leading-[1.7] ${indent}`}>
+      <div
+        className={`mt-1 space-y-2 text-[1.0625rem] leading-[1.7] ${indent}`}
+      >
         {turn.items.map((item, i) => {
           const partial = partials.includes(item as TranscriptPartial);
           const key = phraseKey(item);
           return (
-            <PhraseText
-              highlighted={
-                highlight?.ingresso === item.ingresso &&
-                highlight.phraseId === item.phraseId
-              }
-              item={item}
-              key={`${key}${partial ? ":parziale" : ""}`}
-              onEdit={partial ? undefined : onEdit}
-              onJump={partial || i === 0 ? undefined : onJump}
-              partial={partial}
-              playing={!partial && playing.includes(key)}
-            />
+            <p key={`${key}${partial ? ":parziale" : ""}`}>
+              <PhraseText
+                highlighted={
+                  highlight?.ingresso === item.ingresso &&
+                  highlight.phraseId === item.phraseId
+                }
+                item={item}
+                onEdit={partial ? undefined : onEdit}
+                onJump={partial || i === 0 ? undefined : onJump}
+                partial={partial}
+                playing={!partial && playing.includes(key)}
+              />
+            </p>
           );
         })}
-      </p>
+      </div>
     </article>
+  );
+}
+
+/** Il menu di questo Turno ha un'ancora propria, anche quando la stessa voce compare più volte. */
+function MergeTurn({
+  above,
+  below,
+  onMerge,
+  turn,
+}: {
+  above: PhraseRef | null;
+  below: PhraseRef | null;
+  onMerge: (turn: Turn, target: PhraseRef) => Promise<boolean>;
+  turn: Turn;
+}) {
+  const { t } = useTranslation();
+  const id = `merge-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const [pending, setPending] = useState(false);
+  const saving = useRef(false);
+  const merge = useCallback(
+    async (target: PhraseRef | null) => {
+      if (!target || saving.current) {
+        return;
+      }
+      saving.current = true;
+      setPending(true);
+      try {
+        await onMerge(turn, target);
+      } finally {
+        saving.current = false;
+        setPending(false);
+      }
+    },
+    [onMerge, turn]
+  );
+  const mergeAbove = useCallback(() => merge(above), [above, merge]);
+  const mergeBelow = useCallback(() => merge(below), [below, merge]);
+  const itemClass =
+    "flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-md px-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4";
+  return (
+    <PopoverMenu
+      className="flex size-6 items-center justify-center rounded-md text-foreground/70 opacity-0 transition-[opacity,color,background-color] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 group-focus-within/turno:opacity-100 group-hover/turno:opacity-100 [&_svg]:size-3.5"
+      disabled={pending}
+      icon={<Merge />}
+      id={id}
+      label={t("transcription.merge")}
+      variant="ghost"
+    >
+      <button
+        className={itemClass}
+        disabled={!above || pending}
+        onClick={mergeAbove}
+        popoverTarget={`menu-${id}`}
+        popoverTargetAction="hide"
+        type="button"
+      >
+        <ChevronUp />
+        {t("transcription.mergeAbove")}
+      </button>
+      <button
+        className={itemClass}
+        disabled={!below || pending}
+        onClick={mergeBelow}
+        popoverTarget={`menu-${id}`}
+        popoverTargetAction="hide"
+        type="button"
+      >
+        <ChevronDown />
+        {t("transcription.mergeBelow")}
+      </button>
+      <hr className="my-1 border-border" />
+      <button
+        className={`${itemClass} text-muted-foreground`}
+        popoverTarget={`menu-${id}`}
+        popoverTargetAction="hide"
+        type="button"
+      >
+        <X />
+        {t("transcription.mergeCancel")}
+      </button>
+    </PopoverMenu>
   );
 }
 
@@ -411,19 +555,23 @@ function CopyTurn({ turn }: { turn: Turn }) {
 
 /** Il nome della voce: un clic apre il campo del nome, se è un Parlante. */
 function VoiceName({
+  ingresso,
   label,
   list,
   onCancel,
   onRename,
   onStart,
+  name,
   renaming,
   voce,
 }: {
+  ingresso: Ingresso;
   label: string;
   list: Parlante[];
   onCancel: () => void;
   onRename?: (voce: Parlante, nome: string) => void;
   onStart?: () => void;
+  name: string | null;
   renaming: boolean;
   voce?: Parlante;
 }) {
@@ -439,17 +587,46 @@ function VoiceName({
     );
   }
   if (!onStart) {
-    return <span className="font-semibold text-sm">{label}</span>;
+    return (
+      <span
+        className="inline-flex items-center gap-2 font-semibold text-sm"
+        title={label}
+      >
+        <span className="sr-only">{label}</span>
+        <VoiceLabel ingresso={ingresso} name={name} />
+      </span>
+    );
   }
   return (
     <button
-      className="rounded-sm font-semibold text-sm decoration-muted-foreground/50 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      aria-label={label}
+      className="inline-flex items-center gap-2 rounded-sm font-semibold text-sm decoration-muted-foreground/50 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
       onClick={onStart}
       title={t("transcription.rename")}
       type="button"
     >
-      {label}
+      <VoiceLabel ingresso={ingresso} name={name} />
     </button>
+  );
+}
+
+function VoiceLabel({
+  ingresso,
+  name,
+}: {
+  ingresso: Ingresso;
+  name: string | null;
+}) {
+  return (
+    <>
+      {ingresso === "microfono" ? (
+        <Mic aria-hidden className="size-4 shrink-0" />
+      ) : null}
+      {ingresso === "sistema" ? (
+        <Speaker aria-hidden className="size-4 shrink-0" />
+      ) : null}
+      {name ? <span aria-hidden>{name}</span> : null}
+    </>
   );
 }
 
@@ -608,7 +785,7 @@ function PhraseText({
       {/* biome-ignore lint/a11y/useSemanticElements: un campo spezzerebbe il testo del turno, la Frase si corregge al suo posto */}
       <span
         aria-label={t("transcription.edit")}
-        className={`${className} cursor-text select-text empty:inline-block empty:min-w-8 empty:border-b empty:border-dashed hover:bg-accent focus:bg-accent focus:outline-none`}
+        className={`${className} transcript-editor cursor-text select-text empty:inline-block empty:min-w-8 empty:border-b empty:border-dashed hover:bg-accent focus:bg-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
         contentEditable="plaintext-only"
         key={`${resets}:${item.text}`}
         onBlur={save}

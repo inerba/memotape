@@ -33,8 +33,10 @@ export interface ActivitySummary {
 export function Sidebar({
   activity,
   busy,
+  cancelling,
   list,
   onActivity,
+  onCancel,
   onError,
   onImport,
   onOpen,
@@ -47,8 +49,10 @@ export function Sidebar({
   activity: ActivitySummary | null;
   /** Un'Attività in corso: niente Importa un file. */
   busy: boolean;
+  cancelling: boolean;
   list: LibraryList;
   onActivity: () => void;
+  onCancel: () => void;
   onError: (error: AppError) => void;
   onImport: () => void;
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
@@ -202,7 +206,12 @@ export function Sidebar({
           <SectionTitle id="sidebar-activity">
             {t("sidebar.activity")}
           </SectionTitle>
-          <ActivityCard activity={activity} onActivity={onActivity} />
+          <ActivityCard
+            activity={activity}
+            cancelling={cancelling}
+            onActivity={onActivity}
+            onCancel={onCancel}
+          />
         </section>
       ) : null}
       <div className="flex flex-col gap-0.5 border-sidebar-border border-t px-3 py-2.5">
@@ -255,45 +264,72 @@ function SectionTitle({
 /** L'Attività in corso: un clic riporta alla sua vista. */
 function ActivityCard({
   activity,
+  cancelling,
   onActivity,
+  onCancel,
 }: {
   activity: ActivitySummary;
+  cancelling: boolean;
   onActivity: () => void;
+  onCancel: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <button
-      className="flex w-full flex-col gap-2 rounded-lg border border-sidebar-border bg-background/70 px-3 py-2.5 text-left text-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-      onClick={onActivity}
-      title={t("library.activity")}
-      type="button"
-    >
-      <span className="flex items-center gap-2.5">
-        <span
-          aria-hidden
-          className={
-            activity.recording
-              ? "size-2 shrink-0 animate-pulse rounded-full bg-destructive"
-              : "size-2 shrink-0 animate-pulse rounded-full bg-play"
-          }
-        />
-        <span className="min-w-0 flex-1 truncate tabular-nums">
-          {activity.text}
+    <div className="flex w-full flex-col rounded-lg border border-sidebar-border bg-background/70">
+      <button
+        className="flex w-full flex-col gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        onClick={onActivity}
+        title={t("library.activity")}
+        type="button"
+      >
+        <span className="flex items-center gap-2.5">
+          <span
+            aria-hidden
+            className={
+              activity.recording
+                ? "size-2 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse"
+                : "size-2 shrink-0 rounded-full bg-play motion-safe:animate-pulse"
+            }
+          />
+          <span className="min-w-0 flex-1 truncate tabular-nums">
+            {activity.text}
+          </span>
         </span>
-      </span>
+        {activity.recording ? null : (
+          <span className="relative h-1 overflow-hidden rounded-full bg-play-soft">
+            {activity.percent === null ? (
+              <span className="absolute inset-y-0 w-1/3 rounded-full bg-play motion-safe:animate-[indeterminate_1.4s_ease-in-out_infinite]" />
+            ) : (
+              <span
+                className="absolute inset-y-0 left-0 rounded-full bg-play transition-[width] duration-300"
+                style={{ width: `${activity.percent}%` }}
+              />
+            )}
+          </span>
+        )}
+      </button>
       {activity.recording ? null : (
-        <span className="relative h-1 overflow-hidden rounded-full bg-play-soft">
-          {activity.percent === null ? (
-            <span className="absolute inset-y-0 w-1/3 animate-[indeterminate_1.4s_ease-in-out_infinite] rounded-full bg-play" />
-          ) : (
-            <span
-              className="absolute inset-y-0 left-0 rounded-full bg-play transition-[width] duration-300"
-              style={{ width: `${activity.percent}%` }}
-            />
-          )}
-        </span>
+        <div className="px-3 pb-2.5">
+          <progress
+            aria-label={activity.text}
+            className="sr-only"
+            max={100}
+            value={activity.percent ?? undefined}
+          />
+          <Button
+            className="h-8 w-full"
+            disabled={cancelling}
+            onClick={onCancel}
+            size="sm"
+            variant="outline"
+          >
+            {cancelling
+              ? t("transcription.cancelling")
+              : t("transcription.cancel")}
+          </Button>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
 

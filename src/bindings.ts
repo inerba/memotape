@@ -40,7 +40,12 @@ export const commands = {
 	 *  `cancel_transcription`.
 	 */
 	transcribe: (source: string, raccolta: string | null) => typedError<TranscriptionOutcome, AppError>(__TAURI_INVOKE("transcribe", { source, raccolta })),
-	/**  Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita. */
+	/**
+	 *  Ricalcola i Parlanti di un Tape senza riconoscere di nuovo il testo. Annulla usa
+	 *  `cancel_transcription`; il Tape cambia soltanto a successo.
+	 */
+	diarize: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("diarize", { source })),
+	/**  Annulla la Trascrizione o la Diarizzazione in corso. Restituisce `false` se non è (ancora) partita. */
 	cancelTranscription: () => __TAURI_INVOKE<boolean>("cancel_transcription"),
 	/**
 	 *  Il testo di Copia testo della Trascrizione in corso o appena finita senza Tape: in testo semplice
@@ -63,6 +68,8 @@ export const commands = {
 	 *  restano com'erano. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
+	/**  Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente. */
+	unisciTurno: (path: string, ingresso: Ingresso, phraseIds: number[], destinazione: number) => typedError<null, AppError>(__TAURI_INVOKE("unisci_turno", { path, ingresso, phraseIds, destinazione })),
 	/**
 	 *  Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
 	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
@@ -583,6 +590,7 @@ export type TapeInfo_Deserialize = {
 	modello: string | null,
 	linguaParlato: SpeechLanguage,
 	ingressiSeparati: boolean,
+	correttoAMano: boolean,
 	completa: boolean,
 	/**  Il nome del file audio o video da cui viene. */
 	origine: string | null,
@@ -598,6 +606,7 @@ export type TapeInfo_Serialize = {
 	modello: string | null,
 	linguaParlato: SpeechLanguage,
 	ingressiSeparati: boolean,
+	correttoAMano: boolean,
 	completa: boolean,
 	/**  Il nome del file audio o video da cui viene. */
 	origine: string | null,

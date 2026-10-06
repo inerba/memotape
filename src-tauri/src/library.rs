@@ -1136,6 +1136,8 @@ pub(crate) mod tests {
                 parlante_non_determinato: false,
                 parlante_provvisorio: false,
                 tempi: Vec::new(),
+                testo_corretto: false,
+                parlante_corretto: false,
             })
             .collect();
         document.parlanti = parlanti

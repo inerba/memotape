@@ -71,6 +71,7 @@ pub struct LiveFeed {
 }
 
 impl LiveFeed {
+    #[cfg(test)]
     pub fn set_diarization(&mut self, feed: super::live_diarization::DiarizationFeed) {
         self.diarization = Some(feed);
     }

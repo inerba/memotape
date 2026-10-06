@@ -204,8 +204,12 @@
     @apply bg-background text-foreground antialiased;
   }
   ::selection {
-    color: var(--foreground);
-    background: var(--play-soft);
+    color: var(--play-foreground);
+    background: var(--play);
+  }
+
+  .transcript-editor {
+    caret-color: var(--foreground);
   }
 }
 

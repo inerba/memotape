@@ -180,64 +180,12 @@ pub async fn record(
             .and_then(|result| result),
         )
     };
-    if let Some(Err(error)) = &diarizer {
-        for &ingresso in &diarized {
-            if let Err(emission) = (transcription::LiveDiarizationFailed {
-                session_id: session_id.clone(),
-                ingresso,
-                error: error.clone(),
-            })
-            .emit(&app)
-            {
-                log::warn!("live-diarization-failed non emesso: {emission}");
-            }
-        }
-    }
-    let separate = settings.ingressi_separati();
-    // Con la Trascrizione dal vivo le pipeline girano in un loro thread e leggono l'uscita del
-    // mixer: il mix, o con gli Ingressi separati ogni Ingresso, nell'ordine degli ingressi di `run`.
-    let transcribed: &[Ingresso] = match (settings.trascrizione_dal_vivo, separate) {
-        (false, _) => &[],
-        (true, false) => &[Ingresso::Mix],
-        (true, true) => &[Ingresso::Microfono, Ingresso::Sistema],
-    };
-    let (feeds, live) = if transcribed.is_empty() {
-        (Vec::new(), None)
+    // Durante la cattura si avvia soltanto ASR. La Diarizzazione usa gli Ogg dopo Stop.
+    let (feeds, sources) = live_sources(&settings)?;
+    let live = if sources.is_empty() {
+        None
     } else {
-        let (mut feeds, frames): (Vec<_>, Vec<_>) = live::channels(
-            settings.sample_rate,
-            channel_count(settings.channels),
-            transcribed.len(),
-        )?
-        .into_iter()
-        .unzip();
-        let sources = transcribed
-            .iter()
-            .copied()
-            .zip(frames)
-            .zip(&mut feeds)
-            .map(|((ingresso, frames), feed)| {
-                let diarizer = diarized
-                    .contains(&ingresso)
-                    .then(|| {
-                        diarizer
-                            .as_ref()
-                            .and_then(|lease| lease.as_ref().ok())
-                            .and_then(|lease| lease.live_diarizer())
-                    })
-                    .flatten()
-                    .map(|(tx, diarizer)| {
-                        feed.set_diarization(tx);
-                        diarizer
-                    });
-                transcription::LiveSource {
-                    ingresso,
-                    frames,
-                    diarizer,
-                }
-            })
-            .collect();
-        let live = tauri::async_runtime::spawn_blocking({
+        Some(tauri::async_runtime::spawn_blocking({
             let (app, settings, cancel) = (app.clone(), settings.clone(), cancel.clone());
             let title = prefix.clone();
             let live_session_id = session_id.clone();
@@ -251,9 +199,9 @@ pub async fn record(
                     &cancel,
                 )
             }
-        });
-        (feeds, Some(live))
+        }))
     };
+    let separate = settings.ingressi_separati();
     {
         // Sotto lo stesso lock di `Recorder::set_guadagni`: un Guadagno salvato intanto non si perde.
         let mut current = recorder.current();
@@ -476,6 +424,39 @@ fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded) -> PathBuf {
             mix.to_path_buf()
         }
     }
+}
+
+/// Solo i canali ASR: nessuna coda o istanza del diarizer durante la Registrazione.
+fn live_sources(
+    settings: &Settings,
+) -> Result<(Vec<LiveFeed>, Vec<transcription::LiveSource>), AppError> {
+    let ingressi: &[Ingresso] = match (settings.trascrizione_dal_vivo, settings.ingressi_separati())
+    {
+        (false, _) => &[],
+        (true, false) => &[Ingresso::Mix],
+        (true, true) => &[Ingresso::Microfono, Ingresso::Sistema],
+    };
+    if ingressi.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let (feeds, frames): (Vec<_>, Vec<_>) = live::channels(
+        settings.sample_rate,
+        channel_count(settings.channels),
+        ingressi.len(),
+    )?
+    .into_iter()
+    .unzip();
+    let sources = ingressi
+        .iter()
+        .copied()
+        .zip(frames)
+        .map(|(ingresso, frames)| transcription::LiveSource {
+            ingresso,
+            frames,
+            diarizer: None,
+        })
+        .collect();
+    Ok((feeds, sources))
 }
 
 /// La Registrazione finita, ancora negli Ogg temporanei.
@@ -869,6 +850,65 @@ pub(crate) fn create_numbered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn la_registrazione_avvia_solo_asr_anche_con_nemotron_e_tutti_i_parlanti_attivi() {
+        use crate::engine::pipeline::Feed;
+        use crate::managers::settings::Diarizer;
+        for diarizer in [Diarizer::Sortformer, Diarizer::Nemotron3] {
+            for recording_source in [
+                RecordingSource::Mic,
+                RecordingSource::System,
+                RecordingSource::Both,
+            ] {
+                for enabled in [false, true] {
+                    let settings = Settings {
+                        diarizer,
+                        recording_source,
+                        trascrizione_dal_vivo: enabled,
+                        parlanti_mix: true,
+                        parlanti_microfono: true,
+                        parlanti_sistema: true,
+                        sample_rate: 16_000,
+                        channels: Channels::Mono,
+                        ..Settings::default()
+                    };
+                    let (feeds, sources) = live_sources(&settings).unwrap();
+                    let expected = match (enabled, recording_source) {
+                        (false, _) => vec![],
+                        (true, RecordingSource::Both) => {
+                            vec![Ingresso::Microfono, Ingresso::Sistema]
+                        }
+                        (true, _) => vec![Ingresso::Mix],
+                    };
+                    assert_eq!(
+                        sources
+                            .iter()
+                            .map(|source| source.ingresso)
+                            .collect::<Vec<_>>(),
+                        expected
+                    );
+                    assert!(sources.iter().all(|source| source.diarizer.is_none()));
+                    for (mut feed, source) in feeds.into_iter().zip(sources) {
+                        feed.push(&[0.25; 480], false);
+                        feed.push(&[], true);
+                        feed.finish();
+                        let received = source.frames.collect::<Vec<_>>();
+                        assert!(
+                            received
+                                .iter()
+                                .any(|item| matches!(item, Ok(Feed::Frame(_))))
+                        );
+                        assert!(
+                            received
+                                .iter()
+                                .any(|item| matches!(item, Ok(Feed::ClosePhrase)))
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn dopo_l_analisi_finale_il_tape_si_salva_anche_con_annulla_o_guasto() {

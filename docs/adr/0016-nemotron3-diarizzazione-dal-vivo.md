@@ -32,3 +32,9 @@ Le decisioni sono state confermate il 2026-10-05. La [spec approvata](../../.scr
 L’utente ha autorizzato «integrala allora» dopo aver esaminato gli esiti del ticket 08. La funzione implementata è disponibile come scelta sperimentale esplicita, con Sortformer predefinito, modello locale compatibile e avvisi nelle sei lingue. La GPU Vulkan è consigliata per il dal vivo; non si impone un blocco sulla CPU. Il fallimento realtime CPU sul PC provato è documentato e resta gestito dall’avviso e dall’analisi finale, preservando audio e testo.
 
 Il supporto architetturale fino a otto Parlanti non garantisce che siano tutti distinti correttamente. Il confronto su corpus costruito favorisce Nemotron, ma usa confini energetici automatici, non annotazioni manuali di una conversazione spontanea. L’adozione non chiude il ticket 08 e non certifica UI, altri PC o Registrazioni lunghe. [Prove e limiti](../../.scratch/nemotron3-diarizzazione/report08-addendum.md).
+
+## Revisione del 6 ottobre 2026: solo dopo Stop
+
+L’utente ha chiesto di avviare la Diarizzazione soltanto dopo Stop, perché il percorso dal vivo non tiene il passo sul PC in uso. Questo sostituisce la parte di questa decisione che prevedeva uno stream dei Parlanti durante la cattura; restano la scelta sperimentale del modello, gli Ingressi separati e l'analisi finale sull'audio salvato.
+
+La Registrazione avvia soltanto i canali ASR: niente coda, caricamento o thread del diarizer dal vivo. Dopo Stop e lo smaltimento ASR si analizzano gli Ogg degli Ingressi selezionati in sequenza, senza ritrascrivere il testo. La scelta e la validazione dell'artefatto restano fissate all’avvio; eventuali errori di disponibilità fanno parte dell’esito finale. I Tape precedenti conservano la lettura dei metadati provvisori già salvati. Gli smoke realtime del core restano prove sperimentali, non attestano il comportamento corrente della Registrazione nell’app.

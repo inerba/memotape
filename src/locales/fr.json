@@ -24,7 +24,8 @@
       "title": "Retranscrire le Tape ?",
       "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus.",
       "keep": "Garder le texte",
-      "confirm": "Remplacer"
+      "confirm": "Remplacer",
+      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles."
     },
     "parlanti": "Reconnaître les intervenants",
     "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
@@ -38,7 +39,23 @@
     "edit": "Cliquez pour corriger : Entrée enregistre, Échap annule",
     "export": "Exporter en Markdown…",
     "exported": "Exporté dans {{path}}",
-    "again": "Transcrire à nouveau"
+    "again": "Transcrire à nouveau",
+    "merge": "Fusionner",
+    "mergeAbove": "Fusionner avec l’intervention précédente",
+    "mergeBelow": "Fusionner avec l’intervention suivante",
+    "mergeCancel": "Annuler"
+  },
+  "diarization": {
+    "start": "Diariser",
+    "again": "Diariser à nouveau",
+    "saved": "Diarisation enregistrée dans {{path}}",
+    "cancelled": "Diarisation annulée. Le Tape n’a pas été modifié.",
+    "replace": {
+      "title": "Identifier à nouveau les intervenants ?",
+      "description": "Ce Tape contient des corrections manuelles. Le texte corrigé, les attributions modifiées manuellement et les noms personnalisés seront conservés. La diarisation mettra à jour les autres attributions.",
+      "keep": "Annuler",
+      "confirm": "Diariser"
+    }
   },
   "player": {
     "label": "Lecteur",
@@ -131,8 +148,8 @@
       "diarizer": "Modèle des locuteurs",
       "nemotron3": "Nemotron 3 Diarization (expérimental)",
       "localModel": "Modèle local",
-      "experimentalDescription": "Fonction expérimentale : les intervenants peuvent être confondus, surtout lorsque les voix se chevauchent ou que les personnes sont nombreuses. Les attributions en direct sont provisoires et sont réanalysées après Arrêter.",
-      "experimentalLiveDescription": "Un GPU compatible Vulkan est recommandé pour reconnaître les intervenants en direct. Avec le processeur seul, la reconnaissance peut s’interrompre si elle ne suit pas le rythme ; l’audio et la transcription continuent et les intervenants sont réanalysés après Arrêter.",
+      "experimentalDescription": "Fonction expérimentale : les intervenants peuvent être confondus, surtout lorsque les voix se chevauchent ou que les personnes sont nombreuses.",
+      "recordingDiarizationDescription": "Les intervenants des enregistrements sont reconnus uniquement après Arrêter. La transcription en direct continue pendant l’enregistrement, sans reconnaissance des intervenants.",
       "localModelDescription": "Sélectionnez le modèle BF16 compatible de Nemotron 3 Diarization. Il est utilisé pour les fichiers, les Tape et les enregistrements, y compris avec des entrées séparées.",
       "localModelMissing": "Aucun modèle local choisi",
       "chooseLocalModel": "Choisir un modèle local…"
@@ -148,7 +165,7 @@
       },
       "parlanti": "Reconnaître les locuteurs",
       "parlantiMix": "Sur le mixage",
-      "parlantiDescription": "Avec la transcription en direct, Nemotron affiche les locuteurs provisoires de chaque entrée sélectionnée puis lance l’analyse finale après Arrêter. Sortformer reconnaît jusqu’à 4 locuteurs après Arrêter. Avec Les deux, chaque entrée a ses locuteurs ; le microphone est analysé seulement s’il est sélectionné.",
+      "parlantiDescription": "Avec la transcription en direct, les intervenants de chaque entrée sélectionnée sont reconnus après Arrêter, avec Nemotron ou Sortformer. Avec Les deux, chaque entrée a ses intervenants ; le microphone est analysé seulement s’il est sélectionné.",
       "microphone": "Microphone",
       "outputDevice": "Périphérique de sortie",
       "defaultDevice": "Par défaut du système",
@@ -371,7 +388,8 @@
     "noTextDescription": "Transcrivez-le pour lire, rechercher et réécouter ce qui a été dit.",
     "ingressi": "Micro + audio système",
     "changeDate": "Cliquez pour changer la date et l’heure : Entrée confirme, Échap annule",
-    "dateLabel": "Date et heure de l'enregistrement"
+    "dateLabel": "Date et heure de l'enregistrement",
+    "manuallyCorrected": "Corrigé manuellement"
   },
   "tabs": {
     "label": "Vues du Tape",

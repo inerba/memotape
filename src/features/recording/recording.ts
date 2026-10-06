@@ -126,6 +126,7 @@ export function activityText(
         elapsed: elapsedText(elapsedMs),
       });
     case "transcribing":
+    case "diarizing":
     case "completing":
       return statusText(status, t);
     default:

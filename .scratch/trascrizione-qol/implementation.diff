@@ -1,0 +1,1836 @@
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\app\\global.css" "b/D:\\local\\tauri\\sbobino\\src\\app\\global.css"
+index c96b6d5..c4deda8 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\app\\global.css"
++++ "b/D:\\local\\tauri\\sbobino\\src\\app\\global.css"
+@@ -204,8 +204,12 @@
+     @apply bg-background text-foreground antialiased;
+   }
+   ::selection {
+-    color: var(--foreground);
+-    background: var(--play-soft);
++    color: var(--play-foreground);
++    background: var(--play);
++  }
++
++  .transcript-editor {
++    caret-color: var(--foreground);
+   }
+ }
+ 
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\app\\routes\\home.tsx" "b/D:\\local\\tauri\\sbobino\\src\\app\\routes\\home.tsx"
+index 4fb77fb..2d6bb62 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\app\\routes\\home.tsx"
++++ "b/D:\\local\\tauri\\sbobino\\src\\app\\routes\\home.tsx"
+@@ -76,6 +76,7 @@ import {
+   type Parlante,
+   type PhraseRef,
+   parlantiOf,
++  type Turn,
+   visiblePhrases,
+   withLiveTranscript,
+   withNome,
+@@ -560,25 +561,12 @@ export function HomePage() {
+     if (busy || !conversation.phrases.length) {
+       return;
+     }
+-    if (
+-      diarizationNeedsConfirmation(
+-        conversation.parlanti,
+-        info?.ingressiSeparati ?? false,
+-        settings.parlantiMicrofono ?? false
+-      )
+-    ) {
++    if (diarizationNeedsConfirmation(info, conversation.parlanti)) {
+       setConfirmDiarize(true);
+     } else {
+       diarize();
+     }
+-  }, [
+-    busy,
+-    conversation.parlanti,
+-    conversation.phrases.length,
+-    diarize,
+-    info?.ingressiSeparati,
+-    settings.parlantiMicrofono,
+-  ]);
++  }, [busy, conversation.parlanti, conversation.phrases.length, diarize, info]);
+ 
+   const closeDiarizationConfirm = useCallback((opened: boolean) => {
+     if (!opened) {
+@@ -707,6 +695,56 @@ export function HomePage() {
+     [source]
+   );
+ 
++  // Il dato manuale viene mostrato soltanto dopo una scrittura riuscita.
++  const markCorrected = useCallback(
++    (path: string) => {
++      setBrowsed((current) =>
++        current?.path === path && current.info
++          ? { ...current, info: { ...current.info, correttoAMano: true } }
++          : current
++      );
++      if (path === source) {
++        setInfo((current) => current && { ...current, correttoAMano: true });
++      }
++    },
++    [source]
++  );
++
++  const merge = useCallback(
++    async (path: string, turn: Turn, target: PhraseRef) => {
++      try {
++        const result = await commands.unisciTurno(
++          path,
++          turn.ingresso,
++          turn.items.map((item) => item.phraseId),
++          target.phraseId
++        );
++        if (result.status === "error") {
++          setNotice(result.error);
++          return false;
++        }
++        const opened = await commands.openTape(path);
++        if (opened.status === "error") {
++          setNotice(opened.error);
++          return false;
++        }
++        const { info: updated, parlanti, phrases } = opened.data;
++        updateView(path, (c) => ({ ...c, parlanti, phrases }));
++        setBrowsed((current) =>
++          current?.path === path ? { ...current, info: updated } : current
++        );
++        if (path === source) {
++          setInfo(updated);
++        }
++        return true;
++      } catch (e) {
++        setNotice(internalError(e));
++        return false;
++      }
++    },
++    [source, updateView]
++  );
++
+   const rename = useCallback(
+     async (path: string, voce: Parlante, nome: string) => {
+       setRenaming(null);
+@@ -721,8 +759,11 @@ export function HomePage() {
+         return;
+       }
+       updateView(path, (c) => withNome(c, voce.ingresso, voce.parlante, nome));
++      if (nome.trim() !== voce.nome) {
++        markCorrected(path);
++      }
+     },
+-    [updateView]
++    [markCorrected, updateView]
+   );
+ 
+   // Una correzione non salvata resta scritta nella Frase, con l'errore nella status bar.
+@@ -739,9 +780,10 @@ export function HomePage() {
+         return false;
+       }
+       updateView(path, (c) => withTesto(c, phrase, text));
++      markCorrected(path);
+       return true;
+     },
+-    [updateView]
++    [markCorrected, updateView]
+   );
+ 
+   // La data e l'ora nuove del Tape `path`, nell'ora locale del campo.
+@@ -818,6 +860,7 @@ export function HomePage() {
+       onEdit={edit}
+       onError={setNotice}
+       onExported={exported}
++      onMerge={merge}
+       onMove={moveTape}
+       onRaccolta={openRaccolta}
+       onRenameParlante={rename}
+@@ -925,7 +968,11 @@ export function HomePage() {
+               {t("transcription.replace.title")}
+             </AlertDialogTitle>
+             <AlertDialogDescription>
+-              {t("transcription.replace.description")}
++              {t(
++                info?.correttoAMano
++                  ? "transcription.replace.manualDescription"
++                  : "transcription.replace.description"
++              )}
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+@@ -1332,6 +1379,7 @@ function TapePane({
+   onCreato,
+   onDiarize,
+   onEdit,
++  onMerge,
+   onError,
+   onExported,
+   onMove,
+@@ -1358,6 +1406,7 @@ function TapePane({
+   onCreato: (path: string, local: string) => void;
+   onDiarize: () => void;
+   onEdit: (path: string, phrase: PhraseRef, text: string) => Promise<boolean>;
++  onMerge: (path: string, turn: Turn, target: PhraseRef) => Promise<boolean>;
+   onError: (error: AppError) => void;
+   onExported: (path: string) => void;
+   onMove: (path: string, raccolta: string) => void;
+@@ -1406,6 +1455,10 @@ function TapePane({
+     (phrase: PhraseRef, text: string) => onEdit(path, phrase, text),
+     [onEdit, path]
+   );
++  const merge = useCallback(
++    (turn: Turn, target: PhraseRef) => onMerge(path, turn, target),
++    [onMerge, path]
++  );
+   const entry = entryOf(library, path);
+   const raccolta = entry ? (entry.raccolta ?? "") : null;
+   const toRaccolta = useCallback(
+@@ -1415,6 +1468,7 @@ function TapePane({
+   // Durante una Registrazione niente salti né evidenziazione: il player è disabilitato.
+   const listening = processing || recording ? undefined : player;
+   const hasText = conversation.phrases.length > 0;
++  const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
+ 
+   const header = (
+     <>
+@@ -1506,7 +1560,7 @@ function TapePane({
+           empty={empty}
+           header={header}
+           highlight={highlight}
+-          onEdit={editable ? edit : undefined}
++          {...editingActions}
+           onRename={rename}
+           onRenaming={onRenaming}
+           parlanti={parlanti}
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\bindings.ts" "b/D:\\local\\tauri\\sbobino\\src\\bindings.ts"
+index 5f89ce3..736808c 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\bindings.ts"
++++ "b/D:\\local\\tauri\\sbobino\\src\\bindings.ts"
+@@ -68,6 +68,8 @@ export const commands = {
+ 	 *  restano com'erano. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+ 	 */
+ 	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
++	/**  Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente. */
++	unisciTurno: (path: string, ingresso: Ingresso, phraseIds: number[], destinazione: number) => typedError<null, AppError>(__TAURI_INVOKE("unisci_turno", { path, ingresso, phraseIds, destinazione })),
+ 	/**
+ 	 *  Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
+ 	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+@@ -588,6 +590,7 @@ export type TapeInfo_Deserialize = {
+ 	modello: string | null,
+ 	linguaParlato: SpeechLanguage,
+ 	ingressiSeparati: boolean,
++	correttoAMano: boolean,
+ 	completa: boolean,
+ 	/**  Il nome del file audio o video da cui viene. */
+ 	origine: string | null,
+@@ -603,6 +606,7 @@ export type TapeInfo_Serialize = {
+ 	modello: string | null,
+ 	linguaParlato: SpeechLanguage,
+ 	ingressiSeparati: boolean,
++	correttoAMano: boolean,
+ 	completa: boolean,
+ 	/**  Il nome del file audio o video da cui viene. */
+ 	origine: string | null,
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\components\\popover-menu.tsx" "b/D:\\local\\tauri\\sbobino\\src\\components\\popover-menu.tsx"
+index 288e979..7f7bde2 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\components\\popover-menu.tsx"
++++ "b/D:\\local\\tauri\\sbobino\\src\\components\\popover-menu.tsx"
+@@ -1,28 +1,9 @@
+ import type { ComponentProps, ReactNode } from "react";
+ import { Button } from "@/components/ui/button";
+ 
+-/**
+- * I menu a comparsa: con il Popover API nativo, ancorati al loro pulsante con l'anchor positioning
+- * di CSS. Le classi sono scritte per intero perché Tailwind le trovi.
+- */
+-const ANCHORS = {
+-  more: {
+-    anchor: "[anchor-name:--menu-more]",
+-    popover: "[position-anchor:--menu-more]",
+-  },
+-  record: {
+-    anchor: "[anchor-name:--menu-record]",
+-    popover: "[position-anchor:--menu-record]",
+-  },
+-  transcribe: {
+-    anchor: "[anchor-name:--menu-transcribe]",
+-    popover: "[position-anchor:--menu-transcribe]",
+-  },
+-} as const;
+-
+ /**
+  * Un pulsante ▾ che apre un pannello sotto di sé; un clic fuori o Esc lo chiude. `id` è anche il
+- * nome dell'ancora: un menu di quel tipo per pagina.
++ * nome dell'ancora: deve essere unico nella pagina, anche nei menu ripetuti per Turno.
+  */
+ export function PopoverMenu({
+   children,
+@@ -38,28 +19,30 @@ export function PopoverMenu({
+   className?: string;
+   disabled?: boolean;
+   icon: ReactNode;
+-  id: keyof typeof ANCHORS;
++  id: string;
+   label: string;
+   variant?: ComponentProps<typeof Button>["variant"];
+ }) {
+-  const { anchor, popover } = ANCHORS[id];
++  const anchor = `--menu-${id}`;
+   return (
+     <>
+       <Button
+         aria-label={label}
+-        className={`${anchor} ${className}`}
++        className={className}
+         disabled={disabled}
+         popoverTarget={`menu-${id}`}
+         size="icon"
++        style={{ anchorName: anchor }}
+         title={label}
+         variant={variant}
+       >
+         {icon}
+       </Button>
+       <div
+-        className={`${popover} inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex`}
++        className="inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex"
+         id={`menu-${id}`}
+         popover="auto"
++        style={{ positionAnchor: anchor }}
+       >
+         {children}
+       </div>
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\library\\tape-header.tsx" "b/D:\\local\\tauri\\sbobino\\src\\features\\library\\tape-header.tsx"
+index 10d1c76..5415ec7 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\library\\tape-header.tsx"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\library\\tape-header.tsx"
+@@ -4,6 +4,7 @@ import {
+   AudioLines,
+   FileAudio,
+   Languages,
++  Pencil,
+   Users,
+ } from "lucide-react";
+ import {
+@@ -239,6 +240,9 @@ function InfoChips({
+       {parlanti > 0 ? (
+         <Chip icon={<Users />}>{t("tape.parlanti", { count: parlanti })}</Chip>
+       ) : null}
++      {info.correttoAMano ? (
++        <Chip icon={<Pencil />}>{t("tape.manuallyCorrected")}</Chip>
++      ) : null}
+       {/* Senza modello il Tape non ha testo: niente modello, lingua né "incompleto". */}
+       {info.modello ? (
+         <Chip icon={<Languages />}>{`${info.modello} · ${language}`}</Chip>
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\diarization.test.ts" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\diarization.test.ts"
+index b258a33..a8746ee 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\diarization.test.ts"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\diarization.test.ts"
+@@ -22,27 +22,13 @@ test("il nome della prima azione distingue anche i Tape diarizzati senza metadat
+   );
+ });
+ 
+-test("la conferma riguarda i nomi che saranno rimossi, non il Microfono trattato come una persona", () => {
+-  expect(diarizationNeedsConfirmation({}, false, false)).toBe(false);
+-  expect(diarizationNeedsConfirmation({ "mix:1": "Mario" }, false, false)).toBe(
+-    true
+-  );
+-  expect(
+-    diarizationNeedsConfirmation({ microfono: "Mario" }, true, false)
+-  ).toBe(false);
+-  expect(diarizationNeedsConfirmation({ microfono: "Mario" }, true, true)).toBe(
+-    true
+-  );
+-  expect(
+-    diarizationNeedsConfirmation({ "microfono:2": "Mario" }, true, false)
+-  ).toBe(true);
+-  expect(
+-    diarizationNeedsConfirmation({ "sistema:1": "Lucia" }, true, false)
+-  ).toBe(true);
+-  expect(diarizationNeedsConfirmation({ sistema: "Lucia" }, true, false)).toBe(
+-    true
+-  );
+-  expect(diarizationNeedsConfirmation({ "mix:1": "Mario" }, true, false)).toBe(
++test("si avvisa per ogni correzione salvata, anche per nomi nei Tape precedenti", () => {
++  expect(diarizationNeedsConfirmation(null, {})).toBe(false);
++  expect(diarizationNeedsConfirmation({ correttoAMano: false }, {})).toBe(
+     false
+   );
++  expect(diarizationNeedsConfirmation({ correttoAMano: true }, {})).toBe(true);
++  for (const key of ["mix:1", "microfono", "sistema:2"]) {
++    expect(diarizationNeedsConfirmation(null, { [key]: "Mario" })).toBe(true);
++  }
+ });
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\diarization.ts" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\diarization.ts"
+index 80b68e0..7a6f02e 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\diarization.ts"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\diarization.ts"
+@@ -15,21 +15,10 @@ export function wasDiarized(
+   );
+ }
+ 
+-/** Si avvisa soltanto quando la nuova analisi rimuoverà nomi dati dall'utente. */
++/** Una nuova analisi avvisa delle correzioni salvate, compresi i nomi dei Tape precedenti. */
+ export function diarizationNeedsConfirmation(
+-  parlanti: Conversation["parlanti"],
+-  separate: boolean,
+-  microphone: boolean
++  info: Pick<TapeInfo, "correttoAMano"> | null,
++  parlanti: Conversation["parlanti"]
+ ): boolean {
+-  return Object.keys(parlanti).some((key) => {
+-    if (!separate) {
+-      return key === "mix" || key.startsWith("mix:");
+-    }
+-    return (
+-      key === "sistema" ||
+-      key.startsWith("sistema:") ||
+-      key.startsWith("microfono:") ||
+-      (microphone && key === "microfono")
+-    );
+-  });
++  return !!info?.correttoAMano || Object.keys(parlanti).length > 0;
+ }
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\parlante-name.tsx" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\parlante-name.tsx"
+index d2fdb38..6bd5ab6 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\parlante-name.tsx"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\parlante-name.tsx"
+@@ -54,7 +54,7 @@ export function ParlanteNameInput({
+   const [nome, setNome] = useState(voce.nome);
+   const input = useRef<HTMLInputElement>(null);
+   useEffect(() => {
+-    input.current?.focus();
++    input.current?.focus({ preventScroll: true });
+     input.current?.select();
+   }, []);
+   const change = useCallback(
+@@ -66,7 +66,11 @@ export function ParlanteNameInput({
+   const keyDown = useCallback(
+     (e: KeyboardEvent<HTMLInputElement>) => {
+       if (e.key === "Enter" && valid) {
+-        onRename(voce, nome.trim());
++        if (nome.trim() === voce.nome) {
++          onCancel();
++        } else {
++          onRename(voce, nome.trim());
++        }
+       } else if (e.key === "Escape") {
+         onCancel();
+       }
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\phrases.test.ts" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\phrases.test.ts"
+index 51e1fdf..eba7cf9 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\phrases.test.ts"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\phrases.test.ts"
+@@ -4,6 +4,7 @@ import type { Ingresso } from "@/bindings";
+ import {
+   type Conversation,
+   EMPTY_CONVERSATION,
++  mergeDestination,
+   nomeTaken,
+   parlanteStats,
+   parlantiOf,
+@@ -21,6 +22,50 @@ import {
+   withTesto,
+ } from "@/features/transcription/phrases";
+ 
++test("l'unione considera solo il vicino e richiede una voce nota dello stesso Ingresso", () => {
++  const conversation: Conversation = {
++    ...EMPTY_CONVERSATION,
++    phrases: [
++      { ...phrase(0, 0, "Mario."), parlante: 1 },
++      { ...phrase(1, 1000, "Anna."), parlante: 2 },
++      { ...phrase(2, 2000, "Mario."), parlante: 1 },
++    ],
++  };
++  const [above, source, below] = turnsOf(conversation, t);
++  if (!(above && source && below)) {
++    throw new Error("tre Turni attesi");
++  }
++  const [targetPhrase] = below.items;
++  const [sourcePhrase] = source.items;
++  if (!(targetPhrase && sourcePhrase)) {
++    throw new Error("Frasi attese");
++  }
++  expect(mergeDestination(source, above, [])).toMatchObject({
++    ingresso: "mix",
++    phraseId: 0,
++  });
++  expect(mergeDestination(source, below, [])).toMatchObject({
++    ingresso: "mix",
++    phraseId: 2,
++  });
++  expect(mergeDestination(above, undefined, [])).toBeNull();
++  expect(
++    mergeDestination(source, { ...below, ingresso: "sistema" }, [])
++  ).toBeNull();
++  expect(
++    mergeDestination(
++      source,
++      {
++        ...below,
++        items: [{ ...targetPhrase, parlanteNonDeterminato: true }],
++      },
++      []
++    )
++  ).toBeNull();
++  expect(mergeDestination(source, { ...below, label: null }, [])).toBeNull();
++  expect(mergeDestination(source, below, [sourcePhrase])).toBeNull();
++});
++
+ test("le rettifiche dal vivo scartano revisioni vecchie e non ripristinano Parziali conclusi", () => {
+   const partial = {
+     ...phrase(0, 0, "Buongiorno"),
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\phrases.ts" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\phrases.ts"
+index 6b6cdff..9167edb 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\phrases.ts"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\phrases.ts"
+@@ -403,7 +403,9 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
+     (TranscriptPhrase | ConversationPartial)[]
+   >(byStart, conversation.phrases)) {
+     const partial = conversation.partials.includes(item as TranscriptPartial);
+-    const parlante = item.parlante ?? null;
++    const parlante = item.parlanteNonDeterminato
++      ? null
++      : (item.parlante ?? null);
+     const label = voiceLabel(
+       conversation,
+       item.ingresso,
+@@ -417,6 +419,8 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
+       last &&
+       previous &&
+       last.label === label &&
++      last.ingresso === item.ingresso &&
++      last.parlante === parlante &&
+       (labeled || silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
+     ) {
+       last.items.push(item);
+@@ -448,6 +452,28 @@ export function turnText(turn: Turn): string {
+   return turn.label ? `${turn.label}: ${text}` : text;
+ }
+ 
++/** Il Turno adiacente è una destinazione soltanto se ha una voce nota dello stesso Ingresso. */
++export function mergeDestination(
++  source: Turn,
++  target: Turn | undefined,
++  partials: Conversation["partials"]
++): PhraseRef | null {
++  if (
++    !target ||
++    source.ingresso !== target.ingresso ||
++    !target.label ||
++    [...source.items, ...target.items].some((item) =>
++      partials.includes(item as ConversationPartial)
++    ) ||
++    target.items.some(
++      (item) => item.parlanteNonDeterminato || item.parlanteProvvisorio
++    )
++  ) {
++    return null;
++  }
++  return target.items[0] ?? null;
++}
++
+ /** Quanti colori hanno le voci: oltre, si ricomincia dal primo. */
+ export const VOICE_COLORS = 6;
+ 
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\transcript-view.tsx" "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\transcript-view.tsx"
+index 8f033e8..90e7da5 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\features\\transcription\\transcript-view.tsx"
++++ "b/D:\\local\\tauri\\sbobino\\src\\features\\transcription\\transcript-view.tsx"
+@@ -2,11 +2,15 @@ import {
+   ArrowDown,
+   ArrowUp,
+   Check,
++  ChevronDown,
++  ChevronUp,
+   Copy,
++  Merge,
+   Mic,
+   Play,
+   RotateCcw,
+   Speaker,
++  X,
+ } from "lucide-react";
+ import {
+   type FocusEvent,
+@@ -14,11 +18,13 @@ import {
+   type ReactNode,
+   useCallback,
+   useEffect,
++  useId,
+   useRef,
+   useState,
+ } from "react";
+ import { useTranslation } from "react-i18next";
+ import type { Ingresso, TranscriptPartial, TranscriptPhrase } from "@/bindings";
++import { PopoverMenu } from "@/components/popover-menu";
+ import { keepFocus, type PlayerState } from "@/features/player/player";
+ import { autoScroll, playingAt } from "@/features/player/sync";
+ import { elapsedText } from "@/features/recording/recording";
+@@ -28,6 +34,7 @@ import {
+ } from "@/features/transcription/parlante-name";
+ import {
+   type Conversation,
++  mergeDestination,
+   type Parlante,
+   type PhraseRef,
+   phraseKey,
+@@ -59,6 +66,7 @@ export function TranscriptView({
+   header,
+   highlight,
+   onEdit,
++  onMerge,
+   onRename,
+   onRenaming,
+   parlanti,
+@@ -72,6 +80,7 @@ export function TranscriptView({
+   highlight?: PhraseRef | null;
+   /** Salva la correzione; `false` se non si è salvata, e il testo resta com'è scritto. */
+   onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
++  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
+   onRename?: (voce: Parlante, nome: string) => void;
+   /** Apre (o con `null` chiude) il campo del nome di un Parlante. */
+   onRenaming?: (voce: Parlante | null) => void;
+@@ -85,6 +94,14 @@ export function TranscriptView({
+   const section = useRef<HTMLElement>(null);
+   // Una Frase in correzione: il testo non scorre da solo.
+   const [editing, setEditing] = useState(false);
++  const [renamingTurn, setRenamingTurn] = useState<string | null>(null);
++  const renameAt = useCallback(
++    (voce: Parlante | null, turnKey: string) => {
++      setRenamingTurn(voce ? turnKey : null);
++      onRenaming?.(voce);
++    },
++    [onRenaming]
++  );
+   // Dove sta la Frase in ascolto quando il testo non la segue.
+   const [away, setAway] = useState<"up" | "down" | null>(null);
+   // A riposo, prima del primo ascolto, nessuna Frase è "in ascolto".
+@@ -180,13 +197,18 @@ export function TranscriptView({
+         {header}
+         {turns.length === 0 ? empty : null}
+         <div className="flex flex-col gap-1">
+-          {turns.map((turn) => {
++          {turns.map((turn, index) => {
+             const voce = parlanti.find(
+               (p) =>
+                 p.ingresso === turn.ingresso && p.parlante === turn.parlante
+             );
+             return (
+               <TurnBlock
++                above={mergeDestination(
++                  turn,
++                  turns[index - 1],
++                  conversation.partials
++                )}
+                 active={
+                   followed !== undefined &&
+                   turn.items.some(
+@@ -196,6 +218,11 @@ export function TranscriptView({
+                       ) && phraseKey(item) === followed
+                   )
+                 }
++                below={mergeDestination(
++                  turn,
++                  turns[index + 1],
++                  conversation.partials
++                )}
+                 color={turn.label ? colors.get(turn.label) : undefined}
+                 followed={followed}
+                 highlight={highlight}
+@@ -203,12 +230,14 @@ export function TranscriptView({
+                 list={parlanti}
+                 onEdit={onEdit}
+                 onJump={player ? jump : undefined}
++                onMerge={onMerge}
+                 onPlay={player?.playFrom}
+                 onRename={onRename}
+-                onRenaming={onRenaming}
++                onRenaming={onRenaming ? renameAt : undefined}
+                 partials={conversation.partials}
+                 playing={playing}
+                 renaming={
++                  renamingTurn === turn.key &&
+                   voce !== undefined &&
+                   renaming?.ingresso === voce.ingresso &&
+                   renaming.parlante === voce.parlante
+@@ -248,12 +277,15 @@ export function TranscriptView({
+  * del pallino e Riascolta, che riparte dall'inizio della Frase in ascolto.
+  */
+ function TurnBlock({
++  above,
++  below,
+   active,
+   color,
+   followed,
+   highlight,
+   list,
+   onEdit,
++  onMerge,
+   onJump,
+   onPlay,
+   onRename,
+@@ -264,16 +296,19 @@ function TurnBlock({
+   turn,
+   voce,
+ }: {
++  above: PhraseRef | null;
++  below: PhraseRef | null;
+   active: boolean;
+   color: number | undefined;
+   followed: string | undefined;
+   highlight?: PhraseRef | null;
+   list: Parlante[];
+   onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
++  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
+   onJump?: (ms: number) => void;
+   onPlay?: (ms: number) => void;
+   onRename?: (voce: Parlante, nome: string) => void;
+-  onRenaming?: (voce: Parlante | null) => void;
++  onRenaming?: (voce: Parlante | null, turnKey: string) => void;
+   partials: TranscriptPartial[];
+   playing: string[];
+   renaming: boolean;
+@@ -291,10 +326,13 @@ function TurnBlock({
+     [current, onPlay]
+   );
+   const startRename = useCallback(
+-    () => voce && onRenaming?.(voce),
+-    [onRenaming, voce]
++    () => voce && onRenaming?.(voce, turn.key),
++    [onRenaming, turn.key, voce]
++  );
++  const cancelRename = useCallback(
++    () => onRenaming?.(null, turn.key),
++    [onRenaming, turn.key]
+   );
+-  const cancelRename = useCallback(() => onRenaming?.(null), [onRenaming]);
+   const indent = turn.label ? "pl-[1.375rem]" : "";
+ 
+   return (
+@@ -357,6 +395,17 @@ function TurnBlock({
+             {t("player.replay")}
+           </button>
+         ) : null}
++        {onMerge &&
++        !turn.items.some((item) =>
++          partials.includes(item as TranscriptPartial)
++        ) ? (
++          <MergeTurn
++            above={above}
++            below={below}
++            onMerge={onMerge}
++            turn={turn}
++          />
++        ) : null}
+         <CopyTurn turn={turn} />
+       </div>
+       <div
+@@ -386,6 +435,87 @@ function TurnBlock({
+   );
+ }
+ 
++/** Il menu di questo Turno ha un'ancora propria, anche quando la stessa voce compare più volte. */
++function MergeTurn({
++  above,
++  below,
++  onMerge,
++  turn,
++}: {
++  above: PhraseRef | null;
++  below: PhraseRef | null;
++  onMerge: (turn: Turn, target: PhraseRef) => Promise<boolean>;
++  turn: Turn;
++}) {
++  const { t } = useTranslation();
++  const id = `merge-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
++  const [pending, setPending] = useState(false);
++  const saving = useRef(false);
++  const merge = useCallback(
++    async (target: PhraseRef | null) => {
++      if (!target || saving.current) {
++        return;
++      }
++      saving.current = true;
++      setPending(true);
++      try {
++        await onMerge(turn, target);
++      } finally {
++        saving.current = false;
++        setPending(false);
++      }
++    },
++    [onMerge, turn]
++  );
++  const mergeAbove = useCallback(() => merge(above), [above, merge]);
++  const mergeBelow = useCallback(() => merge(below), [below, merge]);
++  const itemClass =
++    "flex h-8 w-full items-center gap-2 whitespace-nowrap rounded-md px-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4";
++  return (
++    <PopoverMenu
++      className="flex size-6 items-center justify-center rounded-md text-foreground/70 opacity-0 transition-[opacity,color,background-color] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 group-focus-within/turno:opacity-100 group-hover/turno:opacity-100 [&_svg]:size-3.5"
++      disabled={pending}
++      icon={<Merge />}
++      id={id}
++      label={t("transcription.merge")}
++      variant="ghost"
++    >
++      <button
++        className={itemClass}
++        disabled={!above || pending}
++        onClick={mergeAbove}
++        popoverTarget={`menu-${id}`}
++        popoverTargetAction="hide"
++        type="button"
++      >
++        <ChevronUp />
++        {t("transcription.mergeAbove")}
++      </button>
++      <button
++        className={itemClass}
++        disabled={!below || pending}
++        onClick={mergeBelow}
++        popoverTarget={`menu-${id}`}
++        popoverTargetAction="hide"
++        type="button"
++      >
++        <ChevronDown />
++        {t("transcription.mergeBelow")}
++      </button>
++      <hr className="my-1 border-border" />
++      <button
++        className={`${itemClass} text-muted-foreground`}
++        popoverTarget={`menu-${id}`}
++        popoverTargetAction="hide"
++        type="button"
++      >
++        <X />
++        {t("transcription.mergeCancel")}
++      </button>
++    </PopoverMenu>
++  );
++}
++
+ /** Per quanto Copia turno mostra la spunta. */
+ const COPIED_MS = 1500;
+ 
+@@ -655,7 +785,7 @@ function PhraseText({
+       {/* biome-ignore lint/a11y/useSemanticElements: un campo spezzerebbe il testo del turno, la Frase si corregge al suo posto */}
+       <span
+         aria-label={t("transcription.edit")}
+-        className={`${className} cursor-text select-text empty:inline-block empty:min-w-8 empty:border-b empty:border-dashed hover:bg-accent focus:bg-accent focus:outline-none`}
++        className={`${className} transcript-editor cursor-text select-text empty:inline-block empty:min-w-8 empty:border-b empty:border-dashed hover:bg-accent focus:bg-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
+         contentEditable="plaintext-only"
+         key={`${resets}:${item.text}`}
+         onBlur={save}
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\de.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\de.json"
+index 1bd8f06..8460eb1 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\de.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\de.json"
+@@ -24,7 +24,8 @@
+       "title": "Tape erneut transkribieren?",
+       "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren.",
+       "keep": "Text behalten",
+-      "confirm": "Ersetzen"
++      "confirm": "Ersetzen",
++      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen."
+     },
+     "parlanti": "Sprecher erkennen",
+     "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
+@@ -38,7 +39,11 @@
+     "edit": "Zum Korrigieren klicken: Eingabe speichert, Esc bricht ab",
+     "export": "Markdown exportieren…",
+     "exported": "Exportiert nach {{path}}",
+-    "again": "Erneut transkribieren"
++    "again": "Erneut transkribieren",
++    "merge": "Zusammenführen",
++    "mergeAbove": "Mit dem vorherigen Beitrag zusammenführen",
++    "mergeBelow": "Mit dem nächsten Beitrag zusammenführen",
++    "mergeCancel": "Abbrechen"
+   },
+   "diarization": {
+     "start": "Diarisieren",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diarisierung abgebrochen. Das Tape wurde nicht verändert.",
+     "replace": {
+       "title": "Sprecher erneut erkennen?",
+-      "description": "Bei erfolgreicher Analyse werden die benutzerdefinierten Namen der neu erkannten Sprecher entfernt. Text und Korrekturen bleiben unverändert.",
+-      "keep": "Sprecher beibehalten",
++      "description": "Dieses Tape enthält manuelle Korrekturen. Bearbeiteter Text, manuell geänderte Sprecherzuordnungen und eigene Namen bleiben erhalten. Die Diarisierung aktualisiert die übrigen Zuordnungen.",
++      "keep": "Abbrechen",
+       "confirm": "Diarisieren"
+     }
+   },
+@@ -382,7 +387,8 @@
+     "noTextDescription": "Transkribiere ihn, um das Gesagte zu lesen, zu durchsuchen und erneut anzuhören.",
+     "ingressi": "Mikrofon + Systemaudio",
+     "changeDate": "Klicken, um Datum und Uhrzeit zu ändern: Eingabe bestätigt, Esc bricht ab",
+-    "dateLabel": "Datum und Uhrzeit der Aufnahme"
++    "dateLabel": "Datum und Uhrzeit der Aufnahme",
++    "manuallyCorrected": "Manuell korrigiert"
+   },
+   "tabs": {
+     "label": "Ansichten des Tape",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\en.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\en.json"
+index db4f375..eb09f42 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\en.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\en.json"
+@@ -24,7 +24,8 @@
+       "title": "Transcribe the Tape again?",
+       "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
+       "keep": "Keep the text",
+-      "confirm": "Replace"
++      "confirm": "Replace",
++      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections."
+     },
+     "parlanti": "Recognize speakers",
+     "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
+@@ -38,7 +39,11 @@
+     "edit": "Click to correct: Enter saves, Esc cancels",
+     "export": "Export Markdown…",
+     "exported": "Exported to {{path}}",
+-    "again": "Transcribe again"
++    "again": "Transcribe again",
++    "merge": "Merge",
++    "mergeAbove": "Merge with the turn above",
++    "mergeBelow": "Merge with the turn below",
++    "mergeCancel": "Cancel"
+   },
+   "diarization": {
+     "start": "Diarize",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diarization cancelled. The Tape has not been changed.",
+     "replace": {
+       "title": "Identify speakers again?",
+-      "description": "If the analysis succeeds, custom names for the recalculated speakers will be removed. Text and corrections stay unchanged.",
+-      "keep": "Keep speakers",
++      "description": "This Tape contains manual corrections. Edited text, manually changed speaker assignments and custom names will be preserved. Diarization will update the other assignments.",
++      "keep": "Cancel",
+       "confirm": "Diarize"
+     }
+   },
+@@ -382,7 +387,8 @@
+     "noTextDescription": "Transcribe it to read, search and listen back to what was said.",
+     "ingressi": "Microphone + system audio",
+     "changeDate": "Click to change date and time: Enter confirms, Esc cancels",
+-    "dateLabel": "Recording date and time"
++    "dateLabel": "Recording date and time",
++    "manuallyCorrected": "Manually corrected"
+   },
+   "tabs": {
+     "label": "Tape views",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\es.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\es.json"
+index 1a0a037..358b549 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\es.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\es.json"
+@@ -24,7 +24,8 @@
+       "title": "¿Volver a transcribir el Tape?",
+       "description": "El texto del Tape se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes.",
+       "keep": "Conservar el texto",
+-      "confirm": "Reemplazar"
++      "confirm": "Reemplazar",
++      "manualDescription": "Este Tape contiene correcciones manuales. Una nueva transcripción sustituirá el texto, las atribuciones y los nombres de los hablantes, incluidas las correcciones manuales."
+     },
+     "parlanti": "Reconocer hablantes",
+     "nemotron3Note": "Nemotron 3 experimental: admite hasta 8 hablantes por entrada, pero puede confundir o unir las voces.",
+@@ -38,7 +39,11 @@
+     "edit": "Haz clic para corregir: Intro guarda, Esc cancela",
+     "export": "Exportar Markdown…",
+     "exported": "Exportado a {{path}}",
+-    "again": "Transcribir de nuevo"
++    "again": "Transcribir de nuevo",
++    "merge": "Unir",
++    "mergeAbove": "Unir con la intervención anterior",
++    "mergeBelow": "Unir con la intervención siguiente",
++    "mergeCancel": "Cancelar"
+   },
+   "diarization": {
+     "start": "Diarizar",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diarización cancelada. El Tape no se ha modificado.",
+     "replace": {
+       "title": "¿Identificar de nuevo a los hablantes?",
+-      "description": "Si el análisis termina correctamente, se eliminarán los nombres personalizados de los hablantes recalculados. El texto y las correcciones no cambian.",
+-      "keep": "Mantener los hablantes",
++      "description": "Este Tape contiene correcciones manuales. Se conservarán el texto corregido, las atribuciones modificadas a mano y los nombres personalizados. La diarización actualizará las demás atribuciones.",
++      "keep": "Cancelar",
+       "confirm": "Diarizar"
+     }
+   },
+@@ -383,7 +388,8 @@
+     "noTextDescription": "Transcríbelo para leer, buscar y volver a escuchar lo que se dijo.",
+     "ingressi": "Micrófono + audio del sistema",
+     "changeDate": "Haz clic para cambiar la fecha y la hora: Intro confirma, Esc cancela",
+-    "dateLabel": "Fecha y hora de la grabación"
++    "dateLabel": "Fecha y hora de la grabación",
++    "manuallyCorrected": "Corregido a mano"
+   },
+   "tabs": {
+     "label": "Vistas del Tape",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\fr.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\fr.json"
+index af61566..18a56e0 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\fr.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\fr.json"
+@@ -24,7 +24,8 @@
+       "title": "Retranscrire le Tape ?",
+       "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus.",
+       "keep": "Garder le texte",
+-      "confirm": "Remplacer"
++      "confirm": "Remplacer",
++      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles."
+     },
+     "parlanti": "Reconnaître les intervenants",
+     "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
+@@ -38,7 +39,11 @@
+     "edit": "Cliquez pour corriger : Entrée enregistre, Échap annule",
+     "export": "Exporter en Markdown…",
+     "exported": "Exporté dans {{path}}",
+-    "again": "Transcrire à nouveau"
++    "again": "Transcrire à nouveau",
++    "merge": "Fusionner",
++    "mergeAbove": "Fusionner avec l’intervention précédente",
++    "mergeBelow": "Fusionner avec l’intervention suivante",
++    "mergeCancel": "Annuler"
+   },
+   "diarization": {
+     "start": "Diariser",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diarisation annulée. Le Tape n’a pas été modifié.",
+     "replace": {
+       "title": "Identifier à nouveau les intervenants ?",
+-      "description": "Si l’analyse réussit, les noms personnalisés des intervenants recalculés seront supprimés. Le texte et les corrections restent inchangés.",
+-      "keep": "Conserver les intervenants",
++      "description": "Ce Tape contient des corrections manuelles. Le texte corrigé, les attributions modifiées manuellement et les noms personnalisés seront conservés. La diarisation mettra à jour les autres attributions.",
++      "keep": "Annuler",
+       "confirm": "Diariser"
+     }
+   },
+@@ -383,7 +388,8 @@
+     "noTextDescription": "Transcrivez-le pour lire, rechercher et réécouter ce qui a été dit.",
+     "ingressi": "Micro + audio système",
+     "changeDate": "Cliquez pour changer la date et l’heure : Entrée confirme, Échap annule",
+-    "dateLabel": "Date et heure de l'enregistrement"
++    "dateLabel": "Date et heure de l'enregistrement",
++    "manuallyCorrected": "Corrigé manuellement"
+   },
+   "tabs": {
+     "label": "Vues du Tape",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\it.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\it.json"
+index 067b073..e3d6088 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\it.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\it.json"
+@@ -24,7 +24,8 @@
+       "title": "Ritrascrivere il Tape?",
+       "description": "Il testo del Tape sarà sostituito dalla nuova Trascrizione: le correzioni e i nomi dei Parlanti andranno persi.",
+       "keep": "Mantieni il testo",
+-      "confirm": "Sostituisci"
++      "confirm": "Sostituisci",
++      "manualDescription": "Questo Tape contiene correzioni manuali. Una nuova Trascrizione sostituirà il testo, le attribuzioni e i nomi dei Parlanti, comprese le correzioni fatte a mano."
+     },
+     "parlanti": "Riconosci i parlanti",
+     "nemotron3Note": "Nemotron 3 sperimentale: supporta fino a 8 Parlanti per Ingresso, ma può confondere o unire le voci.",
+@@ -38,7 +39,11 @@
+     "edit": "Clic per correggere: Invio salva, Esc annulla",
+     "export": "Esporta Markdown…",
+     "exported": "Esportato in {{path}}",
+-    "again": "Trascrivi di nuovo"
++    "again": "Trascrivi di nuovo",
++    "merge": "Unisci",
++    "mergeAbove": "Unisci al turno sopra",
++    "mergeBelow": "Unisci al turno sotto",
++    "mergeCancel": "Annulla"
+   },
+   "diarization": {
+     "start": "Diarizza",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diarizzazione annullata. Il Tape non è stato modificato.",
+     "replace": {
+       "title": "Ricalcolare i Parlanti?",
+-      "description": "Se l'analisi riesce, i nomi personalizzati dei Parlanti ricalcolati saranno rimossi. Il testo e le correzioni restano invariati.",
+-      "keep": "Mantieni i Parlanti",
++      "description": "Questo Tape contiene correzioni manuali. Il testo corretto, le attribuzioni modificate a mano e i nomi personalizzati saranno conservati. La Diarizzazione aggiornerà le altre attribuzioni.",
++      "keep": "Annulla",
+       "confirm": "Diarizza"
+     }
+   },
+@@ -383,7 +388,8 @@
+     "noTextDescription": "Trascrivilo per leggere, cercare e riascoltare quello che si è detto.",
+     "ingressi": "Microfono + audio di sistema",
+     "changeDate": "Clic per cambiare data e ora: Invio conferma, Esc annulla",
+-    "dateLabel": "Data e ora della registrazione"
++    "dateLabel": "Data e ora della registrazione",
++    "manuallyCorrected": "Corretto a mano"
+   },
+   "tabs": {
+     "label": "Viste del Tape",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\pl.json" "b/D:\\local\\tauri\\sbobino\\src\\locales\\pl.json"
+index d6c82fa..f31dc1b 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src\\locales\\pl.json"
++++ "b/D:\\local\\tauri\\sbobino\\src\\locales\\pl.json"
+@@ -24,7 +24,8 @@
+       "title": "Transkrybować plik Tape ponownie?",
+       "description": "Tekst pliku Tape zostanie zastąpiony nową transkrypcją: poprawki i nazwy mówców zostaną utracone.",
+       "keep": "Zachowaj tekst",
+-      "confirm": "Zastąp"
++      "confirm": "Zastąp",
++      "manualDescription": "Ten Tape zawiera ręczne poprawki. Nowa transkrypcja zastąpi tekst, przypisania mówców i ich nazwy, w tym ręczne poprawki."
+     },
+     "parlanti": "Rozpoznaj mówców",
+     "nemotron3Note": "Eksperymentalny Nemotron 3: obsługuje do 8 mówców na wejście, ale może mylić lub łączyć głosy.",
+@@ -38,7 +39,11 @@
+     "edit": "Kliknij, aby poprawić: Enter zapisuje, Esc anuluje",
+     "export": "Eksportuj Markdown…",
+     "exported": "Wyeksportowano do {{path}}",
+-    "again": "Transkrybuj ponownie"
++    "again": "Transkrybuj ponownie",
++    "merge": "Połącz",
++    "mergeAbove": "Połącz z poprzednią wypowiedzią",
++    "mergeBelow": "Połącz z następną wypowiedzią",
++    "mergeCancel": "Anuluj"
+   },
+   "diarization": {
+     "start": "Diaryzuj",
+@@ -47,8 +52,8 @@
+     "cancelled": "Diaryzacja anulowana. Tape nie został zmieniony.",
+     "replace": {
+       "title": "Ponownie rozpoznać mówców?",
+-      "description": "Jeśli analiza się powiedzie, własne nazwy ponownie rozpoznanych mówców zostaną usunięte. Tekst i poprawki pozostaną bez zmian.",
+-      "keep": "Zachowaj mówców",
++      "description": "Ten Tape zawiera ręczne poprawki. Poprawiony tekst, ręcznie zmienione przypisania mówców i własne nazwy zostaną zachowane. Diaryzacja zaktualizuje pozostałe przypisania.",
++      "keep": "Anuluj",
+       "confirm": "Diaryzuj"
+     }
+   },
+@@ -384,7 +389,8 @@
+     "noTextDescription": "Transkrybuj go, aby czytać, wyszukiwać i ponownie odsłuchać, co zostało powiedziane.",
+     "ingressi": "Mikrofon + dźwięk systemowy",
+     "changeDate": "Kliknij, aby zmienić datę i godzinę: Enter zatwierdza, Esc anuluje",
+-    "dateLabel": "Data i godzina nagrania"
++    "dateLabel": "Data i godzina nagrania",
++    "manuallyCorrected": "Poprawiono ręcznie"
+   },
+   "tabs": {
+     "label": "Widoki pliku Tape",
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\commands\\mod.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\commands\\mod.rs"
+index 44f5618..849c18c 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\commands\\mod.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\commands\\mod.rs"
+@@ -331,6 +331,23 @@ pub async fn set_creato(
+     .await
+ }
+ 
++/// Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente.
++#[tauri::command]
++#[specta::specta]
++pub async fn unisci_turno(
++    app: AppHandle,
++    activity: State<'_, Activity>,
++    path: String,
++    ingresso: Ingresso,
++    phrase_ids: Vec<u32>,
++    destinazione: u32,
++) -> Result<(), AppError> {
++    write_tape(app, &activity, tape_path(&path)?, move |path| {
++        tape::unisci_turno(path, ingresso, &phrase_ids, destinazione)
++    })
++    .await
++}
++
+ /// Riscrive il Tape `path` con `write`, tenendo l'Attività solo per la scrittura, poi riallinea
+ /// l'indice: la modifica si trova subito con la ricerca.
+ async fn write_tape<T: Send + 'static>(
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\lib.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\lib.rs"
+index 8ad3a4f..a69c62b 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\lib.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\lib.rs"
+@@ -36,6 +36,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
+             commands::open_tape,
+             commands::rename_parlante,
+             commands::edit_frase,
++            commands::unisci_turno,
+             commands::set_creato,
+             commands::tape_text,
+             commands::tape_peaks,
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\library.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\library.rs"
+index e14241f..e6702ec 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\library.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\library.rs"
+@@ -1136,6 +1136,8 @@ pub(crate) mod tests {
+                 parlante_non_determinato: false,
+                 parlante_provvisorio: false,
+                 tempi: Vec::new(),
++                testo_corretto: false,
++                parlante_corretto: false,
+             })
+             .collect();
+         document.parlanti = parlanti
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\managers\\diarization.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\managers\\diarization.rs"
+index 6c97564..27514a9 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\managers\\diarization.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\managers\\diarization.rs"
+@@ -10,7 +10,7 @@ use crate::error::AppError;
+ use crate::managers::activity::Activity;
+ use crate::managers::models::Models;
+ use crate::managers::settings::{Settings, SettingsStore};
+-use crate::tape::{self, Document, Modalita};
++use crate::tape::{self, Document};
+ use crate::transcript::{
+     Diarizzazione, DiarizzazioneIngresso, EsitoDiarizzazione, Ingresso, Phrase,
+ };
+@@ -110,7 +110,11 @@ fn update_document(
+         })
+         .collect();
+     for (ingresso, found) in turns {
+-        diarize::assign_configured(&mut phrases, *ingresso, found, settings.diarizer);
++        if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
++            diarize::assign_ingresso_unambiguous(&mut phrases, *ingresso, found);
++        } else {
++            diarize::assign_ingresso(&mut phrases, *ingresso, found);
++        }
+         for phrase in phrases.iter_mut().filter(|p| p.ingresso == *ingresso) {
+             phrase.parlante_provvisorio = false;
+         }
+@@ -125,31 +129,52 @@ fn update_document(
+             phrase.parlante_provvisorio = false;
+         }
+     }
+-    // I numeri di una nuova analisi non sono identità stabili: nessun nome viene trasferito.
+-    // Il nome del Microfono trattato come persona sola, invece, resta valido.
+-    document.parlanti.retain(|key, _| {
+-        let recalculated = turns.iter().any(|(ingresso, _)| {
+-            key == ingresso.key() || key.starts_with(&format!("{}:", ingresso.key()))
+-        });
+-        let microphone_single =
+-            separate && !settings.parlanti_microfono && key.starts_with("microfono:");
+-        !(recalculated || microphone_single)
+-    });
+-    // Si sostituiscono soltanto Frasi e metadati dei Parlanti, senza alterare i metadati ASR.
+-    document.frasi = Document::new(
+-        document.creato.clone(),
+-        document.durata_ms,
+-        if separate {
+-            Modalita::IngressiSeparati
++    // Mantiene la provenienza di ogni parte: le identità vecchie non sono i numeri del modello.
++    let mut next_id = document.frasi.iter().map(|f| f.id).max().unwrap_or(0);
++    let mut projected = Vec::new();
++    for (index, (original, phrase)) in document.frasi.iter().zip(phrases).enumerate() {
++        if original.parlante_corretto {
++            let mut confirmed = original.clone();
++            confirmed.parlante_provvisorio = false;
++            projected.push((index, confirmed));
++            continue;
++        }
++        let found = turns
++            .iter()
++            .find(|(ingresso, _)| *ingresso == original.ingresso);
++        let parts = if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
++            found
++                .map(|(_, turns)| diarize::divide(phrase.clone(), turns, None))
++                .unwrap_or_else(|| vec![phrase])
+         } else {
+-            Modalita::Mix
+-        },
+-        document.modello.clone(),
+-        document.lingua_parlato.clone(),
+-        document.completa,
+-        &phrases,
+-    )
+-    .frasi;
++            vec![phrase]
++        };
++        for (part, phrase) in parts.into_iter().enumerate() {
++            let id = if part == 0 {
++                original.id
++            } else {
++                next_id += 1;
++                next_id
++            };
++            projected.push((
++                index,
++                tape::Frase {
++                    id,
++                    inizio_ms: phrase.inizio_ms,
++                    fine_ms: phrase.fine_ms,
++                    testo: phrase.text,
++                    parlante: phrase.parlante,
++                    parlante_non_determinato: phrase.parlante_non_determinato,
++                    parlante_provvisorio: false,
++                    tempi: phrase.tempi,
++                    ..original.clone()
++                },
++            ));
++        }
++    }
++    reconcile_identities(document, &mut projected, turns);
++    projected.sort_by_key(|(_, f)| f.inizio_ms);
++    document.frasi = projected.into_iter().map(|(_, f)| f).collect();
+     document.diarizzazione = Some(Diarizzazione {
+         modello: settings.diarizer,
+         esito: EsitoDiarizzazione::Completata,
+@@ -163,6 +188,91 @@ fn update_document(
+     });
+ }
+ 
++/// Corrispondenze temporali uno-a-uno conservano l'identità personalizzata. In caso di ambiguità
++/// il nome resta nel Tape, ma non viene dato a una voce nuova. I suoi numeri restano riservati.
++fn reconcile_identities(
++    document: &Document,
++    projected: &mut [(usize, tape::Frase)],
++    turns: &[(Ingresso, Vec<Turn>)],
++) {
++    use std::collections::{BTreeMap, BTreeSet};
++    for (ingresso, _) in turns {
++        let mut candidates: BTreeMap<u32, BTreeSet<Option<u32>>> = BTreeMap::new();
++        let mut inverse: BTreeMap<Option<u32>, BTreeSet<u32>> = BTreeMap::new();
++        let mut ambiguous = BTreeSet::new();
++        let mut reserved = BTreeSet::new();
++        for key in document.parlanti.keys() {
++            if let Some(number) = key
++                .strip_prefix(&format!("{}:", ingresso.key()))
++                .and_then(|s| s.parse::<u32>().ok())
++            {
++                reserved.insert(number);
++            }
++        }
++        for (index, current) in projected.iter().filter(|(_, f)| f.ingresso == *ingresso) {
++            let old = &document.frasi[*index];
++            if old.parlante_corretto {
++                if let Some(number) = old.parlante {
++                    reserved.insert(number);
++                }
++                continue;
++            }
++            if let Some(number) = current
++                .parlante
++                .filter(|_| !current.parlante_non_determinato)
++            {
++                // Una vecchia voce sconosciuta non è una prova dell'identità della nuova.
++                if old.parlante_non_determinato {
++                    ambiguous.insert(number);
++                    candidates.entry(number).or_default();
++                    continue;
++                }
++                candidates.entry(number).or_default().insert(old.parlante);
++                inverse.entry(old.parlante).or_default().insert(number);
++            }
++        }
++        let mut next = reserved
++            .iter()
++            .copied()
++            .chain(candidates.keys().copied())
++            .max()
++            .unwrap_or(0);
++        let mut mapping = BTreeMap::new();
++        for (&number, old) in &candidates {
++            let matched = old
++                .iter()
++                .next()
++                .copied()
++                .filter(|_| old.len() == 1)
++                .filter(|_| !ambiguous.contains(&number))
++                .filter(|identity| inverse.get(identity).is_some_and(|found| found.len() == 1))
++                .filter(|identity| {
++                    document
++                        .parlanti
++                        .contains_key(&ingresso.parlante_key(*identity))
++                        || identity.is_some_and(|id| reserved.contains(&id))
++                });
++            let identity = match matched {
++                Some(identity) => identity,
++                None if reserved.contains(&number) => {
++                    next += 1;
++                    Some(next)
++                }
++                None => Some(number),
++            };
++            mapping.insert(number, identity);
++        }
++        for (_, current) in projected
++            .iter_mut()
++            .filter(|(_, f)| f.ingresso == *ingresso && !f.parlante_corretto)
++        {
++            if let Some(identity) = current.parlante.and_then(|number| mapping.get(&number)) {
++                current.parlante = *identity;
++            }
++        }
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -174,6 +284,7 @@ mod tests {
+     use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
+     use crate::engine::asr::AsrResult;
+     use crate::managers::settings::{Diarizer, SpeechLanguage};
++    use crate::tape::Modalita;
+ 
+     fn fixture(name: &str, separate: bool) -> (PathBuf, Document) {
+         let folder = temp_dir(name);
+@@ -298,7 +409,7 @@ mod tests {
+         assert_eq!(after.frasi[2].testo, "Questa è la correzione manuale.");
+         assert!(after.frasi[2].tempi.is_empty());
+         assert!(after.frasi.iter().all(|f| !f.parlante_provvisorio));
+-        assert!(!after.parlanti.contains_key("mix:7"));
++        assert_eq!(after.parlanti.get("mix:7"), before.parlanti.get("mix:7"));
+         assert_eq!(audio, entry(&path, "mix.ogg"));
+         assert_eq!(onda, entry(&path, "forma-onda.json"));
+         // Normalizzando solo i campi che devono cambiare, il documento è identico.
+@@ -353,8 +464,7 @@ mod tests {
+             after.parlanti.get("microfono").map(String::as_str),
+             Some("Il mio nome")
+         );
+-        assert!(!after.parlanti.contains_key("microfono:7"));
+-        assert!(!after.parlanti.contains_key("sistema:7"));
++        assert_eq!(after.parlanti, before.parlanti);
+         assert!(tape::has_ingressi(&path).unwrap());
+         assert_eq!(
+             after.diarizzazione.unwrap().ingressi[0].ingresso,
+@@ -394,7 +504,7 @@ mod tests {
+                 Some(1)
+             );
+         }
+-        assert!(!after.parlanti.contains_key("microfono"));
++        assert_eq!(after.parlanti, before.parlanti);
+         for (name, bytes) in audio {
+             assert_eq!(entry(&path, name), bytes);
+         }
+@@ -490,6 +600,80 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn attribuzione_manuale_non_si_divide_ma_il_solo_testo_corretto_si_riattribuisce() {
++        let (path, mut document) = fixture("rediari-manuale", false);
++        document.frasi[0].parlante_corretto = true;
++        document.frasi[1].testo_corretto = true;
++        document.frasi[1].parlante = Some(8);
++        tape::rewrite(&path, &document).unwrap();
++        diarize_tape(
++            &path,
++            &Settings {
++                diarizer: Diarizer::Nemotron3,
++                ..Default::default()
++            },
++            &CancelToken::new(),
++            |_| Ok(found()),
++        )
++        .unwrap();
++        let after = tape::read(&path).unwrap();
++        assert_eq!(after.frasi.len(), 2);
++        assert_eq!(after.frasi[0].parlante, Some(7));
++        assert_eq!(after.frasi[0].tempi, document.frasi[0].tempi);
++        assert!(after.frasi[0].parlante_corretto);
++        assert_eq!(after.frasi[1].parlante, Some(2));
++        assert!(after.frasi[1].testo_corretto);
++        assert_eq!(after.frasi[1].testo, document.frasi[1].testo);
++        assert_eq!(after.frasi[1].id, document.frasi[1].id);
++        assert!(
++            crate::managers::transcription::open_tape(&path)
++                .unwrap()
++                .info
++                .corretto_a_mano
++        );
++    }
++
++    #[test]
++    fn nomi_seguono_la_voce_temporale_e_non_la_coincidenza_del_numero() {
++        let (_, mut document) = fixture("rediari-identita", false);
++        // L'analisi nuova chiama 1 la vecchia voce 2 e 2 la vecchia voce 1.
++        document.frasi[0].fine_ms = 900;
++        document.frasi[0].tempi.clear();
++        document.frasi[0].parlante = Some(2);
++        document.frasi[1].parlante = Some(1);
++        document.parlanti = BTreeMap::from([
++            ("mix:1".into(), "Mario".into()),
++            ("mix:2".into(), "Anna".into()),
++        ]);
++        update_document(
++            &mut document,
++            &Settings::default(),
++            false,
++            &[(Ingresso::Mix, found())],
++        );
++        assert_eq!(document.frasi[0].parlante, Some(2));
++        assert_eq!(document.frasi[1].parlante, Some(1));
++        assert_eq!(document.parlanti["mix:1"], "Mario");
++        assert_eq!(document.parlanti["mix:2"], "Anna");
++
++        // Se un vecchio Parlante si divide in due voci, il suo nome non va ad entrambe.
++        document.frasi[1].parlante = Some(2);
++        update_document(
++            &mut document,
++            &Settings::default(),
++            false,
++            &[(Ingresso::Mix, found())],
++        );
++        assert!(
++            document
++                .frasi
++                .iter()
++                .all(|f| ![Some(1), Some(2)].contains(&f.parlante))
++        );
++        assert_eq!(document.parlanti["mix:2"], "Anna");
++    }
++
+     #[test]
+     #[ignore = "richiede MEMOTAPE_NEMOTRON3_MODEL, eseguire senza altri test nativi in parallelo"]
+     fn ridiarizzazione_nativa_salva_e_riapre_il_tape_senza_asr() {
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\managers\\transcription.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\managers\\transcription.rs"
+index 3fac376..1a8664e 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\managers\\transcription.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\managers\\transcription.rs"
+@@ -357,6 +357,7 @@ pub struct TapeInfo {
+     pub modello: Option<String>,
+     pub lingua_parlato: SpeechLanguage,
+     pub ingressi_separati: bool,
++    pub corretto_a_mano: bool,
+     pub completa: bool,
+     /// Il nome del file audio o video da cui viene.
+     pub origine: Option<String>,
+@@ -597,7 +598,7 @@ pub async fn transcribe(
+                     origine: old.origine,
+                     ..document(old.creato, old.durata_ms, &transcript)
+                 };
+-                tape::rewrite(&source, &rewritten)?;
++                tape::rewrite_cancellable(&source, &rewritten, &cancel)?;
+                 (!transcript.phrases.is_empty()).then_some(source)
+             }
+             None => file_to_tape(&library, &destination, &source, &settings, |copy| {
+@@ -1066,6 +1067,7 @@ pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
+     Ok(OpenedTape {
+         phrases,
+         info: TapeInfo {
++            corretto_a_mano: document.corretto_a_mano(),
+             creato: document.creato.clone(),
+             durata_ms: document.durata_ms,
+             modello: document.modello.as_deref().map(model_name),
+@@ -1829,6 +1831,7 @@ mod tests {
+                 modello: Some(models::default_model().name.clone()),
+                 lingua_parlato: SpeechLanguage::from("it"),
+                 ingressi_separati: true,
++                corretto_a_mano: true,
+                 completa: false,
+                 origine: Some("Call.mp4".into()),
+                 diarizzazione: None,
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\tape.rs" "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\tape.rs"
+index 839649c..e0917dc 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\src-tauri\\src\\tape.rs"
++++ "b/D:\\local\\tauri\\sbobino\\src-tauri\\src\\tape.rs"
+@@ -78,6 +78,10 @@ pub struct Frase {
+     pub parlante_provvisorio: bool,
+     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+     pub tempi: Vec<crate::transcript::TempoTesto>,
++    #[serde(default, skip_serializing_if = "is_false")]
++    pub testo_corretto: bool,
++    #[serde(default, skip_serializing_if = "is_false")]
++    pub parlante_corretto: bool,
+ }
+ 
+ fn is_false(value: &bool) -> bool {
+@@ -90,6 +94,14 @@ pub fn creato(start: DateTime<Local>) -> String {
+ }
+ 
+ impl Document {
++    pub fn corretto_a_mano(&self) -> bool {
++        !self.parlanti.is_empty()
++            || self
++                .frasi
++                .iter()
++                .any(|f| f.testo_corretto || f.parlante_corretto)
++    }
++
+     /// La data e l'ora locali di `creato`, ai minuti: `2026-10-03 17:05`.
+     pub fn date(&self) -> String {
+         self.creato
+@@ -132,6 +144,8 @@ impl Document {
+                     parlante_non_determinato: phrase.parlante_non_determinato,
+                     parlante_provvisorio: phrase.parlante_provvisorio,
+                     tempi: phrase.tempi.clone(),
++                    testo_corretto: false,
++                    parlante_corretto: false,
+                 })
+                 .collect(),
+             origine: None,
+@@ -301,9 +315,89 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
+                     path.display()
+                 ))
+             })?;
+-        testo.clone_into(&mut frase.testo);
+-        // I tempi ASR si riferiscono al testo originale, non alla correzione dell'utente.
+-        frase.tempi.clear();
++        if frase.testo != testo {
++            testo.clone_into(&mut frase.testo);
++            // I tempi ASR si riferiscono al testo originale, non alla correzione dell'utente.
++            frase.tempi.clear();
++            frase.testo_corretto = true;
++        }
++        Ok(())
++    })
++}
++
++/// Attribuisce un Turno intero al Parlante del Turno immediatamente adiacente.
++/// I riferimenti, il testo e i tempi restano invariati; richieste obsolete non scrivono nulla.
++pub fn unisci_turno(
++    path: &Path,
++    ingresso: Ingresso,
++    ids: &[u32],
++    destinazione: u32,
++) -> Result<(), AppError> {
++    update(path, |document| {
++        let invalid =
++            || AppError::Internal("il Turno o la destinazione non sono più disponibili".into());
++        let mut ordered: Vec<_> = document.frasi.iter().enumerate().collect();
++        ordered.sort_by_key(|(_, f)| f.inizio_ms);
++        let same = |a: &Frase, b: &Frase| {
++            a.ingresso == b.ingresso
++                && (a.parlante_non_determinato || a.parlante == b.parlante)
++                && a.parlante_non_determinato == b.parlante_non_determinato
++                && a.parlante_provvisorio == b.parlante_provvisorio
++        };
++        let positions: Vec<_> = ordered
++            .iter()
++            .enumerate()
++            .filter(|(_, (_, f))| f.ingresso == ingresso && ids.contains(&f.id))
++            .map(|(position, _)| position)
++            .collect();
++        let (&start, &end) = positions
++            .first()
++            .zip(positions.last())
++            .ok_or_else(invalid)?;
++        let source = ordered[start].1;
++        if positions.len() != ids.len()
++            || end - start + 1 != ids.len()
++            || ordered[start..=end].iter().any(|(_, f)| !same(source, f))
++            || (start > 0 && same(source, ordered[start - 1].1))
++            || (end + 1 < ordered.len() && same(source, ordered[end + 1].1))
++        {
++            return Err(invalid());
++        }
++        let target = ordered
++            .iter()
++            .position(|(_, f)| f.ingresso == ingresso && f.id == destinazione)
++            .ok_or_else(invalid)?;
++        let boundary = if target < start {
++            start - 1
++        } else if target > end && end + 1 < ordered.len() {
++            end + 1
++        } else {
++            return Err(invalid());
++        };
++        let voice = ordered[target].1;
++        if voice.parlante_non_determinato
++            || voice.parlante_provvisorio
++            || (voice.parlante.is_none()
++                && ingresso == Ingresso::Mix
++                && !document.parlanti.contains_key("mix"))
++            || ordered[target.min(boundary)..=target.max(boundary)]
++                .iter()
++                .any(|(_, f)| !same(voice, f))
++        {
++            return Err(invalid());
++        }
++        let speaker = voice.parlante;
++        let selected: Vec<_> = ordered[start..=end]
++            .iter()
++            .map(|(index, _)| *index)
++            .collect();
++        for index in selected {
++            let frase = &mut document.frasi[index];
++            frase.parlante = speaker;
++            frase.parlante_non_determinato = false;
++            frase.parlante_provvisorio = false;
++            frase.parlante_corretto = true;
++        }
+         Ok(())
+     })
+ }
+@@ -576,6 +670,8 @@ mod tests {
+                     parlante_non_determinato: false,
+                     parlante_provvisorio: false,
+                     tempi: Vec::new(),
++                    testo_corretto: false,
++                    parlante_corretto: false,
+                 })
+                 .collect(),
+             origine: None,
+@@ -829,6 +925,100 @@ mod tests {
+         assert_eq!(read(&old).unwrap().origine, None);
+     }
+ 
++    #[test]
++    fn una_correzione_testuale_si_ricorda_alla_riapertura_del_tape() {
++        let dir = temp_dir("tape-testo-manuale");
++        let path = dir.join("Call.tape");
++        write(
++            &path,
++            &[(Ingresso::Mix, &ogg(&dir))],
++            &document(&["Errore."]),
++            None,
++        )
++        .unwrap();
++        edit_frase(&path, Ingresso::Mix, 0, "Corretto.").unwrap();
++        let json = serde_json::to_value(read(&path).unwrap()).unwrap();
++        assert_eq!(json["frasi"][0]["testo_corretto"], true);
++    }
++
++    #[test]
++    fn unione_corregge_solo_il_turno_scelto_e_conserva_i_riferimenti() {
++        for target in [0, 3] {
++            let dir = temp_dir(&format!("unisci-{target}"));
++            let path = dir.join("Call.tape");
++            let mut doc = document(&["Mario.", "Anna.", "Ancora Anna.", "Mario.", "Altra Anna."]);
++            for (f, speaker) in doc.frasi.iter_mut().zip([1, 2, 2, 1, 2]) {
++                f.parlante = Some(speaker);
++            }
++            write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
++            let audio = std::fs::read(&path).unwrap();
++            let mut library = crate::library::Library::open(&dir, &dir.join("indice.db")).unwrap();
++            library.sync().unwrap();
++            assert!(library.search("Mario Ancora", None).unwrap().is_empty());
++            for (ids, destination) in [(vec![1], target), (vec![1, 2], 4), (vec![1, 1], target)] {
++                assert!(unisci_turno(&path, Ingresso::Mix, &ids, destination).is_err());
++                assert_eq!(std::fs::read(&path).unwrap(), audio);
++            }
++            unisci_turno(&path, Ingresso::Mix, &[1, 2], target).unwrap();
++            let after = read(&path).unwrap();
++            let mut expected = doc.clone();
++            for f in &mut expected.frasi[1..=2] {
++                f.parlante = Some(1);
++                f.parlante_corretto = true;
++            }
++            assert_eq!(after, expected);
++            assert!(after.corretto_a_mano());
++            library.sync().unwrap();
++            let found = library.search("Mario Ancora", None).unwrap();
++            assert_eq!(found[0].frasi[0].phrase_id, 2);
++        }
++    }
++
++    #[test]
++    fn aprire_senza_modificare_non_segna_il_testo_e_una_copia_conserva_la_correzione() {
++        let dir = temp_dir("correzione-noop-copia");
++        let path = dir.join("Call.tape");
++        let mut doc = document(&["Originale."]);
++        doc.parlanti.clear();
++        write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
++        edit_frase(&path, Ingresso::Mix, 0, "Originale.").unwrap();
++        assert_eq!(read(&path).unwrap(), doc);
++        assert!(
++            !crate::managers::transcription::open_tape(&path)
++                .unwrap()
++                .info
++                .corretto_a_mano
++        );
++        edit_frase(&path, Ingresso::Mix, 0, "Corretto.").unwrap();
++        let copy = dir.join("Copia.tape");
++        std::fs::copy(&path, &copy).unwrap();
++        assert!(
++            crate::managers::transcription::open_tape(&copy)
++                .unwrap()
++                .info
++                .corretto_a_mano
++        );
++        assert_eq!(read(&copy).unwrap().frasi[0].testo, "Corretto.");
++    }
++
++    #[test]
++    fn unione_non_attraversa_ingressi_o_destinazioni_non_determinate() {
++        let dir = temp_dir("unisci-invalidi");
++        let path = dir.join("Call.tape");
++        let mut doc = document(&["Uno.", "Due.", "Tre."]);
++        doc.frasi[0].ingresso = Ingresso::Microfono;
++        doc.frasi[1].parlante = Some(2);
++        doc.frasi[2].parlante_non_determinato = true;
++        write(&path, &[(Ingresso::Mix, ogg(&dir).as_path())], &doc, None).unwrap();
++        let before = std::fs::read(&path).unwrap();
++        assert!(unisci_turno(&path, Ingresso::Mix, &[1], 0).is_err());
++        assert!(unisci_turno(&path, Ingresso::Mix, &[1], 2).is_err());
++        assert_eq!(std::fs::read(&path).unwrap(), before);
++        // La sorgente non determinata, invece, può essere corretta verso una voce nota.
++        unisci_turno(&path, Ingresso::Mix, &[2], 1).unwrap();
++        assert!(!read(&path).unwrap().frasi[2].parlante_non_determinato);
++    }
++
+     #[test]
+     fn la_correzione_cambia_solo_il_testo_di_quella_frase() {
+         let dir = temp_dir("tape-correzione");
+@@ -842,10 +1032,12 @@ mod tests {
+         edit_frase(&path, Ingresso::Mix, 1, "Iniziamo.").unwrap();
+         let mut expected = before.clone();
+         expected.frasi[1].testo = "Iniziamo.".into();
++        expected.frasi[1].testo_corretto = true;
+         assert_eq!(read(&path).unwrap(), expected);
+         // Lo stesso id in un altro Ingresso è un'altra Frase; una Frase svuotata resta.
+         edit_frase(&path, Ingresso::Sistema, 1, "").unwrap();
+         expected.frasi[2].testo = String::new();
++        expected.frasi[2].testo_corretto = true;
+         assert_eq!(read(&path).unwrap(), expected);
+         let mut audio = Vec::new();
+         Mix::open(&path).unwrap().read_to_end(&mut audio).unwrap();
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\biome.jsonc" "b/D:\\local\\tauri\\sbobino\\biome.jsonc"
+index 55361bb..97885f2 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\biome.jsonc"
++++ "b/D:\\local\\tauri\\sbobino\\biome.jsonc"
+@@ -5,6 +5,12 @@
+     // Solo negazioni: il core di ultracite 7.12 apre già con "**", e ripeterlo è un errore
+     // (noBiomeFirstException). Senza un "**" da qualche parte Biome non controlla nulla.
+     // I componenti shadcn e i bindings generati non si toccano a mano.
+-    "includes": ["!**/components/ui", "!**/bindings.ts"]
++    // Prove temporanee e output Rust non fanno parte dei sorgenti dell'app.
++    "includes": [
++      "!**/components/ui",
++      "!**/bindings.ts",
++      "!.scratch",
++      "!**/target"
++    ]
+   }
+ }
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\DESIGN.md" "b/D:\\local\\tauri\\sbobino\\DESIGN.md"
+index 2f610da..6621d8b 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\DESIGN.md"
++++ "b/D:\\local\\tauri\\sbobino\\DESIGN.md"
+@@ -206,8 +206,8 @@ Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tien
+ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–128) e una piccola famiglia di pastelli per le voci; i valori OKLCH di `src/app/global.css` sono la fonte normativa, con i gemelli scuri sotto `@media (prefers-color-scheme: dark)`.
+ 
+ ### Primary
+-- **Salvia d'ascolto** (`play`): l'unico accento. Interruttore Segui l'audio acceso, parte già ascoltata della forma d'onda, riempimento delle barre di avanzamento, barre animate del turno in ascolto, spunte di conferma (Copia testo, avviso riuscito), freccia di "Torna al punto in ascolto", cursore del testo (`caret-color`) e cursore del volume (`accent-color`). Nel tema scuro si schiarisce per restare leggibile sull'inchiostro.
+-- **Salvia tenue** (`play-soft`): il fondo del turno in ascolto (al 55%), la traccia delle barre di avanzamento, la selezione del testo e l'evidenziazione dei risultati di ricerca. La Frase in ascolto prende invece `play` al 18%.
++- **Salvia d'ascolto** (`play`): l'unico accento. Interruttore Segui l'audio acceso, parte già ascoltata della forma d'onda, riempimento delle barre di avanzamento, barre animate del turno in ascolto, spunte di conferma (Copia testo, avviso riuscito), freccia di "Torna al punto in ascolto", selezione del testo (con testo `play-foreground`), cursore del testo nei campi e cursore del volume (`accent-color`). Nel tema scuro si schiarisce per restare leggibile sull'inchiostro. Nelle Frasi in correzione il cursore usa `foreground`, per distinguersi dal fondo e dalla selezione in entrambi i temi.
++- **Salvia tenue** (`play-soft`): il fondo del turno in ascolto (al 55%), la traccia delle barre di avanzamento e l'evidenziazione dei risultati di ricerca. La Frase in ascolto prende invece `play` al 18%.
+ - **Anello salvia** (`ring-sage`): l'anello di focus da 3 px, quasi sempre al 40% (al 25–30% sui campi).
+ 
+ ### Secondary
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\docs\\adr\\0017-correzioni-manuali-della-trascrizione.md" "b/D:\\local\\tauri\\sbobino\\docs\\adr\\0017-correzioni-manuali-della-trascrizione.md"
+index 898e9b9..43766d7 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\docs\\adr\\0017-correzioni-manuali-della-trascrizione.md"
++++ "b/D:\\local\\tauri\\sbobino\\docs\\adr\\0017-correzioni-manuali-della-trascrizione.md"
+@@ -10,6 +10,14 @@ L'Unione di Turni conserva le Frasi, il loro testo e gli intervalli audio: riass
+ 
+ Conservare un nome non significa associare il vecchio numero di Parlante al nuovo numero uguale. Le identità della nuova analisi possono cambiare: i nomi manuali e le attribuzioni protette devono conservare il loro significato, senza nominare automaticamente una voce diversa. I metadati distinguono testo corretto, attribuzione corretta e nome personalizzato; un solo indicatore generico non basta a sapere cosa proteggere.
+ 
++## Implementazione
++
++Le Frasi del Tape v1 hanno i campi facoltativi `testo_corretto` e `parlante_corretto`, falsi nei Tape precedenti. I nomi personalizzati restano nella mappa `parlanti`. `TapeInfo.correttoAMano` deriva da questi dati; titolo e data non lo modificano.
++
++La nuova Diarizzazione conserva le Frasi attribuite a mano e i loro riferimenti. Per le altre, una corrispondenza temporale uno-a-uno tra voce vecchia e nuova conserva l'identità personalizzata. Quando la corrispondenza è ambigua, il nome rimane nel Tape con il numero riservato, ma non viene assegnato a una voce nuova: questa mostra l'etichetta generica. Non si deduce un'identità dalla sola coincidenza dei numeri. Le eventuali nuove parti hanno nuovi id senza rinumerare le Frasi esistenti.
++
++La sostituzione per Trascrivi di nuovo usa la riscrittura annullabile del Tape: Annulla durante la copia impedisce la sostituzione, conservando anche le correzioni manuali.
++
+ ## Alternative considerate
+ 
+ - Avvisare e poi sovrascrivere le attribuzioni manuali: approccio più semplice, ma obbliga l'utente a ripetere le correzioni dopo ogni analisi.
+diff --git "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\.scratch\\trascrizione-qol\\spec.md" "b/D:\\local\\tauri\\sbobino\\.scratch\\trascrizione-qol\\spec.md"
+index 818a25c..af2abd8 100644
+--- "a/C:\\Users\\inerba\\.codex\\visualizations\\2026\\10\\06\\01a11078-9a68-7d91-b4aa-1d056bb836f9\\qol-baseline\\.scratch\\trascrizione-qol\\spec.md"
++++ "b/D:\\local\\tauri\\sbobino\\.scratch\\trascrizione-qol\\spec.md"
+@@ -1,6 +1,6 @@
+ # Trascrizione: correzioni manuali e qualità d'uso
+ 
+-Stato: requisiti approvati il 6 ottobre 2026 tramite grill-with-docs; implementazione non avviata. PRODUCT.md è la fonte di verità, CONTEXT.md definisce i termini e ADR-0017 registra la scelta di conservare le correzioni durante una nuova Diarizzazione.
++Stato: implementata il 6 ottobre 2026; sei controlli automatici verdi e verifica interattiva dei componenti nel browser, nei due temi. Resta da verificare la finestra Windows nativa con un Tape reale. PRODUCT.md è la fonte di verità, CONTEXT.md definisce i termini e ADR-0017 registra la scelta di conservare le correzioni durante una nuova Diarizzazione. Esiti e limiti in `verifica.md`.
+ 
+ ## Richieste confermate
+ 

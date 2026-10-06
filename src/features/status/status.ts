@@ -20,6 +20,9 @@ export type Status =
     }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
+  | { phase: "diarizing" }
+  | { phase: "diarized"; path: string }
+  | { phase: "diarizationCancelled" }
   | {
       phase: "finished";
       path: string;
@@ -61,6 +64,12 @@ export function statusText(status: Status, t: TFunction): string {
         return `${t("status.finished", { path: status.path })} · ${t("transcript.diarizationIncomplete")}`;
       }
       return t("status.finished", { path: status.path });
+    case "diarizing":
+      return t("status.diarizing");
+    case "diarized":
+      return t("diarization.saved", { path: status.path });
+    case "diarizationCancelled":
+      return t("diarization.cancelled");
     case "noSpeech":
       return t("status.noSpeech");
     case "cancelled":
@@ -217,6 +226,19 @@ export function afterTranscription(result: TranscribeResult): Status {
     : { phase: "noSpeech" };
 }
 
+/** Nessun esito di Trascrizione: testo e risultato precedente restano con Annulla o errore. */
+export function afterDiarization(
+  result: Awaited<ReturnType<typeof commands.diarize>>,
+  path: string
+): Status {
+  if (result.status === "ok") {
+    return { path, phase: "diarized" };
+  }
+  return result.error.code === "cancelled"
+    ? { phase: "diarizationCancelled" }
+    : { error: result.error, phase: "failed" };
+}
+
 /** La status bar per una Trascrizione fallita: Annulla non è un errore. */
 export function failedStatus(error: AppError): Status {
   return error.code === "cancelled"
@@ -260,6 +282,8 @@ export function bannerOf(status: Status, t: TFunction): Banner | null {
     case "recorded":
     case "noSpeech":
     case "cancelled":
+    case "diarized":
+    case "diarizationCancelled":
       return { settings: false, text: statusText(status, t), tone: "info" };
     default:
       return null;

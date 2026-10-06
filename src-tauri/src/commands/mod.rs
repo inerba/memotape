@@ -188,7 +188,21 @@ pub async fn transcribe(
     outcome
 }
 
-/// Annulla la Trascrizione in corso. Restituisce `false` se non è (ancora) partita.
+/// Ricalcola i Parlanti di un Tape senza riconoscere di nuovo il testo. Annulla usa
+/// `cancel_transcription`; il Tape cambia soltanto a successo.
+#[tauri::command]
+#[specta::specta]
+pub async fn diarize(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    source: String,
+) -> Result<(), AppError> {
+    let outcome = managers::diarization::diarize(app.clone(), &activity, tape_path(&source)?).await;
+    managers::library::sync(&app);
+    outcome
+}
+
+/// Annulla la Trascrizione o la Diarizzazione in corso. Restituisce `false` se non è (ancora) partita.
 #[tauri::command]
 #[specta::specta]
 pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
@@ -313,6 +327,23 @@ pub async fn set_creato(
 ) -> Result<String, AppError> {
     write_tape(app, &activity, tape_path(&path)?, move |path| {
         tape::set_creato(path, &local)
+    })
+    .await
+}
+
+/// Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente.
+#[tauri::command]
+#[specta::specta]
+pub async fn unisci_turno(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    ingresso: Ingresso,
+    phrase_ids: Vec<u32>,
+    destinazione: u32,
+) -> Result<(), AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::unisci_turno(path, ingresso, &phrase_ids, destinazione)
     })
     .await
 }

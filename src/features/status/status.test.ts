@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
 import {
+  afterDiarization,
   afterTranscription,
   bannerOf,
   needsSettings,
@@ -15,6 +16,31 @@ import {
 } from "@/features/status/status";
 
 const t = i18n.t.bind(i18n);
+
+test("la Diarizzazione autonoma ha esiti propri e conserva il collegamento alle Impostazioni", () => {
+  expect(statusText({ phase: "diarizing" }, t)).toBe(
+    "Riconoscimento dei parlanti…"
+  );
+  expect(bannerOf({ phase: "diarizing" }, t)).toBeNull();
+  expect(afterDiarization({ data: null, status: "ok" }, "Call.tape")).toEqual({
+    path: "Call.tape",
+    phase: "diarized",
+  });
+  const cancelled = afterDiarization(
+    { error: { code: "cancelled" }, status: "error" },
+    "Call.tape"
+  );
+  expect(statusText(cancelled, t)).toBe(
+    "Diarizzazione annullata. Il Tape non è stato modificato."
+  );
+  expect(bannerOf(cancelled, t)?.tone).toBe("info");
+  const missing = afterDiarization(
+    { error: { code: "localDiarizerMissing" }, status: "error" },
+    "Call.tape"
+  );
+  expect(bannerOf(missing, t)?.settings).toBe(true);
+  expect(bannerOf(missing, t)?.tone).toBe("error");
+});
 
 test("il guasto dei Parlanti resta visibile dopo Stop e non maschera un guasto ASR", () => {
   const lag = { code: "liveDiarizationLagging" } as const;
