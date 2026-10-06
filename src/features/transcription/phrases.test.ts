@@ -10,7 +10,9 @@ import {
   turnsOf,
   turnText,
   VOICE_COLORS,
+  visiblePhrases,
   voiceColors,
+  withLiveTranscript,
   withNome,
   withoutPartials,
   withParlanti,
@@ -19,12 +21,175 @@ import {
   withTesto,
 } from "@/features/transcription/phrases";
 
+test("le rettifiche dal vivo scartano revisioni vecchie e non ripristinano Parziali conclusi", () => {
+  const partial = {
+    ...phrase(0, 0, "Buongiorno"),
+    parlante: 1,
+    parlanteProvvisorio: true,
+  };
+  const first = withLiveTranscript(
+    { ...EMPTY_CONVERSATION, sessionId: "first" },
+    {
+      finished: false,
+      ingresso: "mix",
+      partials: [partial],
+      phrases: [],
+      revision: 1,
+      sessionId: "first",
+    }
+  );
+  expect(turnsOf(first, t)[0]?.parlante).toBe(1);
+  const finished = withLiveTranscript(first, {
+    finished: false,
+    ingresso: "mix",
+    partials: [],
+    phrases: [{ ...partial, parlante: 2, text: "Buongiorno!" }],
+    revision: 3,
+    sessionId: "first",
+  });
+  expect(finished.partials).toEqual([]);
+  expect(finished.phrases.map((p) => p.text)).toEqual(["Buongiorno!"]);
+  expect(
+    withLiveTranscript(finished, {
+      finished: false,
+      ingresso: "mix",
+      partials: [partial],
+      phrases: [],
+      revision: 2,
+      sessionId: "first",
+    })
+  ).toBe(finished);
+  const final = withParlanti(
+    finished,
+    [{ ingresso: "mix", parlante: 1, parlanteProvvisorio: false, phraseId: 0 }],
+    "first"
+  );
+  expect(final.phrases).toEqual(finished.phrases);
+  const terminal = withLiveTranscript(final, {
+    finished: true,
+    ingresso: "mix",
+    partials: [],
+    phrases: [
+      {
+        ...partial,
+        parlanteProvvisorio: false,
+        text: "Testo finale completo.",
+      },
+    ],
+    revision: 4_294_967_295,
+    sessionId: "first",
+  });
+  expect(terminal.phrases.map((p) => p.text)).toEqual([
+    "Testo finale completo.",
+  ]);
+  expect(
+    withLiveTranscript(terminal, {
+      finished: false,
+      ingresso: "mix",
+      partials: [partial],
+      phrases: [],
+      revision: 5,
+      sessionId: "first",
+    })
+  ).toBe(terminal);
+});
+
+test("la nuova Registrazione rifiuta ogni testo tardivo della precedente", () => {
+  const current = { ...EMPTY_CONVERSATION, sessionId: "second" };
+  const old = { ...phrase(0, 0, "Vecchia registrazione"), sessionId: "first" };
+  for (const finished of [false, true]) {
+    expect(
+      withLiveTranscript(current, {
+        finished,
+        ingresso: "mix",
+        partials: [old],
+        phrases: [old],
+        revision: 50,
+        sessionId: "first",
+      })
+    ).toBe(current);
+  }
+  expect(withPhrase(current, old)).toBe(current);
+  expect(withPartial(current, old)).toBe(current);
+  expect(withParlanti(current, [], "first")).toBe(current);
+});
+
+test("il fallback Ogg accetta lo snapshot finale dopo la risposta a Stop", () => {
+  const current = { ...EMPTY_CONVERSATION, sessionId: "current" };
+  const snapshot = {
+    finished: false,
+    ingresso: "mix" as const,
+    partials: [],
+    phrases: [phrase(0, 0, "Testo finale completo")],
+    revision: 1,
+    sessionId: "current",
+  };
+  expect(withLiveTranscript(current, snapshot, false)).toBe(current);
+  const final = withLiveTranscript(
+    current,
+    { ...snapshot, finished: true },
+    false
+  );
+  expect(final.phrases[0]?.text).toBe("Testo finale completo");
+  expect(final.partials).toEqual([]);
+  // Una Sorgente già riaperta non viene sostituita dall'evento tardivo.
+  expect(
+    withLiveTranscript(
+      EMPTY_CONVERSATION,
+      { ...snapshot, finished: true },
+      false
+    )
+  ).toBe(EMPTY_CONVERSATION);
+});
+
 const t = ((key: string, options?: { n?: number }) =>
   ({
     "settings.recording.inputs.mic": "Microfono",
     "settings.recording.inputs.system": "Audio di sistema",
     "transcript.parlante": `Parlante ${options?.n}`,
+    "transcript.unknownSpeaker": "Parlante non determinato",
   })[key] ?? key) as TFunction;
+
+test("le attribuzioni provvisorie restano riconoscibili nella vista e in Copia turno", () => {
+  const provisionalT = ((key: string, options?: { name?: string }) =>
+    key === "transcript.provisionalSpeaker"
+      ? `${options?.name} (provvisorio)`
+      : t(key)) as TFunction;
+  const conversation = withPhrase(EMPTY_CONVERSATION, {
+    fineMs: 1000,
+    ingresso: "mix",
+    inizioMs: 0,
+    parlante: 1,
+    parlanteProvvisorio: true,
+    phraseId: 0,
+    text: "Testo conservato.",
+  });
+  const named = withNome(conversation, "mix", 1, "Mario");
+  expect(turnsOf(named, provisionalT).map(turnText)).toEqual([
+    "Mario (provvisorio): Testo conservato.",
+  ]);
+  expect(parlantiOf(named, provisionalT)[0]?.label).toBe("Mario (provvisorio)");
+  expect(parlantiOf(named, provisionalT)[0]?.provvisorio).toBe(true);
+});
+
+test("il Parlante non determinato si legge e si copia senza diventare il nome del Microfono", () => {
+  const conversation = withPhrase(EMPTY_CONVERSATION, {
+    fineMs: 2000,
+    ingresso: "microfono",
+    inizioMs: 0,
+    parlante: null,
+    parlanteNonDeterminato: true,
+    phraseId: 0,
+    text: "Due voci nella stessa frase.",
+  });
+  const named = withNome(conversation, "microfono", null, "Mario");
+  const turns = turnsOf(named, t);
+  expect(turns[0]?.label).toBe("Microfono · Parlante non determinato");
+  expect(turns.map(turnText)).toEqual([
+    "Microfono · Parlante non determinato: Due voci nella stessa frase.",
+  ]);
+  expect(parlantiOf(named, t)).toEqual([]);
+});
 
 const phrase = (
   phraseId: number,
@@ -57,6 +222,50 @@ test("le Frasi del mix finiscono una per riga, senza etichette", () => {
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   expect(render(c)).toBe("Buongiorno a tutti.\nOggi parliamo di trascrizione.");
   expect(turnsOf(EMPTY_CONVERSATION, t)).toEqual([]);
+});
+
+test("le divisioni finali sostituiscono le Frasi per Ingresso senza duplicare il testo", () => {
+  let conversation = [
+    phrase(0, 0, "Uno. Due.", "microfono"),
+    phrase(1, 3000, "Tre.", "microfono"),
+    phrase(0, 500, "Sistema.", "sistema"),
+  ].reduce(withPhrase, EMPTY_CONVERSATION);
+  conversation = withPartial(
+    conversation,
+    phrase(2, 4500, "Parziale", "microfono")
+  );
+  const finalPhrases = [
+    { ...phrase(0, 100, "Uno. ", "microfono"), parlante: 1 },
+    { ...phrase(0, 500, "Sistema.", "sistema"), parlante: 1 },
+    { ...phrase(1, 1500, "Due.", "microfono"), parlante: 2 },
+    { ...phrase(2, 3000, "Tre.", "microfono"), parlante: 2 },
+  ];
+  // Le Frasi finali possono arrivare prima o dopo il risultato del comando record.
+  for (const clearBefore of [false, true]) {
+    let final = finalPhrases.reduce(
+      withPhrase,
+      clearBefore ? withoutPartials(conversation) : conversation
+    );
+    if (!clearBefore) {
+      final = withoutPartials(final);
+    }
+    expect(final.phrases).toEqual(finalPhrases);
+    expect(final.partials).toEqual([]);
+    expect(
+      final.phrases
+        .filter((p) => p.ingresso === "microfono")
+        .map((p) => p.text)
+        .join("")
+    ).toBe("Uno. Due.Tre.");
+    expect(turnsOf(final, t).map(turnText)).toEqual([
+      "Microfono · Parlante 1: Uno. ",
+      "Audio di sistema · Parlante 1: Sistema.",
+      "Microfono · Parlante 2: Due. Tre.",
+    ]);
+    expect(finalPhrases.reduce(withPhrase, final).phrases).toEqual(
+      finalPhrases
+    );
+  }
 });
 
 test("il Parziale occupa la riga in corso e la Frase con lo stesso id lo fissa", () => {
@@ -397,4 +606,160 @@ test("Copia turno dà il nome della voce e le Frasi del turno, con il Parziale c
   expect(turnsOf(mix, t).map(turnText)).toEqual([
     "Buongiorno. Oggi parliamo. Di cas",
   ]);
+});
+
+test("divisioni e riunioni sostituiscono l'Ingresso con più Parziali senza fantasmi", () => {
+  const speakerT = ((key: string, o?: { name?: string; n?: number }) =>
+    key === "transcript.provisionalSpeaker"
+      ? `${o?.name} (provvisorio)`
+      : t(key, o)) as TFunction;
+  const original = {
+    ...phrase(0, 0, "Perché sì! D'accordo?"),
+    parlante: 1,
+    parlanteProvvisorio: true,
+    sessionId: "live",
+  };
+  const snapshot = {
+    finished: false,
+    ingresso: "mix" as const,
+    partials: [original],
+    phrases: [],
+    revision: 1,
+    sessionId: "live",
+  };
+  let view = withLiveTranscript(
+    { ...EMPTY_CONVERSATION, sessionId: "live" },
+    snapshot
+  );
+  const divided = [
+    { ...original, fineMs: 2100, text: "Perché sì! " },
+    {
+      ...original,
+      fineMs: 3300,
+      inizioMs: 2300,
+      parlante: 2,
+      phraseId: 1,
+      text: "D'accordo?",
+    },
+  ];
+  view = withLiveTranscript(view, {
+    ...snapshot,
+    partials: divided,
+    revision: 2,
+  });
+  expect(turnsOf(view, speakerT).map(turnText)).toEqual([
+    "Parlante 1 (provvisorio): Perché sì! ",
+    "Parlante 2 (provvisorio): D'accordo?",
+  ]);
+  expect(
+    visiblePhrases(view)
+      .map((p) => p.text)
+      .join("")
+  ).toBe(original.text);
+  expect(voiceColors(turnsOf(view, speakerT)).size).toBe(2);
+  view = withLiveTranscript(view, { ...snapshot, revision: 3 });
+  expect(view.partials).toEqual([original]);
+  expect(voiceColors(turnsOf(view, speakerT)).size).toBe(1);
+  view = withLiveTranscript(view, {
+    ...snapshot,
+    partials: [],
+    phrases: divided,
+    revision: 4,
+  });
+  expect(view.partials).toEqual([]);
+  expect(
+    visiblePhrases(view)
+      .map((p) => p.text)
+      .join("")
+  ).toBe(original.text);
+  expect(
+    withLiveTranscript(view, { ...snapshot, partials: divided, revision: 2 })
+  ).toBe(view);
+  expect(withPhrase(view, { ...original, text: "Frase vecchia" })).toBe(view);
+  expect(withPartial(view, original)).toBe(view);
+});
+
+test("revisioni e finalizzazione sono indipendenti per Ingresso; terminali duplicati non regrediscono", () => {
+  const snapshot = {
+    finished: false,
+    ingresso: "microfono" as const,
+    partials: [],
+    phrases: [phrase(0, 0, "Microfono", "microfono")],
+    revision: 1,
+    sessionId: "live",
+  };
+  let view = withLiveTranscript(
+    { ...EMPTY_CONVERSATION, sessionId: "live" },
+    snapshot
+  );
+  view = withLiveTranscript(view, {
+    ...snapshot,
+    finished: true,
+    revision: 4_294_967_295,
+  });
+  const terminal = view;
+  expect(
+    withLiveTranscript(view, {
+      ...snapshot,
+      finished: true,
+      phrases: [],
+      revision: 4_294_967_295,
+    })
+  ).toBe(terminal);
+  view = withLiveTranscript(view, {
+    ...snapshot,
+    ingresso: "sistema",
+    partials: [phrase(0, 500, "Sistema", "sistema")],
+    phrases: [],
+    revision: 1,
+  });
+  expect(view.partials[0]?.ingresso).toBe("sistema");
+  expect(view.phrases).toEqual(terminal.phrases);
+});
+
+test("due Parziali con lo stesso numero di Parlante restano distinti nella copia e nelle rettifiche", () => {
+  const speakerT = ((key: string, options?: { name?: string }) =>
+    key === "transcript.provisionalSpeaker"
+      ? `${options?.name} (provvisorio)`
+      : t(key, options)) as TFunction;
+  const make = (ingresso: "microfono" | "sistema", text: string) => ({
+    ...phrase(0, 0, text, ingresso),
+    parlante: 1,
+    parlanteProvvisorio: true,
+    sessionId: "entrambi",
+  });
+  let view: Conversation = { ...EMPTY_CONVERSATION, sessionId: "entrambi" };
+  for (const ingresso of ["microfono", "sistema"] as const) {
+    view = withLiveTranscript(view, {
+      finished: false,
+      ingresso,
+      partials: [make(ingresso, ingresso)],
+      phrases: [],
+      revision: 1,
+      sessionId: "entrambi",
+    });
+  }
+  expect(visiblePhrases(view).map((p) => p.ingresso)).toEqual([
+    "microfono",
+    "sistema",
+  ]);
+  expect(turnsOf(view, speakerT).map(turnText)).toEqual([
+    "Microfono · Parlante 1 (provvisorio): microfono",
+    "Audio di sistema · Parlante 1 (provvisorio): sistema",
+  ]);
+  expect(voiceColors(turnsOf(view, speakerT)).size).toBe(2);
+  view = withLiveTranscript(view, {
+    finished: false,
+    ingresso: "sistema",
+    partials: [make("sistema", "rettificato")],
+    phrases: [],
+    revision: 2,
+    sessionId: "entrambi",
+  });
+  expect(view.partials.find((p) => p.ingresso === "microfono")?.text).toBe(
+    "microfono"
+  );
+  expect(view.partials.find((p) => p.ingresso === "sistema")?.text).toBe(
+    "rettificato"
+  );
 });

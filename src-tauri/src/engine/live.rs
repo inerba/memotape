@@ -48,6 +48,7 @@ pub fn channels(
                 resampler: FrameResampler::new(rate)?,
                 mono: Vec::new(),
                 paused: false,
+                diarization: None,
             };
             let frames = LiveFrames {
                 rx,
@@ -60,6 +61,7 @@ pub fn channels(
 
 /// Il lato della Registrazione: scende in mono, ricampiona a 16 kHz e manda i frame.
 pub struct LiveFeed {
+    diarization: Option<super::live_diarization::DiarizationFeed>,
     tx: Sender<Feed>,
     shared: Arc<Shared>,
     channels: usize,
@@ -69,6 +71,9 @@ pub struct LiveFeed {
 }
 
 impl LiveFeed {
+    pub fn set_diarization(&mut self, feed: super::live_diarization::DiarizationFeed) {
+        self.diarization = Some(feed);
+    }
     /// `samples`: l'uscita del mixer, interleaved. All'inizio di una pausa è l'audio che il mixer
     /// ha svuotato fino a lì, e dopo di esso la Frase in corso si chiude; poi, in pausa, è vuota.
     pub fn push(&mut self, samples: &[f32], paused: bool) {
@@ -96,6 +101,9 @@ impl LiveFeed {
 
     fn send_frames(&mut self, frames: Vec<Vec<f32>>) {
         for frame in frames {
+            if let Some(diarization) = &mut self.diarization {
+                diarization.push(&frame);
+            }
             // Contato prima di mandarlo: la pipeline non ne consuma mai più di quelli mandati.
             self.shared.sent.fetch_add(1, Ordering::Relaxed);
             self.send(Feed::Frame(frame));
@@ -119,6 +127,17 @@ pub struct LiveFrames {
 }
 
 impl LiveFrames {
+    /// Ritardo della coda ASR, distinto dal buffer e dal calcolo dei Parlanti.
+    pub fn backlog(&self) -> impl Fn() -> usize + Send + 'static {
+        let shared = Arc::clone(&self.shared);
+        move || {
+            shared
+                .sent
+                .load(Ordering::Relaxed)
+                .saturating_sub(shared.consumed.load(Ordering::Relaxed))
+                * crate::audio_toolkit::segmenter::FRAME_MS as usize
+        }
+    }
     /// La percentuale di frame consumati da tutte le pipeline, se la Registrazione è finita e supera
     /// quelle già emesse.
     fn progress_changed(&self) -> Option<u8> {
@@ -230,6 +249,67 @@ mod tests {
     ];
 
     #[test]
+    fn la_diarizzazione_riceve_anche_i_silenzi_e_la_saturazione_non_ferma_l_asr() {
+        let (mut feed, mut frames) = channel(16_000, 1).unwrap();
+        let (diarizer, mut received) = super::super::live_diarization::channel();
+        feed.set_diarization(diarizer);
+        feed.push(&audio(16_000, 1, &[(false, 10), (true, 20)]), false);
+        feed.push(&[], true);
+        feed.push(&[], false);
+        let cancel = CancelToken::new();
+        let first = received.next_frame(&cancel).unwrap().unwrap();
+        assert_eq!(first.samples, vec![0.0; FRAME_SAMPLES]);
+        feed.push(&audio(16_000, 1, &[(true, 150)]), false);
+        assert_eq!(
+            received.next_frame(&cancel).unwrap_err(),
+            AppError::LiveDiarizationLagging
+        );
+        feed.finish();
+        let inputs: Vec<_> = frames.by_ref().map(Result::unwrap).collect();
+        assert_eq!(
+            inputs
+                .iter()
+                .filter(|f| matches!(f, Feed::Frame(_)))
+                .count(),
+            180
+        );
+        assert_eq!(
+            inputs
+                .iter()
+                .filter(|f| matches!(f, Feed::ClosePhrase))
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn asr_e_diarizer_ricevono_gli_stessi_frame_prima_e_dopo_pausa_senza_aggiungere_audio() {
+        let (mut feed, frames) = channel(16_000, 1).unwrap();
+        let (tx, mut diarizer) = super::super::live_diarization::channel();
+        feed.set_diarization(tx);
+        feed.push(&audio(16_000, 1, &[(false, 10), (true, 20)]), false);
+        feed.push(&[], true);
+        feed.push(&[], true);
+        feed.push(&audio(16_000, 1, &[(true, 20), (false, 10)]), false);
+        feed.finish();
+        let asr: Vec<_> = frames
+            .filter_map(|f| match f.unwrap() {
+                Feed::Frame(f) => Some(f),
+                _ => None,
+            })
+            .collect();
+        let mut found = Vec::new();
+        while let Some(frame) = diarizer.next_frame(&CancelToken::new()).unwrap() {
+            found.push(frame);
+        }
+        assert_eq!(found.last().unwrap().fine_ms, 1800);
+        assert_eq!(
+            found.into_iter().map(|f| f.samples).collect::<Vec<_>>(),
+            asr
+        );
+    }
+
+    #[test]
     fn con_un_motore_piu_lento_dell_audio_le_frasi_arrivano_tutte_smaltendo_la_coda_dopo_stop() {
         let (mut feed, mut frames) = channel(48_000, 2).unwrap();
         let emitted = Arc::new(AtomicU32::new(0));
@@ -306,7 +386,9 @@ mod tests {
             model: String::new(),
             speech_language: SpeechLanguage::auto(),
             phrases: Vec::new(),
+            live_asr: Vec::new(),
             parlanti: std::collections::BTreeMap::new(),
+            diarizzazione: None,
         });
         let progress = std::sync::Mutex::new(Vec::new());
         std::thread::scope(|scope| {
@@ -331,6 +413,7 @@ mod tests {
                                 inizio_ms,
                                 fine_ms,
                                 text,
+                                tempi,
                                 ..
                             } => transcript.lock().unwrap().insert(Phrase {
                                 inizio_ms,
@@ -338,6 +421,9 @@ mod tests {
                                 text,
                                 ingresso,
                                 parlante: None,
+                                parlante_non_determinato: false,
+                                parlante_provvisorio: false,
+                                tempi,
                             }),
                             PipelineEvent::Progress(percent) => {
                                 progress.lock().unwrap().extend(percent);

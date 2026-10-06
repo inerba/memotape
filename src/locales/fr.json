@@ -27,7 +27,8 @@
       "confirm": "Remplacer"
     },
     "parlanti": "Reconnaître les intervenants",
-    "parlantiNote": "4 intervenants au maximum",
+    "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
+    "parlantiNote": "{{count}} intervenants au maximum par entrée",
     "parlantiList": "Intervenants :",
     "rename": "Cliquez pour renommer : Entrée valide, Échap annule",
     "renameName": "Nouveau nom pour {{label}}",
@@ -74,7 +75,8 @@
     "noSpeech": "Aucune parole détectée",
     "cancelled": "Transcription annulée",
     "openModels": "Ouvrir Paramètres → Transcription",
-    "diarizing": "Reconnaissance des intervenants…"
+    "diarizing": "Reconnaissance des intervenants…",
+    "finalDiarizing": "Analyse finale des locuteurs…"
   },
   "errors": {
     "label": "Erreur",
@@ -99,7 +101,11 @@
       "tapeNotFound": "Le Tape n'est plus à sa place (déplacé, renommé ou supprimé hors de l'application) : {{detail}}",
       "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
       "cancelled": "Transcription annulée",
-      "internal": "Erreur interne : {{detail}}"
+      "internal": "Erreur interne : {{detail}}",
+      "localDiarizerMissing": "Choisissez le modèle local Nemotron Diarization dans Paramètres → Transcription",
+      "localDiarizerIncompatible": "Le modèle local ne correspond pas au GGUF Nemotron Diarization vérifié ou ne peut pas être chargé : {{detail}}",
+      "liveDiarizationLagging": "La reconnaissance des locuteurs en direct a pris du retard et a été interrompue. Audio et transcription continuent ; une nouvelle tentative suivra après Arrêter.",
+      "liveDiarizationUnavailable": "La reconnaissance des locuteurs en direct a été interrompue. Audio et transcription continuent ; une nouvelle tentative suivra après Arrêter."
     },
     "app": {
       "title": "Un problème est survenu",
@@ -121,7 +127,15 @@
       "title": "Transcription",
       "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau.",
       "diarization": "Reconnaissance des intervenants",
-      "diarizationDescription": "Utilisé par Reconnaître les intervenants, à côté de Transcrire. Reconnaît 4 intervenants au maximum."
+      "diarizationDescription": "Choisissez le modèle pour Reconnaître les intervenants dans les fichiers, les Tape et les enregistrements. Sortformer distingue jusqu’à 4 intervenants après la transcription.",
+      "diarizer": "Modèle des locuteurs",
+      "nemotron3": "Nemotron 3 Diarization (expérimental)",
+      "localModel": "Modèle local",
+      "experimentalDescription": "Fonction expérimentale : les intervenants peuvent être confondus, surtout lorsque les voix se chevauchent ou que les personnes sont nombreuses. Les attributions en direct sont provisoires et sont réanalysées après Arrêter.",
+      "experimentalLiveDescription": "Un GPU compatible Vulkan est recommandé pour reconnaître les intervenants en direct. Avec le processeur seul, la reconnaissance peut s’interrompre si elle ne suit pas le rythme ; l’audio et la transcription continuent et les intervenants sont réanalysés après Arrêter.",
+      "localModelDescription": "Sélectionnez le modèle BF16 compatible de Nemotron 3 Diarization. Il est utilisé pour les fichiers, les Tape et les enregistrements, y compris avec des entrées séparées.",
+      "localModelMissing": "Aucun modèle local choisi",
+      "chooseLocalModel": "Choisir un modèle local…"
     },
     "recording": {
       "title": "Enregistrement et audio",
@@ -134,7 +148,7 @@
       },
       "parlanti": "Reconnaître les locuteurs",
       "parlantiMix": "Sur le mixage",
-      "parlantiDescription": "Après Stop, sur les phrases de la transcription en direct. Avec Les deux, chaque entrée a ses propres locuteurs : le microphone reste une seule personne si vous ne le choisissez pas. Reconnaît au maximum 4 locuteurs par audio et nécessite le modèle de reconnaissance des locuteurs.",
+      "parlantiDescription": "Avec la transcription en direct, Nemotron affiche les locuteurs provisoires de chaque entrée sélectionnée puis lance l’analyse finale après Arrêter. Sortformer reconnaît jusqu’à 4 locuteurs après Arrêter. Avec Les deux, chaque entrée a ses locuteurs ; le microphone est analysé seulement s’il est sélectionné.",
       "microphone": "Microphone",
       "outputDevice": "Périphérique de sortie",
       "defaultDevice": "Par défaut du système",
@@ -259,7 +273,12 @@
     "date": "Date",
     "duration": "Durée",
     "model": "Modèle",
-    "parlante": "Intervenant {{n}}"
+    "parlante": "Intervenant {{n}}",
+    "unknownSpeaker": "Locuteur indéterminé",
+    "provisionalSpeaker": "{{name}} (provisoire)",
+    "diarization": "Diarisation",
+    "diarizationCompleted": "Diarisation terminée",
+    "diarizationIncomplete": "Diarisation non terminée"
   },
   "library": {
     "title": "Bibliothèque",

@@ -28,12 +28,14 @@ pub enum PipelineEvent {
     /// cambio di punto percentuale.
     Progress(Option<u8>),
     /// Il testo provvisorio della Frase in corso, con l'id che avrà la Frase e l'audio letto
-    /// finora. Se la Frase finisce vuota arriva un Parziale vuoto e l'id passa alla successiva.
+    /// finora, e tempi ASR assoluti se affidabili. Se la Frase finisce vuota arriva un Parziale
+    /// vuoto e l'id passa alla successiva.
     Partial {
         id: u32,
         inizio_ms: u32,
         fine_ms: u32,
         text: String,
+        tempi: Vec<crate::transcript::TempoTesto>,
     },
     /// Una Frase non vuota, con id progressivo da 0.
     Phrase {
@@ -41,6 +43,7 @@ pub enum PipelineEvent {
         inizio_ms: u32,
         fine_ms: u32,
         text: String,
+        tempi: Vec<crate::transcript::TempoTesto>,
     },
 }
 
@@ -98,13 +101,15 @@ pub fn transcribe(
             ended: false,
         };
         let mut partial_shown = false;
-        let mut on_partial = |text: &str| {
-            partial_shown = !text.is_empty();
+        let mut on_partial = |result: &super::asr::AsrResult| {
+            let result = result.clone().on_source(inizio_ms, to_ms(end.get()));
+            partial_shown = !result.text.is_empty();
             emit(PipelineEvent::Partial {
                 id: phrase_id,
                 inizio_ms,
                 fine_ms: to_ms(end.get()),
-                text: text.to_string(),
+                text: result.text,
+                tempi: result.tempi,
             });
         };
         let text = engine.transcribe(&mut audio, language, Some(&mut on_partial));
@@ -116,23 +121,25 @@ pub fn transcribe(
         if let Some(error) = events.error.take() {
             return Err(error);
         }
-        let text = text?;
         let fine_ms = to_ms(end.get());
-        if text.is_empty() && partial_shown {
+        let result = text?.on_source(inizio_ms, fine_ms);
+        if result.text.is_empty() && partial_shown {
             // Il Parziale di una Frase finita vuota non resta a schermo.
             emit(PipelineEvent::Partial {
                 id: phrase_id,
                 inizio_ms,
                 fine_ms,
                 text: String::new(),
+                tempi: Vec::new(),
             });
         }
-        if !text.is_empty() {
+        if !result.text.is_empty() {
             emit(PipelineEvent::Phrase {
                 id: phrase_id,
                 inizio_ms,
                 fine_ms,
-                text,
+                text: result.text,
+                tempi: result.tempi,
             });
             phrase_id += 1;
         }
@@ -361,13 +368,14 @@ fn transcribe_phrases(
                 if cancel.is_cancelled() {
                     return Err(AppError::Cancelled);
                 }
-                let text = text?;
-                if !text.is_empty() {
+                let result = text?.on_source(to_ms(start), to_ms(end));
+                if !result.text.is_empty() {
                     on_event(PipelineEvent::Phrase {
                         id: phrase_id,
                         inizio_ms: to_ms(start),
                         fine_ms: to_ms(end),
-                        text,
+                        text: result.text,
+                        tempi: result.tempi,
                     });
                     phrase_id += 1;
                 }
@@ -387,7 +395,7 @@ fn to_ms(frames: usize) -> u32 {
 }
 
 /// I frame di un file, decodificati e ricampionati un blocco alla volta.
-struct FileFrames {
+pub(crate) struct FileFrames {
     decoder: Decoder,
     copy: Option<OggCopy>,
     resampler: Option<FrameResampler>,
@@ -398,7 +406,7 @@ struct FileFrames {
 }
 
 impl FileFrames {
-    fn new(decoder: Decoder, copy: Option<OggCopy>) -> Self {
+    pub(crate) fn new(decoder: Decoder, copy: Option<OggCopy>) -> Self {
         Self {
             progress: decoder.progress(),
             decoder,
@@ -572,6 +580,7 @@ pub(crate) mod tests {
         pub(crate) delay: std::time::Duration,
         pub(crate) vad_seen: Option<Arc<AtomicUsize>>,
         pub(crate) vad_seen_at_end: Vec<usize>,
+        pub(crate) result: Option<super::super::asr::AsrResult>,
     }
 
     /// `EnergyDetector` che conta i frame visti.
@@ -591,8 +600,8 @@ pub(crate) mod tests {
             &mut self,
             frames: &mut dyn Iterator<Item = Vec<f32>>,
             language: Option<&str>,
-            mut on_partial: Option<&mut dyn FnMut(&str)>,
-        ) -> Result<String, EngineError> {
+            mut on_partial: Option<&mut dyn FnMut(&crate::engine::asr::AsrResult)>,
+        ) -> Result<super::super::asr::AsrResult, EngineError> {
             if self.busy {
                 return Err(EngineError::Busy);
             }
@@ -603,7 +612,12 @@ pub(crate) mod tests {
                 if let Some(on_partial) = on_partial.as_mut().filter(|_| self.streaming)
                     && i % 10 == 9
                 {
-                    on_partial(&format!("frase {n} ({} frame)", i + 1));
+                    on_partial(
+                        &self
+                            .result
+                            .clone()
+                            .unwrap_or_else(|| format!("frase {n} ({} frame)", i + 1).into()),
+                    );
                 }
             }
             std::thread::sleep(self.delay);
@@ -618,9 +632,12 @@ pub(crate) mod tests {
                 cancel.cancel();
             }
             if self.empty_at == Some(n) {
-                return Ok(String::new());
+                return Ok(String::new().into());
             }
-            Ok(format!("frase {n}"))
+            Ok(self
+                .result
+                .clone()
+                .unwrap_or_else(|| format!("frase {n}").into()))
         }
     }
 
@@ -1171,6 +1188,78 @@ pub(crate) mod tests {
             _ => None,
         });
         assert_eq!(first_partial, Some((300, 600)));
+    }
+
+    #[test]
+    fn le_pipeline_file_e_dal_vivo_traslano_i_tempi_asr_dal_primo_frame_della_frase() {
+        use crate::engine::asr::AsrResult;
+        use crate::transcript::TempoTesto;
+        let result = AsrResult::timed("Ciao!".into(), [(100, 400, "Ciao!".into())]);
+        let events = run_feed(
+            frames(&[(false, 20), (true, 30), (false, 50)]),
+            &mut FakeEngine {
+                result: Some(result.clone()),
+                streaming: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(events.iter().any(|event| matches!(event,
+            PipelineEvent::Partial { tempi, .. } if !tempi.is_empty())));
+        for event in &events {
+            if let PipelineEvent::Partial {
+                inizio_ms,
+                fine_ms,
+                tempi,
+                ..
+            } = event
+            {
+                for span in tempi {
+                    assert!(span.inizio_ms >= *inizio_ms);
+                    assert!(span.fine_ms <= *fine_ms);
+                    assert_eq!(span.inizio_ms, inizio_ms + 100);
+                }
+            }
+        }
+        let source = wav(
+            "tempi-asr",
+            16_000,
+            1,
+            &[(0.6, false), (0.9, true), (1.5, false)],
+        );
+        let mut file_events = Vec::new();
+        transcribe_file(
+            &source,
+            &mut FakeEngine {
+                result: Some(result),
+                ..Default::default()
+            },
+            &mut EnergyDetector,
+            None,
+            None,
+            None,
+            &CancelToken::new(),
+            &mut |event| file_events.push(event),
+        )
+        .unwrap();
+        for events in [events, file_events] {
+            let tempi = events
+                .into_iter()
+                .find_map(|event| match event {
+                    PipelineEvent::Phrase { tempi, .. } => Some(tempi),
+                    _ => None,
+                })
+                .unwrap();
+            assert_eq!(
+                tempi,
+                [TempoTesto {
+                    inizio_byte: 0,
+                    fine_byte: 5,
+                    inizio_ms: 400,
+                    fine_ms: 700
+                }]
+            );
+        }
     }
 
     #[test]

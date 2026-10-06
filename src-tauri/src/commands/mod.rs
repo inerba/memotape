@@ -58,6 +58,29 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
+/// Sceglie e verifica l'artefatto locale prima di salvare il percorso nelle impostazioni.
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_diarizer_model(app: AppHandle) -> Result<Option<String>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(file) = app
+            .dialog()
+            .file()
+            .add_filter(crate::engine::local_diarizer::NAME, &["gguf"])
+            .blocking_pick_file()
+        else {
+            return Ok(None);
+        };
+        let path = file
+            .into_path()
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        crate::engine::local_diarizer::validate(&path)?;
+        Ok(Some(path.display().to_string()))
+    })
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
 /// Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 /// estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 #[tauri::command]
@@ -177,10 +200,11 @@ pub fn cancel_transcription(activity: State<'_, Activity>) -> bool {
 #[tauri::command]
 #[specta::specta]
 pub fn transcript_text(
+    visible: Option<Vec<managers::transcription::TranscriptPhrase>>,
     last: State<'_, managers::transcription::LastTranscript>,
     settings: State<'_, SettingsStore>,
 ) -> Option<String> {
-    managers::transcription::transcript_text(&last, &settings.get())
+    managers::transcription::transcript_text(&last, &settings.get(), visible.as_deref())
 }
 
 /// Il testo di Copia testo del Tape `path`, con correzioni e nomi dei Parlanti, secondo `copiaCome`.
@@ -419,6 +443,7 @@ pub async fn record(
     app: AppHandle,
     activity: State<'_, Activity>,
     recorder: State<'_, Recorder>,
+    session_id: String,
     prefix: String,
     raccolta: Option<String>,
 ) -> Result<RecordingSaved, AppError> {
@@ -426,8 +451,15 @@ pub async fn record(
     if prefix.trim().is_empty() || prefix.contains(reserved) {
         return Err(AppError::Internal(format!("prefisso non valido: {prefix}")));
     }
-    let saved =
-        managers::recording::record(app.clone(), &activity, &recorder, prefix, raccolta).await;
+    let saved = managers::recording::record(
+        app.clone(),
+        &activity,
+        &recorder,
+        session_id,
+        prefix,
+        raccolta,
+    )
+    .await;
     managers::library::sync(&app);
     saved
 }

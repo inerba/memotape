@@ -1,20 +1,33 @@
 import type { TFunction } from "i18next";
 import type {
   Ingresso,
+  LiveTranscriptUpdated,
   SpeakerAssignment,
   TranscriptPartial,
   TranscriptPhrase,
 } from "@/bindings";
 
 /**
- * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio, il Parziale in corso di
- * ogni Ingresso (uno solo, `mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
+ * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio, le parti del Parziale di
+ * ogni Ingresso (`mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
  * `<ingresso>:<n>`, o `<ingresso>` per un Ingresso senza Parlanti (`parlanteKey`).
  */
+/** Il Parziale ASR, con i soli metadati di attribuzione disponibili dal diarizer dal vivo. */
+export type ConversationPartial = TranscriptPartial &
+  Partial<
+    Pick<
+      TranscriptPhrase,
+      "parlante" | "parlanteNonDeterminato" | "parlanteProvvisorio"
+    >
+  >;
+
 export interface Conversation {
+  liveFinished?: Partial<Record<Ingresso, boolean>>;
   parlanti: Partial<Record<string, string>>;
-  partials: TranscriptPartial[];
+  partials: ConversationPartial[];
   phrases: TranscriptPhrase[];
+  revisions?: Partial<Record<Ingresso, number>>;
+  sessionId?: string;
 }
 
 export const EMPTY_CONVERSATION: Conversation = {
@@ -22,6 +35,18 @@ export const EMPTY_CONVERSATION: Conversation = {
   partials: [],
   phrases: [],
 };
+
+/** Lo snapshot del testo in vista, con Parziali e attribuzioni della medesima revisione. */
+export function visiblePhrases(conversation: Conversation): TranscriptPhrase[] {
+  return [...conversation.phrases, ...conversation.partials]
+    .sort((a, b) => a.inizioMs - b.inizioMs)
+    .map((p) => ({
+      ...p,
+      parlante: p.parlante ?? null,
+      parlanteNonDeterminato: p.parlanteNonDeterminato ?? false,
+      parlanteProvvisorio: p.parlanteProvvisorio ?? false,
+    }));
+}
 
 /**
  * La chiave del Parlante `n` di un Ingresso tra i nomi, come nel Tape: `sistema:2`; senza Parlante
@@ -41,18 +66,60 @@ function byStart<T extends { inizioMs: number }>(list: T[], item: T): T[] {
 
 /**
  * Aggiunge una Frase in ordine di inizio: con gli Ingressi separati può arrivare dopo una Frase
- * iniziata più tardi. Sostituisce il Parziale del suo Ingresso con lo stesso id.
+ * iniziata più tardi. Sostituisce la Frase e il Parziale dello stesso Ingresso con lo stesso id,
+ * anche quando l'analisi finale ripubblica il risultato diviso.
  */
 export function withPhrase(
   conversation: Conversation,
   phrase: TranscriptPhrase
 ): Conversation {
+  if (
+    (phrase.sessionId ?? undefined) !== conversation.sessionId ||
+    conversation.revisions?.[phrase.ingresso] !== undefined
+  ) {
+    return conversation;
+  }
   return {
     ...conversation,
     partials: conversation.partials.filter(
       (p) => p.ingresso !== phrase.ingresso || p.phraseId !== phrase.phraseId
     ),
-    phrases: byStart(conversation.phrases, phrase),
+    phrases: byStart(
+      conversation.phrases.filter(
+        (p) => p.ingresso !== phrase.ingresso || p.phraseId !== phrase.phraseId
+      ),
+      phrase
+    ),
+  };
+}
+
+/** La revisione sostituisce un solo Ingresso; rettifiche vecchie non ripristinano testo o Parziali. */
+export function withLiveTranscript(
+  conversation: Conversation,
+  snapshot: LiveTranscriptUpdated,
+  acceptPartials = true
+): Conversation {
+  const { ingresso, revision, finished, phrases, partials } = snapshot;
+  if (
+    snapshot.sessionId !== conversation.sessionId ||
+    !(finished || acceptPartials) ||
+    conversation.liveFinished?.[ingresso] ||
+    revision <= (conversation.revisions?.[ingresso] ?? 0)
+  ) {
+    return conversation;
+  }
+  return {
+    ...conversation,
+    liveFinished: { ...conversation.liveFinished, [ingresso]: finished },
+    partials: [
+      ...conversation.partials.filter((p) => p.ingresso !== ingresso),
+      ...partials,
+    ],
+    phrases: [
+      ...conversation.phrases.filter((p) => p.ingresso !== ingresso),
+      ...phrases,
+    ].sort((a, b) => a.inizioMs - b.inizioMs),
+    revisions: { ...conversation.revisions, [ingresso]: revision },
   };
 }
 
@@ -61,6 +128,12 @@ export function withPartial(
   conversation: Conversation,
   partial: TranscriptPartial
 ): Conversation {
+  if (
+    (partial.sessionId ?? undefined) !== conversation.sessionId ||
+    conversation.revisions?.[partial.ingresso] !== undefined
+  ) {
+    return conversation;
+  }
   const others = conversation.partials.filter(
     (p) => p.ingresso !== partial.ingresso
   );
@@ -78,15 +151,29 @@ export function withoutPartials(conversation: Conversation): Conversation {
 /** Applica `speakers-assigned`: il Parlante di ogni Frase dopo la Diarizzazione. */
 export function withParlanti(
   conversation: Conversation,
-  assignments: SpeakerAssignment[]
+  assignments: SpeakerAssignment[],
+  sessionId?: string | null
 ): Conversation {
+  if ((sessionId ?? undefined) !== conversation.sessionId) {
+    return conversation;
+  }
   return {
     ...conversation,
     phrases: conversation.phrases.map((phrase) => {
+      if (conversation.revisions?.[phrase.ingresso] !== undefined) {
+        return phrase;
+      }
       const assigned = assignments.find(
         (s) => s.ingresso === phrase.ingresso && s.phraseId === phrase.phraseId
       );
-      return assigned ? { ...phrase, parlante: assigned.parlante } : phrase;
+      return assigned
+        ? {
+            ...phrase,
+            parlante: assigned.parlante,
+            parlanteNonDeterminato: assigned.parlanteNonDeterminato,
+            parlanteProvvisorio: assigned.parlanteProvvisorio,
+          }
+        : phrase;
     }),
   };
 }
@@ -136,11 +223,18 @@ function voiceLabel(
   conversation: Conversation,
   ingresso: Ingresso,
   parlante: number | null | undefined,
-  t: TFunction
+  t: TFunction,
+  nonDeterminato = false,
+  provvisorio = false
 ): string | null {
+  const name = nonDeterminato
+    ? t("transcript.unknownSpeaker")
+    : nomeOf(conversation, ingresso, parlante ?? null, t);
   const parts = [
     ingresso === "mix" ? null : t(INGRESSO_LABELS[ingresso]),
-    nomeOf(conversation, ingresso, parlante ?? null, t),
+    provvisorio && name && !nonDeterminato
+      ? t("transcript.provisionalSpeaker", { name })
+      : name,
   ].filter((part) => part !== null);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
@@ -154,6 +248,7 @@ export interface Parlante {
   label: string;
   nome: string;
   parlante: number | null;
+  provvisorio?: boolean;
 }
 
 /**
@@ -166,19 +261,31 @@ export function parlantiOf(
 ): Parlante[] {
   const found: Parlante[] = [];
   for (const phrase of conversation.phrases) {
+    if (phrase.parlanteNonDeterminato) {
+      continue;
+    }
     const { ingresso } = phrase;
     const parlante = phrase.parlante ?? null;
     if (
       (parlante !== null || ingresso !== "mix") &&
       !found.some((s) => s.ingresso === ingresso && s.parlante === parlante)
     ) {
+      const provvisorio = conversation.phrases.some(
+        (p) =>
+          p.ingresso === ingresso &&
+          p.parlante === parlante &&
+          p.parlanteProvvisorio
+      );
       found.push({
         ingresso,
-        label: voiceLabel(conversation, ingresso, parlante, t) ?? "",
+        label:
+          voiceLabel(conversation, ingresso, parlante, t, false, provvisorio) ??
+          "",
         nome:
           nomeOf(conversation, ingresso, parlante, t) ??
           (ingresso === "mix" ? "" : t(INGRESSO_LABELS[ingresso])),
         parlante,
+        ...(provvisorio ? { provvisorio: true } : {}),
       });
     }
   }
@@ -230,7 +337,7 @@ export function withTesto(
 /** Un turno di una voce: le sue Frasi (e Parziali) consecutive, con l'etichetta della voce. */
 export interface Turn {
   ingresso: Ingresso;
-  items: (TranscriptPhrase | TranscriptPartial)[];
+  items: (TranscriptPhrase | ConversationPartial)[];
   /** Ingresso e id del primo elemento: resta lo stesso mentre il turno cresce. */
   key: string;
   /** `Microfono · Parlante 2`, `Microfono`, `Parlante 2`; `null` senza etichetta (il mix). */
@@ -258,19 +365,31 @@ function silenceMs(
  */
 export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
   // Senza etichette i turni sono i paragrafi del Markdown, separati dalle pause.
-  const labeled = conversation.phrases.some(
-    (p) => voiceLabel(conversation, p.ingresso, p.parlante, t) !== null
+  const labeled = [...conversation.phrases, ...conversation.partials].some(
+    (p) =>
+      voiceLabel(
+        conversation,
+        p.ingresso,
+        p.parlante,
+        t,
+        p.parlanteNonDeterminato
+      ) !== null
   );
   const turns: Turn[] = [];
   let last: Turn | undefined;
   for (const item of conversation.partials.reduce<
-    (TranscriptPhrase | TranscriptPartial)[]
+    (TranscriptPhrase | ConversationPartial)[]
   >(byStart, conversation.phrases)) {
     const partial = conversation.partials.includes(item as TranscriptPartial);
-    const parlante = partial
-      ? null
-      : ((item as TranscriptPhrase).parlante ?? null);
-    const label = voiceLabel(conversation, item.ingresso, parlante, t);
+    const parlante = item.parlante ?? null;
+    const label = voiceLabel(
+      conversation,
+      item.ingresso,
+      parlante,
+      t,
+      item.parlanteNonDeterminato,
+      item.parlanteProvvisorio
+    );
     const previous = last?.items[last.items.length - 1];
     if (
       last &&

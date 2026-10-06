@@ -1,0 +1,67 @@
+[
+  {
+    "file": "ggml-base.dll",
+    "size": 650752,
+    "sha256": "cca28a7ef1c6b90fab3175b405fa64828d9ae979d6fa281d308d9b36c6cace58"
+  },
+  {
+    "file": "ggml-cpu-alderlake.dll",
+    "size": 907264,
+    "sha256": "359c17fc70119941f3a33e482645e17d82a841d1049bf497b782d50ed87add5d"
+  },
+  {
+    "file": "ggml-cpu-cannonlake.dll",
+    "size": 1011712,
+    "sha256": "c9b17393d5332c4b9092b791cb4fb3a4d5f38637ba23128003e38f27a611ac3d"
+  },
+  {
+    "file": "ggml-cpu-cascadelake.dll",
+    "size": 1010176,
+    "sha256": "b9aff706506edc724d455d9ea61c4c5d8fe4029938577b71ad05c1fa7fee48de"
+  },
+  {
+    "file": "ggml-cpu-haswell.dll",
+    "size": 908800,
+    "sha256": "b079795bfd685c56a631646deeb32a13e70e85a1f62fed9fa83388f5a4704acf"
+  },
+  {
+    "file": "ggml-cpu-icelake.dll",
+    "size": 1010176,
+    "sha256": "e33e65a0171e5ee7d3ffbc5e3682dafe0fbb89e8090e23ff2c2e4831f2575673"
+  },
+  {
+    "file": "ggml-cpu-sandybridge.dll",
+    "size": 852480,
+    "sha256": "3efe7c7146f3937b42ffc5e35add28b483785384520d7e2b699a10da899a48d9"
+  },
+  {
+    "file": "ggml-cpu-skylakex.dll",
+    "size": 1011712,
+    "sha256": "49d85e19e1f60fed5690aebce12301d077ab1004c6f8510cba8783921696d398"
+  },
+  {
+    "file": "ggml-cpu-sse42.dll",
+    "size": 772096,
+    "sha256": "774d24bb304ec465db40c9e8523b9a6b8113ee6e30af10a9c5dcd9d9b6387c97"
+  },
+  {
+    "file": "ggml-cpu-x64.dll",
+    "size": 773120,
+    "sha256": "a909683d52a2a6a3600c9f24200afe81265bc4680c75ddb804db5007deeaafc4"
+  },
+  {
+    "file": "ggml-vulkan.dll",
+    "size": 54318592,
+    "sha256": "e158e6ffd45e51391bf3d011242ea270651b17658f0a9e51620329f5397e4a75"
+  },
+  {
+    "file": "ggml.dll",
+    "size": 66560,
+    "sha256": "c4ff00259939c7666c2f225ff19398cdb6059d36e6846591c39826aca6631e6c"
+  },
+  {
+    "file": "transcribe.dll",
+    "size": 1918976,
+    "sha256": "97e20118624825899f319627cbe9d10f4c10fb3e1969a55f67edebce5e4687be"
+  }
+]

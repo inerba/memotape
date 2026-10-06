@@ -20,6 +20,7 @@ import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
 import { speechLanguageName } from "@/features/settings/settings";
 import { fileName, folderOf } from "@/features/source/file-name";
+import { diarizationText } from "@/features/status/status";
 
 const EXTENSION = /\.tape$/i;
 
@@ -245,6 +246,16 @@ function InfoChips({
       {info.modello && !info.completa ? (
         <Chip icon={<AlertTriangle />} tone="warning">
           {t("library.info.incomplete")}
+        </Chip>
+      ) : null}
+      {info.diarizzazione ? (
+        <Chip
+          icon={<Users />}
+          tone={
+            info.diarizzazione.esito === "completata" ? undefined : "warning"
+          }
+        >
+          {diarizationText(info.diarizzazione, t)}
         </Chip>
       ) : null}
       {inLibrary ? null : <Chip>{t("library.info.outside")}</Chip>}

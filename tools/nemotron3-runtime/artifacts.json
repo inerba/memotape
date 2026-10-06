@@ -1,0 +1,16 @@
+{
+  "nemotron3": {
+    "size": 198937280,
+    "sha256": "4b11ce10e009fedf496cc9f879dc634e67605ecbf240463a155e0128657019e3"
+  },
+  "fixtures": {
+    "parlato-it.wav": {
+      "size": 286766,
+      "sha256": "56c338e08e699a5a99749b75b1da25fad005b0ab1a5236b66aea0a310a2b9465"
+    },
+    "parlato-due-voci.wav": {
+      "size": 821646,
+      "sha256": "c300d92aed389cbf6764e6acb3323f89f23de2d0f6f9c589ea88bd55dd7db42a"
+    }
+  }
+}

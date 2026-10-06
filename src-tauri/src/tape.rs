@@ -52,6 +52,8 @@ pub struct Document {
     /// Il nome del file audio o video da cui è stato trascritto il Tape; manca in una Registrazione.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origine: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub diarizzazione: Option<crate::transcript::Diarizzazione>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -69,6 +71,17 @@ pub struct Frase {
     pub testo: String,
     pub ingresso: Ingresso,
     pub parlante: Option<u32>,
+    /// Assente nei Tape precedenti: conserva la distinzione dall'Ingresso non diarizzato.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub parlante_non_determinato: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub parlante_provvisorio: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tempi: Vec<crate::transcript::TempoTesto>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
 }
 
 /// `creato` di una Registrazione iniziata a `start`: `2026-10-03T17:05:42+02:00`.
@@ -105,6 +118,7 @@ impl Document {
             lingua_parlato,
             completa,
             parlanti: BTreeMap::new(),
+            diarizzazione: None,
             frasi: phrases
                 .iter()
                 .zip(0..)
@@ -115,6 +129,9 @@ impl Document {
                     testo: phrase.text.clone(),
                     ingresso: phrase.ingresso,
                     parlante: phrase.parlante,
+                    parlante_non_determinato: phrase.parlante_non_determinato,
+                    parlante_provvisorio: phrase.parlante_provvisorio,
+                    tempi: phrase.tempi.clone(),
                 })
                 .collect(),
             origine: None,
@@ -254,6 +271,8 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
                 ))
             })?;
         testo.clone_into(&mut frase.testo);
+        // I tempi ASR si riferiscono al testo originale, non alla correzione dell'utente.
+        frase.tempi.clear();
         Ok(())
     })
 }
@@ -446,6 +465,59 @@ fn unwritable(path: &Path, e: &dyn std::fmt::Display) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn un_tape_vecchio_con_solo_mix_e_metadati_senza_ingressi_resta_non_separabile() {
+        let mut doc = document(&["Testo del mix."]);
+        doc.diarizzazione =
+            Some(serde_json::from_str(r#"{"modello":"nemotron3","esito":"completata"}"#).unwrap());
+        assert!(doc.diarizzazione.as_ref().unwrap().ingressi.is_empty());
+        let dir = crate::audio_toolkit::ogg_opus::tests::temp_dir("vecchio-mix");
+        let path = dir.join("Mix.tape");
+        let audio = ogg(&dir);
+        write(&path, &[(Ingresso::Mix, &audio)], &doc, None).unwrap();
+        assert!(!has_ingressi(&path).unwrap());
+        let opened = crate::managers::transcription::open_tape(&path).unwrap();
+        assert!(opened.phrases.iter().all(|p| p.ingresso == Ingresso::Mix));
+        assert!(!opened.info.ingressi_separati);
+    }
+
+    #[test]
+    fn diarizzazione_annullata_conserva_testo_completo_e_attribuzioni_provvisorie() {
+        let mut doc = document(&["Testo già finito."]);
+        doc.diarizzazione = Some(crate::transcript::Diarizzazione {
+            modello: crate::managers::settings::Diarizer::Nemotron3,
+            esito: crate::transcript::EsitoDiarizzazione::Annullata,
+            ingressi: Vec::new(),
+        });
+        doc.frasi[0].parlante_provvisorio = true;
+        let dir = crate::audio_toolkit::ogg_opus::tests::temp_dir("diarizzazione-annullata");
+        let path = dir.join("Conservato.tape");
+        let audio = ogg(&dir);
+        write(&path, &[(Ingresso::Mix, &audio)], &doc, Some(&[0.5])).unwrap();
+        let reopened = read(&path).unwrap();
+        assert_eq!(reopened, doc);
+        assert!(reopened.completa);
+        assert!(reopened.frasi[0].parlante_provvisorio);
+        assert_eq!(forma_onda(&path), Some(vec![0.5]));
+        let opened = crate::managers::transcription::open_tape(&path).unwrap();
+        assert_eq!(opened.info.diarizzazione, doc.diarizzazione);
+        assert!(opened.phrases[0].parlante_provvisorio);
+        let text = crate::managers::transcription::tape_text(
+            &path,
+            &crate::managers::settings::Settings::default(),
+            crate::managers::settings::CopiaCome::Markdown,
+        )
+        .unwrap();
+        assert!(text.contains("Diarizzazione non completata"));
+        assert!(text.contains("provvisorio"));
+        assert!(text.contains("Testo già finito."));
+        assert_eq!(std::fs::read(&audio).unwrap(), {
+            let mut mix = Mix::open(&path).unwrap();
+            let mut bytes = Vec::new();
+            mix.read_to_end(&mut bytes).unwrap();
+            bytes
+        });
+    }
     use crate::audio_toolkit::ogg_opus::OggOpusWriter;
     use crate::audio_toolkit::ogg_opus::tests::{decoded_seconds, sine, temp_dir};
 
@@ -459,6 +531,7 @@ mod tests {
             lingua_parlato: SpeechLanguage::from("it"),
             completa: true,
             parlanti: BTreeMap::from([("mix:1".into(), "Mario".into())]),
+            diarizzazione: None,
             frasi: frasi
                 .iter()
                 .zip(0..)
@@ -469,6 +542,9 @@ mod tests {
                     testo: (*testo).into(),
                     ingresso: Ingresso::Mix,
                     parlante: Some(1),
+                    parlante_non_determinato: false,
+                    parlante_provvisorio: false,
+                    tempi: Vec::new(),
                 })
                 .collect(),
             origine: None,

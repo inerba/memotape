@@ -27,7 +27,8 @@
       "confirm": "Replace"
     },
     "parlanti": "Recognize speakers",
-    "parlantiNote": "At most 4 speakers",
+    "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
+    "parlantiNote": "At most {{count}} speakers per input",
     "parlantiList": "Speakers:",
     "rename": "Click to rename: Enter confirms, Esc cancels",
     "renameName": "New name for {{label}}",
@@ -74,7 +75,8 @@
     "noSpeech": "No speech detected",
     "cancelled": "Transcription cancelled",
     "openModels": "Open Settings → Transcription",
-    "diarizing": "Recognizing speakers…"
+    "diarizing": "Recognizing speakers…",
+    "finalDiarizing": "Final speaker analysis…"
   },
   "errors": {
     "label": "Error",
@@ -99,7 +101,11 @@
       "tapeNotFound": "The Tape is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
-      "internal": "Internal error: {{detail}}"
+      "internal": "Internal error: {{detail}}",
+      "localDiarizerMissing": "Choose the local Nemotron Diarization model in Settings → Transcription",
+      "localDiarizerIncompatible": "The local model does not match the verified Nemotron Diarization GGUF or cannot be loaded: {{detail}}",
+      "liveDiarizationLagging": "Live speaker recognition fell behind and stopped. Audio and transcription continue; we will retry after Stop.",
+      "liveDiarizationUnavailable": "Live speaker recognition stopped. Audio and transcription continue; we will retry after Stop."
     },
     "app": {
       "title": "Something went wrong",
@@ -121,7 +127,15 @@
       "title": "Transcription",
       "description": "Models transcribe on your computer: download them once, then they work offline.",
       "diarization": "Speaker recognition",
-      "diarizationDescription": "Used by Recognize speakers, next to Transcribe. Recognizes at most 4 speakers."
+      "diarizationDescription": "Choose the model for Recognize speakers in files, Tapes and recordings. Sortformer distinguishes up to 4 speakers after transcription.",
+      "diarizer": "Speaker model",
+      "nemotron3": "Nemotron 3 Diarization (experimental)",
+      "localModel": "Local model",
+      "experimentalDescription": "Experimental feature: speakers may be confused, especially with overlapping voices or many people. Live assignments are provisional and are analyzed again after Stop.",
+      "experimentalLiveDescription": "A Vulkan-compatible GPU is recommended for live speaker recognition. On CPU alone, recognition may stop if it cannot keep up; audio and transcription continue and speakers are analyzed again after Stop.",
+      "localModelDescription": "Select the compatible Nemotron 3 Diarization BF16 model. It is used for files, Tapes and recordings, including separate inputs.",
+      "localModelMissing": "No local model selected",
+      "chooseLocalModel": "Choose local model…"
     },
     "recording": {
       "title": "Recording and audio",
@@ -134,7 +148,7 @@
       },
       "parlanti": "Recognize speakers",
       "parlantiMix": "On the mix",
-      "parlantiDescription": "After Stop, on the phrases of the live transcription. With Both each input has its own speakers: the microphone stays a single person unless you choose it. It recognizes at most 4 speakers per audio and needs the speaker recognition model.",
+      "parlantiDescription": "With live transcription enabled, Nemotron shows provisional speakers for each selected input and runs final analysis after Stop. Sortformer recognizes up to 4 speakers after Stop. With Both, each input has separate speakers; the microphone is analyzed only when selected.",
       "microphone": "Microphone",
       "outputDevice": "Output device",
       "defaultDevice": "System default",
@@ -259,7 +273,12 @@
     "date": "Date",
     "duration": "Duration",
     "model": "Model",
-    "parlante": "Speaker {{n}}"
+    "parlante": "Speaker {{n}}",
+    "unknownSpeaker": "Speaker undetermined",
+    "provisionalSpeaker": "{{name}} (provisional)",
+    "diarization": "Diarization",
+    "diarizationCompleted": "Diarization completed",
+    "diarizationIncomplete": "Diarization incomplete"
   },
   "library": {
     "title": "Library",

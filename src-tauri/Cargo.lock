@@ -751,7 +751,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -5372,9 +5372,8 @@ dependencies = [
 
 [[package]]
 name = "transcribe-cpp"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8afa3f82415ece32f944e0d5ad347716c7e86d41ee8727ad8143afb080a6a60c"
+version = "0.2.3"
+source = "git+https://github.com/handy-computer/transcribe.cpp?rev=e6672a8672913b47f1571c66c54bee789d028416#e6672a8672913b47f1571c66c54bee789d028416"
 dependencies = [
  "log",
  "thiserror 2.0.21",
@@ -5383,9 +5382,8 @@ dependencies = [
 
 [[package]]
 name = "transcribe-cpp-sys"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c6946c7bf90046fc51e5bc25373a4f6270ca10fdcf4f35b1174075e43c535b5"
+version = "0.2.3"
+source = "git+https://github.com/handy-computer/transcribe.cpp?rev=e6672a8672913b47f1571c66c54bee789d028416#e6672a8672913b47f1571c66c54bee789d028416"
 dependencies = [
  "cmake",
  "serde_json",

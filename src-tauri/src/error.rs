@@ -3,6 +3,14 @@
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, specta::Type)]
 #[serde(tag = "code", content = "detail", rename_all = "camelCase")]
 pub enum AppError {
+    #[error("il riconoscimento dei Parlanti dal vivo non tiene il passo")]
+    LiveDiarizationLagging,
+    #[error("Parlanti dal vivo interrotti: {0}")]
+    LiveDiarizationUnavailable(String),
+    #[error("modello Nemotron Diarization locale assente")]
+    LocalDiarizerMissing,
+    #[error("modello Nemotron Diarization locale incompatibile: {0}")]
+    LocalDiarizerIncompatible(String),
     #[error("file illeggibile: {0}")]
     UnreadableFile(String),
     #[error("codec non supportato: {0}")]

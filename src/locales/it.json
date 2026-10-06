@@ -27,7 +27,8 @@
       "confirm": "Sostituisci"
     },
     "parlanti": "Riconosci i parlanti",
-    "parlantiNote": "Al massimo 4 Parlanti",
+    "nemotron3Note": "Nemotron 3 sperimentale: supporta fino a 8 Parlanti per Ingresso, ma può confondere o unire le voci.",
+    "parlantiNote": "Al massimo {{count}} Parlanti per Ingresso",
     "parlantiList": "Parlanti:",
     "rename": "Clic per rinominare: Invio conferma, Esc annulla",
     "renameName": "Nuovo nome per {{label}}",
@@ -74,7 +75,8 @@
     "noSpeech": "Nessun parlato rilevato",
     "cancelled": "Trascrizione annullata",
     "openModels": "Apri Impostazioni → Trascrizione",
-    "diarizing": "Riconoscimento dei parlanti…"
+    "diarizing": "Riconoscimento dei parlanti…",
+    "finalDiarizing": "Analisi finale dei parlanti…"
   },
   "errors": {
     "label": "Errore",
@@ -99,7 +101,11 @@
       "tapeNotFound": "Il Tape non è più al suo posto (spostato, rinominato o cancellato fuori dall'app): {{detail}}",
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
-      "internal": "Errore interno: {{detail}}"
+      "internal": "Errore interno: {{detail}}",
+      "localDiarizerMissing": "Scegli il modello locale Nemotron Diarization in Impostazioni → Trascrizione",
+      "localDiarizerIncompatible": "Il modello locale non coincide con il GGUF Nemotron Diarization verificato o non si può caricare: {{detail}}",
+      "liveDiarizationLagging": "Il riconoscimento dei parlanti dal vivo non tiene il passo ed è stato interrotto. Audio e trascrizione continuano; riproveremo dopo Stop.",
+      "liveDiarizationUnavailable": "Il riconoscimento dei parlanti dal vivo si è interrotto. Audio e trascrizione continuano; riproveremo dopo Stop."
     },
     "app": {
       "title": "Qualcosa è andato storto",
@@ -121,7 +127,15 @@
       "title": "Trascrizione",
       "description": "I modelli trascrivono in locale: si scaricano una volta, poi funzionano senza rete.",
       "diarization": "Riconoscimento dei parlanti",
-      "diarizationDescription": "Serve a Riconosci i parlanti, accanto a Trascrivi. Riconosce al massimo 4 Parlanti."
+      "diarizationDescription": "Scegli il modello per Riconosci i parlanti nei file, nei Tape e nelle Registrazioni. Sortformer distingue fino a 4 Parlanti dopo la Trascrizione.",
+      "diarizer": "Modello dei parlanti",
+      "nemotron3": "Nemotron 3 Diarization (sperimentale)",
+      "localModel": "Modello locale",
+      "experimentalDescription": "Funzione sperimentale: i Parlanti possono essere confusi, soprattutto con voci sovrapposte o molte persone. Le attribuzioni dal vivo sono provvisorie e vengono rianalizzate dopo Stop.",
+      "experimentalLiveDescription": "Per riconoscere i Parlanti dal vivo è consigliata una GPU compatibile con Vulkan. Sulla sola CPU il riconoscimento può interrompersi se non tiene il passo; audio e Trascrizione continuano e i Parlanti vengono rianalizzati dopo Stop.",
+      "localModelDescription": "Seleziona il modello BF16 compatibile di Nemotron 3 Diarization. Si usa per file, Tape e Registrazioni, anche con Ingressi separati.",
+      "localModelMissing": "Nessun modello locale scelto",
+      "chooseLocalModel": "Scegli modello locale…"
     },
     "recording": {
       "title": "Registrazione e audio",
@@ -134,7 +148,7 @@
       },
       "parlanti": "Riconosci i parlanti",
       "parlantiMix": "Sul mix",
-      "parlantiDescription": "Dopo Stop, sulle Frasi della Trascrizione dal vivo. Da Entrambi ogni Ingresso ha i suoi Parlanti: il Microfono resta una persona sola se non lo scegli. Riconosce al massimo 4 Parlanti per audio e richiede il modello di Riconoscimento dei parlanti.",
+      "parlantiDescription": "Con Trascrivi dal vivo attiva: Nemotron mostra i Parlanti provvisori di ogni Ingresso selezionato; dopo Stop esegue l’analisi finale. Sortformer riconosce fino a 4 Parlanti solo dopo Stop. Da Entrambi ogni Ingresso ha i suoi Parlanti; il Microfono si riconosce solo se selezionato.",
       "microphone": "Microfono",
       "outputDevice": "Dispositivo di uscita",
       "defaultDevice": "Predefinito di sistema",
@@ -259,7 +273,12 @@
     "date": "Data",
     "duration": "Durata",
     "model": "Modello",
-    "parlante": "Parlante {{n}}"
+    "parlante": "Parlante {{n}}",
+    "unknownSpeaker": "Parlante non determinato",
+    "provisionalSpeaker": "{{name}} (provvisorio)",
+    "diarization": "Diarizzazione",
+    "diarizationCompleted": "Diarizzazione completata",
+    "diarizationIncomplete": "Diarizzazione non completata"
   },
   "library": {
     "title": "Libreria",

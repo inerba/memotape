@@ -18,7 +18,8 @@ use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
-use crate::engine::pipeline::{self, Feed, PipelineEvent, transcribe_decoded};
+use crate::engine::live_diarization::{LiveDiarizer, LiveTranscript};
+use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
@@ -36,9 +37,11 @@ const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
 /// Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
 /// `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
-#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptPhrase {
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub phrase_id: u32,
     pub inizio_ms: u32,
     pub fine_ms: u32,
@@ -48,6 +51,10 @@ pub struct TranscriptPhrase {
     /// Il Parlante, da 1: c'è nelle Frasi di un Tape diarizzato. Durante una Trascrizione arriva
     /// dopo, con `speakers-assigned`.
     pub parlante: Option<u32>,
+    #[serde(default)]
+    pub parlante_non_determinato: bool,
+    #[serde(default)]
+    pub parlante_provvisorio: bool,
 }
 
 /// Il Parziale della Frase in corso (solo con i modelli in streaming): sostituisce il precedente e
@@ -55,6 +62,8 @@ pub struct TranscriptPhrase {
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscriptPartial {
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub phrase_id: u32,
     pub inizio_ms: u32,
     pub fine_ms: u32,
@@ -65,18 +74,220 @@ pub struct TranscriptPartial {
 /// La Trascrizione dal vivo si è fermata (modello assente, guasto): la Registrazione continua senza
 /// testo.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
 pub struct LiveTranscriptionFailed {
+    pub session_id: String,
+    pub error: AppError,
+}
+
+/// Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
+/// un risultato precedente non può far ricomparire un Parziale ormai concluso.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveTranscriptUpdated {
+    pub session_id: String,
+    pub ingresso: Ingresso,
+    pub revision: u32,
+    pub finished: bool,
+    pub phrases: Vec<TranscriptPhrase>,
+    pub partials: Vec<TranscriptPhrase>,
+}
+
+pub struct LiveSource {
+    pub ingresso: Ingresso,
+    pub frames: LiveFrames,
+    pub diarizer: Option<LiveDiarizer>,
+}
+
+fn transcript_phrase(id: u32, phrase: &Phrase, session_id: Option<&str>) -> TranscriptPhrase {
+    TranscriptPhrase {
+        session_id: session_id.map(str::to_owned),
+        phrase_id: id,
+        inizio_ms: phrase.inizio_ms,
+        fine_ms: phrase.fine_ms,
+        text: phrase.text.clone(),
+        ingresso: phrase.ingresso,
+        parlante: phrase.parlante,
+        parlante_non_determinato: phrase.parlante_non_determinato,
+        parlante_provvisorio: phrase.parlante_provvisorio,
+    }
+}
+
+struct LiveSession<'a> {
+    session_id: &'a str,
+    app: &'a AppHandle,
+    ingresso: Ingresso,
+    transcript: &'a Mutex<Transcript>,
+    state: Mutex<LiveTranscript>,
+}
+
+impl LiveSession<'_> {
+    fn run(
+        &self,
+        engine: &mut TranscribeCpp,
+        silero: &Path,
+        cancel: &CancelToken,
+        speech_language: Option<&str>,
+        frames: &mut LiveFrames,
+        mut diarizer: LiveDiarizer,
+    ) -> Result<(), AppError> {
+        let app = self.app;
+        let transcript = self.transcript;
+        std::thread::scope(|scope| {
+            let worker_cancel = diarizer.cancel_token();
+            let worker_cancelled = worker_cancel.clone();
+            let session_ref = self;
+            let worker = scope.spawn(move || {
+                let analyzed = diarizer.run(cancel, &mut |turns| session_ref.turns(turns));
+                if let Err(error) = analyzed
+                    && ((!cancel.is_cancelled() && !worker_cancelled.is_cancelled())
+                        || matches!(error, AppError::LiveDiarizationLagging))
+                {
+                    let error = if matches!(error, AppError::LiveDiarizationLagging) {
+                        error
+                    } else {
+                        AppError::LiveDiarizationUnavailable(error.to_string())
+                    };
+                    if let Err(e) = (LiveDiarizationFailed {
+                        session_id: self.session_id.to_owned(),
+                        ingresso: self.ingresso,
+                        error,
+                    })
+                    .emit(app)
+                    {
+                        log::warn!("guasto dei Parlanti non emesso: {e}");
+                    }
+                }
+            });
+            engine.set_cancel_token(cancel);
+            let backlog = frames.backlog();
+            let result = Silero::new(silero).and_then(|mut detector| {
+                pipeline::transcribe(
+                    frames,
+                    engine,
+                    &mut detector,
+                    speech_language,
+                    cancel,
+                    &mut |event| {
+                        log::info!("ASR dal vivo: coda={} ms", backlog());
+                        self.asr(event);
+                    },
+                )
+            });
+            if result.is_err() {
+                worker_cancel.cancel();
+                let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+                state.clear_partial();
+                self.publish(&state);
+            }
+            if worker.join().is_err() {
+                let _ = (LiveDiarizationFailed {
+                    session_id: self.session_id.to_owned(),
+                    ingresso: self.ingresso,
+                    error: AppError::LiveDiarizationUnavailable("stream interrotto".into()),
+                })
+                .emit(app);
+            }
+            result.map(|duration| {
+                let mut document = transcript.lock().unwrap_or_else(PoisonError::into_inner);
+                document.durata_ms = document.durata_ms.max(Some(duration));
+            })
+        })
+    }
+
+    /// Chiamato sotto il lock della sessione, prima di pubblicare la revisione.
+    fn publish(&self, state: &LiveTranscript) {
+        let phrases: Vec<_> = state
+            .phrases
+            .iter()
+            .map(|(id, phrase)| transcript_phrase(*id, phrase, Some(self.session_id)))
+            .collect();
+        let partials: Vec<_> = state
+            .partials
+            .iter()
+            .map(|(id, phrase)| transcript_phrase(*id, phrase, Some(self.session_id)))
+            .collect();
+        let mut transcript = self
+            .transcript
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        transcript.phrases.retain(|p| p.ingresso != self.ingresso);
+        for (_, phrase) in &state.phrases {
+            transcript.insert(phrase.clone());
+        }
+        transcript.live_asr.retain(|p| p.ingresso != self.ingresso);
+        transcript.live_asr.extend(state.originals().cloned());
+        let mut visible = transcript.clone();
+        for (_, phrase) in &state.partials {
+            visible.insert(phrase.clone());
+        }
+        self.app.state::<LastTranscript>().set(visible);
+        if let Err(e) = (LiveTranscriptUpdated {
+            session_id: self.session_id.to_owned(),
+            ingresso: self.ingresso,
+            revision: state.revision,
+            finished: false,
+            phrases,
+            partials,
+        })
+        .emit(self.app)
+        {
+            log::warn!("rettifica dal vivo non emessa: {e}");
+        }
+    }
+
+    fn asr(&self, event: PipelineEvent) {
+        if let PipelineEvent::Progress(percent) = event {
+            if let Err(e) = (TranscriptionProgress {
+                session_id: Some(self.session_id.to_owned()),
+                percent,
+            })
+            .emit(self.app)
+            {
+                log::warn!("progresso dal vivo non emesso: {e}");
+            }
+            return;
+        }
+        if let PipelineEvent::Partial { fine_ms, .. } | PipelineEvent::Phrase { fine_ms, .. } =
+            &event
+        {
+            log::info!("ASR dal vivo: testo disponibile fino a {fine_ms} ms");
+        }
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.on_asr(self.ingresso, event);
+        self.publish(&state);
+    }
+
+    fn turns(&self, turns: Vec<diarize::Turn>) {
+        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
+        state.on_turns(turns);
+        self.publish(&state);
+    }
+}
+
+/// Il riconoscimento dei Parlanti non è disponibile; audio e ASR continuano.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveDiarizationFailed {
+    pub session_id: String,
+    pub ingresso: Ingresso,
     pub error: AppError,
 }
 
 /// Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti).
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
-pub struct DiarizationStarted;
+#[serde(rename_all = "camelCase")]
+pub struct DiarizationStarted {
+    pub session_id: Option<String>,
+}
 
 /// I Parlanti delle Frasi dopo la Diarizzazione: `parlante` da 1 per ordine di comparsa, `null` se
 /// nessuno parlava durante la Frase.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
 pub struct SpeakersAssigned {
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub speakers: Vec<SpeakerAssignment>,
 }
 
@@ -86,12 +297,18 @@ pub struct SpeakerAssignment {
     pub ingresso: Ingresso,
     pub phrase_id: u32,
     pub parlante: Option<u32>,
+    #[serde(default)]
+    pub parlante_non_determinato: bool,
+    #[serde(default)]
+    pub parlante_provvisorio: bool,
 }
 
 /// Avanzamento della Trascrizione, o dello smaltimento della coda dal vivo dopo Stop: `percent` è
 /// `null` se la durata della Sorgente non è nota.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
 pub struct TranscriptionProgress {
+    pub session_id: Option<String>,
     pub percent: Option<u8>,
 }
 
@@ -143,6 +360,8 @@ pub struct TapeInfo {
     pub completa: bool,
     /// Il nome del file audio o video da cui viene.
     pub origine: Option<String>,
+    #[serde(default)]
+    pub diarizzazione: Option<crate::transcript::Diarizzazione>,
 }
 
 /// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende
@@ -173,9 +392,30 @@ impl LastTranscript {
 
 /// Il testo di Copia testo: l'ultima Trascrizione in testo semplice o in Markdown, come dicono le
 /// impostazioni. `None` se non ce n'è ancora una.
-pub fn transcript_text(last: &LastTranscript, settings: &Settings) -> Option<String> {
-    last.get()
-        .map(|t| transcript::render(&t, &labels(settings), settings.copia_come))
+pub fn transcript_text(
+    last: &LastTranscript,
+    settings: &Settings,
+    visible: Option<&[TranscriptPhrase]>,
+) -> Option<String> {
+    last.get().map(|mut transcript| {
+        // Il pulsante copia lo snapshot visibile al click, anche se il backend è già più avanti.
+        if let Some(visible) = visible {
+            transcript.phrases = visible
+                .iter()
+                .map(|p| Phrase {
+                    inizio_ms: p.inizio_ms,
+                    fine_ms: p.fine_ms,
+                    text: p.text.clone(),
+                    ingresso: p.ingresso,
+                    parlante: p.parlante,
+                    parlante_non_determinato: p.parlante_non_determinato,
+                    parlante_provvisorio: p.parlante_provvisorio,
+                    tempi: Vec::new(),
+                })
+                .collect();
+        }
+        transcript::render(&transcript, &labels(settings), settings.copia_come)
+    })
 }
 
 /// Il Tape `path` reso come documento, con le correzioni e i nomi dei Parlanti, in `format`: per
@@ -201,7 +441,9 @@ fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Tran
         model: SettingsStore::model_of(settings).name.clone(),
         speech_language: settings.speech_language.clone(),
         phrases: Vec::new(),
+        live_asr: Vec::new(),
         parlanti: BTreeMap::new(),
+        diarizzazione: None,
     };
     app.state::<LastTranscript>().set(transcript.clone());
     transcript
@@ -252,10 +494,20 @@ pub async fn transcribe(
     let separate = ingressi != [Ingresso::Mix];
     // Gli Ingressi da diarizzare: con gli Ingressi separati il Microfono solo a richiesta.
     let diarized = settings.parlanti_trascrivi(separate);
-    // Senza Sortformer lo si dice subito, non dopo aver trascritto.
-    let diarizer = (!diarized.is_empty())
-        .then(|| app.state::<Models>().reserve_diarizer(&app))
-        .transpose()?;
+    // Si verifica il modello selezionato prima dell'ASR, fuori dall'esecutore async (hash del GGUF).
+    let diarizer = if diarized.is_empty() {
+        None
+    } else {
+        let (app, settings) = (app.clone(), settings.clone());
+        Some(
+            tauri::async_runtime::spawn_blocking(move || {
+                app.state::<Models>()
+                    .reserve_configured_diarizer(&app, &settings)
+            })
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))??,
+        )
+    };
     let started = chrono::Local::now();
     let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     tauri::async_runtime::spawn_blocking(move || {
@@ -274,7 +526,10 @@ pub async fn transcribe(
                     &mut engine,
                     &silero,
                     &cancel,
-                    ingresso,
+                    EventSource {
+                        ingresso,
+                        session_id: None,
+                    },
                     &transcript,
                     |engine, detector, on_event| {
                         transcribe_decoded(
@@ -467,7 +722,7 @@ fn diarize_phrases(
     if with_phrases.is_empty() {
         return Ok(());
     }
-    if let Err(e) = DiarizationStarted.emit(app) {
+    if let Err(e) = (DiarizationStarted { session_id: None }).emit(app) {
         log::warn!("diarization-started non emesso: {e}");
     }
     // Prima tutti i turni, poi i Parlanti: con un errore o Annulla a metà nessuna Frase li ha.
@@ -484,16 +739,18 @@ fn diarize_phrases(
         turns.push((*ingresso, found));
     }
     for (ingresso, found) in &turns {
-        diarize::assign_ingresso(&mut transcript.phrases, *ingresso, found);
+        diarize::assign_configured(
+            &mut transcript.phrases,
+            *ingresso,
+            found,
+            if diarizer.is_nemotron3() {
+                crate::managers::settings::Diarizer::Nemotron3
+            } else {
+                crate::managers::settings::Diarizer::Sortformer
+            },
+        );
     }
-    app.state::<LastTranscript>()
-        .update(|last| last.phrases.clone_from(&transcript.phrases));
-    let assigned = SpeakersAssigned {
-        speakers: assignments(&transcript.phrases),
-    };
-    if let Err(e) = assigned.emit(app) {
-        log::warn!("speakers-assigned non emesso: {e}");
-    }
+    final_speakers(app, transcript, None);
     Ok(())
 }
 
@@ -518,6 +775,8 @@ fn assignments(phrases: &[Phrase]) -> Vec<SpeakerAssignment> {
                 ingresso: phrase.ingresso,
                 phrase_id,
                 parlante: phrase.parlante,
+                parlante_non_determinato: phrase.parlante_non_determinato,
+                parlante_provvisorio: phrase.parlante_provvisorio,
             }
         })
         .collect()
@@ -531,12 +790,11 @@ fn assignments(phrases: &[Phrase]) -> Vec<SpeakerAssignment> {
 /// Trascrizione è stata annullata o si è guastata, e com'è finita (il primo errore). Se il modello
 /// non si carica (`liveTranscriptionUnavailable`) o una pipeline si guasta emette subito
 /// `live-transcription-failed`: la Registrazione continua, e l'altro Ingresso anche. Con Riconosci
-/// i parlanti (`Settings::parlanti_registrazione`) tiene l'audio degli Ingressi scelti e, finite le
-/// code, li diarizza; senza Sortformer lo avvisa subito con `live-transcription-failed`
-/// (`diarizerMissing`) e trascrive senza Parlanti.
+/// i parlanti, `record` rilegge gli Ogg salvati dopo questa funzione: qui Nemotron affianca ASR con un modello e uno stream distinti per ogni Ingresso richiesto.
 pub fn transcribe_live(
     app: &AppHandle,
-    sources: Vec<(Ingresso, LiveFrames)>,
+    sources: Vec<LiveSource>,
+    session_id: &str,
     settings: &Settings,
     title: &str,
     cancel: &CancelToken,
@@ -565,97 +823,84 @@ pub fn transcribe_live(
     });
     let transcribed = match prepared {
         Err(error) => {
-            live_failed(app, &error, cancel);
+            live_failed(app, session_id, &error, cancel);
             Err(error)
         }
         Ok((silero, mut lease, mut extra)) => {
-            let diarized = settings.parlanti_registrazione();
-            // Una Registrazione che non è partita non prenota Sortformer.
-            let diarizer = if diarized.is_empty() || cancel.is_cancelled() {
-                None
-            } else {
-                models
-                    .reserve_diarizer(app)
-                    .inspect_err(|e| live_failed(app, e, cancel))
-                    .ok()
-            };
             let engines = std::iter::once(&mut *lease).chain(&mut extra);
             let results: Vec<_> = std::thread::scope(|scope| {
                 let pipelines: Vec<_> = sources
                     .into_iter()
                     .zip(engines)
-                    .map(|((ingresso, mut frames), engine)| {
+                    .map(|(source, engine)| {
+                        let LiveSource {
+                            ingresso,
+                            mut frames,
+                            diarizer,
+                        } = source;
                         let (silero, transcript) = (&silero, &transcript);
-                        // La Diarizzazione vuole l'audio intero dell'Ingresso, come la pipeline lo
-                        // ha ricevuto. ponytail: in memoria, 230 MB l'ora per Ingresso.
-                        let keep = diarizer.is_some() && diarized.contains(&ingresso);
                         let pipeline = scope.spawn(move || {
-                            let mut audio = Vec::new();
-                            let mut frames = frames.by_ref().inspect(|feed| {
-                                if let (true, Ok(Feed::Frame(frame))) = (keep, feed) {
-                                    audio.extend_from_slice(frame);
-                                }
-                            });
-                            let transcribed = run_pipeline(
-                                app,
-                                engine,
-                                silero,
-                                cancel,
-                                ingresso,
-                                transcript,
-                                |engine, detector, on_event| {
-                                    pipeline::transcribe(
-                                        &mut frames,
-                                        engine,
-                                        detector,
-                                        settings.speech_language.code(),
-                                        cancel,
-                                        on_event,
-                                    )
-                                },
-                            );
+                            let transcribed = if let Some(diarizer) = diarizer {
+                                let session = LiveSession {
+                                    session_id,
+                                    app,
+                                    ingresso,
+                                    transcript,
+                                    state: Mutex::default(),
+                                };
+                                session.run(
+                                    engine,
+                                    silero,
+                                    cancel,
+                                    settings.speech_language.code(),
+                                    &mut frames,
+                                    diarizer,
+                                )
+                            } else {
+                                run_pipeline(
+                                    app,
+                                    engine,
+                                    silero,
+                                    cancel,
+                                    EventSource {
+                                        ingresso,
+                                        session_id: Some(session_id),
+                                    },
+                                    transcript,
+                                    |engine, detector, on_event| {
+                                        pipeline::transcribe(
+                                            &mut frames,
+                                            engine,
+                                            detector,
+                                            settings.speech_language.code(),
+                                            cancel,
+                                            on_event,
+                                        )
+                                    },
+                                )
+                            };
                             if let Err(error) = &transcribed {
-                                live_failed(app, error, cancel);
+                                live_failed(app, session_id, error, cancel);
                             }
                             drop(frames);
-                            (transcribed, audio)
+                            transcribed
                         });
                         (ingresso, pipeline)
                     })
                     .collect();
                 pipelines
                     .into_iter()
-                    .map(|(ingresso, pipeline)| {
-                        let (transcribed, audio) = pipeline.join().unwrap_or_else(|_| {
-                            let error = AppError::Internal("pipeline dal vivo interrotta".into());
-                            (Err(error), Vec::new())
-                        });
-                        (transcribed, (ingresso, audio))
+                    .map(|(_, pipeline)| {
+                        pipeline.join().unwrap_or_else(|_| {
+                            Err(AppError::Internal("pipeline dal vivo interrotta".into()))
+                        })
                     })
                     .collect()
             });
             // La seconda istanza si libera con la Registrazione.
             drop(extra);
-            let (outcomes, audio): (Vec<_>, Vec<_>) = results.into_iter().unzip();
-            models.release(app, lease, outcomes.iter().all(keep_engine));
-            outcomes
-                .into_iter()
-                .collect::<Result<(), AppError>>()
-                .and_then(|()| match diarizer {
-                    // Dopo Stop, finite le code: i Parlanti arrivano prima che si componga il Tape.
-                    Some(diarizer) if !cancel.is_cancelled() => {
-                        let audio: Vec<_> =
-                            audio.into_iter().filter(|(_, a)| !a.is_empty()).collect();
-                        diarize_phrases(
-                            app,
-                            &diarizer,
-                            &audio,
-                            &mut transcript.lock().unwrap_or_else(PoisonError::into_inner),
-                            cancel,
-                        )
-                    }
-                    _ => Ok(()),
-                })
+            models.release(app, lease, results.iter().all(keep_engine));
+            results.into_iter().collect::<Result<(), AppError>>()
         }
     };
     let transcript = transcript
@@ -664,13 +909,81 @@ pub fn transcribe_live(
     (transcript, transcribed)
 }
 
+/// Aggiorna Copia testo e le etichette prima di comporre il Tape.
+pub fn final_speakers(app: &AppHandle, transcript: &Transcript, session_id: Option<&str>) {
+    let last = app.state::<LastTranscript>();
+    let same_layout = last.get().is_some_and(|previous| {
+        let identity = |p: &Phrase| (p.ingresso, p.inizio_ms, p.fine_ms, p.text.clone());
+        previous
+            .phrases
+            .iter()
+            .map(identity)
+            .eq(transcript.phrases.iter().map(identity))
+    });
+    last.set(transcript.clone());
+    // La revisione terminale porta anche il testo: resta completa se una rettifica dal vivo
+    // arriva fuori ordine, e nel fallback Ogg non c'è una riapertura del Tape a riparare la vista.
+    for ingresso in [Ingresso::Mix, Ingresso::Microfono, Ingresso::Sistema] {
+        let phrases: Vec<_> = transcript
+            .phrases
+            .iter()
+            .zip(assignments(&transcript.phrases))
+            .filter(|(p, _)| p.ingresso == ingresso)
+            .map(|(p, a)| transcript_phrase(a.phrase_id, p, session_id))
+            .collect();
+        if !phrases.is_empty()
+            && let Some(session_id) = session_id
+            && let Err(error) = (LiveTranscriptUpdated {
+                session_id: session_id.to_owned(),
+                ingresso,
+                revision: u32::MAX,
+                finished: true,
+                phrases,
+                partials: Vec::new(),
+            })
+            .emit(app)
+        {
+            log::warn!("testo finale non emesso: {error}");
+        }
+    }
+    if session_id.is_some() {
+        return;
+    }
+    // L'ASR è terminata: le divisioni aumentano le righe, quindi la sequenza completa con gli id
+    // per Ingresso sostituisce quelle precedenti e aggiunge le parti. Vale anche se il salvataggio
+    // del Tape fallisce e resta solo l'Ogg: la vista e Copia testo ricevono lo stesso risultato.
+    if !same_layout {
+        for (phrase, assignment) in transcript
+            .phrases
+            .iter()
+            .zip(assignments(&transcript.phrases))
+        {
+            if let Err(error) =
+                transcript_phrase(assignment.phrase_id, phrase, session_id).emit(app)
+            {
+                log::warn!("Frase finale non emessa: {error}");
+            }
+        }
+        return;
+    }
+    if let Err(error) = (SpeakersAssigned {
+        session_id: session_id.map(str::to_owned),
+        speakers: assignments(&transcript.phrases),
+    })
+    .emit(app)
+    {
+        log::warn!("speakers-assigned non emesso: {error}");
+    }
+}
+
 /// Avvisa che la Trascrizione dal vivo si è fermata, a meno che non sia stata annullata (anche
 /// perché la Registrazione non è partita).
-fn live_failed(app: &AppHandle, error: &AppError, cancel: &CancelToken) {
+fn live_failed(app: &AppHandle, session_id: &str, error: &AppError, cancel: &CancelToken) {
     if cancel.is_cancelled() {
         return;
     }
     let failed = LiveTranscriptionFailed {
+        session_id: session_id.to_owned(),
         error: error.clone(),
     };
     if let Err(e) = failed.emit(app) {
@@ -739,12 +1052,15 @@ pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
         .frasi
         .iter()
         .map(|frase| TranscriptPhrase {
+            session_id: None,
             phrase_id: frase.id,
             inizio_ms: frase.inizio_ms,
             fine_ms: frase.fine_ms,
             text: frase.testo.clone(),
             ingresso: frase.ingresso,
             parlante: frase.parlante,
+            parlante_non_determinato: frase.parlante_non_determinato,
+            parlante_provvisorio: frase.parlante_provvisorio,
         })
         .collect();
     Ok(OpenedTape {
@@ -757,6 +1073,7 @@ pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
             ingressi_separati: document.modalita == tape::Modalita::IngressiSeparati,
             completa: document.completa,
             origine: document.origine,
+            diarizzazione: document.diarizzazione.clone(),
         },
         parlanti: document.parlanti,
     })
@@ -788,9 +1105,14 @@ fn tape_transcript(title: String, document: tape::Document) -> Transcript {
                 text: frase.testo,
                 ingresso: frase.ingresso,
                 parlante: frase.parlante,
+                parlante_non_determinato: frase.parlante_non_determinato,
+                parlante_provvisorio: frase.parlante_provvisorio,
+                tempi: frase.tempi,
             })
             .collect(),
+        live_asr: Vec::new(),
         parlanti: document.parlanti,
+        diarizzazione: document.diarizzazione,
     }
 }
 
@@ -798,6 +1120,12 @@ fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     app.path()
         .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
         .map_err(|e| AppError::Internal(e.to_string()))
+}
+
+/// Identità degli eventi: nessuna sessione per i file, UUID proprio per ogni Registrazione.
+struct EventSource<'a> {
+    ingresso: Ingresso,
+    session_id: Option<&'a str>,
 }
 
 /// Esegue `run` con `engine` e Silero, traduce gli eventi della pipeline in
@@ -810,7 +1138,7 @@ fn run_pipeline(
     engine: &mut TranscribeCpp,
     silero: &Path,
     cancel: &CancelToken,
-    ingresso: Ingresso,
+    source: EventSource<'_>,
     transcript: &Mutex<Transcript>,
     run: impl FnOnce(
         &mut dyn TranscriptionEngine,
@@ -818,6 +1146,10 @@ fn run_pipeline(
         &mut dyn FnMut(PipelineEvent),
     ) -> Result<u32, AppError>,
 ) -> Result<(), AppError> {
+    let EventSource {
+        ingresso,
+        session_id,
+    } = source;
     engine.set_cancel_token(cancel);
     let last = app.state::<LastTranscript>();
     let update = |change: &dyn Fn(&mut Transcript)| {
@@ -827,13 +1159,19 @@ fn run_pipeline(
     Silero::new(silero).and_then(|mut detector| {
         run(engine, &mut detector, &mut |event| {
             let emitted = match event {
-                PipelineEvent::Progress(percent) => TranscriptionProgress { percent }.emit(app),
+                PipelineEvent::Progress(percent) => TranscriptionProgress {
+                    session_id: session_id.map(str::to_owned),
+                    percent,
+                }
+                .emit(app),
                 PipelineEvent::Partial {
                     id,
                     inizio_ms,
                     fine_ms,
                     text,
+                    ..
                 } => TranscriptPartial {
+                    session_id: session_id.map(str::to_owned),
                     phrase_id: id,
                     inizio_ms,
                     fine_ms,
@@ -846,14 +1184,18 @@ fn run_pipeline(
                     inizio_ms,
                     fine_ms,
                     text,
+                    tempi,
                 } => {
                     let emitted = TranscriptPhrase {
+                        session_id: session_id.map(str::to_owned),
                         phrase_id: id,
                         inizio_ms,
                         fine_ms,
                         text: text.clone(),
                         ingresso,
                         parlante: None,
+                        parlante_non_determinato: false,
+                        parlante_provvisorio: false,
                     }
                     .emit(app);
                     let phrase = Phrase {
@@ -862,6 +1204,9 @@ fn run_pipeline(
                         text,
                         ingresso,
                         parlante: None,
+                        parlante_non_determinato: false,
+                        parlante_provvisorio: false,
+                        tempi,
                     };
                     update(&|t| t.insert(phrase.clone()));
                     emitted
@@ -936,7 +1281,155 @@ mod tests {
     use crate::audio_toolkit::ogg_opus::tests::decoded_seconds;
     use crate::engine::pipeline::tests::{EnergyDetector, FakeEngine, fixture, wav};
     use crate::engine::pipeline::transcribe_file;
+    use crate::engine::transcribe_cpp::OfflineDiarizer;
     use crate::managers::settings::Channels;
+
+    #[test]
+    fn divisioni_e_identita_per_ingresso_restano_coerenti_in_tape_copia_correzioni_e_indice() {
+        use crate::engine::asr::AsrResult;
+        use crate::engine::diarize::Turn;
+        use crate::managers::settings::Diarizer;
+        let dir = temp_dir("memotape-test-divisioni");
+        let root = dir.join("Libreria");
+        std::fs::create_dir(&root).unwrap();
+        let ogg = dir.join("audio.ogg");
+        tone_ogg(&ogg, &[(3.0, true)]);
+        let make = |ingresso, text: &str, rows: Vec<(i64, i64, String)>| {
+            let result = AsrResult::timed(text.into(), rows);
+            Phrase {
+                inizio_ms: 0,
+                fine_ms: 3000,
+                text: result.text,
+                tempi: result.tempi,
+                ingresso,
+                parlante: None,
+                parlante_non_determinato: false,
+                parlante_provvisorio: false,
+            }
+        };
+        let mut phrases = vec![
+            make(
+                Ingresso::Microfono,
+                "Buongiorno! Arrivederci.",
+                vec![
+                    (100, 700, "Buongiorno!".into()),
+                    (1500, 2200, "Arrivederci.".into()),
+                ],
+            ),
+            make(
+                Ingresso::Sistema,
+                "Sì. No.",
+                vec![(500, 900, "Sì.".into()), (2300, 2700, "No.".into())],
+            ),
+        ];
+        for ingresso in [Ingresso::Microfono, Ingresso::Sistema] {
+            diarize::assign_configured(
+                &mut phrases,
+                ingresso,
+                &[
+                    Turn {
+                        inizio_ms: 0,
+                        fine_ms: 1000,
+                        parlante: 7,
+                    },
+                    Turn {
+                        inizio_ms: 1000,
+                        fine_ms: 3000,
+                        parlante: 3,
+                    },
+                ],
+                Diarizer::Nemotron3,
+            );
+        }
+        let document = tape::Document::new(
+            "2026-10-05T12:00:00+02:00".into(),
+            3000,
+            tape::Modalita::IngressiSeparati,
+            Some(models::default_model().id.clone()),
+            SpeechLanguage::from("it"),
+            true,
+            &phrases,
+        );
+        let path = root.join("Conversazione.tape");
+        tape::write(
+            &path,
+            &[
+                (Ingresso::Mix, &ogg),
+                (Ingresso::Microfono, &ogg),
+                (Ingresso::Sistema, &ogg),
+            ],
+            &document,
+            Some(&[0.2, 0.5]),
+        )
+        .unwrap();
+        assert_eq!(tape::read(&path).unwrap(), document);
+        let opened = open_tape(&path).unwrap();
+        assert_eq!(opened.phrases.len(), 4);
+        for ingresso in [Ingresso::Microfono, Ingresso::Sistema] {
+            let own: Vec<_> = opened
+                .phrases
+                .iter()
+                .filter(|p| p.ingresso == ingresso)
+                .collect();
+            assert_ne!(own[0].phrase_id, own[1].phrase_id);
+            assert_eq!((own[0].parlante, own[1].parlante), (Some(1), Some(2)));
+            assert!(own.iter().all(|p| p.fine_ms > p.inizio_ms));
+        }
+        let target = opened
+            .phrases
+            .iter()
+            .find(|p| p.text == "Arrivederci.")
+            .unwrap();
+        assert_eq!((target.inizio_ms, target.fine_ms), (1500, 2200));
+        let settings = Settings {
+            interface_language: Some(Language::It),
+            ..Default::default()
+        };
+        for format in [CopiaCome::Testo, CopiaCome::Markdown] {
+            let text = tape_text(&path, &settings, format).unwrap();
+            assert!(text.contains("Buongiorno!"));
+            assert!(text.contains("Arrivederci."));
+            assert!(text.contains("Microfono · Parlante 2:"));
+            assert!(text.contains("Audio di sistema · Parlante 2:"));
+        }
+        let mut library = Library::open(&root, &dir.join("indice.sqlite")).unwrap();
+        library.sync().unwrap();
+        let hits = library.search("Arrivederci", None).unwrap();
+        assert_eq!(
+            (
+                hits[0].frasi[0].phrase_id,
+                hits[0].frasi[0].ingresso,
+                hits[0].frasi[0].inizio_ms
+            ),
+            (target.phrase_id, Ingresso::Microfono, 1500)
+        );
+        tape::edit_frase(&path, Ingresso::Microfono, target.phrase_id, "A presto!").unwrap();
+        let corrected = tape::read(&path).unwrap();
+        let corrected = corrected
+            .frasi
+            .iter()
+            .find(|p| p.id == target.phrase_id)
+            .unwrap();
+        assert!(corrected.tempi.is_empty());
+        assert_eq!(corrected.testo, "A presto!");
+        assert_eq!(
+            (corrected.inizio_ms, corrected.fine_ms, corrected.parlante),
+            (1500, 2200, Some(2))
+        );
+        assert_eq!(tape::forma_onda(&path), Some(vec![0.2, 0.5]));
+        assert!((decoded_seconds(&path) - 3.0).abs() < 0.001);
+        assert!(
+            tape_text(&path, &settings, CopiaCome::Markdown)
+                .unwrap()
+                .contains("A presto!")
+        );
+        let mut old = serde_json::to_value(&document).unwrap();
+        for phrase in old["frasi"].as_array_mut().unwrap() {
+            phrase.as_object_mut().unwrap().remove("tempi");
+        }
+        let old: tape::Document = serde_json::from_value(old).unwrap();
+        assert!(old.frasi.iter().all(|p| p.tempi.is_empty()));
+    }
 
     /// Un Ogg a 16 kHz mono con un tono nei tratti `true` di `parts` (secondi, parlato).
     fn tone_ogg(path: &Path, parts: &[(f32, bool)]) {
@@ -1080,9 +1573,14 @@ mod tests {
                     text: (*text).into(),
                     ingresso: Ingresso::Mix,
                     parlante: None,
+                    parlante_non_determinato: false,
+                    parlante_provvisorio: false,
+                    tempi: Vec::new(),
                 })
                 .collect(),
+            live_asr: Vec::new(),
             parlanti: BTreeMap::new(),
+            diarizzazione: None,
         }
     }
 
@@ -1220,14 +1718,48 @@ mod tests {
             interface_language: Some(Language::It),
             ..Settings::default()
         };
-        assert_eq!(transcript_text(&last, &settings), None);
+        assert_eq!(transcript_text(&last, &settings, None), None);
         last.set(transcript(&["Uno."]));
         last.update(|t| t.title = "Lezione".into());
-        let text = transcript_text(&last, &settings).unwrap();
+        let text = transcript_text(&last, &settings, None).unwrap();
         assert!(text.starts_with("Lezione\n\nData: "), "{text}");
         settings.copia_come = CopiaCome::Markdown;
-        let text = transcript_text(&last, &settings).unwrap();
+        let text = transcript_text(&last, &settings, None).unwrap();
         assert!(text.starts_with("# Lezione\n\n- **Data:** "), "{text}");
+    }
+
+    #[test]
+    fn copia_testo_congela_la_revisione_visibile_compresi_i_parziali_divisi() {
+        let last = LastTranscript::default();
+        last.set(transcript(&["Testo più recente nel backend"]));
+        let settings = Settings {
+            interface_language: Some(Language::It),
+            ..Settings::default()
+        };
+        let part = |id, speaker, text: &str| TranscriptPhrase {
+            session_id: Some("live".into()),
+            phrase_id: id,
+            inizio_ms: id * 1000,
+            fine_ms: (id + 1) * 1000,
+            text: text.into(),
+            ingresso: Ingresso::Mix,
+            parlante: Some(speaker),
+            parlante_provvisorio: true,
+            parlante_non_determinato: false,
+        };
+        let visible = [part(0, 1, "Perché sì! "), part(1, 2, "D'accordo?")];
+        for format in [CopiaCome::Testo, CopiaCome::Markdown] {
+            let settings = Settings {
+                copia_come: format,
+                ..settings.clone()
+            };
+            let copied = transcript_text(&last, &settings, Some(&visible)).unwrap();
+            assert!(copied.contains("Parlante 1 (provvisorio)"), "{copied}");
+            assert!(copied.contains("Parlante 2 (provvisorio)"), "{copied}");
+            assert!(copied.contains("Perché sì! "));
+            assert!(copied.contains("D'accordo?"));
+            assert!(!copied.contains("più recente"));
+        }
     }
 
     #[test]
@@ -1252,7 +1784,9 @@ mod tests {
                 model: models::default_model().name.clone(),
                 speech_language: SpeechLanguage::from("it"),
                 phrases,
+                live_asr: Vec::new(),
                 parlanti: document.parlanti.clone(),
+                diarizzazione: document.diarizzazione.clone(),
             }
         );
         // Senza Trascrizione dal vivo il modello non c'è; un id sconosciuto resta com'è.
@@ -1297,6 +1831,7 @@ mod tests {
                 ingressi_separati: true,
                 completa: false,
                 origine: Some("Call.mp4".into()),
+                diarizzazione: None,
             }
         );
         assert_eq!(opened.parlanti, document.parlanti);
@@ -1323,6 +1858,169 @@ mod tests {
             markdown.ends_with("**Audio di sistema · Lucia:** Salve.\n"),
             "{markdown}"
         );
+    }
+
+    #[test]
+    fn un_tape_riaperto_conserva_la_voce_non_determinata_audio_nomi_e_forma_onda() {
+        let dir = temp_dir("memotape-test-tape-voce-ambigua");
+        let audio = dir.join("mix.ogg");
+        std::fs::write(&audio, b"audio originale").unwrap();
+        let mut phrases = transcript(&["Una voce.", "Due voci insieme."]).phrases;
+        phrases[0].parlante = Some(1);
+        phrases[1].parlante_non_determinato = true;
+        let mut document = tape::Document::new(
+            "2026-10-05T17:00:00+02:00".into(),
+            4000,
+            tape::Modalita::Mix,
+            Some(models::default_model().id.clone()),
+            SpeechLanguage::from("it"),
+            true,
+            &phrases,
+        );
+        document.parlanti.insert("mix:1".into(), "Mario".into());
+        let path = dir.join("Intervista.tape");
+        tape::write(
+            &path,
+            &[(Ingresso::Mix, &audio)],
+            &document,
+            Some(&[0.1, 0.5]),
+        )
+        .unwrap();
+        tape::edit_frase(&path, Ingresso::Mix, 1, "Due voci, testo corretto.").unwrap();
+        let opened = open_tape(&path).unwrap();
+        assert_eq!(opened.parlanti, document.parlanti);
+        assert!(opened.phrases[1].parlante_non_determinato);
+        assert_eq!(opened.phrases[1].parlante, None);
+        assert_eq!(
+            (opened.phrases[1].inizio_ms, opened.phrases[1].fine_ms),
+            (0, 1000)
+        );
+        assert_eq!(tape::forma_onda(&path), Some(vec![0.1, 0.5]));
+        use std::io::Read;
+        let mut read_audio = Vec::new();
+        tape::Mix::open(&path)
+            .unwrap()
+            .read_to_end(&mut read_audio)
+            .unwrap();
+        assert_eq!(read_audio, b"audio originale");
+        let settings = Settings {
+            interface_language: Some(Language::It),
+            ..Settings::default()
+        };
+        for format in [CopiaCome::Testo, CopiaCome::Markdown] {
+            let text = tape_text(&path, &settings, format).unwrap();
+            assert!(text.contains("Mario:"));
+            assert!(text.contains("Parlante non determinato:"));
+            assert!(text.contains("Due voci, testo corretto."));
+        }
+        // Nei documenti v1 precedenti il campo manca e l'attribuzione resta quella di prima.
+        let mut old = serde_json::to_value(&document).unwrap();
+        for phrase in old["frasi"].as_array_mut().unwrap() {
+            phrase
+                .as_object_mut()
+                .unwrap()
+                .remove("parlante_non_determinato");
+        }
+        let read: tape::Document = serde_json::from_value(old).unwrap();
+        assert!(read.frasi.iter().all(|f| !f.parlante_non_determinato));
+        assert_eq!(read.frasi[0].parlante, Some(1));
+    }
+
+    /// Prova nativa separata dalla suite del core, con l'artefatto locale del ticket 01.
+    #[test]
+    #[ignore = "richiede MEMOTAPE_NEMOTRON3_MODEL e Nemotron ASR scaricato"]
+    fn nemotron3_trascrive_un_file_e_riapre_il_tape_con_i_parlanti() {
+        use crate::engine::transcribe_cpp::TranscribeCpp;
+        let local = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
+        let models_dir =
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
+        let settings = Settings {
+            diarizer: crate::managers::settings::Diarizer::Nemotron3,
+            nemotron3_path: Some(local.display().to_string()),
+            parlanti_file: true,
+            ..Settings::default()
+        };
+        let mut engine = TranscribeCpp::load(&models::default_model().path(&models_dir)).unwrap();
+        let mut detector = crate::audio_toolkit::vad::Silero::new(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/silero_vad.onnx"),
+        )
+        .unwrap();
+        let cancel = CancelToken::new();
+        let source = fixture("parlato-due-voci.wav");
+        let library = temp_dir("memotape-test-nemotron3-nativo");
+        let path = file_to_tape(&library, &library, &source, &settings, |copy| {
+            let mut audio = Vec::new();
+            let mut phrases = Vec::new();
+            let duration = transcribe_file(
+                &source,
+                &mut engine,
+                &mut detector,
+                Some("it"),
+                Some(&mut audio),
+                Some(copy),
+                &cancel,
+                &mut |event| {
+                    if let PipelineEvent::Phrase {
+                        inizio_ms,
+                        fine_ms,
+                        text,
+                        tempi,
+                        ..
+                    } = event
+                    {
+                        phrases.push(Phrase {
+                            inizio_ms,
+                            fine_ms,
+                            text,
+                            ingresso: Ingresso::Mix,
+                            parlante: None,
+                            parlante_non_determinato: false,
+                            parlante_provvisorio: false,
+                            tempi,
+                        });
+                    }
+                },
+            )?;
+            let turns = OfflineDiarizer::load_nemotron3(&local)?.diarize(&audio, &cancel)?;
+            diarize::assign_configured(
+                &mut phrases,
+                Ingresso::Mix,
+                &turns,
+                crate::managers::settings::Diarizer::Nemotron3,
+            );
+            println!("Frasi native: {phrases:?}");
+            let mut found: Vec<_> = phrases.iter().filter_map(|p| p.parlante).collect();
+            found.sort_unstable();
+            found.dedup();
+            assert_eq!(found, [1, 2]);
+            assert!(phrases.iter().any(|p| !p.text.is_empty()));
+            Ok(tape::Document::new(
+                tape::creato(chrono::Local::now()),
+                duration,
+                tape::Modalita::Mix,
+                Some(models::default_model().id.clone()),
+                SpeechLanguage::from("it"),
+                true,
+                &phrases,
+            ))
+        })
+        .unwrap()
+        .unwrap();
+        let opened = open_tape(&path).unwrap();
+        assert!(!opened.phrases.is_empty());
+        assert!(tape::forma_onda(&path).is_some());
+        assert!((decoded_seconds(&path) - decoded_seconds(&source)).abs() < 0.001);
+        let text = tape_text(
+            &path,
+            &Settings {
+                interface_language: Some(Language::It),
+                ..settings
+            },
+            CopiaCome::Markdown,
+        )
+        .unwrap();
+        assert!(text.contains("Parlante 1:"));
+        assert!(text.contains("Parlante 2:"));
     }
 
     #[test]
@@ -1365,6 +2063,7 @@ mod tests {
                         inizio_ms,
                         fine_ms,
                         text,
+                        tempi,
                         ..
                     } = event
                     {
@@ -1374,6 +2073,9 @@ mod tests {
                             text,
                             ingresso: Ingresso::Mix,
                             parlante: None,
+                            parlante_non_determinato: false,
+                            parlante_provvisorio: false,
+                            tempi,
                         });
                     }
                 },
@@ -1541,6 +2243,9 @@ mod tests {
             text: String::new(),
             ingresso,
             parlante,
+            parlante_non_determinato: false,
+            parlante_provvisorio: false,
+            tempi: Vec::new(),
         };
         let phrases = [
             phrase(Ingresso::Microfono, None),

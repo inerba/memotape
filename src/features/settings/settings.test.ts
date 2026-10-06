@@ -12,6 +12,20 @@ import {
   withInput,
 } from "@/features/settings/settings";
 
+test("il diarizer si sceglie separatamente e il percorso locale non va perso", () => {
+  const parsed = settingsSchema.parse({
+    ...defaults,
+    diarizer: "nemotron3",
+    nemotron3Path: "D:\\modelli\\Nemotron-3-Diarization-BF16.gguf",
+  });
+  expect(parsed.diarizer).toBe("nemotron3");
+  expect(parsed.nemotron3Path).toBe(
+    "D:\\modelli\\Nemotron-3-Diarization-BF16.gguf"
+  );
+  expect(parsed.model).toBe(defaults.model);
+  expect(defaults.diarizer).toBe("sortformer");
+});
+
 test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.model).toBe("nemotron-3.5-streaming-0.6b-q5km");
   expect([

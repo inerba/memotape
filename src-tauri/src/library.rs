@@ -197,9 +197,13 @@ impl Library {
             .map_err(internal)?;
             if let Some(document) = &document {
                 for frase in &document.frasi {
-                    let parlante = document
-                        .parlanti
-                        .get(&frase.ingresso.parlante_key(frase.parlante));
+                    let parlante = if frase.parlante_non_determinato || frase.parlante_provvisorio {
+                        None
+                    } else {
+                        document
+                            .parlanti
+                            .get(&frase.ingresso.parlante_key(frase.parlante))
+                    };
                     tx.execute(
                         "INSERT INTO ricerca VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                         params![
@@ -748,6 +752,9 @@ pub(crate) mod tests {
                 text: "Buongiorno.".into(),
                 ingresso: Ingresso::Mix,
                 parlante: None,
+                parlante_non_determinato: false,
+                parlante_provvisorio: false,
+                tempi: Vec::new(),
             }],
         );
         tape::write(path, &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
@@ -1126,6 +1133,9 @@ pub(crate) mod tests {
                 testo: testo.into(),
                 ingresso: Ingresso::Mix,
                 parlante,
+                parlante_non_determinato: false,
+                parlante_provvisorio: false,
+                tempi: Vec::new(),
             })
             .collect();
         document.parlanti = parlanti

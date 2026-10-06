@@ -17,9 +17,10 @@ use tokio::sync::Notify;
 use transcribe_cpp::CancelToken;
 
 use crate::engine::diarize::Turn;
-use crate::engine::transcribe_cpp::{Sortformer, TranscribeCpp};
+use crate::engine::transcribe_cpp::{OfflineDiarizer, TranscribeCpp};
 use crate::error::AppError;
 use crate::managers::loaded_model::{Lease, LoadedModel};
+use crate::managers::settings::{Diarizer, Settings};
 
 /// Un modello del catalogo.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -397,23 +398,55 @@ pub struct Models {
     diarizing: AtomicBool,
 }
 
-/// Sortformer prenotato per una Trascrizione con Riconosci i parlanti: dalla prenotazione al drop il
-/// modello è in uso e non si elimina, così a fine Trascrizione c'è ancora.
+/// Modello prenotato per una Diarizzazione: la scelta resta fissata fino al drop.
+/// Il Sortformer scaricato resta in uso e non si elimina durante l’Attività.
 pub struct DiarizerLease {
     app: AppHandle,
+    local_path: Option<PathBuf>,
 }
 
 impl DiarizerLease {
-    /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio. Sortformer si carica
-    /// qui e non resta in memoria: si carica in pochi istanti e serve solo a fine Trascrizione.
+    /// Uno stream indipendente dalla sessione dell'analisi finale. Solo Nemotron lo supporta.
+    pub fn live_diarizer(
+        &self,
+    ) -> Option<(
+        crate::engine::live_diarization::DiarizationFeed,
+        crate::engine::live_diarization::LiveDiarizer,
+    )> {
+        self.local_path
+            .as_ref()
+            .map(|path| crate::engine::live_diarization::LiveDiarizer::channel(path.clone()))
+    }
+    fn load(&self) -> Result<OfflineDiarizer, AppError> {
+        if let Some(local) = &self.local_path {
+            Ok(OfflineDiarizer::load_nemotron3(local)?)
+        } else {
+            Ok(OfflineDiarizer::load_sortformer(
+                &diarizer().path(&self.app.state::<Models>().dir),
+            )?)
+        }
+    }
+
+    pub fn diarize_saved(&self, path: &Path, cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
+        self.load()?
+            .diarize_saved(crate::audio_toolkit::decode::Decoder::open(path)?, cancel)
+    }
+    /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio.
+    /// Il modello si carica qui e non resta in memoria.
     pub fn diarize(&self, audio: &[f32], cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
-        let path = diarizer().path(&self.app.state::<Models>().dir);
-        Ok(Sortformer::load(&path)?.diarize(audio, cancel)?)
+        Ok(self.load()?.diarize(audio, cancel)?)
+    }
+
+    pub fn is_nemotron3(&self) -> bool {
+        self.local_path.is_some()
     }
 }
 
 impl Drop for DiarizerLease {
     fn drop(&mut self) {
+        if self.local_path.is_some() {
+            return;
+        }
         let models = self.app.state::<Models>();
         models.diarizing.store(false, Ordering::SeqCst);
         models.emit_state(&self.app, diarizer());
@@ -524,7 +557,32 @@ impl Models {
             }
         }
         self.emit_state(app, model);
-        Ok(DiarizerLease { app: app.clone() })
+        Ok(DiarizerLease {
+            app: app.clone(),
+            local_path: None,
+        })
+    }
+
+    /// Fissa la scelta della Diarizzazione dalle impostazioni dell'Attività.
+    pub fn reserve_configured_diarizer(
+        &self,
+        app: &AppHandle,
+        settings: &Settings,
+    ) -> Result<DiarizerLease, AppError> {
+        if settings.diarizer == Diarizer::Sortformer {
+            return self.reserve_diarizer(app);
+        }
+        let path = settings
+            .nemotron3_path
+            .as_deref()
+            .filter(|p| !p.is_empty())
+            .ok_or(AppError::LocalDiarizerMissing)?;
+        let path = PathBuf::from(path);
+        crate::engine::local_diarizer::validate(&path)?;
+        Ok(DiarizerLease {
+            app: app.clone(),
+            local_path: Some(path),
+        })
     }
 
     /// Restituisce il motore, che resta caricato, oppure lo scarta (`keep` falso) dopo un guasto.

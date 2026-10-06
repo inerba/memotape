@@ -61,6 +61,7 @@ import {
   type Status,
   statusText,
   withDiarizing,
+  withLiveDiarizationError,
   withLiveError,
   withMovedSource,
   withProgress,
@@ -72,6 +73,8 @@ import {
   type Parlante,
   type PhraseRef,
   parlantiOf,
+  visiblePhrases,
+  withLiveTranscript,
   withNome,
   withoutPartials,
   withParlanti,
@@ -81,6 +84,7 @@ import {
 } from "@/features/transcription/phrases";
 import { TranscribeMenu } from "@/features/transcription/transcribe-menu";
 import { TranscriptView } from "@/features/transcription/transcript-view";
+import { inEventSession } from "@/lib/event-session";
 
 const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
@@ -121,6 +125,7 @@ export function HomePage() {
   const [info, setInfo] = useState<TapeInfo | null>(null);
   // Gli eventi possono arrivare dopo la risposta di `record`: un Parziale tardivo si ignora.
   const acceptPartials = useRef<boolean>(false);
+  const recordingSession = useRef<string | null>(null);
   const { loadError, save, settings } = useSettings();
   // Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro da mostrare.
   const [status, setStatus] = useState<Status>(() =>
@@ -179,23 +184,52 @@ export function HomePage() {
         setConversation((current) => withPartial(current, payload));
       }
     });
+    const liveText = events.liveTranscriptUpdated.listen(({ payload }) => {
+      setConversation((current) =>
+        withLiveTranscript(current, payload, acceptPartials.current)
+      );
+    });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
+      if (!inEventSession(payload, recordingSession.current)) {
+        return;
+      }
       setStatus((current) => withProgress(current, payload.percent));
     });
     // Finita la Trascrizione, Riconosci i parlanti attribuisce le Frasi ai Parlanti.
-    const diarizing = events.diarizationStarted.listen(() => {
+    const diarizing = events.diarizationStarted.listen(({ payload }) => {
+      if (!inEventSession(payload, recordingSession.current)) {
+        return;
+      }
       setStatus(withDiarizing);
     });
+    const diarizerFailed = events.liveDiarizationFailed.listen(
+      ({ payload }) => {
+        if (!inEventSession(payload, recordingSession.current)) {
+          return;
+        }
+        setStatus((current) =>
+          withLiveDiarizationError(current, payload.error, payload.ingresso)
+        );
+      }
+    );
     const assigned = events.speakersAssigned.listen(({ payload }) => {
-      setConversation((current) => withParlanti(current, payload.speakers));
+      setConversation((current) =>
+        withParlanti(current, payload.speakers, payload.sessionId)
+      );
     });
     // La Trascrizione dal vivo si è fermata (o Riconosci i parlanti non ha il modello): la
     // Registrazione continua e la status bar lo dice.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
+      if (!inEventSession(payload, recordingSession.current)) {
+        return;
+      }
       setConversation(withoutPartials);
       setStatus((current) => withLiveError(current, payload.error));
     });
     const ticks = events.recordingTick.listen(({ payload }) => {
+      if (!inEventSession(payload, recordingSession.current)) {
+        return;
+      }
       setElapsedMs(payload.elapsedMs);
     });
     // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
@@ -207,9 +241,11 @@ export function HomePage() {
     return () => {
       phrases.then((stop) => stop());
       partials.then((stop) => stop());
+      liveText.then((stop) => stop());
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
       diarizing.then((stop) => stop());
+      diarizerFailed.then((stop) => stop());
       assigned.then((stop) => stop());
       ticks.then((stop) => stop());
       tapeRequested.then((stop) => stop());
@@ -266,6 +302,7 @@ export function HomePage() {
       return result.error;
     }
     const { info: opened, parlanti, phrases } = result.data;
+    recordingSession.current = null;
     setSource(path);
     setConversation({ ...EMPTY_CONVERSATION, parlanti, phrases });
     setInfo(opened);
@@ -320,6 +357,7 @@ export function HomePage() {
   // Una Sorgente scelta con Apri file o con il doppio clic su un Tape in Esplora file.
   const openPath = useCallback(
     (path: string, phrase?: PhraseRef) => {
+      recordingSession.current = null;
       if (isTape(path)) {
         openTape(path, phrase);
         return;
@@ -459,6 +497,7 @@ export function HomePage() {
     if (!source) {
       return;
     }
+    recordingSession.current = null;
     setConversation(EMPTY_CONVERSATION);
     setHighlight(null);
     setRenaming(null);
@@ -483,7 +522,9 @@ export function HomePage() {
   // Il Tape della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
   const record = useCallback(async () => {
     const before = source;
-    setConversation(EMPTY_CONVERSATION);
+    const sessionId = crypto.randomUUID();
+    recordingSession.current = sessionId;
+    setConversation({ ...EMPTY_CONVERSATION, sessionId });
     setInfo(null);
     setHighlight(null);
     setRenaming(null);
@@ -494,7 +535,7 @@ export function HomePage() {
     setStatus({ paused: false, phase: "recording" });
     try {
       const after = afterRecording(
-        await commands.record(t("recording.prefix"), raccolta)
+        await commands.record(sessionId, t("recording.prefix"), raccolta)
       );
       acceptPartials.current = false;
       setConversation(withoutPartials);
@@ -556,25 +597,28 @@ export function HomePage() {
 
   // Il documento del Tape `path`, o senza Tape quello della Trascrizione in corso o appena finita,
   // in testo semplice o Markdown secondo le impostazioni.
-  const copy = useCallback(async (path: string | null) => {
-    try {
-      let text: string | null;
-      if (path) {
-        const result = await commands.tapeText(path);
-        if (result.status === "error") {
-          setNotice(result.error);
-          return;
+  const copy = useCallback(
+    async (path: string | null) => {
+      try {
+        let text: string | null;
+        if (path) {
+          const result = await commands.tapeText(path);
+          if (result.status === "error") {
+            setNotice(result.error);
+            return;
+          }
+          text = result.data;
+        } else {
+          text = await commands.transcriptText(visiblePhrases(conversation));
         }
-        text = result.data;
-      } else {
-        text = await commands.transcriptText();
+        await navigator.clipboard.writeText(text ?? "");
+        setCopied(true);
+      } catch (e) {
+        setNotice(internalError(e));
       }
-      await navigator.clipboard.writeText(text ?? "");
-      setCopied(true);
-    } catch (e) {
-      setNotice(internalError(e));
-    }
-  }, []);
+    },
+    [conversation]
+  );
 
   const exported = useCallback(
     (path: string) => setMessage(t("transcription.exported", { path })),
@@ -666,7 +710,8 @@ export function HomePage() {
   );
 
   // L'avviso in cima: l'errore di un'operazione, un messaggio o l'esito dell'Attività.
-  const statusBanner = dismissed === status ? null : bannerOf(status, t);
+  const statusBanner: Banner | null =
+    dismissed === status ? null : bannerOf(status, t);
   const banner = shownBanner(
     notice,
     message,
@@ -896,7 +941,10 @@ function LiveView({
         actions={
           <CopyButton
             copied={copied}
-            disabled={conversation.phrases.length === 0}
+            disabled={
+              conversation.phrases.length === 0 &&
+              conversation.partials.length === 0
+            }
             onCopy={onCopy}
           />
         }
@@ -924,9 +972,11 @@ function LiveView({
       <Dock>
         {recording ? (
           <RecordingPanel
+            key={conversation.sessionId}
             onError={onError}
             onPausedChange={onPausedChange}
             paused={paused}
+            sessionId={conversation.sessionId}
           />
         ) : (
           <ProgressDock

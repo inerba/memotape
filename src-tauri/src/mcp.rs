@@ -332,7 +332,13 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
                 phrase_id: f.id,
                 inizio_ms: f.inizio_ms,
                 fine_ms: f.fine_ms,
-                parlante: labels.nome(&document.parlanti, f.ingresso, f.parlante),
+                parlante: labels.assigned_name(
+                    &document.parlanti,
+                    f.ingresso,
+                    f.parlante,
+                    f.parlante_non_determinato,
+                    f.parlante_provvisorio,
+                ),
                 testo: f.testo.clone(),
             })
             .collect();
@@ -777,6 +783,72 @@ mod tests {
                     after: None,
                 }))
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn una_frase_ambigua_non_si_legge_ne_si_cerca_col_nome_del_microfono() {
+        let (root, server) = server("voce-non-determinata", true);
+        let path = root.join("Ambigua.tape");
+        tape_at(&path, 1000);
+        let mut document = tape::read(&path).unwrap();
+        document.frasi[0].ingresso = Ingresso::Microfono;
+        document.frasi[0].parlante_non_determinato = true;
+        document
+            .parlanti
+            .insert("microfono".into(), "Mario Ambiguo".into());
+        tape::rewrite(&path, &document).unwrap();
+        Library::open(&root, &library::db_path(&server.places.index, &root))
+            .unwrap()
+            .sync()
+            .unwrap();
+        let Json(around) = server
+            .read_around(Parameters(AroundParams {
+                tape: "Ambigua.tape".into(),
+                ingresso: "microfono".into(),
+                phrase_id: 0,
+                before: None,
+                after: None,
+            }))
+            .unwrap();
+        assert_eq!(
+            around.frasi[0].parlante.as_deref(),
+            Some("Parlante non determinato")
+        );
+        let Json(found) = server
+            .search(Parameters(SearchParams {
+                query: "Mario".into(),
+                raccolta: None,
+                limit: None,
+            }))
+            .unwrap();
+        assert!(found.tapes.is_empty());
+    }
+
+    #[test]
+    fn una_voce_provvisoria_si_legge_come_tale_anche_dall_assistente() {
+        let (root, server) = server("voce-provvisoria", true);
+        let path = root.join("Provvisoria.tape");
+        tape_at(&path, 1000);
+        let mut document = tape::read(&path).unwrap();
+        document.frasi[0].parlante = Some(1);
+        document.frasi[0].parlante_provvisorio = true;
+        document
+            .parlanti
+            .insert("mix:1".into(), "Mario Incerto".into());
+        tape::rewrite(&path, &document).unwrap();
+        let Json(around) = server
+            .read_around(Parameters(AroundParams {
+                tape: "Provvisoria.tape".into(),
+                ingresso: "mix".into(),
+                phrase_id: 0,
+                before: None,
+                after: None,
+            }))
+            .unwrap();
+        assert_eq!(
+            around.frasi[0].parlante.as_deref(),
+            Some("Mario Incerto (provvisorio)")
         );
     }
 

@@ -124,9 +124,18 @@ export function TranscribeOptions({
         ) : null}
       </div>
       <SettingCheckbox
+        description={
+          settings.diarizer === "nemotron3"
+            ? t("transcription.nemotron3Note")
+            : undefined
+        }
         label={t("transcription.parlanti")}
         name="parlantiFile"
-        note={t("transcription.parlantiNote")}
+        note={
+          settings.diarizer === "nemotron3"
+            ? undefined
+            : t("transcription.parlantiNote", { count: 4 })
+        }
         onError={onError}
       />
     </div>

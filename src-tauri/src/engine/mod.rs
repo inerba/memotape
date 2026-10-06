@@ -1,7 +1,10 @@
 //! Motore di Trascrizione (`TranscriptionEngine`) e pipeline di un file, senza Tauri.
 
+pub mod asr;
 pub mod diarize;
 pub mod live;
+pub mod live_diarization;
+pub mod local_diarizer;
 pub mod pipeline;
 pub mod transcribe_cpp;
 
@@ -11,16 +14,16 @@ use crate::error::AppError;
 pub trait TranscriptionEngine {
     /// `frames`: l'audio della Frase, frame f32 mono a 16 kHz in [-1, 1], letti man mano che
     /// la pipeline li produce. `language`: la Lingua del parlato con un codice dell'app (`it`…),
-    /// `None` per il riconoscimento automatico. `on_partial` riceve il Parziale ogni volta che
-    /// cambia; i motori che trascrivono la Frase intera non lo chiamano mai. Senza `on_partial`
+    /// `None` per il riconoscimento automatico. `on_partial` riceve testo e tempi relativi del Parziale ogni volta che
+    /// cambia il risultato; i motori che trascrivono la Frase intera non lo chiamano mai. Senza `on_partial`
     /// (un file, che non mostra Parziali) anche un motore in streaming trascrive la Frase intera.
-    /// Restituisce il testo della Frase.
+    /// Restituisce testo e tempi ASR relativi alla Frase, se disponibili.
     fn transcribe(
         &mut self,
         frames: &mut dyn Iterator<Item = Vec<f32>>,
         language: Option<&str>,
-        on_partial: Option<&mut dyn FnMut(&str)>,
-    ) -> Result<String, EngineError>;
+        on_partial: Option<&mut dyn FnMut(&asr::AsrResult)>,
+    ) -> Result<asr::AsrResult, EngineError>;
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]

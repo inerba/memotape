@@ -54,11 +54,13 @@ export const DEFAULT_SETTINGS: Settings = {
   bitrateKbps: 16,
   channels: "mono",
   copiaCome: "testo",
+  diarizer: "sortformer",
   guadagnoMicrofono: 0,
   guadagnoSistema: 0,
   interfaceLanguage: null,
   microphone: null,
   model: catalog.predefinito,
+  nemotron3Path: null,
   outputDevice: null,
   parlantiFile: false,
   parlantiMicrofono: false,
@@ -88,12 +90,14 @@ export const settingsSchema = z.object({
   channels: z.enum(["mono", "stereo"]),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   copiaCome: z.enum(["testo", "markdown"]).optional(),
+  diarizer: z.enum(["sortformer", "nemotron3"]).optional(),
   // Facoltative come nei bindings: i file salvati prima che esistessero non ce l'hanno.
   guadagnoMicrofono: oneOf(GUADAGNI).optional(),
   guadagnoSistema: oneOf(GUADAGNI).optional(),
   interfaceLanguage: language.nullable(),
   microphone: z.string().nullable(),
   model: z.string().min(1),
+  nemotron3Path: z.string().nullable().optional(),
   outputDevice: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   parlantiFile: z.boolean().optional(),

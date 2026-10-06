@@ -96,8 +96,11 @@ function ParlanteRow({
     [onPlay, stats.firstMs]
   );
   // Con gli Ingressi separati l'etichetta dice anche l'Ingresso: sta sotto il nome.
+  const name = voce.provvisorio
+    ? t("transcript.provisionalSpeaker", { name: voce.nome })
+    : voce.nome;
   const ingresso =
-    voce.label === voce.nome ? null : voce.label.replace(` · ${voce.nome}`, "");
+    voce.label === name ? null : voce.label.replace(` · ${name}`, "");
   return (
     <li className="flex items-center gap-4 py-3.5">
       <VoiceDot color={color} />
@@ -116,7 +119,7 @@ function ParlanteRow({
             title={t("transcription.rename")}
             type="button"
           >
-            {voce.nome}
+            {name}
           </button>
         )}
         {ingresso ? (

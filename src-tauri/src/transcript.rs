@@ -10,6 +10,30 @@ use crate::managers::settings::{CopiaCome, Language, SpeechLanguage};
 /// Oltre questo silenzio tra due Frasi si apre un paragrafo nuovo.
 const PARAGRAPH_PAUSE_MS: u32 = 2000;
 
+/// Esito dell'analisi dei Parlanti, indipendente dalla completezza del testo.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum EsitoDiarizzazione {
+    Completata,
+    Annullata,
+    Fallita,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct Diarizzazione {
+    pub modello: crate::managers::settings::Diarizer,
+    pub esito: EsitoDiarizzazione,
+    /// Esiti indipendenti degli Ingressi. Assente nei Tape precedenti.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ingressi: Vec<DiarizzazioneIngresso>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct DiarizzazioneIngresso {
+    pub ingresso: Ingresso,
+    pub esito: EsitoDiarizzazione,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transcript {
     /// Il nome della Sorgente senza estensione.
@@ -23,8 +47,11 @@ pub struct Transcript {
     pub speech_language: SpeechLanguage,
     /// In ordine di inizio.
     pub phrases: Vec<Phrase>,
+    /// Frasi ASR prima delle divisioni dal vivo, per riesaminare i confini dopo Stop.
+    pub live_asr: Vec<Phrase>,
     /// I nomi dati ai Parlanti, per chiave `<ingresso>:<n>` (`Ingresso::parlante_key`).
     pub parlanti: BTreeMap<String, String>,
+    pub diarizzazione: Option<Diarizzazione>,
 }
 
 impl Transcript {
@@ -46,6 +73,19 @@ pub struct Phrase {
     pub ingresso: Ingresso,
     /// Il Parlante (da 1, per ordine di comparsa), con la Diarizzazione.
     pub parlante: Option<u32>,
+    /// La Diarizzazione non può attribuire questo testo a una voce unica.
+    pub parlante_non_determinato: bool,
+    pub parlante_provvisorio: bool,
+    /// Intervalli ASR indivisibili, con offset UTF-8 nel testo e tempi assoluti sulla Sorgente.
+    pub tempi: Vec<TempoTesto>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TempoTesto {
+    pub inizio_byte: usize,
+    pub fine_byte: usize,
+    pub inizio_ms: u32,
+    pub fine_ms: u32,
 }
 
 /// Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
@@ -95,7 +135,13 @@ impl Phrase {
             Ingresso::Microfono => Some(labels.get("/settings/recording/inputs/mic")),
             Ingresso::Sistema => Some(labels.get("/settings/recording/inputs/system")),
         };
-        let parlante = labels.nome(parlanti, self.ingresso, self.parlante);
+        let parlante = labels.assigned_name(
+            parlanti,
+            self.ingresso,
+            self.parlante,
+            self.parlante_non_determinato,
+            self.parlante_provvisorio,
+        );
         match (ingresso, parlante) {
             (Some(ingresso), Some(parlante)) => Some(format!("{ingresso} · {parlante}")),
             (Some(ingresso), None) => Some(ingresso.to_string()),
@@ -144,6 +190,35 @@ impl Labels {
             .or_else(|| parlante.map(|n| self.parlante(n)))
     }
 
+    pub fn unknown_speaker(&self) -> String {
+        self.get("/transcript/unknownSpeaker").to_string()
+    }
+
+    pub fn provisional_speaker(&self, name: &str) -> String {
+        self.get("/transcript/provisionalSpeaker")
+            .replace("{{name}}", name)
+    }
+
+    pub fn assigned_name(
+        &self,
+        parlanti: &BTreeMap<String, String>,
+        ingresso: Ingresso,
+        parlante: Option<u32>,
+        non_determinato: bool,
+        provvisorio: bool,
+    ) -> Option<String> {
+        if non_determinato {
+            return Some(self.unknown_speaker());
+        }
+        self.nome(parlanti, ingresso, parlante).map(|name| {
+            if provvisorio {
+                self.provisional_speaker(&name)
+            } else {
+                name
+            }
+        })
+    }
+
     fn get(&self, pointer: &str) -> &str {
         self.0
             .pointer(pointer)
@@ -172,6 +247,39 @@ pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> St
         labels.get("/speechLanguage/label"),
         labels.speech_language(&transcript.speech_language),
     ));
+    if let Some(diarizzazione) = &transcript.diarizzazione {
+        let outcome = |esito| {
+            labels.get(if esito == EsitoDiarizzazione::Completata {
+                "/transcript/diarizationCompleted"
+            } else {
+                "/transcript/diarizationIncomplete"
+            })
+        };
+        let value = if diarizzazione.ingressi.is_empty() {
+            outcome(diarizzazione.esito).to_string()
+        } else {
+            diarizzazione
+                .ingressi
+                .iter()
+                .map(|s| {
+                    if s.ingresso == Ingresso::Mix {
+                        return outcome(s.esito).to_string();
+                    }
+                    let label = labels.get(&format!(
+                        "/settings/recording/inputs/{}",
+                        match s.ingresso {
+                            Ingresso::Microfono => "mic",
+                            Ingresso::Sistema => "system",
+                            Ingresso::Mix => "mix",
+                        }
+                    ));
+                    format!("{label}: {}", outcome(s.esito))
+                })
+                .collect::<Vec<_>>()
+                .join(" · ")
+        };
+        fields.push((labels.get("/transcript/diarization"), value));
+    }
     let mut out = String::new();
     let _ = writeln!(
         out,
@@ -273,6 +381,9 @@ mod tests {
             text: text.into(),
             ingresso: Ingresso::Mix,
             parlante: None,
+            parlante_non_determinato: false,
+            parlante_provvisorio: false,
+            tempi: Vec::new(),
         }
     }
 
@@ -280,6 +391,8 @@ mod tests {
         Phrase {
             ingresso,
             parlante,
+            parlante_non_determinato: false,
+            parlante_provvisorio: false,
             ..phrase(0, 0, text)
         }
     }
@@ -292,7 +405,9 @@ mod tests {
             model: "Nemotron".into(),
             speech_language: SpeechLanguage::from("it"),
             phrases,
+            live_asr: Vec::new(),
             parlanti: BTreeMap::new(),
+            diarizzazione: None,
         }
     }
 
@@ -506,6 +621,11 @@ mod tests {
                 "/transcript/duration",
                 "/transcript/model",
                 "/transcript/parlante",
+                "/transcript/unknownSpeaker",
+                "/transcript/provisionalSpeaker",
+                "/transcript/diarization",
+                "/transcript/diarizationCompleted",
+                "/transcript/diarizationIncomplete",
                 "/speechLanguage/label",
                 "/settings/recording/inputs/mic",
                 "/settings/recording/inputs/system",

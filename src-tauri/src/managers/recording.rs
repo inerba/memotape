@@ -22,10 +22,13 @@ use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::library::Library;
 use crate::managers::activity::Activity;
+use crate::managers::models::Models;
 use crate::managers::settings::{
     Channels, RecordingSource, Settings, SettingsStore, guadagno_factor,
 };
-use crate::managers::transcription::{self, LiveTranscription, TranscriptionProgress};
+use crate::managers::transcription::{
+    self, DiarizationStarted, LiveTranscription, TranscriptionProgress,
+};
 use crate::tape;
 use crate::transcript::Ingresso;
 
@@ -39,6 +42,7 @@ pub(crate) const TEMP_FOLDER: &str = ".memotape";
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct RecordingTick {
+    pub session_id: String,
     pub elapsed_ms: u32,
     pub levels: Levels,
 }
@@ -62,6 +66,8 @@ pub struct RecordingSaved {
     pub error: Option<AppError>,
     /// L'esito della Trascrizione dal vivo; `null` se era spenta.
     pub transcription: Option<LiveTranscription>,
+    #[serde(default)]
+    pub diarizzazione: Option<crate::transcript::Diarizzazione>,
 }
 
 #[derive(Default)]
@@ -130,6 +136,7 @@ pub async fn record(
     app: AppHandle,
     activity: &Activity,
     recorder: &Recorder,
+    session_id: String,
     prefix: String,
     raccolta: Option<String>,
 ) -> Result<RecordingSaved, AppError> {
@@ -137,18 +144,55 @@ pub async fn record(
     let destination = Library::raccolta_dir(&folder, raccolta.as_deref())?;
     let controls = Arc::new(Controls::default());
     let cancel = CancelToken::new();
+    let final_cancel = CancelToken::new();
+    let final_phase = Arc::new(Mutex::new(false));
     // La Raccolta non si rinomina né si elimina finché il Tape non è scritto.
     let _activity = activity.begin(Some(destination.clone()), {
         let controls = Arc::clone(&controls);
         let cancel = cancel.clone();
+        let final_cancel = final_cancel.clone();
+        let final_phase = Arc::clone(&final_phase);
         // Stop durante la Registrazione, Annulla durante lo smaltimento della coda dal vivo.
         move || {
-            controls.stop.store(true, Ordering::Relaxed);
-            cancel.cancel();
+            if *final_phase.lock().unwrap_or_else(PoisonError::into_inner) {
+                final_cancel.cancel();
+            } else {
+                controls.stop.store(true, Ordering::Relaxed);
+                cancel.cancel();
+            }
         }
     })?;
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
+    let diarized = settings.parlanti_registrazione();
+    // La scelta si fissa all'avvio, inclusi errori di disponibilità: niente fallback implicito.
+    let diarizer = if diarized.is_empty() {
+        None
+    } else {
+        let (app, settings) = (app.clone(), settings.clone());
+        Some(
+            tauri::async_runtime::spawn_blocking(move || {
+                app.state::<Models>()
+                    .reserve_configured_diarizer(&app, &settings)
+            })
+            .await
+            .map_err(internal)
+            .and_then(|result| result),
+        )
+    };
+    if let Some(Err(error)) = &diarizer {
+        for &ingresso in &diarized {
+            if let Err(emission) = (transcription::LiveDiarizationFailed {
+                session_id: session_id.clone(),
+                ingresso,
+                error: error.clone(),
+            })
+            .emit(&app)
+            {
+                log::warn!("live-diarization-failed non emesso: {emission}");
+            }
+        }
+    }
     let separate = settings.ingressi_separati();
     // Con la Trascrizione dal vivo le pipeline girano in un loro thread e leggono l'uscita del
     // mixer: il mix, o con gli Ingressi separati ogni Ingresso, nell'ordine degli ingressi di `run`.
@@ -160,18 +204,53 @@ pub async fn record(
     let (feeds, live) = if transcribed.is_empty() {
         (Vec::new(), None)
     } else {
-        let (feeds, frames): (Vec<_>, Vec<_>) = live::channels(
+        let (mut feeds, frames): (Vec<_>, Vec<_>) = live::channels(
             settings.sample_rate,
             channel_count(settings.channels),
             transcribed.len(),
         )?
         .into_iter()
         .unzip();
-        let sources = transcribed.iter().copied().zip(frames).collect();
+        let sources = transcribed
+            .iter()
+            .copied()
+            .zip(frames)
+            .zip(&mut feeds)
+            .map(|((ingresso, frames), feed)| {
+                let diarizer = diarized
+                    .contains(&ingresso)
+                    .then(|| {
+                        diarizer
+                            .as_ref()
+                            .and_then(|lease| lease.as_ref().ok())
+                            .and_then(|lease| lease.live_diarizer())
+                    })
+                    .flatten()
+                    .map(|(tx, diarizer)| {
+                        feed.set_diarization(tx);
+                        diarizer
+                    });
+                transcription::LiveSource {
+                    ingresso,
+                    frames,
+                    diarizer,
+                }
+            })
+            .collect();
         let live = tauri::async_runtime::spawn_blocking({
             let (app, settings, cancel) = (app.clone(), settings.clone(), cancel.clone());
             let title = prefix.clone();
-            move || transcription::transcribe_live(&app, sources, &settings, &title, &cancel)
+            let live_session_id = session_id.clone();
+            move || {
+                transcription::transcribe_live(
+                    &app,
+                    sources,
+                    &live_session_id,
+                    &settings,
+                    &title,
+                    &cancel,
+                )
+            }
         });
         (feeds, Some(live))
     };
@@ -184,7 +263,18 @@ pub async fn record(
     let recorded = tauri::async_runtime::spawn_blocking({
         let (app, controls, settings) = (app.clone(), Arc::clone(&controls), settings.clone());
         let (folder, prefix) = (folder.clone(), prefix.clone());
-        move || run(&app, &folder, &prefix, &controls, &settings, feeds)
+        let capture_session_id = session_id.clone();
+        move || {
+            run(
+                &app,
+                &capture_session_id,
+                &folder,
+                &prefix,
+                &controls,
+                &settings,
+                feeds,
+            )
+        }
     })
     .await
     .map_err(internal)
@@ -198,10 +288,15 @@ pub async fn record(
             return Err(e);
         }
     };
-    let live = match live {
+    let mut live = match live {
         Some(live) => {
             // Dopo Stop la status bar passa subito al completamento, anche col motore a metà Frase.
-            if let Err(e) = (TranscriptionProgress { percent: None }).emit(&app) {
+            if let Err(e) = (TranscriptionProgress {
+                session_id: Some(session_id.clone()),
+                percent: None,
+            })
+            .emit(&app)
+            {
                 log::warn!("transcription-progress non emesso: {e}");
             }
             // L'Attività finisce quando la coda è smaltita.
@@ -212,12 +307,102 @@ pub async fn record(
         }
         None => None,
     };
+    let text_complete = {
+        let mut phase = final_phase.lock().unwrap_or_else(PoisonError::into_inner);
+        let complete = completa(
+            live.as_ref().map(|(_, result)| result),
+            cancel.is_cancelled(),
+        );
+        if cancel.is_cancelled() {
+            final_cancel.cancel();
+        }
+        *phase = true;
+        complete
+    };
+    if let (Some(diarizer), Some((Some(transcript), _))) = (diarizer, live.as_mut()) {
+        if transcript.phrases.is_empty() {
+            if let Err(error) = diarizer {
+                crate::engine::diarize::finalize_live_ingressi(
+                    transcript,
+                    settings.diarizer,
+                    diarized
+                        .iter()
+                        .map(|&ingresso| (ingresso, Err(error.clone())))
+                        .collect(),
+                );
+            }
+        } else {
+            if let Err(error) = (DiarizationStarted {
+                session_id: Some(session_id.clone()),
+            })
+            .emit(&app)
+            {
+                log::warn!("diarization-started non emesso: {error}");
+            }
+            let analyzed = tauri::async_runtime::spawn_blocking({
+                let (mut transcript, cancel) = (transcript.clone(), final_cancel.clone());
+                let (audio, modello) = (recorded.oggs.clone(), settings.diarizer);
+                let diarized = diarized.clone();
+                move || {
+                    let analyzed = diarized
+                        .into_iter()
+                        .map(|ingresso| {
+                            let result = (|| {
+                                let lease = diarizer.as_ref().map_err(Clone::clone)?;
+                                if cancel.is_cancelled() {
+                                    return Err(AppError::Cancelled);
+                                }
+                                let path = audio
+                                    .iter()
+                                    .find(|(i, _)| *i == ingresso)
+                                    .map(|(_, path)| path.as_path())
+                                    .ok_or_else(|| {
+                                        AppError::Internal("audio dell'Ingresso assente".into())
+                                    })?;
+                                lease.diarize_saved(path, &cancel)
+                            })();
+                            // Fissa l'esito quando termina questo Ingresso: Annulla nell'altro
+                            // non invalida un successo già ottenuto.
+                            let result = if cancel.is_cancelled() {
+                                Err(AppError::Cancelled)
+                            } else {
+                                result
+                            };
+                            (ingresso, result)
+                        })
+                        .collect();
+                    crate::engine::diarize::finalize_live_ingressi(
+                        &mut transcript,
+                        modello,
+                        analyzed,
+                    );
+                    transcript
+                }
+            })
+            .await;
+            match analyzed {
+                Ok(finalized) => *transcript = finalized,
+                Err(error) => {
+                    log::warn!("analisi finale interrotta: {error}");
+                    crate::engine::diarize::finalize_live_ingressi(
+                        transcript,
+                        settings.diarizer,
+                        diarized
+                            .iter()
+                            .map(|&ingresso| (ingresso, Err(AppError::Internal(error.to_string()))))
+                            .collect(),
+                    );
+                }
+            }
+            transcription::final_speakers(&app, transcript, Some(&session_id));
+        }
+    }
     // Il Tape ha le Frasi arrivate anche se la Trascrizione è stata annullata o si è guastata.
     let phrases = live
         .as_ref()
         .and_then(|(transcript, _)| transcript.as_ref())
         .map_or(&[][..], |transcript| &transcript.phrases);
-    let document = tape::Document::new(
+    let mut document = tape::Document::new(
         tape::creato(recorded.start),
         recorded.durata_ms,
         if separate {
@@ -228,12 +413,14 @@ pub async fn record(
         live.is_some()
             .then(|| SettingsStore::model_of(&settings).id.clone()),
         settings.speech_language,
-        completa(
-            live.as_ref().map(|(_, transcribed)| transcribed),
-            cancel.is_cancelled(),
-        ),
+        text_complete,
         phrases,
     );
+    document.diarizzazione = live
+        .as_ref()
+        .and_then(|(t, _)| t.as_ref())
+        .and_then(|t| t.diarizzazione.clone());
+    let diarizzazione = document.diarizzazione.clone();
     let mut error = recorded.error.clone();
     let path =
         save_tape(&folder, &destination, &prefix, &recorded, &document).unwrap_or_else(|e| {
@@ -252,6 +439,7 @@ pub async fn record(
         path: path.display().to_string(),
         error,
         transcription,
+        diarizzazione,
     })
 }
 
@@ -418,6 +606,7 @@ fn write_ready(
 /// Ingresso con gli Ingressi separati, o nessuna.
 fn run(
     app: &AppHandle,
+    session_id: &str,
     folder: &Path,
     prefix: &str,
     controls: &Controls,
@@ -556,6 +745,7 @@ fn run(
                 }
             }
             let tick = RecordingTick {
+                session_id: session_id.to_owned(),
                 elapsed_ms: mixer.elapsed_ms(),
                 levels,
             };
@@ -679,6 +869,202 @@ pub(crate) fn create_numbered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dopo_l_analisi_finale_il_tape_si_salva_anche_con_annulla_o_guasto() {
+        use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
+        use crate::engine::diarize::{Turn, finalize};
+        use crate::managers::settings::{Diarizer, SpeechLanguage};
+        use crate::transcript::{EsitoDiarizzazione, Phrase};
+        for esito in [
+            EsitoDiarizzazione::Completata,
+            EsitoDiarizzazione::Annullata,
+            EsitoDiarizzazione::Fallita,
+        ] {
+            let folder = temp_dir("analisi-finale-tape");
+            let ogg = temp_folder(&folder).unwrap().join("mix.ogg");
+            let mut writer =
+                OggOpusWriter::new(File::create(&ogg).unwrap(), 16_000, 1, 32).unwrap();
+            writer.write(&sine(16_000, 1, 1.0)).unwrap();
+            writer.finish().unwrap();
+            let audio = std::fs::read(&ogg).unwrap();
+            let recorded = Recorded {
+                oggs: vec![(Ingresso::Mix, ogg)],
+                start: Local::now(),
+                durata_ms: 1000,
+                error: None,
+                forma_onda: vec![0.5],
+            };
+            let mut phrases = vec![Phrase {
+                inizio_ms: 0,
+                fine_ms: 1000,
+                text: "Testo concluso.".into(),
+                tempi: Vec::new(),
+                ingresso: Ingresso::Mix,
+                parlante: Some(2),
+                parlante_provvisorio: true,
+                parlante_non_determinato: false,
+            }];
+            let state = finalize(
+                &mut phrases,
+                Diarizer::Nemotron3,
+                &CancelToken::new(),
+                match esito {
+                    EsitoDiarizzazione::Completata => Ok(vec![(
+                        Ingresso::Mix,
+                        vec![Turn {
+                            inizio_ms: 0,
+                            fine_ms: 1000,
+                            parlante: 7,
+                        }],
+                    )]),
+                    EsitoDiarizzazione::Annullata => Err(AppError::Cancelled),
+                    EsitoDiarizzazione::Fallita => Err(AppError::Internal("guasto".into())),
+                },
+            )
+            .unwrap();
+            assert_eq!(state.esito, esito);
+            let mut document = tape::Document::new(
+                tape::creato(recorded.start),
+                1000,
+                tape::Modalita::Mix,
+                Some("nemotron".into()),
+                SpeechLanguage::from("it"),
+                true,
+                &phrases,
+            );
+            document.diarizzazione = Some(state);
+            let path = save_tape(&folder, &folder, "Registrazione", &recorded, &document).unwrap();
+            assert_eq!(tape::read(&path).unwrap(), document);
+            let opened = transcription::open_tape(&path).unwrap();
+            assert!(opened.info.completa);
+            assert_eq!(opened.phrases[0].text, "Testo concluso.");
+            assert_eq!(
+                opened.phrases[0].parlante_provvisorio,
+                esito != EsitoDiarizzazione::Completata
+            );
+            let mut mix = tape::Mix::open(&path).unwrap();
+            let mut saved_audio = Vec::new();
+            std::io::Read::read_to_end(&mut mix, &mut saved_audio).unwrap();
+            assert_eq!(saved_audio, audio);
+            assert_eq!(tape::forma_onda(&path), Some(vec![0.5]));
+            assert!(!folder.join(TEMP_FOLDER).exists());
+        }
+    }
+
+    #[test]
+    #[ignore = "richiede Nemotron ASR e MEMOTAPE_NEMOTRON3_MODEL; eseguire in sequenza"]
+    fn nemotron3_analisi_finale_salva_e_riapre_la_registrazione() {
+        use crate::audio_toolkit::decode::Decoder;
+        use crate::audio_toolkit::ogg_opus::tests::temp_dir;
+        use crate::audio_toolkit::vad::Silero;
+        use crate::engine::diarize::finalize;
+        use crate::engine::pipeline::{PipelineEvent, transcribe_file};
+        use crate::engine::transcribe_cpp::{OfflineDiarizer, TranscribeCpp};
+        use crate::managers::models;
+        use crate::managers::settings::{Diarizer, SpeechLanguage};
+        use crate::transcript::{EsitoDiarizzazione, Phrase};
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let fixture = root.join("tests/fixtures/parlato-due-voci.wav");
+        let folder = temp_dir("nemotron3-registrazione-finale");
+        let ogg = temp_folder(&folder).unwrap().join("mix.ogg");
+        let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 16_000, 1, 32).unwrap();
+        let mut decoder = Decoder::open(&fixture).unwrap();
+        while let Some(block) = decoder.next_block().unwrap() {
+            assert_eq!(block.rate, 16_000);
+            writer.write(&block.mono()).unwrap();
+        }
+        let forma_onda = writer.forma_onda();
+        writer.finish().unwrap();
+        let audio = std::fs::read(&ogg).unwrap();
+        let models_dir =
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
+        let mut engine = TranscribeCpp::load(&models::default_model().path(&models_dir)).unwrap();
+        let mut detector = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+        let mut phrases = Vec::new();
+        let durata_ms = transcribe_file(
+            &ogg,
+            &mut engine,
+            &mut detector,
+            Some("it"),
+            None,
+            None,
+            &CancelToken::new(),
+            &mut |event| {
+                if let PipelineEvent::Phrase {
+                    inizio_ms,
+                    fine_ms,
+                    text,
+                    tempi,
+                    ..
+                } = event
+                {
+                    phrases.push(Phrase {
+                        tempi,
+                        inizio_ms,
+                        fine_ms,
+                        text,
+                        ingresso: Ingresso::Mix,
+                        parlante: None,
+                        parlante_provvisorio: false,
+                        parlante_non_determinato: false,
+                    });
+                }
+            },
+        )
+        .unwrap();
+        drop(engine);
+        let texts: Vec<_> = phrases.iter().map(|p| p.text.clone()).collect();
+        assert!(!texts.is_empty());
+        let cancel = CancelToken::new();
+        let model = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
+        let mut diarizer = OfflineDiarizer::load_nemotron3(&model).unwrap();
+        let state = finalize(
+            &mut phrases,
+            Diarizer::Nemotron3,
+            &cancel,
+            diarizer
+                .diarize_saved(Decoder::open(&ogg).unwrap(), &cancel)
+                .map(|turns| vec![(Ingresso::Mix, turns)]),
+        )
+        .unwrap();
+        assert_eq!(state.esito, EsitoDiarizzazione::Completata);
+        assert!(phrases.iter().any(|p| p.parlante == Some(1)));
+        assert!(phrases.iter().any(|p| p.parlante == Some(2)));
+        assert_eq!(
+            phrases.iter().map(|p| p.text.as_str()).collect::<String>(),
+            texts.concat()
+        );
+        let recorded = Recorded {
+            oggs: vec![(Ingresso::Mix, ogg)],
+            start: Local::now(),
+            durata_ms,
+            error: None,
+            forma_onda,
+        };
+        let mut document = tape::Document::new(
+            tape::creato(recorded.start),
+            durata_ms,
+            tape::Modalita::Mix,
+            Some(models::default_model().id.clone()),
+            SpeechLanguage::from("it"),
+            true,
+            &phrases,
+        );
+        document.diarizzazione = Some(state);
+        let path = save_tape(&folder, &folder, "Registrazione", &recorded, &document).unwrap();
+        assert_eq!(tape::read(&path).unwrap(), document);
+        assert_eq!(
+            transcription::open_tape(&path).unwrap().info.diarizzazione,
+            document.diarizzazione
+        );
+        let mut mix = tape::Mix::open(&path).unwrap();
+        let mut saved_audio = Vec::new();
+        std::io::Read::read_to_end(&mut mix, &mut saved_audio).unwrap();
+        assert_eq!(saved_audio, audio);
+        assert_eq!(tape::forma_onda(&path), Some(recorded.forma_onda));
+        assert!(!folder.join(TEMP_FOLDER).exists());
+    }
 
     fn at(s: &str) -> NaiveDateTime {
         NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").unwrap()

@@ -8,12 +8,55 @@ import {
   type Status,
   statusText,
   withDiarizing,
+  withLiveDiarizationError,
   withLiveError,
   withMovedSource,
   withProgress,
 } from "@/features/status/status";
 
 const t = i18n.t.bind(i18n);
+
+test("il guasto dei Parlanti resta visibile dopo Stop e non maschera un guasto ASR", () => {
+  const lag = { code: "liveDiarizationLagging" } as const;
+  const stopped = withLiveDiarizationError(
+    { percent: 30, phase: "completing" },
+    lag
+  );
+  expect(statusText(stopped, t)).toContain(
+    "parlanti dal vivo non tiene il passo"
+  );
+  expect(statusText(withProgress(stopped, 70), t)).toContain(
+    "parlanti dal vivo non tiene il passo"
+  );
+  expect(statusText(withDiarizing(stopped), t)).toContain(
+    "parlanti dal vivo non tiene il passo"
+  );
+  const failedAsr = withLiveError(
+    { paused: false, phase: "recording" },
+    { code: "liveTranscriptionUnavailable", detail: "ASR" }
+  );
+  expect(withLiveDiarizationError(failedAsr, lag)).toBe(failedAsr);
+});
+
+test("il modello locale assente o incompatibile mostra un errore esplicito con il link alle Impostazioni", () => {
+  const absent: Status = {
+    error: { code: "localDiarizerMissing" },
+    phase: "failed",
+  };
+  expect(needsSettings(absent)).toBe(true);
+  expect(statusText(absent, t)).toBe(
+    "Scegli il modello locale Nemotron Diarization in Impostazioni → Trascrizione"
+  );
+  const invalid: Status = {
+    error: { code: "localDiarizerIncompatible", detail: "D:\\modello.gguf" },
+    phase: "failed",
+  };
+  expect(needsSettings(invalid)).toBe(true);
+  expect(statusText(invalid, t)).toContain(
+    "GGUF Nemotron Diarization verificato"
+  );
+  expect(statusText(invalid, t)).toContain("D:\\modello.gguf");
+});
 
 test("a riposo la status bar invita a scegliere un file o mostra il percorso della Sorgente", () => {
   expect(statusText({ phase: "idle", source: null }, t)).toBe(
@@ -48,7 +91,7 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
     percent: null,
     phase: "completing",
   });
-  expect(statusText(completing, t)).toBe("Riconoscimento dei parlanti…");
+  expect(statusText(completing, t)).toBe("Analisi finale dei parlanti…");
   expect(withProgress(completing, 100)).toBe(completing);
   // Un evento in ritardo non riapre un'Attività finita.
   const cancelled: Status = { phase: "cancelled" };
@@ -227,4 +270,25 @@ test("l'avviso dice errori ed esiti, non la fase di un'Attività in corso", () =
   );
   expect(live?.tone).toBe("error");
   expect(live?.settings).toBe(true);
+});
+
+test("gli avvisi dei due Ingressi restano distinti attraverso Stop e il guasto ASR ha priorità", () => {
+  const lag = { code: "liveDiarizationLagging" } as const;
+  let status: Status = { paused: false, phase: "recording" };
+  status = withLiveDiarizationError(status, lag, "sistema");
+  expect(statusText(status, t)).toContain("Audio di sistema:");
+  expect(statusText(status, t)).not.toContain("Microfono:");
+  status = withLiveDiarizationError(
+    status,
+    { code: "localDiarizerMissing" },
+    "microfono"
+  );
+  expect(statusText(status, t)).toContain("Microfono:");
+  expect(needsSettings(status)).toBe(true);
+  status = withDiarizing(withProgress(status, null));
+  expect(statusText(status, t)).toContain("Microfono:");
+  expect(statusText(status, t)).toContain("Audio di sistema:");
+  expect(bannerOf(status, t)?.settings).toBe(true);
+  status = withLiveError(status, { code: "internal", detail: "ASR in errore" });
+  expect(statusText(status, t)).toContain("ASR in errore");
 });

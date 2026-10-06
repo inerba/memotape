@@ -125,6 +125,22 @@ export function SettingsPage() {
     (model: string) => choose({ model }),
     [choose]
   );
+  const chooseDiarizer = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        diarizer: e.target.value === "nemotron3" ? "nemotron3" : "sortformer",
+      }),
+    [choose]
+  );
+  const pickDiarizer = useCallback(async () => {
+    const picked = await commands.pickDiarizerModel();
+    if (picked.status === "ok" && picked.data) {
+      choose({ nemotron3Path: picked.data });
+      setError(null);
+    } else if (picked.status === "error") {
+      setError(picked.error);
+    }
+  }, [choose]);
   // Si applica al riavvio: l'interfaccia resta nella lingua con cui è partita.
   const chooseLanguage = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) =>
@@ -312,7 +328,11 @@ export function SettingsPage() {
                     </Field>
                   </div>
                   <fieldset
-                    aria-describedby="recording-parlanti-description"
+                    aria-describedby={
+                      settings.diarizer === "nemotron3"
+                        ? "recording-parlanti-description recording-nemotron-description"
+                        : "recording-parlanti-description"
+                    }
                     className="flex flex-col gap-2"
                   >
                     <legend className="mb-2 font-medium text-sm">
@@ -334,6 +354,16 @@ export function SettingsPage() {
                     >
                       {t("settings.recording.parlantiDescription")}
                     </p>
+                    {settings.diarizer === "nemotron3" ? (
+                      <p
+                        className="text-muted-foreground text-sm leading-relaxed"
+                        id="recording-nemotron-description"
+                      >
+                        {t(
+                          "settings.transcription.experimentalLiveDescription"
+                        )}
+                      </p>
+                    ) : null}
                   </fieldset>
                   <div className="grid grid-cols-3 gap-4 border-t pt-7">
                     <Field id="bitrate" label={t("settings.recording.bitrate")}>
@@ -404,6 +434,10 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <ModelList kind="diarizzazione" />
+                  <DiarizerSettings
+                    onChange={chooseDiarizer}
+                    onPick={pickDiarizer}
+                  />
                 </>
               ) : null}
               {section.key === "generale" ? (
@@ -515,6 +549,67 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Il modello dei Parlanti e le indicazioni per la scelta sperimentale. */
+function DiarizerSettings({
+  onChange,
+  onPick,
+}: {
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onPick: () => void;
+}) {
+  const { t } = useTranslation();
+  const { settings } = useSettings();
+  return (
+    <>
+      <Field
+        description={
+          settings.diarizer === "nemotron3"
+            ? t("settings.transcription.experimentalDescription")
+            : undefined
+        }
+        id="diarizer"
+        label={t("settings.transcription.diarizer")}
+      >
+        <NativeSelect
+          aria-describedby={
+            settings.diarizer === "nemotron3"
+              ? "diarizer-description"
+              : undefined
+          }
+          id="diarizer"
+          name="diarizer"
+          onChange={onChange}
+          value={settings.diarizer ?? "sortformer"}
+        >
+          <option value="sortformer">Sortformer 4spk v2.1</option>
+          <option value="nemotron3">
+            {t("settings.transcription.nemotron3")}
+          </option>
+        </NativeSelect>
+      </Field>
+      {settings.diarizer === "nemotron3" ? (
+        <>
+          <Field
+            description={t("settings.transcription.localModelDescription")}
+            label={t("settings.transcription.localModel")}
+          >
+            <span className="break-all text-sm">
+              {settings.nemotron3Path ??
+                t("settings.transcription.localModelMissing")}
+            </span>
+            <Button className="self-start" onClick={onPick} variant="outline">
+              {t("settings.transcription.chooseLocalModel")}
+            </Button>
+          </Field>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            {t("settings.transcription.experimentalLiveDescription")}
+          </p>
+        </>
+      ) : null}
+    </>
   );
 }
 

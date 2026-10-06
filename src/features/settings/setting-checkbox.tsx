@@ -6,12 +6,14 @@ import { useSettings } from "@/features/settings/settings-context";
 
 /** Una casella che salva subito un'impostazione; un errore va a `onError`. */
 export function SettingCheckbox({
+  description,
   disabled,
   label,
   name,
   note,
   onError,
 }: {
+  description?: string;
   disabled?: boolean;
   label: string;
   name:
@@ -34,18 +36,29 @@ export function SettingCheckbox({
     [name, onError, save, settings]
   );
   return (
-    <label
-      className="flex shrink-0 cursor-pointer items-center gap-2 text-sm has-[:disabled]:cursor-default has-[:disabled]:opacity-50"
-      htmlFor={id}
-      title={note}
-    >
-      <Checkbox
-        checked={settings[name] ?? false}
-        disabled={disabled}
-        id={id}
-        onCheckedChange={change}
-      />
-      {label}
-    </label>
+    <>
+      <label
+        className="flex shrink-0 cursor-pointer items-center gap-2 text-sm has-[:disabled]:cursor-default has-[:disabled]:opacity-50"
+        htmlFor={id}
+        title={note}
+      >
+        <Checkbox
+          aria-describedby={description ? `${id}-description` : undefined}
+          checked={settings[name] ?? false}
+          disabled={disabled}
+          id={id}
+          onCheckedChange={change}
+        />
+        {label}
+      </label>
+      {description ? (
+        <p
+          className="max-w-64 text-muted-foreground text-xs leading-relaxed"
+          id={`${id}-description`}
+        >
+          {description}
+        </p>
+      ) : null}
+    </>
   );
 }

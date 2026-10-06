@@ -13,6 +13,43 @@ import { statusText } from "@/features/status/status";
 
 const t = i18n.t.bind(i18n);
 
+test("Annulla o guasto dei Parlanti conserva il Tape e non nasconde gli errori di ASR o cattura", () => {
+  const path = "D:\\Reg\\Registrazione.tape";
+  for (const esito of ["annullata", "fallita"] as const) {
+    const data = {
+      diarizzazione: { esito, ingressi: [], modello: "nemotron3" as const },
+      error: null,
+      path,
+      transcription: { outcome: "saved" as const },
+    };
+    const after = afterRecording({ data, status: "ok" });
+    expect(after.source).toBe(path);
+    expect(after.status.phase).toBe("finished");
+    expect(statusText(after.status, t)).toContain(
+      "Diarizzazione non completata"
+    );
+    const capture = afterRecording({
+      data: {
+        ...data,
+        error: { code: "deviceDisconnected", detail: "Microfono" },
+      },
+      status: "ok",
+    });
+    expect(statusText(capture.status, t)).toContain("Microfono");
+    const asr = afterRecording({
+      data: {
+        ...data,
+        transcription: {
+          error: { code: "internal", detail: "ASR" },
+          outcome: "failed",
+        },
+      },
+      status: "ok",
+    });
+    expect(statusText(asr.status, t)).toContain("ASR");
+  }
+});
+
 test("il timer mostra minuti e secondi, e le ore solo quando servono", () => {
   expect(elapsedText(0)).toBe("0:00");
   expect(elapsedText(5999)).toBe("0:05");
@@ -79,7 +116,7 @@ test("dopo Stop il file diventa la Sorgente e la status bar dice dov'è", () => 
   const path =
     "C:\\Users\\me\\Documents\\Memotape\\Registrazione 2026-10-03 10-00-00.ogg";
   const after = afterRecording({
-    data: { error: null, path, transcription: null },
+    data: { diarizzazione: null, error: null, path, transcription: null },
     status: "ok",
   });
   expect(after.source).toBe(path);
@@ -90,6 +127,7 @@ test("un dispositivo scollegato salva comunque e mostra l'errore con il suo nome
   const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
   const after = afterRecording({
     data: {
+      diarizzazione: null,
       error: { code: "deviceDisconnected", detail: "Microfono USB" },
       path,
       transcription: { outcome: "saved" },
@@ -117,13 +155,23 @@ test("una Registrazione che non parte lascia la Sorgente com'era", () => {
 test("con la Trascrizione dal vivo la status bar dice dov'è il testo salvato", () => {
   const path = String.raw`D:\Reg\Registrazione 2026-10-03 10-00-00.tape`;
   const after = afterRecording({
-    data: { error: null, path, transcription: { outcome: "saved" } },
+    data: {
+      diarizzazione: null,
+      error: null,
+      path,
+      transcription: { outcome: "saved" },
+    },
     status: "ok",
   });
   expect(after.source).toBe(path);
   expect(statusText(after.status, t)).toBe(`Trascrizione salvata in ${path}`);
   const silent = afterRecording({
-    data: { error: null, path, transcription: { outcome: "noSpeech" } },
+    data: {
+      diarizzazione: null,
+      error: null,
+      path,
+      transcription: { outcome: "noSpeech" },
+    },
     status: "ok",
   });
   expect(silent.status).toEqual({ phase: "noSpeech" });
@@ -133,6 +181,7 @@ test("annullare il completamento della trascrizione salva comunque la Registrazi
   const path = "D:\\Reg\\Registrazione 2026-10-03 10-00-00.ogg";
   const cancelled = afterRecording({
     data: {
+      diarizzazione: null,
       error: null,
       path,
       transcription: { error: { code: "cancelled" }, outcome: "failed" },
@@ -143,6 +192,7 @@ test("annullare il completamento della trascrizione salva comunque la Registrazi
   expect(cancelled.status).toEqual({ phase: "cancelled" });
   const missing = afterRecording({
     data: {
+      diarizzazione: null,
       error: null,
       path,
       transcription: {
@@ -168,4 +218,29 @@ test("l'Attività in corso dice il timer o la fase con la percentuale", () => {
   );
   expect(activityText({ phase: "idle", source: null }, 0, t)).toBeNull();
   expect(activityText({ phase: "cancelled" }, 0, t)).toBeNull();
+});
+
+test("l'esito finale conserva e mostra il successo di un Ingresso e il guasto dell'altro", () => {
+  const after = afterRecording({
+    data: {
+      diarizzazione: {
+        esito: "fallita",
+        ingressi: [
+          { esito: "fallita", ingresso: "microfono" },
+          { esito: "completata", ingresso: "sistema" },
+        ],
+        modello: "nemotron3",
+      },
+      error: null,
+      path: "Due.tape",
+      transcription: { outcome: "saved" },
+    },
+    status: "ok",
+  });
+  expect(statusText(after.status, t)).toContain(
+    "Microfono: Diarizzazione non completata"
+  );
+  expect(statusText(after.status, t)).toContain(
+    "Audio di sistema: Diarizzazione completata"
+  );
 });

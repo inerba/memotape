@@ -61,11 +61,14 @@ _Avoid_: agente, bot, integrazione, MCP
 ### Testo
 
 **Frase**:
-Un tratto di parlato delimitato dal VAD, trascritto come unità; resta legato al suo intervallo nell'audio salvato anche quando se ne corregge il testo.
+Un tratto di parlato delimitato dal VAD, trascritto come unità; con la Diarizzazione può essere diviso al cambio di Parlante quando i tempi del testo lo permettono. Ogni parte resta legata al proprio intervallo nell'audio salvato anche quando se ne corregge il testo.
 _Avoid_: segmento, utterance, chunk
 
+**Tempo del testo**:
+Il legame fra un tratto del testo e l'intervallo audio realmente fornito dalla Trascrizione. Quel tratto resta indivisibile nell'attribuzione dei Parlanti; se comprende più voci, il suo Parlante resta non determinato.
+
 **Parziale**:
-Il testo provvisorio di una Frase ancora in corso.
+Il testo provvisorio di una Frase ancora in corso. Dal vivo può essere mostrato in più parti ai cambi di Parlante sostenuti dai tempi ASR; una revisione sostituisce tutte le parti insieme. La Frase conclusa le sostituisce senza duplicazioni.
 _Avoid_: anteprima, testo tentativo
 
 **Ingressi separati**:
@@ -73,12 +76,21 @@ Il modo in cui si trascrive sempre una Registrazione da Entrambi, dal vivo o dop
 _Avoid_: canali, flussi, modalità chat
 
 **Diarizzazione**:
-L'attribuzione di ogni Frase a un Parlante.
+L'attribuzione di ogni Frase a un Parlante. Dal vivo attribuisce e suddivide anche i Parziali disponibili, in modo provvisorio e rettificabile; l’analisi finale dopo Stop consolida il risultato.
 _Avoid_: speaker detection, riconoscimento dei parlanti
 
 **Parlante**:
 Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa. Con gli Ingressi separati appartiene sempre a un solo Ingresso e si numera per Ingresso: la stessa voce non è mai un Parlante del Microfono e dell'Audio di sistema insieme.
 _Avoid_: speaker, voce, utente
+
+**Parlante non determinato**:
+Una Frase che la Diarizzazione non attribuisce a una voce unica, perché contiene più voci o non ha turni utilizzabili. Il testo si conserva senza inventare un'identità; è distinto dall'Ingresso non diarizzato, come il Microfono trattato come una persona sola.
+
+**Attribuzione provvisoria**:
+Un Parlante già attribuito a una Frase ma ancora rettificabile dall’analisi finale. Non riguarda la completezza del testo; dopo un’analisi annullata o guasta resta riconoscibile anche nel Tape e nelle copie.
+
+**Analisi finale dei Parlanti**:
+La Diarizzazione eseguita dopo Stop sull’audio salvato, quando la Trascrizione ha smaltito la sua coda. Non ritrascrive il testo. Il suo esito è distinto da `completa`; con gli Ingressi separati ogni Ingresso ha il proprio esito e si consolida indipendentemente. Il Tape conserva il risultato disponibile anche con Annulla o errore.
 
 **Turno**:
 Frasi consecutive (e Parziali) con lo stesso Ingresso e lo stesso Parlante; senza Parlanti né Ingressi separati, le Frasi fino a una pausa lunga. È l'unità in cui si legge il testo.

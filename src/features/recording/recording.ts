@@ -76,7 +76,18 @@ export function afterRecording(result: RecordResult): {
     return { status: { error: result.error, phase: "failed" } };
   }
   const { error, path, transcription } = result.data;
-  return { source: path, status: recordedStatus(path, error, transcription) };
+  const status = recordedStatus(path, error, transcription);
+  if (status.phase === "finished" && result.data.diarizzazione) {
+    status.diarizzazione = result.data.diarizzazione;
+  }
+  if (
+    status.phase === "finished" &&
+    result.data.diarizzazione &&
+    result.data.diarizzazione.esito !== "completata"
+  ) {
+    status.diarizzazioneNonCompletata = true;
+  }
+  return { source: path, status };
 }
 
 function recordedStatus(

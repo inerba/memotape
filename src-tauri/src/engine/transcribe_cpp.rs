@@ -8,10 +8,11 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use transcribe_cpp::{
-    CancelToken, Diarize, Feature, Model, RunExtension, RunOptions, Session, StreamOptions,
-    WhisperRunOptions,
+    CancelToken, Diarize, Feature, Model, Nemotron3DiarOptions, Nemotron3DiarPreset, RunExtension,
+    RunOptions, Session, StreamExtension, StreamOptions, TimestampKind, WhisperRunOptions,
 };
 
+use super::asr::AsrResult;
 use super::diarize::Turn;
 use super::{EngineError, TranscriptionEngine};
 use crate::error::AppError;
@@ -25,6 +26,7 @@ pub struct TranscribeCpp {
     streaming: bool,
     /// `Feature::TemperatureFallback`: fra i modelli del catalogo, solo Whisper.
     fallback: bool,
+    timestamps: TimestampKind,
 }
 
 impl TranscribeCpp {
@@ -51,6 +53,7 @@ impl TranscribeCpp {
             languages: capabilities.languages,
             streaming: capabilities.supports_streaming,
             fallback,
+            timestamps: capabilities.max_timestamp_kind,
         };
         engine.warm_up();
         Ok(engine)
@@ -87,9 +90,10 @@ impl TranscriptionEngine for TranscribeCpp {
         &mut self,
         frames: &mut dyn Iterator<Item = Vec<f32>>,
         language: Option<&str>,
-        on_partial: Option<&mut dyn FnMut(&str)>,
-    ) -> Result<String, EngineError> {
+        on_partial: Option<&mut dyn FnMut(&AsrResult)>,
+    ) -> Result<AsrResult, EngineError> {
         let run = RunOptions {
+            timestamps: self.timestamps,
             language: language.and_then(|l| super::resolve_language(l, &self.languages)),
             family: self
                 .fallback
@@ -97,13 +101,13 @@ impl TranscriptionEngine for TranscribeCpp {
             ..RunOptions::default()
         };
         // Una Frase in una scrittura che la lingua scelta non usa è inventata: si scarta.
-        let keep = |text: String| {
-            let text = text.trim();
+        let keep = |transcript: transcribe_cpp::Transcript| {
+            let text = transcript.text.trim();
             if language.is_some_and(|l| super::foreign_script(text, l)) {
                 log::info!("Frase scartata, scrittura estranea alla Lingua del parlato: {text}");
-                return String::new();
+                return AsrResult::default();
             }
-            text.to_string()
+            timed_result(transcript)
         };
         // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
         // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
@@ -111,7 +115,7 @@ impl TranscriptionEngine for TranscribeCpp {
             let pcm: Vec<f32> = frames.flatten().collect();
             let session = &mut self.session;
             let transcript = catch_native(|| session.run(&pcm, &run))?;
-            return Ok(keep(transcript.text));
+            return Ok(keep(transcript));
         };
         // Uno stream per Frase. Senza estensione vale l'attenzione a destra predefinita del modello,
         // la prima del menu e la più accurata (`parakeet.h` di transcribe-cpp 0.2.4): per Nemotron
@@ -119,11 +123,13 @@ impl TranscriptionEngine for TranscribeCpp {
         // `finalize`, o al drop dello stream se si esce prima.
         let session = &mut self.session;
         let mut stream = catch_native(|| session.stream(&run, &StreamOptions::default()))?;
-        let mut shown = String::new();
+        let mut shown = AsrResult::default();
         for frame in frames {
             let update = catch_native(|| stream.feed(&frame))?;
-            if update.committed_changed || update.tentative_changed {
-                let partial = stream.text().display().trim().to_string();
+            if update.result_changed {
+                let mut snapshot = stream.snapshot();
+                snapshot.text = stream.text().display();
+                let partial = timed_result(snapshot);
                 if partial != shown {
                     on_partial(&partial);
                     shown = partial;
@@ -131,8 +137,49 @@ impl TranscriptionEngine for TranscribeCpp {
             }
         }
         catch_native(|| stream.finalize())?;
-        Ok(keep(stream.text().full))
+        Ok(keep(stream.snapshot()))
     }
+}
+
+/// Le parole del runtime includono i token della parola: non si taglia dentro un token/parola.
+/// Whisper mantiene i segmenti; lo stream Nemotron espone soltanto token, raggruppati sui
+/// confini testuali realmente decodificati. Un disallineamento conserva il testo senza tempi.
+fn timed_result(transcript: transcribe_cpp::Transcript) -> AsrResult {
+    let text = transcript.text.trim().to_string();
+    let mut rows = Vec::new();
+    match transcript.timestamp_kind {
+        TimestampKind::Word | TimestampKind::Token if !transcript.words.is_empty() => {
+            rows.extend(
+                transcript
+                    .words
+                    .into_iter()
+                    .map(|w| (w.t0_ms, w.t1_ms, w.text)),
+            );
+        }
+        TimestampKind::Token if !transcript.tokens.is_empty() => {
+            for token in transcript.tokens {
+                if token.text.is_empty() {
+                    continue;
+                }
+                if rows.is_empty() || token.text.starts_with(char::is_whitespace) {
+                    rows.push((token.t0_ms, token.t1_ms, token.text));
+                } else if let Some((_, end, text)) = rows.last_mut() {
+                    *end = token.t1_ms;
+                    text.push_str(&token.text);
+                }
+            }
+        }
+        TimestampKind::Segment => {
+            rows.extend(
+                transcript
+                    .segments
+                    .into_iter()
+                    .map(|s| (s.t0_ms, s.t1_ms, s.text)),
+            );
+        }
+        _ => {}
+    }
+    AsrResult::timed(text, rows)
 }
 
 /// Whisper senza invenzioni: con la confidenza media sotto `logprob_thold` (−1, il predefinito) la
@@ -148,19 +195,134 @@ fn confident_only() -> WhisperRunOptions {
     }
 }
 
-/// Il modello di diarizzazione (Sortformer, al massimo 4 parlanti): solo `run`, sull'audio intero.
-pub struct Sortformer {
+/// Diarizzazione offline: Sortformer (4 Parlanti) o Nemotron 3 (8), con sessione per Ingresso.
+pub struct OfflineDiarizer {
     session: Session,
+    nemotron3: bool,
 }
 
-impl Sortformer {
-    pub fn load(path: &Path) -> Result<Self, AppError> {
+impl OfflineDiarizer {
+    /// Uno stream per Registrazione, anche attraverso Pausa/Riprendi. Solo la fine del canale
+    /// completa lo stream; silenzi e cache appartengono alla linea del tempo salvata.
+    pub fn diarize_live(
+        &mut self,
+        frames: &mut super::live_diarization::DiarizationFrames,
+        cancel: &CancelToken,
+        on_turns: &mut dyn FnMut(Vec<Turn>),
+    ) -> Result<(), AppError> {
+        frames.check(cancel)?;
+        self.session.set_cancel_token(&frames.cancel_token());
+        let options = StreamOptions {
+            family: Some(StreamExtension::Nemotron3Diar(Nemotron3DiarOptions {
+                preset: Some(Nemotron3DiarPreset::LowLatency),
+            })),
+            ..Default::default()
+        };
+        let run = RunOptions {
+            diarize: Diarize::On,
+            ..Default::default()
+        };
+        let mut stream = catch_native(|| self.session.stream(&run, &options))?;
+        let mut previous = Vec::new();
+        while let Some(frame) = frames.next_frame(cancel)? {
+            let fed = catch_native(|| stream.feed(&frame.samples));
+            frames.check_delay(frame.sent, cancel)?;
+            fed?;
+            let turns = speaker_turns(&stream.snapshot());
+            if turns != previous {
+                let horizon = turns.iter().map(|t| t.fine_ms).max().unwrap_or(0);
+                log::info!(
+                    "Parlanti dal vivo: audio={} ms, turni={} ms, ritardo={} ms, coda/calcolo={} ms",
+                    frame.fine_ms,
+                    horizon,
+                    u128::from(frame.fine_ms.saturating_sub(horizon))
+                        + frame.sent.elapsed().as_millis(),
+                    frame.sent.elapsed().as_millis()
+                );
+                previous = turns.clone();
+                on_turns(turns);
+            }
+        }
+        frames.check(cancel)?;
+        catch_native(|| stream.finalize())?;
+        frames.check(cancel)?;
+        on_turns(speaker_turns(&stream.snapshot()));
+        Ok(())
+    }
+    /// Nemotron analizza il file a blocchi con il preset finale. Il PCM non viene accumulato:
+    /// il runtime conserva le cache del preset e i turni, non l'intero audio della Registrazione.
+    pub fn diarize_saved(
+        &mut self,
+        decoder: crate::audio_toolkit::decode::Decoder,
+        cancel: &CancelToken,
+    ) -> Result<Vec<Turn>, AppError> {
+        use crate::engine::pipeline::{Feed, FileFrames};
+        let frames = FileFrames::new(decoder, None);
+        if !self.nemotron3 {
+            // Sortformer conserva il suo contratto offline, che richiede tutto il PCM.
+            let mut pcm = Vec::new();
+            for feed in frames {
+                if cancel.is_cancelled() {
+                    return Err(AppError::Cancelled);
+                }
+                if let Feed::Frame(frame) = feed? {
+                    pcm.extend(frame);
+                }
+            }
+            return Ok(self.diarize(&pcm, cancel)?);
+        }
+        self.session.set_cancel_token(cancel);
+        let run = RunOptions {
+            diarize: Diarize::On,
+            ..Default::default()
+        };
+        let options = StreamOptions {
+            family: Some(StreamExtension::Nemotron3Diar(Nemotron3DiarOptions {
+                preset: Some(Nemotron3DiarPreset::VeryHighLatency),
+            })),
+            ..Default::default()
+        };
+        let mut stream = catch_native(|| self.session.stream(&run, &options))?;
+        for feed in frames {
+            if cancel.is_cancelled() {
+                return Err(AppError::Cancelled);
+            }
+            if let Feed::Frame(frame) = feed? {
+                catch_native(|| stream.feed(&frame))?;
+            }
+        }
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        catch_native(|| stream.finalize())?;
+        Ok(speaker_turns(&stream.snapshot()))
+    }
+    pub fn load_sortformer(path: &Path) -> Result<Self, AppError> {
         if !path.is_file() {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
         init_backends()?;
         let session = catch_native(|| Model::load(path)?.session())?;
-        Ok(Self { session })
+        Ok(Self {
+            session,
+            nemotron3: false,
+        })
+    }
+
+    /// Stesso contratto offline, con l'artefatto fissato e il preset accurato della prova.
+    pub fn load_nemotron3(path: &Path) -> Result<Self, AppError> {
+        super::local_diarizer::validate(path)?;
+        init_backends()?;
+        let incompatible = || AppError::LocalDiarizerIncompatible(path.display().to_string());
+        let model = catch_native(|| Model::load(path)).map_err(|_| incompatible())?;
+        if model.arch() != "nemotron3_diar" {
+            return Err(incompatible());
+        }
+        let session = catch_native(|| model.session()).map_err(|_| incompatible())?;
+        Ok(Self {
+            session,
+            nemotron3: true,
+        })
     }
 
     /// I turni di chi parla nell'audio `pcm` (mono a 16 kHz), in ordine di inizio. `cancel` lo
@@ -169,27 +331,36 @@ impl Sortformer {
         self.session.set_cancel_token(cancel);
         let run = RunOptions {
             diarize: Diarize::On,
+            family: self
+                .nemotron3
+                .then_some(RunExtension::Nemotron3Diar(Nemotron3DiarOptions {
+                    preset: Some(Nemotron3DiarPreset::VeryHighLatency),
+                })),
             ..RunOptions::default()
         };
         let session = &mut self.session;
         let transcript = catch_native(|| session.run(pcm, &run))?;
         // Sortformer dà i segmenti per parlante, non per tempo. Un id negativo o un tratto senza
         // tempi non dice nulla su chi parla quando: si scarta.
-        let mut turns: Vec<Turn> = transcript
-            .speaker_segments
-            .iter()
-            .filter_map(|s| {
-                Some(Turn {
-                    inizio_ms: u32::try_from(s.t0_ms).ok()?,
-                    fine_ms: u32::try_from(s.t1_ms).ok()?,
-                    parlante: u32::try_from(s.speaker_id).ok()?,
-                })
-            })
-            .filter(|t| t.fine_ms > t.inizio_ms)
-            .collect();
-        turns.sort_by_key(|t| (t.inizio_ms, t.parlante));
-        Ok(turns)
+        Ok(speaker_turns(&transcript))
     }
+}
+
+fn speaker_turns(transcript: &transcribe_cpp::Transcript) -> Vec<Turn> {
+    let mut turns: Vec<Turn> = transcript
+        .speaker_segments
+        .iter()
+        .filter_map(|s| {
+            Some(Turn {
+                inizio_ms: u32::try_from(s.t0_ms).ok()?,
+                fine_ms: u32::try_from(s.t1_ms).ok()?,
+                parlante: u32::try_from(s.speaker_id).ok()?,
+            })
+        })
+        .filter(|t| t.fine_ms > t.inizio_ms)
+        .collect();
+    turns.sort_by_key(|t| (t.inizio_ms, t.parlante));
+    turns
 }
 
 /// Con `dynamic-backends` i backend (un modulo CPU per livello di ISA, Vulkan) sono DLL accanto a
@@ -220,3 +391,7 @@ fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T
             e => EngineError::Internal(format!("transcribe-cpp: {e}")),
         })
 }
+
+#[cfg(all(test, target_os = "windows"))]
+#[path = "windows_benchmark.rs"]
+mod windows_benchmark;

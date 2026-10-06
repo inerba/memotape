@@ -15,6 +15,7 @@ import {
 } from "@/features/recording/recording";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { useSettings } from "@/features/settings/settings-context";
+import { inEventSession } from "@/lib/event-session";
 
 /**
  * La Registrazione in corso: timer, un livello per ingresso con il suo Guadagno, Pausa/Riprendi e
@@ -25,10 +26,12 @@ export function RecordingPanel({
   onError,
   onPausedChange,
   paused,
+  sessionId,
 }: {
   onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
+  sessionId?: string;
 }) {
   const { t } = useTranslation();
   const { settings } = useSettings();
@@ -36,17 +39,20 @@ export function RecordingPanel({
   const [tick, setTick] = useState<RecordingTick>(() => ({
     elapsedMs: 0,
     levels: silentLevels(settings.recordingSource),
+    sessionId: sessionId ?? "",
   }));
   const [stopping, setStopping] = useState(false);
 
   useEffect(() => {
     const ticks = events.recordingTick.listen(({ payload }) => {
-      setTick(payload);
+      if (inEventSession(payload, sessionId)) {
+        setTick(payload);
+      }
     });
     return () => {
       ticks.then((unlisten) => unlisten());
     };
-  }, []);
+  }, [sessionId]);
 
   const togglePause = useCallback(async () => {
     if (await commands.pauseRecording(!paused)) {

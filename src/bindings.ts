@@ -14,6 +14,8 @@ export const commands = {
 	 *  Restituisce il percorso scelto, o `null` se l'utente annulla.
 	 */
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
+	/**  Sceglie e verifica l'artefatto locale prima di salvare il percorso nelle impostazioni. */
+	pickDiarizerModel: () => typedError<string | null, AppError>(__TAURI_INVOKE("pick_diarizer_model")),
 	/**
 	 *  Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 	 *  estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
@@ -44,12 +46,12 @@ export const commands = {
 	 *  Il testo di Copia testo della Trascrizione in corso o appena finita senza Tape: in testo semplice
 	 *  o Markdown, secondo `copiaCome`. `null` se non c'è ancora stata una Trascrizione.
 	 */
-	transcriptText: () => __TAURI_INVOKE<string | null>("transcript_text"),
+	transcriptText: (visible: TranscriptPhrase[] | null) => __TAURI_INVOKE<string | null>("transcript_text", { visible }),
 	/**
 	 *  Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
 	 *  informazioni. `unsupportedTape` se viene da una versione più nuova dell'app.
 	 */
-	openTape: (source: string) => typedError<OpenedTape, AppError>(__TAURI_INVOKE("open_tape", { source })),
+	openTape: (source: string) => typedError<OpenedTape_Serialize, AppError>(__TAURI_INVOKE("open_tape", { source })),
 	/**
 	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`, o con `null` all'Ingresso
 	 *  senza Parlanti (il Microfono). Rifiuta un nome vuoto, e con `activityInProgress` il Tape su cui
@@ -124,7 +126,7 @@ export const commands = {
 	 *  `recording-tick`. `prefix` è il prefisso tradotto del nome del file. Rifiuta con
 	 *  `activityInProgress` se un'Attività è già in corso.
 	 */
-	record: (prefix: string, raccolta: string | null) => typedError<RecordingSaved, AppError>(__TAURI_INVOKE("record", { prefix, raccolta })),
+	record: (sessionId: string, prefix: string, raccolta: string | null) => typedError<RecordingSaved_Serialize, AppError>(__TAURI_INVOKE("record", { sessionId, prefix, raccolta })),
 	/**  Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso. */
 	pauseRecording: (paused: boolean) => __TAURI_INVOKE<boolean>("pause_recording", { paused }),
 	/**
@@ -173,6 +175,8 @@ export const commands = {
 export const events = {
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
+	liveDiarizationFailed: makeEvent<LiveDiarizationFailed>("live-diarization-failed"),
+	liveTranscriptUpdated: makeEvent<LiveTranscriptUpdated>("live-transcript-updated"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
@@ -185,7 +189,7 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+export type AppError = { code: "liveDiarizationLagging" } | { code: "liveDiarizationUnavailable"; detail: string } | { code: "localDiarizerMissing" } | { code: "localDiarizerIncompatible"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
 /**
  *  Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
  *  scaricato.
@@ -234,7 +238,35 @@ export type CopiaCome =
 "testo" | "markdown";
 
 /**  Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti). */
-export type DiarizationStarted = null;
+export type DiarizationStarted = {
+	sessionId: string | null,
+};
+
+export type Diarizer = "sortformer" | "nemotron3";
+
+export type Diarizzazione = Diarizzazione_Serialize | Diarizzazione_Deserialize;
+
+export type DiarizzazioneIngresso = {
+	ingresso: Ingresso,
+	esito: EsitoDiarizzazione,
+};
+
+export type Diarizzazione_Deserialize = {
+	modello: Diarizer,
+	esito: EsitoDiarizzazione,
+	/**  Esiti indipendenti degli Ingressi. Assente nei Tape precedenti. */
+	ingressi?: DiarizzazioneIngresso[],
+};
+
+export type Diarizzazione_Serialize = {
+	modello: Diarizer,
+	esito: EsitoDiarizzazione,
+	/**  Esiti indipendenti degli Ingressi. Assente nei Tape precedenti. */
+	ingressi?: DiarizzazioneIngresso[],
+};
+
+/**  Esito dell'analisi dei Parlanti, indipendente dalla completezza del testo. */
+export type EsitoDiarizzazione = "completata" | "annullata" | "fallita";
 
 /**
  *  Da dove viene una Frase: dal mix, o con gli Ingressi separati dal microfono o dall'audio di
@@ -262,6 +294,26 @@ export type LibraryList = {
 	tapes: TapeEntry[],
 };
 
+/**  Il riconoscimento dei Parlanti non è disponibile; audio e ASR continuano. */
+export type LiveDiarizationFailed = {
+	sessionId: string,
+	ingresso: Ingresso,
+	error: AppError,
+};
+
+/**
+ *  Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
+ *  un risultato precedente non può far ricomparire un Parziale ormai concluso.
+ */
+export type LiveTranscriptUpdated = {
+	sessionId: string,
+	ingresso: Ingresso,
+	revision: number,
+	finished: boolean,
+	phrases: TranscriptPhrase[],
+	partials: TranscriptPhrase[],
+};
+
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */
 export type LiveTranscription = 
 /**  Il testo è nel Tape o, se il Tape non si è scritto, nel Markdown accanto all'Ogg. */
@@ -277,6 +329,7 @@ export type LiveTranscription =
  *  testo.
  */
 export type LiveTranscriptionFailed = {
+	sessionId: string,
 	error: AppError,
 };
 
@@ -339,15 +392,29 @@ export type ModelStateChanged = {
 };
 
 /**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
-export type OpenedTape = {
+export type OpenedTape = OpenedTape_Serialize | OpenedTape_Deserialize;
+
+/**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
+export type OpenedTape_Deserialize = {
 	phrases: TranscriptPhrase[],
 	/**  Per chiave `<ingresso>:<n>`, come nel Tape. */
 	parlanti: { [key in string]: string },
-	info: TapeInfo,
+	info: TapeInfo_Deserialize,
+};
+
+/**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
+export type OpenedTape_Serialize = {
+	phrases: TranscriptPhrase[],
+	/**  Per chiave `<ingresso>:<n>`, come nel Tape. */
+	parlanti: { [key in string]: string },
+	info: TapeInfo_Serialize,
 };
 
 /**  La Registrazione salvata, che diventa la Sorgente. */
-export type RecordingSaved = {
+export type RecordingSaved = RecordingSaved_Serialize | RecordingSaved_Deserialize;
+
+/**  La Registrazione salvata, che diventa la Sorgente. */
+export type RecordingSaved_Deserialize = {
 	/**  Il Tape; se non si è potuto scrivere, l'Ogg nella cartella nascosta. */
 	path: string,
 	/**
@@ -357,12 +424,28 @@ export type RecordingSaved = {
 	error: AppError | null,
 	/**  L'esito della Trascrizione dal vivo; `null` se era spenta. */
 	transcription: LiveTranscription | null,
+	diarizzazione?: Diarizzazione_Deserialize | null,
+};
+
+/**  La Registrazione salvata, che diventa la Sorgente. */
+export type RecordingSaved_Serialize = {
+	/**  Il Tape; se non si è potuto scrivere, l'Ogg nella cartella nascosta. */
+	path: string,
+	/**
+	 *  Perché la Registrazione si è fermata da sola (`deviceDisconnected`, `unwritableFolder`) o
+	 *  perché il Tape non si è scritto; `null` dopo Stop.
+	 */
+	error: AppError | null,
+	/**  L'esito della Trascrizione dal vivo; `null` se era spenta. */
+	transcription: LiveTranscription | null,
+	diarizzazione: Diarizzazione_Serialize | null,
 };
 
 export type RecordingSource = "mic" | "system" | "both";
 
 /**  Durata registrata (pause escluse) e livelli dall'evento precedente. */
 export type RecordingTick = {
+	sessionId: string,
 	elapsedMs: number,
 	levels: Levels,
 };
@@ -392,6 +475,10 @@ export type Settings = {
 	outputDevice: string | null,
 	/**  L'id del modello nel catalogo. */
 	model: string,
+	/**  Scelta distinta dall'ASR, fissata all'avvio dell'Attività. I file precedenti usano Sortformer. */
+	diarizer?: Diarizer,
+	/**  Artefatto locale verificato: non si scarica e non si sostituisce automaticamente. */
+	nemotron3Path?: string | null,
 	speechLanguage: SpeechLanguage,
 	bitrateKbps: number,
 	channels: Channels,
@@ -451,6 +538,8 @@ export type SpeakerAssignment = {
 	ingresso: Ingresso,
 	phraseId: number,
 	parlante: number | null,
+	parlanteNonDeterminato?: boolean,
+	parlanteProvvisorio?: boolean,
 };
 
 /**
@@ -458,6 +547,7 @@ export type SpeakerAssignment = {
  *  nessuno parlava durante la Frase.
  */
 export type SpeakersAssigned = {
+	sessionId?: string | null,
 	speakers: SpeakerAssignment[],
 };
 
@@ -482,7 +572,10 @@ export type TapeEntry = {
 };
 
 /**  La riga di informazioni della vista di un Tape. */
-export type TapeInfo = {
+export type TapeInfo = TapeInfo_Serialize | TapeInfo_Deserialize;
+
+/**  La riga di informazioni della vista di un Tape. */
+export type TapeInfo_Deserialize = {
 	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
 	creato: string,
 	durataMs: number,
@@ -493,6 +586,22 @@ export type TapeInfo = {
 	completa: boolean,
 	/**  Il nome del file audio o video da cui viene. */
 	origine: string | null,
+	diarizzazione?: Diarizzazione_Deserialize | null,
+};
+
+/**  La riga di informazioni della vista di un Tape. */
+export type TapeInfo_Serialize = {
+	/**  Data e ora della Registrazione o della Trascrizione, ISO 8601 con il fuso. */
+	creato: string,
+	durataMs: number,
+	/**  Il nome del modello; `null` se il testo non è stato trascritto. */
+	modello: string | null,
+	linguaParlato: SpeechLanguage,
+	ingressiSeparati: boolean,
+	completa: boolean,
+	/**  Il nome del file audio o video da cui viene. */
+	origine: string | null,
+	diarizzazione: Diarizzazione_Serialize | null,
 };
 
 /**  È arrivato un Tape da aprire: la finestra lo prende con `take_pending_tape`. */
@@ -506,6 +615,7 @@ export type Tema = "sistema" | "chiaro" | "scuro";
  *  ha l'id che avrà la Frase. `fine_ms` è la fine dell'audio letto finora.
  */
 export type TranscriptPartial = {
+	sessionId?: string | null,
 	phraseId: number,
 	inizioMs: number,
 	fineMs: number,
@@ -518,6 +628,7 @@ export type TranscriptPartial = {
  *  `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
  */
 export type TranscriptPhrase = {
+	sessionId?: string | null,
 	phraseId: number,
 	inizioMs: number,
 	fineMs: number,
@@ -529,6 +640,8 @@ export type TranscriptPhrase = {
 	 *  dopo, con `speakers-assigned`.
 	 */
 	parlante: number | null,
+	parlanteNonDeterminato?: boolean,
+	parlanteProvvisorio?: boolean,
 };
 
 /**  Esito di una Trascrizione arrivata alla fine della Sorgente. Annulla e i guasti sono `AppError`. */
@@ -546,6 +659,7 @@ export type TranscriptionOutcome =
  *  `null` se la durata della Sorgente non è nota.
  */
 export type TranscriptionProgress = {
+	sessionId: string | null,
 	percent: number | null,
 };
 

@@ -27,7 +27,8 @@
       "confirm": "Ersetzen"
     },
     "parlanti": "Sprecher erkennen",
-    "parlantiNote": "Höchstens 4 Sprecher",
+    "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
+    "parlantiNote": "Höchstens {{count}} Sprecher pro Eingang",
     "parlantiList": "Sprecher:",
     "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
     "renameName": "Neuer Name für {{label}}",
@@ -74,7 +75,8 @@
     "noSpeech": "Keine Sprache erkannt",
     "cancelled": "Transkription abgebrochen",
     "openModels": "Einstellungen → Transkription öffnen",
-    "diarizing": "Sprecher werden erkannt…"
+    "diarizing": "Sprecher werden erkannt…",
+    "finalDiarizing": "Abschließende Sprecheranalyse…"
   },
   "errors": {
     "label": "Fehler",
@@ -99,7 +101,11 @@
       "tapeNotFound": "Das Tape ist nicht mehr an seinem Platz (außerhalb der App verschoben, umbenannt oder gelöscht): {{detail}}",
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
-      "internal": "Interner Fehler: {{detail}}"
+      "internal": "Interner Fehler: {{detail}}",
+      "localDiarizerMissing": "Wählen Sie das lokale Nemotron-Diarization-Modell unter Einstellungen → Transkription",
+      "localDiarizerIncompatible": "Das lokale Modell entspricht nicht der geprüften Nemotron-Diarization-GGUF-Datei oder kann nicht geladen werden: {{detail}}",
+      "liveDiarizationLagging": "Die Live-Sprechererkennung kommt nicht hinterher und wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut.",
+      "liveDiarizationUnavailable": "Die Live-Sprechererkennung wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut."
     },
     "app": {
       "title": "Etwas ist schiefgelaufen",
@@ -121,7 +127,15 @@
       "title": "Transkription",
       "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline.",
       "diarization": "Sprechererkennung",
-      "diarizationDescription": "Wird von Sprecher erkennen neben Transkribieren verwendet. Erkennt höchstens 4 Sprecher."
+      "diarizationDescription": "Wähle das Modell für Sprecher erkennen in Dateien, Tapes und Aufnahmen. Sortformer unterscheidet bis zu 4 Sprecher nach der Transkription.",
+      "diarizer": "Sprechermodell",
+      "nemotron3": "Nemotron 3 Diarization (experimentell)",
+      "localModel": "Lokales Modell",
+      "experimentalDescription": "Experimentelle Funktion: Sprecher können verwechselt werden, besonders bei überlappenden Stimmen oder vielen Personen. Live-Zuordnungen sind vorläufig und werden nach Stopp erneut analysiert.",
+      "experimentalLiveDescription": "Für die Live-Sprechererkennung wird eine Vulkan-kompatible GPU empfohlen. Mit CPU allein kann die Erkennung stoppen, wenn sie nicht Schritt hält; Audio und Transkription laufen weiter und die Sprecher werden nach Stopp erneut analysiert.",
+      "localModelDescription": "Wähle das kompatible BF16-Modell von Nemotron 3 Diarization. Es wird für Dateien, Tapes und Aufnahmen verwendet, auch mit getrennten Eingängen.",
+      "localModelMissing": "Kein lokales Modell ausgewählt",
+      "chooseLocalModel": "Lokales Modell wählen…"
     },
     "recording": {
       "title": "Aufnahme und Audio",
@@ -134,7 +148,7 @@
       },
       "parlanti": "Sprecher erkennen",
       "parlantiMix": "Im Mix",
-      "parlantiDescription": "Nach Stopp, auf den Sätzen der Live-Transkription. Mit Beides hat jeder Eingang eigene Sprecher: Das Mikrofon bleibt eine einzige Person, wenn du es nicht auswählst. Erkennt höchstens 4 Sprecher pro Audio und benötigt das Modell zur Sprechererkennung.",
+      "parlantiDescription": "Mit Live-Transkription zeigt Nemotron vorläufige Sprecher für jeden ausgewählten Eingang und analysiert nach Stopp erneut. Sortformer erkennt bis zu 4 Sprecher nach Stopp. Bei Beide hat jeder Eingang eigene Sprecher; das Mikrofon wird nur bei Auswahl analysiert.",
       "microphone": "Mikrofon",
       "outputDevice": "Ausgabegerät",
       "defaultDevice": "Systemstandard",
@@ -259,7 +273,12 @@
     "date": "Datum",
     "duration": "Dauer",
     "model": "Modell",
-    "parlante": "Sprecher {{n}}"
+    "parlante": "Sprecher {{n}}",
+    "unknownSpeaker": "Sprecher nicht bestimmt",
+    "provisionalSpeaker": "{{name}} (vorläufig)",
+    "diarization": "Diarisierung",
+    "diarizationCompleted": "Diarisierung abgeschlossen",
+    "diarizationIncomplete": "Diarisierung nicht abgeschlossen"
   },
   "library": {
     "title": "Bibliothek",
