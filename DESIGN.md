@@ -233,7 +233,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 **The Dot-Only Voices Rule.** I colori dei Parlanti compaiono solo nel pallino: mai su testo, fondi di turno o bordi.
 
-**The Token-Only Rule.** Nei componenti si usano solo i token (`bg-background`, `text-destructive`, `bg-play`…), mai colori fissi; le eccezioni sono `close`, che è già un token, e il logo (`BrandMark`), che ha i colori fissi del marchio in entrambi i temi: salvia `#576b3c`, inchiostro `#241e1a`, carta `#fcfaf6` (`docs/brand/LINEE-GUIDA.md`).
+**The Token-Only Rule.** Nei componenti si usano solo i token (`bg-background`, `text-destructive`, `bg-play`…), mai colori fissi; le eccezioni sono `close`, che è già un token, e il logo (`BrandMark`), che ha i colori fissi del marchio: salvia `#576b3c`, inchiostro `#241e1a`, carta `#fcfaf6` e senape `#f2c14e`, con la bobina bruna `#45392f` nel tema scuro (`docs/brand/LINEE-GUIDA.md`).
 
 ## Typography
 
@@ -282,7 +282,7 @@ Sistema piatto su carta, con un solo livello sospeso. La profondità di base vie
 
 ## Shapes
 
-Angoli morbidi su una base di 10 px (`--radius: 0.625rem`): 6 px per le piccole superfici incise (evidenziazioni, tasti), 8 px per pulsanti, campi, select e voci di menu, 10 px per chip, ricerca e voci della barra laterale, 14 px per i menu, gli avvisi e lo sfondo dei turni, 16 px per player e dock. Il cerchio pieno è per il Play, i pallini, l'interruttore, le barre di avanzamento e la pillola di ritorno. Ogni bordo è un filo da 1 px del colore `rule` (nel tema scuro carta chiara al 10%). L'unica geometria ricorrente oltre ai rettangoli morbidi è la barra verticale dell'audio: nella forma d'onda del player e nelle tre barre del turno in ascolto. Il marchio è a parte: una musicassetta, le due bobine unite dal nastro in inchiostro con i mozzi color carta su un quadrato salvia (`components/brand-mark.tsx`; a 28 px nella barra laterale con la versione piccola senza denti, a 64 px in Informazioni con i mozzi dentati).
+Angoli morbidi su una base di 10 px (`--radius: 0.625rem`): 6 px per le piccole superfici incise (evidenziazioni, tasti), 8 px per pulsanti, campi, select e voci di menu, 10 px per chip, ricerca e voci della barra laterale, 14 px per i menu, gli avvisi e lo sfondo dei turni, 16 px per player e dock. Il cerchio pieno è per il Play, i pallini, l'interruttore, le barre di avanzamento e la pillola di ritorno. Ogni bordo è un filo da 1 px del colore `rule` (nel tema scuro carta chiara al 10%). L'unica geometria ricorrente oltre ai rettangoli morbidi è la barra verticale dell'audio: nella forma d'onda del player e nelle tre barre del turno in ascolto. Il marchio è a parte: il mozzo di una bobina visto da vicino, la bobina in inchiostro che esce dal quadrato salvia in basso a destra, il mozzo color carta con il foro a sei denti e due strisce da musicassetta in alto, senape e carta (`components/brand-mark.tsx`, che usa le SVG di `docs/brand/svg`; a 28 px nella barra laterale con la versione piccola a una striscia, a 64 px in Informazioni con quella principale).
 
 ## Components
 
