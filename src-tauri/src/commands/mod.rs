@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
-use crate::audio_toolkit::capture::{self, AudioDevice};
+use crate::audio_toolkit::capture::{self, AudioDevice, Kind};
 use crate::error::AppError;
 use crate::library::{LibraryList, SearchResult};
 use crate::managers;
@@ -438,8 +438,15 @@ pub fn set_settings(
     app: AppHandle,
     store: State<'_, SettingsStore>,
     recorder: State<'_, Recorder>,
-    settings: Settings,
+    mut settings: Settings,
 ) -> Result<Settings, AppError> {
+    // Un nome fatto solo di spazi vale nessun nome, come per i Parlanti.
+    settings.nome_microfono = settings
+        .nome_microfono
+        .as_deref()
+        .map(str::trim)
+        .filter(|nome| !nome.is_empty())
+        .map(str::to_owned);
     let previous = store.set(settings)?;
     let saved = store.get();
     recorder.set_audio(&store);
@@ -513,6 +520,20 @@ pub async fn record(
     .await;
     managers::library::sync(&app);
     saved
+}
+
+/// Mette in Muto (`true`) o toglie il Muto di un Ingresso della Registrazione in corso: scrive
+/// silenzio al posto del suo audio, senza fermare il tempo. Restituisce `false` se non c'è una
+/// Registrazione o se `ingresso` è il mix.
+#[tauri::command]
+#[specta::specta]
+pub fn set_muto(recorder: State<'_, Recorder>, ingresso: Ingresso, muto: bool) -> bool {
+    let kind = match ingresso {
+        Ingresso::Microfono => Kind::Microphone,
+        Ingresso::Sistema => Kind::System,
+        Ingresso::Mix => return false,
+    };
+    recorder.set_muto(kind, muto)
 }
 
 /// Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso.

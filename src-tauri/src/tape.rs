@@ -111,8 +111,21 @@ pub fn creato(start: DateTime<Local>) -> String {
 }
 
 impl Document {
+    /// Il nome del Microfono persona sola, se c'è (ADR-0027).
+    pub fn set_nome_microfono(&mut self, nome: Option<&str>) {
+        if let Some(nome) = nome {
+            self.parlanti
+                .insert(Ingresso::Microfono.parlante_key(None), nome.to_owned());
+        }
+    }
+
+    /// Se il testo, un'attribuzione o il nome di un Parlante sono stati corretti a mano. Il nome del
+    /// Microfono persona sola non conta: non è un Parlante, può venire dal nome predefinito
+    /// (ADR-0027) e nessuna nuova analisi lo cambia (ADR-0017).
     pub fn corretto_a_mano(&self) -> bool {
-        !self.parlanti.is_empty()
+        self.parlanti
+            .keys()
+            .any(|key| *key != Ingresso::Microfono.parlante_key(None))
             || !self.correzioni_testo.is_empty()
             || self
                 .frasi
@@ -887,6 +900,20 @@ fn unwritable(path: &Path, e: &dyn std::fmt::Display) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn il_nome_predefinito_del_microfono_non_e_una_correzione_manuale() {
+        let mut doc = document(&["Ciao."]);
+        doc.parlanti.clear();
+        doc.set_nome_microfono(None);
+        assert!(doc.parlanti.is_empty());
+        doc.set_nome_microfono(Some("Francesco"));
+        assert_eq!(doc.parlanti["microfono"], "Francesco");
+        assert!(!doc.corretto_a_mano());
+        // Il nome di un Parlante, invece, è una Correzione manuale.
+        doc.parlanti.insert("sistema:1".into(), "Lucia".into());
+        assert!(doc.corretto_a_mano());
+    }
     #[test]
     fn un_tape_vecchio_con_solo_mix_e_metadati_senza_ingressi_resta_non_separabile() {
         let mut doc = document(&["Testo del mix."]);

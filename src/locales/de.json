@@ -198,7 +198,9 @@
       "gainDescription": "Ändert den Aufnahmepegel, ohne die Windows-Lautstärke zu ändern. Bei roter Anzeige die Verstärkung senken. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen.",
       "bitrateDescription": "Höhere Werte erhalten mehr Audiodetails und benötigen mehr Speicherplatz.",
       "channelsDescription": "Mono speichert einen Kanal; Stereo erhält den linken und rechten Kanal.",
-      "sampleRateDescription": "Höhere Werte erhalten höhere Frequenzen, können aber fehlende Frequenzen der Quelle nicht wiederherstellen."
+      "sampleRateDescription": "Höhere Werte erhalten höhere Frequenzen, können aber fehlende Frequenzen der Quelle nicht wiederherstellen.",
+      "defaultDeviceShort": "Standard · {{name}}",
+      "lastInput": "Mindestens eine Quelle ist nötig"
     },
     "general": {
       "title": "Allgemein",
@@ -219,7 +221,10 @@
       "copyFormats": {
         "testo": "Nur Text",
         "markdown": "Markdown"
-      }
+      },
+      "nomeMicrofono": "Dein Name",
+      "nomeMicrofonoDescription": "Wird für das Mikrofon verwendet, wenn du nicht mehrere Sprecher erkennst: Jedes neue Tape aus Beidem benennt es so. Vorhandene Tapes ändern sich nicht.",
+      "nomeMicrofonoPlaceholder": "Mikrofon"
     },
     "assistants": {
       "title": "Assistenten",
@@ -236,12 +241,12 @@
     },
     "cleaning": {
       "profile": "Dateien und gemischtes Audio",
-      "enable": "Rauschen reduzieren",
+      "enable": "Rauschen filtern",
       "description": "DeepFilterNet3 reduziert Rauschen in Dateien, Videos und Tapes ohne getrennte Eingänge. Bereits bereinigte Abschnitte werden wiederverwendet. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
       "recordingDescription": "DeepFilterNet3 reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Bereinigte Abschnitte werden in Tapes wiederverwendet: Ausschalten stellt das Original nicht wieder her."
     },
     "protection": {
-      "label": "Sprachempfindlichkeit",
+      "label": "Empfindlichkeit",
       "levels": {
         "spento": "Aus",
         "sensibile": "Empfindlicher",
@@ -254,6 +259,13 @@
         "sensibile": "Behält mehr leise Stimmen und kurze Antworten; kann mehr Geräusche einschließen.",
         "bilanciato": "Wägt leise Stimmen und kurze Antworten gegen die Geräuschfilterung ab.",
         "selettivo": "Filtert mehr Geräusche; kann kurze oder leise Wörter verlieren."
+      },
+      "fullLabel": "Sprachempfindlichkeit",
+      "short": {
+        "spento": "Aus",
+        "sensibile": "Empfindlich",
+        "bilanciato": "Ausgewogen",
+        "selettivo": "Selektiv"
       }
     },
     "help": "Informationen zu {{field}}",
@@ -327,7 +339,13 @@
       "devices": "Audiogeräte werden geöffnet…"
     },
     "started": "Aufnahme gestartet, Sie können sprechen",
-    "cleaningPreparing": "Audiobereinigung wird vorbereitet…"
+    "cleaningPreparing": "Audiobereinigung wird vorbereitet…",
+    "mute": "Stumm: {{input}}",
+    "muteHint": "{{input}}: klicken zum Stummschalten",
+    "mutedHint": "{{input}} stumm: klicken zum Aufheben",
+    "muted": "Stumm",
+    "collapse": "Leiste verkleinern",
+    "expand": "Leiste vergrößern"
   },
   "about": {
     "title": "Info",

@@ -229,7 +229,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 - **Filo** (`rule`) e **Filo dei campi** (`rule-input`): bordi da 1 px, divisori, traccia dell'interruttore spento e pollice delle barre di scorrimento.
 
 ### Named Rules
-**The One Accent Rule.** La salvia significa "audio": ciò che suona, è stato ascoltato o è andato a buon fine. Non colora pulsanti primari, link, schede scelte o titoli; il pulsante pieno resta inchiostro.
+**The One Accent Rule.** La salvia significa "audio": ciò che suona, è stato ascoltato o è andato a buon fine, e ogni interruttore acceso (7 ottobre 2026: "Segui l'audio", le impostazioni che si salvano subito). Non colora pulsanti primari, link, schede scelte o titoli; il pulsante pieno resta inchiostro.
 
 **The Dot-Only Voices Rule.** I colori dei Parlanti compaiono solo nel pallino: mai su testo, fondi di turno o bordi.
 
@@ -310,7 +310,9 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Ricerca:** 36 px, 10 px di angolo, carta al 70% sulla barra laterale, lente a sinistra e il tasto "Ctrl K" (11 px, filo) a destra.
 - **Select nativo:** 32 px, foglio, filo `rule-input`, chevron da 16 px; è un `<select>` vero, nel tema giusto grazie a `color-scheme`.
 - **Nome del Parlante:** campo da 28 px sul posto, carta, filo `rule-input`, peso 500.
-- **Casella:** la `Checkbox` di shadcn.
+- **Interruttore:** lo `Switch` di shadcn con la traccia salvia da acceso (`SWITCH_CLASS`), per ogni impostazione che si salva subito; in Impostazioni prima dell'etichetta, nei menu a destra.
+- **Segmenti:** `Segmented` (`components/segmented.tsx`), poche scelte affiancate su una traccia `secondary` da 6 px di angolo; il segmento scelto è foglio con il filo e l'inchiostro, gli altri `ink-muted`, 24 px, 12 px di testo. Etichette brevi, nome intero per i lettori di schermo.
+- **Indicatore di livello:** `LevelMeter`, 8 px (6 px nella barra ridotta), traccia `secondary`, zone fisse salvia fino a −15 dBFS, senape (`level-warm`, la senape del marchio con il gemello scuro) fino a −3, mattone oltre; tacche ogni 10 dB e segno di picco in inchiostro che resta 1 s. In Muto grigio tratteggiato.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 
 ### Navigation

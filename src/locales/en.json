@@ -198,7 +198,9 @@
       "gainDescription": "Changes the recorded level without changing Windows volume. Lower the Gain when the meter turns red. During Recording, changes apply to subsequent audio; when paused, from resume.",
       "bitrateDescription": "Higher values retain more audio detail and use more storage.",
       "channelsDescription": "Mono saves one channel; Stereo preserves the left and right channels.",
-      "sampleRateDescription": "Higher values retain higher frequencies. They cannot restore frequencies missing from the source."
+      "sampleRateDescription": "Higher values retain higher frequencies. They cannot restore frequencies missing from the source.",
+      "defaultDeviceShort": "Default · {{name}}",
+      "lastInput": "At least one source is needed"
     },
     "general": {
       "title": "General",
@@ -219,7 +221,10 @@
       "copyFormats": {
         "testo": "Plain text",
         "markdown": "Markdown"
-      }
+      },
+      "nomeMicrofono": "Your name",
+      "nomeMicrofonoDescription": "Used for the Microphone when you don't recognize several speakers: every new Tape recorded from Both names it this way. Existing Tapes don't change.",
+      "nomeMicrofonoPlaceholder": "Microphone"
     },
     "assistants": {
       "title": "Assistants",
@@ -236,12 +241,12 @@
     },
     "cleaning": {
       "profile": "Files and mixed audio",
-      "enable": "Clean up noise",
+      "enable": "Filter noise",
       "description": "DeepFilterNet3 reduces noise in files, videos and Tapes without separate Inputs. Previously cleaned sections are reused. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
       "recordingDescription": "DeepFilterNet3 reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. Cleaned sections are reused in Tapes: turning it off cannot restore the original."
     },
     "protection": {
-      "label": "Speech sensitivity",
+      "label": "Sensitivity",
       "levels": {
         "spento": "Off",
         "sensibile": "More sensitive",
@@ -254,6 +259,13 @@
         "sensibile": "Keeps more quiet voices and short replies; may include more noise.",
         "bilanciato": "Balances quiet voices and short replies with noise filtering.",
         "selettivo": "Filters more noise; may lose short or quiet words."
+      },
+      "fullLabel": "Speech sensitivity",
+      "short": {
+        "spento": "Off",
+        "sensibile": "Sensitive",
+        "bilanciato": "Balanced",
+        "selettivo": "Selective"
       }
     },
     "help": "Information about {{field}}",
@@ -327,7 +339,13 @@
       "devices": "Opening audio devices…"
     },
     "started": "Recording started, you can speak",
-    "cleaningPreparing": "Preparing audio cleaning…"
+    "cleaningPreparing": "Preparing audio cleaning…",
+    "mute": "Mute: {{input}}",
+    "muteHint": "{{input}}: click to mute",
+    "mutedHint": "{{input}} muted: click to unmute",
+    "muted": "Muted",
+    "collapse": "Collapse the bar",
+    "expand": "Expand the bar"
   },
   "about": {
     "title": "About",

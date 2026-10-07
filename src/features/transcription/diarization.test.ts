@@ -28,7 +28,11 @@ test("si avvisa per ogni correzione salvata, anche per nomi nei Tape precedenti"
     false
   );
   expect(diarizationNeedsConfirmation({ correttoAMano: true }, {})).toBe(true);
-  for (const key of ["mix:1", "microfono", "sistema:2"]) {
+  for (const key of ["mix:1", "microfono:1", "sistema:2"]) {
     expect(diarizationNeedsConfirmation(null, { [key]: "Mario" })).toBe(true);
   }
+  // Il Microfono persona sola (anche col nome predefinito) resta com'è dopo l'analisi.
+  expect(diarizationNeedsConfirmation(null, { microfono: "Francesco" })).toBe(
+    false
+  );
 });

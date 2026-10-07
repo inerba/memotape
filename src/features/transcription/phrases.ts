@@ -450,20 +450,14 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
   return turns;
 }
 
-/** Il testo di Copia turno, sempre semplice: `Nome: Frasi…`; un turno senza etichetta dà solo le Frasi. */
+/** Il testo di Copia turno, sempre semplice: solo le Frasi, senza Ingresso né nome della voce. */
 export function turnText(turn: Turn): string {
-  const text = turnBody(
+  return turnBody(
     turn,
     turn.items.some((item) => "testoCorretto" in item && item.testoCorretto)
       ? "\n"
       : " "
   );
-  return turnTextWithBody(turn, text);
-}
-
-/** Il testo appena salvato ha la stessa etichetta della normale Copia turno. */
-export function turnTextWithBody(turn: Turn, text: string): string {
-  return text && turn.label ? `${turn.label}: ${text}` : text;
 }
 
 /** I separatori sono testo modificabile; le altre Frasi della stessa correzione non si duplicano. */

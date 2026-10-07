@@ -61,8 +61,11 @@ struct Input {
     processed_frames: u64,
     /// Frame alla frequenza della Registrazione già sommati nel mix.
     mixed: usize,
-    /// Il picco dopo il Guadagno.
+    /// Il picco dopo il Guadagno, anche in Muto.
     peak: f32,
+    /// Il Guadagno (lineare) scelto e se l'ingresso è in Muto, che lo porta a zero.
+    guadagno_scelto: f32,
+    muto: bool,
     /// Il Guadagno (lineare) applicato adesso, quello verso cui va e di quanto si muove a frame.
     guadagno: f32,
     guadagno_target: f32,
@@ -190,6 +193,17 @@ impl Input {
         }
     }
 
+    /// Il Guadagno verso cui andare: zero in Muto. Prima del primo audio vale da subito.
+    fn retarget(&mut self) {
+        let target = if self.muto { 0.0 } else { self.guadagno_scelto };
+        self.guadagno_target = target;
+        if self.received == 0 {
+            self.guadagno = target;
+        }
+        let ramp = (self.rate * GUADAGNO_RAMP_NS / NS_PER_S).max(1);
+        self.guadagno_step = (target - self.guadagno) / ramp as f32;
+    }
+
     fn feed_silence(&mut self, frames: u64, mix: &mut Mix) -> Result<(), AppError> {
         self.silence += frames;
         self.feed(&vec![0.0; frames as usize * mix.channels], mix)
@@ -279,6 +293,8 @@ impl Mixer {
                     processed_frames: 0,
                     mixed: 0,
                     peak: 0.0,
+                    guadagno_scelto: 1.0,
+                    muto: false,
                     guadagno: 1.0,
                     guadagno_target: 1.0,
                     guadagno_step: 0.0,
@@ -368,9 +384,9 @@ impl Mixer {
             downmix(frame, mix.channels, converted);
         }
         input.apply_guadagno(converted, mix.channels);
-        // Il picco dei campioni del dispositivo, con il Guadagno a fine blocco.
+        // Il picco dei campioni del dispositivo con il Guadagno scelto: in Muto si vede chi parla.
         let raw = samples.iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
-        input.peak = input.peak.max(raw * input.guadagno).min(1.0);
+        input.peak = input.peak.max(raw * input.guadagno_scelto).min(1.0);
         input.feed(converted, mix)?;
         self.emit(out);
         Ok(())
@@ -490,15 +506,19 @@ impl Mixer {
     /// poi ci arriva in `GUADAGNO_RAMP_NS`, senza scatti.
     pub fn set_guadagno(&mut self, input: usize, guadagno: f32) {
         let input = &mut self.inputs[input];
-        input.guadagno_target = guadagno;
-        if input.received == 0 {
-            input.guadagno = guadagno;
-        }
-        let ramp = (input.rate * GUADAGNO_RAMP_NS / NS_PER_S).max(1);
-        input.guadagno_step = (guadagno - input.guadagno) / ramp as f32;
+        input.guadagno_scelto = guadagno;
+        input.retarget();
     }
 
-    /// Il picco (0–1) di ogni ingresso, dopo il Guadagno, dalla chiamata precedente.
+    /// Il Muto dell'ingresso `input`: silenzio al posto del suo audio, con la stessa rampa del
+    /// Guadagno. La linea del tempo non cambia.
+    pub fn set_muto(&mut self, input: usize, muto: bool) {
+        let input = &mut self.inputs[input];
+        input.muto = muto;
+        input.retarget();
+    }
+
+    /// Il picco (0–1) di ogni ingresso, dopo il Guadagno e prima del Muto, dalla chiamata precedente.
     pub fn take_peaks(&mut self) -> Vec<f32> {
         self.inputs
             .iter_mut()
@@ -1107,6 +1127,84 @@ mod tests {
         assert!(jump < 0.001, "salto di {jump}");
         // L'audio dell'Ingresso, con gli Ingressi separati, è quello con il Guadagno.
         assert_eq!(track, out);
+    }
+
+    #[test]
+    fn il_muto_scrive_silenzio_senza_scatti_e_lascia_il_livello() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1), (48_000, 1)], (48_000, 1))
+            .unwrap()
+            .with_tracks();
+        mixer.set_guadagno(0, 2.0);
+        let mut out = Vec::new();
+        let mut tracks = [Vec::new(), Vec::new()];
+        for k in 0..100u64 {
+            match k {
+                50 => mixer.set_muto(0, true),
+                // Un Guadagno cambiato in Muto vale quando il Muto si toglie.
+                60 => mixer.set_guadagno(0, 4.0),
+                80 => mixer.set_muto(0, false),
+                _ => {}
+            }
+            mixer.push(0, k * 10 * MS, &[0.1; 480], &mut out).unwrap();
+            mixer.push(1, k * 10 * MS, &[0.05; 480], &mut out).unwrap();
+            for (t, audio) in tracks.iter_mut().zip(mixer.tracks()) {
+                t.append(audio);
+            }
+            if k == 70 {
+                // Il livello resta quello del dispositivo con il Guadagno, anche in Muto.
+                assert!((mixer.take_peaks()[0] - 0.4).abs() < 1e-6);
+            }
+        }
+        mixer.finish(1_000 * MS, &mut out).unwrap();
+        // Il tempo continua: la durata non cambia.
+        assert_eq!(out.len(), 48_000);
+        assert_eq!(mixer.elapsed_ms(), 1_000);
+        // In Muto c'è solo l'altro Ingresso, e la traccia del Microfono è silenzio.
+        assert!((out[30_000] - 0.05).abs() < 1e-6);
+        assert!(tracks[0][30_000].abs() < 1e-6);
+        assert!((out[24_000 - 1] - 0.25).abs() < 1e-6);
+        assert!((out[47_999] - 0.45).abs() < 1e-6);
+        let jump = out
+            .windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .fold(0.0, f32::max);
+        assert!(jump < 0.001, "salto di {jump}");
+    }
+
+    #[test]
+    fn il_muto_si_cambia_in_pausa_e_vale_dalla_ripresa_anche_per_entrambi() {
+        let device = (48_000, 1);
+        let mut mixer = Mixer::new(0, &[device, device], (48_000, 1)).unwrap();
+        let mut out = Vec::new();
+        let push_both = |mixer: &mut Mixer, ts: u64, out: &mut Vec<f32>| {
+            mixer.advance(ts, false, out).unwrap();
+            mixer.push(0, ts, &[0.25; 480], out).unwrap();
+            mixer.push(1, ts, &[0.25; 480], out).unwrap();
+        };
+        for k in 0..50u64 {
+            push_both(&mut mixer, k * 10 * MS, &mut out);
+        }
+        // In Pausa entrambi in Muto; alla ripresa il mix è silenzio, il tempo continua.
+        mixer.advance(500 * MS, true, &mut out).unwrap();
+        mixer.set_muto(0, true);
+        mixer.set_muto(1, true);
+        let resumed = 2_500 * MS;
+        for k in 0..50u64 {
+            push_both(&mut mixer, resumed + k * 10 * MS, &mut out);
+        }
+        mixer.finish(resumed + 500 * MS, &mut out).unwrap();
+        assert_eq!(out.len(), 48_000);
+        assert!((out[10_000] - 0.5).abs() < 1e-6);
+        assert!(out[40_000].abs() < 1e-6);
+    }
+
+    #[test]
+    fn un_ingresso_in_muto_prima_del_primo_audio_e_silenzio_da_subito() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1)], (48_000, 1)).unwrap();
+        mixer.set_muto(0, true);
+        let mut out = Vec::new();
+        mixer.push(0, 0, &[0.3; 480], &mut out).unwrap();
+        assert!(out.iter().all(|s| s.abs() < 1e-6));
     }
 
     #[test]

@@ -15,10 +15,16 @@ export function wasDiarized(
   );
 }
 
-/** Una nuova analisi avvisa delle correzioni salvate, compresi i nomi dei Tape precedenti. */
+/**
+ * Una nuova analisi avvisa delle correzioni salvate, compresi i nomi dei Tape precedenti. Il nome
+ * del Microfono persona sola no: non è un Parlante e la nuova analisi lo conserva (ADR-0017).
+ */
 export function diarizationNeedsConfirmation(
   info: Pick<TapeInfo, "correttoAMano"> | null,
   parlanti: Conversation["parlanti"]
 ): boolean {
-  return !!info?.correttoAMano || Object.keys(parlanti).length > 0;
+  return (
+    !!info?.correttoAMano ||
+    Object.keys(parlanti).some((key) => key !== "microfono")
+  );
 }

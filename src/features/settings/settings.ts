@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: Settings = {
   microphone: null,
   model: catalog.predefinito,
   nemotron3Path: null,
+  nomeMicrofono: null,
   outputDevice: null,
   parlantiFile: false,
   parlantiMicrofono: false,
@@ -125,6 +126,8 @@ export const settingsSchema = z.object({
   microphone: z.string().nullable(),
   model: z.string().min(1),
   nemotron3Path: z.string().nullable().optional(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  nomeMicrofono: z.string().nullable().optional(),
   outputDevice: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   parlantiFile: z.boolean().optional(),
@@ -213,6 +216,20 @@ export function parlantiRegistrazione(
   return settings.recordingSource === "both"
     ? ["parlantiMicrofono", "parlantiSistema"]
     : ["parlantiMix"];
+}
+
+/**
+ * Il nome con cui una Registrazione nuova nomina il Microfono trattato come una persona sola, come
+ * `nome_microfono_per` con `parlanti_registrazione` in Rust; `null` se non ne ha uno.
+ */
+export function nomeMicrofonoRegistrazione(settings: Settings): string | null {
+  const nome = settings.nomeMicrofono?.trim();
+  const diarizzato =
+    (settings.trascrizioneDalVivo ?? false) &&
+    (settings.parlantiMicrofono ?? false);
+  return nome && settings.recordingSource === "both" && !diarizzato
+    ? nome
+    : null;
 }
 
 /** Le due caselle di "Registra da": accese, o spente, compongono la sorgente di registrazione. */

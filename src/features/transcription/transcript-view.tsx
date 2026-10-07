@@ -41,7 +41,6 @@ import {
   turnBody,
   turnsOf,
   turnText,
-  turnTextWithBody,
   voiceColors,
 } from "@/features/transcription/phrases";
 import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
@@ -570,11 +569,7 @@ function CopyTurn({
     if (savedText === null) {
       return;
     }
-    await navigator.clipboard.writeText(
-      savedText === undefined
-        ? turnText(turn)
-        : turnTextWithBody(turn, savedText)
-    );
+    await navigator.clipboard.writeText(savedText ?? turnText(turn));
     setCopied(true);
   }, [turn, beforeCopy]);
   const label = copied

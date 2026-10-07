@@ -198,7 +198,9 @@
       "gainDescription": "Modifie le niveau enregistré sans changer le volume de Windows. Baissez le Gain lorsque le niveau devient rouge. En cours d’Enregistrement, les changements valent pour l’audio suivant ; en pause, à la reprise.",
       "bitrateDescription": "Une valeur plus élevée conserve plus de détails audio et utilise plus d’espace.",
       "channelsDescription": "Mono enregistre un canal ; Stéréo conserve les canaux gauche et droit.",
-      "sampleRateDescription": "Une valeur plus élevée conserve des fréquences plus hautes, sans restaurer celles absentes de la source."
+      "sampleRateDescription": "Une valeur plus élevée conserve des fréquences plus hautes, sans restaurer celles absentes de la source.",
+      "defaultDeviceShort": "Par défaut · {{name}}",
+      "lastInput": "Au moins une source est nécessaire"
     },
     "general": {
       "title": "Général",
@@ -219,7 +221,10 @@
       "copyFormats": {
         "testo": "Texte brut",
         "markdown": "Markdown"
-      }
+      },
+      "nomeMicrofono": "Votre nom",
+      "nomeMicrofonoDescription": "Utilisé pour le Microphone lorsque vous ne reconnaissez pas plusieurs locuteurs : chaque nouveau Tape enregistré depuis Les deux le nomme ainsi. Les Tapes existants ne changent pas.",
+      "nomeMicrofonoPlaceholder": "Microphone"
     },
     "assistants": {
       "title": "Assistants",
@@ -236,12 +241,12 @@
     },
     "cleaning": {
       "profile": "Fichiers et audio mixte",
-      "enable": "Réduire le bruit",
+      "enable": "Filtrer le bruit",
       "description": "DeepFilterNet3 réduit le bruit des fichiers, vidéos et Tapes sans Entrées séparées. Les passages déjà nettoyés sont réutilisés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
       "recordingDescription": "DeepFilterNet3 réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Les passages nettoyés sont réutilisés dans les Tapes : le désactiver ne restaure pas l’original."
     },
     "protection": {
-      "label": "Sensibilité de la parole",
+      "label": "Sensibilité",
       "levels": {
         "spento": "Désactivée",
         "sensibile": "Plus sensible",
@@ -254,6 +259,13 @@
         "sensibile": "Conserve davantage de voix faibles et de réponses brèves ; peut inclure plus de bruit.",
         "bilanciato": "Équilibre voix faibles et réponses brèves avec le filtrage du bruit.",
         "selettivo": "Filtre davantage de bruit ; peut perdre des mots brefs ou faibles."
+      },
+      "fullLabel": "Sensibilité de la parole",
+      "short": {
+        "spento": "Désact.",
+        "sensibile": "Sensible",
+        "bilanciato": "Équilibrée",
+        "selettivo": "Sélective"
       }
     },
     "help": "Informations sur {{field}}",
@@ -327,7 +339,13 @@
       "devices": "Ouverture des périphériques audio…"
     },
     "started": "Enregistrement démarré, vous pouvez parler",
-    "cleaningPreparing": "Préparation du nettoyage audio…"
+    "cleaningPreparing": "Préparation du nettoyage audio…",
+    "mute": "Muet : {{input}}",
+    "muteHint": "{{input}} : cliquez pour couper le son",
+    "mutedHint": "{{input}} coupé : cliquez pour rétablir le son",
+    "muted": "Son coupé",
+    "collapse": "Réduire la barre",
+    "expand": "Agrandir la barre"
   },
   "about": {
     "title": "À propos",

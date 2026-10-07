@@ -1,15 +1,23 @@
 import { useCallback, useId } from "react";
 import type { AppError } from "@/bindings";
 import { FieldHelp } from "@/components/field-help";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import type { ParlantiRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import { cn } from "@/lib/utils";
 import { SettingFeedback } from "./setting-feedback";
 
-/** Una casella che salva subito un'impostazione e mostra l'esito accanto al campo. */
-export function SettingCheckbox({
+/** L'interruttore acceso è salvia, come Segui l'audio; spento resta il filo dei campi. */
+export const SWITCH_CLASS = "data-[state=checked]:bg-play";
+
+/**
+ * Un interruttore che salva subito un'impostazione e mostra l'esito accanto al campo. `end` mette
+ * l'interruttore a destra dell'etichetta, come nelle righe dei menu.
+ */
+export function SettingSwitch({
   description,
   disabled,
+  end = false,
   label,
   name,
   note,
@@ -18,6 +26,7 @@ export function SettingCheckbox({
 }: {
   description?: string;
   disabled?: boolean;
+  end?: boolean;
   label: string;
   name:
     | "assistenti"
@@ -31,11 +40,11 @@ export function SettingCheckbox({
   const id = useId();
   const { save, settings } = useSettings();
   const change = useCallback(
-    async (checked: boolean | "indeterminate") => {
+    async (checked: boolean) => {
       const error = await save(
         (current) => ({
           ...current,
-          [name]: checked === true,
+          [name]: checked,
         }),
         name
       );
@@ -45,21 +54,29 @@ export function SettingCheckbox({
     },
     [inlineFeedback, name, onError, save]
   );
+  const start = !end;
+  const control = (
+    <Switch
+      aria-describedby={description ? `${id}-description` : undefined}
+      checked={settings[name] ?? false}
+      className={SWITCH_CLASS}
+      disabled={disabled}
+      id={id}
+      onCheckedChange={change}
+    />
+  );
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <div className="flex items-center gap-1">
         <label
-          className="flex min-w-0 cursor-pointer items-center gap-2 text-sm has-[:disabled]:cursor-default has-[:disabled]:opacity-50"
+          className={cn(
+            "flex min-w-0 cursor-pointer items-center gap-2 text-sm has-[:disabled]:cursor-default has-[:disabled]:opacity-50",
+            end && "flex-1"
+          )}
           htmlFor={id}
         >
-          <Checkbox
-            aria-describedby={description ? `${id}-description` : undefined}
-            checked={settings[name] ?? false}
-            disabled={disabled}
-            id={id}
-            onCheckedChange={change}
-          />
-          {label}
+          {start ? control : null}
+          <span className={cn("min-w-0", end && "flex-1")}>{label}</span>
         </label>
         {description || note ? (
           <FieldHelp label={label}>
@@ -68,6 +85,7 @@ export function SettingCheckbox({
             {note}
           </FieldHelp>
         ) : null}
+        {end ? control : null}
         {description ? (
           <span className="sr-only" id={`${id}-description`}>
             {description}

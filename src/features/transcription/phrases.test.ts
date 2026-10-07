@@ -8,6 +8,7 @@ import {
   nomeTaken,
   parlanteStats,
   parlantiOf,
+  type Turn,
   turnBody,
   turnsOf,
   turnText,
@@ -22,6 +23,10 @@ import {
   withPhrase,
   withTesto,
 } from "@/features/transcription/phrases";
+
+/** Etichetta e testo del turno insieme, per controllare l'attribuzione nei test. */
+const labeled = (turn: Turn) =>
+  turn.label ? `${turn.label}: ${turnText(turn)}` : turnText(turn);
 
 test("un Turno vuoto unito non aggiunge separatori e conserva gli a capo del testo vicino", () => {
   for (const emptyFirst of [true, false]) {
@@ -46,7 +51,7 @@ test("un Turno vuoto unito non aggiunge separatori e conserva gli a capo del tes
       throw new Error("Turno atteso");
     }
     expect(turnBody(turn)).toBe("\nTesto.\n\nParagrafo.\n");
-    expect(turnText(turn)).toBe("Parlante 1: \nTesto.\n\nParagrafo.\n");
+    expect(turnText(turn)).toBe("\nTesto.\n\nParagrafo.\n");
   }
 });
 
@@ -74,9 +79,7 @@ test("Copia turno conserva a capo e testo corretto senza duplicare le Frasi orig
     throw new Error("Turno atteso");
   }
   expect(turnBody(turn)).toBe("Testo unito.\n\nParagrafo.\nAltra frase.");
-  expect(turnText(turn)).toBe(
-    "Parlante 1: Testo unito.\n\nParagrafo.\nAltra frase."
-  );
+  expect(turnText(turn)).toBe("Testo unito.\n\nParagrafo.\nAltra frase.");
   const [first] = conversation.phrases;
   if (!first) {
     throw new Error("Frase attesa");
@@ -279,7 +282,7 @@ test("le attribuzioni provvisorie restano riconoscibili nella vista e in Copia t
     text: "Testo conservato.",
   });
   const named = withNome(conversation, "mix", 1, "Mario");
-  expect(turnsOf(named, provisionalT).map(turnText)).toEqual([
+  expect(turnsOf(named, provisionalT).map(labeled)).toEqual([
     "Mario (provvisorio): Testo conservato.",
   ]);
   expect(parlantiOf(named, provisionalT)[0]?.label).toBe("Mario (provvisorio)");
@@ -300,7 +303,7 @@ test("il Parlante non determinato si legge e si copia senza diventare il nome de
   const turns = turnsOf(named, t);
   expect(turns[0]?.label).toBe("Microfono · Parlante non determinato");
   expect(turns[0]?.name).toBe("Parlante non determinato");
-  expect(turns.map(turnText)).toEqual([
+  expect(turns.map(labeled)).toEqual([
     "Microfono · Parlante non determinato: Due voci nella stessa frase.",
   ]);
   expect(parlantiOf(named, t)).toEqual([]);
@@ -372,7 +375,7 @@ test("le divisioni finali sostituiscono le Frasi per Ingresso senza duplicare il
         .map((p) => p.text)
         .join("")
     ).toBe("Uno. Due.Tre.");
-    expect(turnsOf(final, t).map(turnText)).toEqual([
+    expect(turnsOf(final, t).map(labeled)).toEqual([
       "Microfono · Parlante 1: Uno. ",
       "Audio di sistema · Parlante 1: Sistema.",
       "Microfono · Parlante 2: Due. Tre.",
@@ -715,9 +718,10 @@ test("di un Parlante si contano turni, tempo di parola e prima comparsa", () => 
   });
 });
 
-test("Copia turno dà il nome della voce e le Frasi del turno, con il Parziale com'è", () => {
+test("Copia turno dà solo le Frasi del turno, senza la voce, con il Parziale com'è", () => {
   const [, , lucia] = turnsOf(withNome(diarized(), "sistema", 2, "Lucia"), t);
-  expect(turnText(lucia)).toBe("Audio di sistema · Lucia: Anch'io.");
+  expect(lucia?.label).toBe("Audio di sistema · Lucia");
+  expect(turnText(lucia)).toBe("Anch'io.");
 
   let mix = [
     phrase(0, 0, "Buongiorno."),
@@ -768,7 +772,7 @@ test("divisioni e riunioni sostituiscono l'Ingresso con più Parziali senza fant
     partials: divided,
     revision: 2,
   });
-  expect(turnsOf(view, speakerT).map(turnText)).toEqual([
+  expect(turnsOf(view, speakerT).map(labeled)).toEqual([
     "Parlante 1 (provvisorio): Perché sì! ",
     "Parlante 2 (provvisorio): D'accordo?",
   ]);
@@ -864,7 +868,7 @@ test("due Parziali con lo stesso numero di Parlante restano distinti nella copia
     "microfono",
     "sistema",
   ]);
-  expect(turnsOf(view, speakerT).map(turnText)).toEqual([
+  expect(turnsOf(view, speakerT).map(labeled)).toEqual([
     "Microfono · Parlante 1 (provvisorio): microfono",
     "Audio di sistema · Parlante 1 (provvisorio): sistema",
   ]);

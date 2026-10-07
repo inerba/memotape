@@ -42,6 +42,10 @@ _Avoid_: sorgente (è la Sorgente), input
 Quanto Memotape alza o abbassa l'audio di un Ingresso durante una Registrazione, prima di unirlo agli altri: cambia l'audio salvato e quello trascritto, non il volume di Windows né quello delle altre app.
 _Avoid_: volume (è quello del player o di Windows), gain, livello (è quello che mostra l'indicatore)
 
+**Muto**:
+Lo stato temporaneo di un Ingresso che, durante una Registrazione, scrive silenzio al posto del suo audio mentre il tempo continua. Vale solo per quella Registrazione. È distinto dalla Pausa, che ferma il tempo per tutti gli Ingressi, e da "Registra da", che decide prima dell'avvio quali Ingressi entrano nel Tape.
+_Avoid_: silenzia, disattiva, spegni
+
 **Pulizia audio**:
 Il trattamento facoltativo che riduce il rumore nell'audio conservato e usato dalla Trascrizione. Spegnerlo non recupera l'originale di un tratto già elaborato.
 _Avoid_: protezione del parlato (decide quali Frasi trascrivere), Guadagno (alza o abbassa l'audio)
@@ -101,6 +105,10 @@ _Avoid_: speaker detection, riconoscimento dei parlanti
 **Parlante**:
 Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa. Con gli Ingressi separati appartiene sempre a un solo Ingresso e si numera per Ingresso: la stessa voce non è mai un Parlante del Microfono e dell'Audio di sistema insieme.
 _Avoid_: speaker, voce, utente
+
+**Nome predefinito del Microfono**:
+Il nome che ogni nuovo Tape dà al Microfono trattato come una persona sola, scelto nelle Impostazioni. Il Tape lo conserva come un nome dato a mano; cambiarlo vale solo per i Tape successivi.
+_Avoid_: nome utente, profilo, account
 
 **Parlante non determinato**:
 Una Frase che la Diarizzazione non attribuisce a una voce unica, perché contiene più voci o non ha turni utilizzabili. Il testo si conserva senza inventare un'identità; è distinto dall'Ingresso non diarizzato, come il Microfono trattato come una persona sola.

@@ -157,6 +157,8 @@ struct Controls {
     pulizia_sistema: AtomicBool,
     cleaning_pending: [AtomicBool; 2],
     sensibilita: Mutex<[Sensibilita; 2]>,
+    /// Il Muto del microfono e dell'audio di sistema: ogni Registrazione parte senza.
+    muto: [AtomicBool; 2],
 }
 
 impl Controls {
@@ -209,10 +211,7 @@ impl Controls {
     fn sensibilita(&self, kind: Kind) -> Sensibilita {
         self.sensibilita
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)[match kind {
-            Kind::Microphone => 0,
-            Kind::System => 1,
-        }]
+            .unwrap_or_else(PoisonError::into_inner)[kind_index(kind)]
     }
 
     fn pulizia(&self, kind: Kind) -> bool {
@@ -224,11 +223,11 @@ impl Controls {
 
     /// Deduplica l'attesa per Ingresso; OFF la azzera anche fra due blocchi PCM.
     fn cleaning_preparing(&self, kind: Kind, pending: bool) -> bool {
-        let index = match kind {
-            Kind::Microphone => 0,
-            Kind::System => 1,
-        };
-        self.cleaning_pending[index].swap(pending, Ordering::Relaxed) != pending
+        self.cleaning_pending[kind_index(kind)].swap(pending, Ordering::Relaxed) != pending
+    }
+
+    fn muto(&self, kind: Kind) -> bool {
+        self.muto[kind_index(kind)].load(Ordering::Relaxed)
     }
 
     /// Il Guadagno in dB dell'ingresso `kind`.
@@ -237,6 +236,14 @@ impl Controls {
             Kind::Microphone => self.guadagno_microfono.load(Ordering::Relaxed),
             Kind::System => self.guadagno_sistema.load(Ordering::Relaxed),
         }
+    }
+}
+
+/// La posizione dell'ingresso `kind` nei controlli per ingresso.
+fn kind_index(kind: Kind) -> usize {
+    match kind {
+        Kind::Microphone => 0,
+        Kind::System => 1,
     }
 }
 
@@ -254,6 +261,12 @@ impl Recorder {
             let _started = c.started.lock().unwrap_or_else(PoisonError::into_inner);
             c.paused.store(paused, Ordering::Relaxed);
         })
+    }
+
+    /// Mette in Muto (`true`) o toglie il Muto dell'ingresso `kind`, anche in Pausa. Restituisce
+    /// `false` se non c'è una Registrazione.
+    pub fn set_muto(&self, kind: Kind, muto: bool) -> bool {
+        self.with(|c| c.muto[kind_index(kind)].store(muto, Ordering::Relaxed))
     }
 
     /// Ferma e salva. Restituisce `false` se non c'è una Registrazione.
@@ -584,7 +597,7 @@ pub async fn record(
         },
         live.is_some()
             .then(|| SettingsStore::model_of(&settings).id.clone()),
-        settings.speech_language,
+        settings.speech_language.clone(),
         text_complete,
         phrases,
     );
@@ -593,6 +606,9 @@ pub async fn record(
         .and_then(|(t, _)| t.as_ref())
         .and_then(|t| t.diarizzazione.clone());
     document.pulizia_audio = recorded.pulizia_audio.clone();
+    document.set_nome_microfono(
+        settings.nome_microfono_per(separate, &settings.parlanti_registrazione()),
+    );
     let diarizzazione = document.diarizzazione.clone();
     let mut error = recorded.error.clone();
     let path =
@@ -1021,13 +1037,19 @@ fn run(
     let mut out = Vec::new();
     let mut last_tick = Instant::now();
     let mut error = None;
-    let mut guadagni = vec![None; kinds.len()];
+    // Guadagno e Muto applicati a ogni ingresso; ogni Registrazione parte senza Muto.
+    let mut applied = vec![(None, false); kinds.len()];
     while !controls.stop.load(Ordering::Relaxed) {
-        for ((input, &kind), applied) in kinds.iter().enumerate().zip(&mut guadagni) {
+        for ((input, &kind), (guadagno, muto)) in kinds.iter().enumerate().zip(&mut applied) {
             let db = controls.guadagno(kind);
-            if *applied != Some(db) {
-                *applied = Some(db);
+            if *guadagno != Some(db) {
+                *guadagno = Some(db);
                 mixer.set_guadagno(input, guadagno_factor(db));
+            }
+            // Il silenzio del Muto chiude la Frase in corso con il VAD, come una pausa nel parlato.
+            if *muto != controls.muto(kind) {
+                *muto = !*muto;
+                mixer.set_muto(input, *muto);
             }
         }
         if let Some((capture, e)) = captures

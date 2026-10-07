@@ -1,9 +1,11 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, ToggleEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 /**
  * Un pulsante ▾ che apre un pannello sotto di sé; un clic fuori o Esc lo chiude. `id` è anche il
- * nome dell'ancora: deve essere unico nella pagina, anche nei menu ripetuti per Turno.
+ * nome dell'ancora: deve essere unico nella pagina, anche nei menu ripetuti per Turno. `onOpen`
+ * scatta a ogni apertura; `panelClassName` aggiunge classi al pannello (per esempio la larghezza).
  */
 export function PopoverMenu({
   children,
@@ -12,6 +14,8 @@ export function PopoverMenu({
   icon,
   id,
   label,
+  onOpen,
+  panelClassName,
   variant = "outline",
 }: {
   children: ReactNode;
@@ -21,6 +25,8 @@ export function PopoverMenu({
   icon: ReactNode;
   id: string;
   label: string;
+  onOpen?: () => void;
+  panelClassName?: string;
   variant?: ComponentProps<typeof Button>["variant"];
 }) {
   const anchor = `--menu-${id}`;
@@ -39,8 +45,20 @@ export function PopoverMenu({
         {icon}
       </Button>
       <div
-        className="inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex"
+        className={cn(
+          "inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex",
+          panelClassName
+        )}
         id={`menu-${id}`}
+        onToggle={
+          onOpen
+            ? (event: ToggleEvent<HTMLDivElement>) => {
+                if (event.newState === "open") {
+                  onOpen();
+                }
+              }
+            : undefined
+        }
         popover="auto"
         style={{ positionAnchor: anchor }}
       >

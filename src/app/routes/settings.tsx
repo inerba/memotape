@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   type ChangeEvent,
+  type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
   useCallback,
@@ -31,15 +32,17 @@ import {
 import { FieldHelp } from "@/components/field-help";
 import { NativeSelect } from "@/components/native-select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { WINDOW_CONTROLS_PADDING } from "@/components/window-controls";
 import { About } from "@/features/about/about";
 import { ModelList } from "@/features/models/model-list";
 import { AssistantsSection } from "@/features/settings/assistants-section";
 import { CleaningProfile } from "@/features/settings/cleaning-profile";
+import { DeviceSelect } from "@/features/settings/device-select";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { RecordingInputs } from "@/features/settings/recording-inputs";
-import { SettingCheckbox } from "@/features/settings/setting-checkbox";
 import { SettingFeedback } from "@/features/settings/setting-feedback";
+import { SettingSwitch } from "@/features/settings/setting-switch";
 import {
   BITRATES_KBPS,
   LANGUAGE_NAMES,
@@ -162,6 +165,10 @@ export function SettingsPage() {
           COPY_FORMATS.find((f) => f === e.target.value) ?? settings.copiaCome,
       }),
     [choose, settings.copiaCome]
+  );
+  const chooseNomeMicrofono = useCallback(
+    (nome: string) => choose({ nomeMicrofono: nome.trim() || null }),
+    [choose]
   );
   // Si applica subito: lo fa Rust al salvataggio.
   const chooseTema = useCallback(
@@ -312,7 +319,7 @@ export function SettingsPage() {
                     </legend>
                     <div className="flex flex-wrap gap-x-5 gap-y-2">
                       {parlantiRegistrazione(settings).map((name) => (
-                        <SettingCheckbox
+                        <SettingSwitch
                           key={name}
                           label={t(PARLANTI_LABELS[name])}
                           name={name}
@@ -544,6 +551,17 @@ export function SettingsPage() {
                       ))}
                     </NativeSelect>
                   </Field>
+                  <Field
+                    description={t("settings.general.nomeMicrofonoDescription")}
+                    id="nome-microfono"
+                    label={t("settings.general.nomeMicrofono")}
+                    name="nomeMicrofono"
+                  >
+                    <NomeMicrofonoInput
+                      onSave={chooseNomeMicrofono}
+                      value={settings.nomeMicrofono ?? ""}
+                    />
+                  </Field>
                 </>
               ) : null}
               {section.key === "assistenti" ? (
@@ -694,51 +712,50 @@ function DiarizerSettings({
 }
 
 /**
- * Un microfono o un dispositivo di uscita: il predefinito di sistema (`null`) o uno dei rilevati.
- * Un dispositivo salvato ma non collegato resta scelto, come "Non collegato". `devices` è `null`
- * finché l'elenco non arriva.
+ * Il nome predefinito del Microfono: si scrive liberamente e si salva uscendo dal campo o con
+ * Invio; Esc torna al nome salvato.
  */
-function DeviceSelect({
-  devices,
-  disabled,
-  id,
-  onChange,
+function NomeMicrofonoInput({
+  onSave,
   value,
 }: {
-  devices: AudioDevice[] | null;
-  disabled: boolean;
-  id: string;
-  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
-  value: string | null;
+  onSave: (nome: string) => void;
+  value: string;
 }) {
   const { t } = useTranslation();
-  const fallback = devices?.find((d) => d.isDefault);
-  const missing =
-    devices !== null && value !== null && !devices.some((d) => d.id === value);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = useCallback(() => {
+    if (draft.trim() !== value) {
+      onSave(draft);
+    }
+  }, [draft, onSave, value]);
+  const change = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => setDraft(e.target.value),
+    []
+  );
+  const key = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        commit();
+      } else if (e.key === "Escape") {
+        setDraft(value);
+      }
+    },
+    [commit, value]
+  );
   return (
-    <NativeSelect
-      className="h-9"
-      disabled={disabled}
-      id={id}
-      onChange={onChange}
-      value={value ?? ""}
-    >
-      <option value="">
-        {fallback
-          ? t("settings.recording.defaultDeviceNamed", { name: fallback.name })
-          : t("settings.recording.defaultDevice")}
-      </option>
-      {devices?.map((d) => (
-        <option key={d.id} value={d.id}>
-          {d.name}
-        </option>
-      ))}
-      {missing ? (
-        <option value={value ?? ""}>
-          {t("settings.recording.missingDevice")}
-        </option>
-      ) : null}
-    </NativeSelect>
+    <Input
+      aria-describedby="nome-microfono-description"
+      className="h-9 max-w-72"
+      id="nome-microfono"
+      maxLength={60}
+      onBlur={commit}
+      onChange={change}
+      onKeyDown={key}
+      placeholder={t("settings.general.nomeMicrofonoPlaceholder")}
+      value={draft}
+    />
   );
 }
 

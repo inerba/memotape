@@ -60,6 +60,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::list_output_devices,
             commands::record,
             commands::pause_recording,
+            commands::set_muto,
             commands::stop_recording,
             commands::cancel_recording_start,
             commands::recordings_folder,

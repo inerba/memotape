@@ -6,7 +6,7 @@ import { NativeSelect } from "@/components/native-select";
 import { PopoverMenu } from "@/components/popover-menu";
 import { Button } from "@/components/ui/button";
 import { useModels } from "@/features/models/use-models";
-import { SettingCheckbox } from "@/features/settings/setting-checkbox";
+import { SettingSwitch } from "@/features/settings/setting-switch";
 import {
   speechLanguageChoice,
   speechLanguageName,
@@ -123,7 +123,7 @@ export function TranscribeOptions({
           </p>
         ) : null}
       </div>
-      <SettingCheckbox
+      <SettingSwitch
         description={
           settings.diarizer === "nemotron3"
             ? t("transcription.nemotron3Note")

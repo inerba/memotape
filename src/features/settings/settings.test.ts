@@ -5,6 +5,7 @@ import {
   GUADAGNI,
   guadagnoText,
   languageOf,
+  nomeMicrofonoRegistrazione,
   parlantiRegistrazione,
   settingsSchema,
   speechLanguageChoice,
@@ -81,6 +82,34 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.tema).toBe("sistema");
   // Gli Assistenti non leggono la Libreria finché l'utente non lo consente.
   expect(defaults.assistenti).toBe(false);
+  // Il Microfono non ha un nome finché l'utente non lo sceglie.
+  expect(defaults.nomeMicrofono).toBeNull();
+});
+
+test("il nome predefinito del Microfono vale solo da Entrambi, con il Microfono persona sola", () => {
+  const both = {
+    ...defaults,
+    nomeMicrofono: " Francesco ",
+    recordingSource: "both",
+  } satisfies Settings;
+  expect(nomeMicrofonoRegistrazione(both)).toBe("Francesco");
+  // Riconosci i parlanti sul Microfono vale solo dal vivo, come in Rust.
+  expect(nomeMicrofonoRegistrazione({ ...both, parlantiMicrofono: true })).toBe(
+    "Francesco"
+  );
+  expect(
+    nomeMicrofonoRegistrazione({
+      ...both,
+      parlantiMicrofono: true,
+      trascrizioneDalVivo: true,
+    })
+  ).toBeNull();
+  expect(
+    nomeMicrofonoRegistrazione({ ...both, recordingSource: "mic" })
+  ).toBeNull();
+  expect(
+    nomeMicrofonoRegistrazione({ ...both, nomeMicrofono: "  " })
+  ).toBeNull();
 });
 
 test("Riconosci i parlanti delle Registrazioni da Entrambi ha una casella per Ingresso, mai il mix", () => {

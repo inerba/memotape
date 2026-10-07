@@ -92,6 +92,10 @@ pub struct Settings {
     pub guadagno_microfono: i8,
     #[serde(default)]
     pub guadagno_sistema: i8,
+    /// Il nome che ogni Tape nuovo dà al Microfono trattato come una persona sola (ADR-0027);
+    /// `null` o vuoto: nessuno. Manca nei file salvati prima che esistesse.
+    #[serde(default)]
+    pub nome_microfono: Option<String>,
 }
 
 /// Il fattore per cui un Guadagno di `db` moltiplica i campioni.
@@ -305,6 +309,7 @@ impl Default for Settings {
             assistenti: false,
             guadagno_microfono: 0,
             guadagno_sistema: 0,
+            nome_microfono: None,
         }
     }
 }
@@ -357,6 +362,13 @@ impl Settings {
         }
         chosen.push(Ingresso::Sistema);
         chosen
+    }
+
+    /// Il nome predefinito del Microfono per un Tape nuovo: solo con gli Ingressi separati
+    /// (`separate`) e se il Microfono non è tra gli Ingressi da diarizzare, cioè è una persona sola.
+    pub fn nome_microfono_per(&self, separate: bool, diarizzati: &[Ingresso]) -> Option<&str> {
+        let nome = self.nome_microfono.as_deref().map(str::trim)?;
+        (separate && !nome.is_empty() && !diarizzati.contains(&Ingresso::Microfono)).then_some(nome)
     }
 
     /// Se la Registrazione è a Ingressi separati: da Entrambi sempre (ADR-0015). Salva l'audio di
@@ -536,6 +548,30 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn il_nome_del_microfono_vale_solo_per_il_microfono_persona_sola() {
+        let settings = Settings {
+            nome_microfono: Some(" Francesco ".into()),
+            ..Settings::default()
+        };
+        assert_eq!(
+            settings.nome_microfono_per(true, &[Ingresso::Sistema]),
+            Some("Francesco")
+        );
+        // Sul mix non c'è un Microfono da nominare; diarizzato non è una persona sola.
+        assert_eq!(settings.nome_microfono_per(false, &[]), None);
+        assert_eq!(
+            settings.nome_microfono_per(true, &[Ingresso::Microfono]),
+            None
+        );
+        let vuoto = Settings {
+            nome_microfono: Some("  ".into()),
+            ..Settings::default()
+        };
+        assert_eq!(vuoto.nome_microfono_per(true, &[]), None);
+        assert_eq!(Settings::default().nome_microfono_per(true, &[]), None);
+    }
 
     #[test]
     fn sensibilita_precedente_bilanciata_e_profili_persistenti_indipendenti() {
@@ -851,6 +887,7 @@ mod tests {
             assistenti: true,
             guadagno_microfono: 6,
             guadagno_sistema: -3,
+            nome_microfono: Some("Francesco".into()),
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

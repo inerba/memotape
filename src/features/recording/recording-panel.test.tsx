@@ -25,17 +25,21 @@ test("la barra offre solo i profili degli Ingressi reali, con default e descrizi
         </Tooltip.Provider>
       </SettingsProvider>
     );
-    expect(html.includes('name="audioMicrofono.pulizia"')).toBe(
+    expect(html.includes('data-setting="audioMicrofono.pulizia"')).toBe(
       recordingSource !== "system"
     );
     expect(html.includes('name="audioSistema.sensibilita"')).toBe(
       recordingSource !== "mic"
     );
     expect(html).not.toContain("audioFileMisto");
-    expect(html).toContain('value="bilanciato" selected=""');
+    expect(html).toContain('data-state="checked" value="bilanciato"');
     expect(html).toContain("aria-describedby=");
     expect(html).toContain("<legend");
-    expect(html).not.toContain('type="checkbox" checked=""');
+    expect(html).not.toContain('role="switch" aria-checked="true"');
+    // Un Muto e un indicatore per Ingresso, senza Muto all'avvio.
+    const inputs = recordingSource === "both" ? 2 : 1;
+    expect(html.match(/aria-pressed="false"/g)).toHaveLength(inputs);
+    expect(html.match(/role="meter"/g)).toHaveLength(inputs);
   }
 });
 
@@ -71,6 +75,6 @@ test("il bypass è separato dalla scelta salvata e ignora guasti obsoleti", () =
   const html = render("current");
   expect(html.match(/role="status"/g)).toHaveLength(1);
   expect(html).toContain('checked=""');
-  expect(html).toContain('value="spento" selected=""');
+  expect(html).toContain('data-state="checked" value="spento"');
   expect(html).toContain("La sensibilità mantiene il valore scelto");
 });

@@ -1,7 +1,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { TFunction } from "i18next";
 import { Check, CircleAlert, Copy, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
 import {
@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { WindowControls } from "@/components/window-controls";
 import { AllTapes } from "@/features/library/all-tapes";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
@@ -56,6 +57,8 @@ import {
 } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
 import { recordAfterSettings } from "@/features/recording/start";
+import { SWITCH_CLASS } from "@/features/settings/setting-switch";
+import { nomeMicrofonoRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
@@ -168,6 +171,7 @@ export function HomePage() {
     completed: boolean;
     started: boolean;
     live: boolean;
+    nomeMicrofono: string | null;
     previousStatus: Status;
     previousSession: string | null;
     previousCleaningFailures: RecordingCleaningFailed[];
@@ -249,10 +253,16 @@ export function HomePage() {
         if (payload.phase === "recording" && !request.started) {
           request.started = true;
           acceptPartials.current = request.live;
-          setConversation({
+          const fresh = {
             ...EMPTY_CONVERSATION,
             sessionId: request.sessionId,
-          });
+          };
+          // Il Microfono persona sola ha già il nome predefinito, come nel Tape che nascerà.
+          setConversation(
+            request.nomeMicrofono
+              ? withNome(fresh, "microfono", null, request.nomeMicrofono)
+              : fresh
+          );
           setInfo(null);
           setHighlight(null);
           setRenaming(null);
@@ -758,6 +768,7 @@ export function HomePage() {
       controller: new AbortController(),
       dispatched: false,
       live: settings.trascrizioneDalVivo ?? false,
+      nomeMicrofono: nomeMicrofonoRegistrazione(settings),
       previousCleaningDismissed: cleaningDismissed,
       previousCleaningFailures: cleaningFailures,
       previousSession: recordingSession.current,
@@ -824,7 +835,7 @@ export function HomePage() {
     finishRecording,
     flush,
     raccolta,
-    settings.trascrizioneDalVivo,
+    settings,
     source,
     status,
     t,
@@ -1963,6 +1974,7 @@ function DocumentToolbar({
   const toParlanti = useCallback(() => onTab("parlanti"), [onTab]);
   const following = follow?.follow === "following";
   const onFollow = follow?.onFollow;
+  const followId = useId();
   const toggleFollow = useCallback(
     () => onFollow?.(following ? "scroll" : "follow"),
     [following, onFollow]
@@ -1984,19 +1996,19 @@ function DocumentToolbar({
       </div>
       <span className="flex-1" />
       {follow && tab === "transcript" ? (
-        <button
-          aria-checked={following}
-          className="group flex items-center gap-2.5 rounded-md py-1 text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          onClick={toggleFollow}
-          onPointerDown={keepFocus}
-          role="switch"
-          type="button"
+        <label
+          className="flex cursor-pointer items-center gap-2.5 py-1 text-sm"
+          htmlFor={followId}
         >
-          <span className="relative h-5 w-9 rounded-full bg-input transition-colors duration-200 group-aria-checked:bg-play">
-            <span className="absolute top-0.5 left-0.5 size-4 rounded-full bg-card shadow-sm transition-transform duration-200 ease-out group-aria-checked:translate-x-4" />
-          </span>
+          <Switch
+            checked={following}
+            className={SWITCH_CLASS}
+            id={followId}
+            onCheckedChange={toggleFollow}
+            onPointerDown={keepFocus}
+          />
           {t("player.follow")}
-        </button>
+        </label>
       ) : null}
     </div>
   );

@@ -198,7 +198,9 @@
       "gainDescription": "Aumenta o riduce il livello registrato, senza cambiare il volume di Windows. Il rosso indica di abbassare il Guadagno. Durante la Registrazione vale dall’audio successivo; in Pausa, dalla ripresa.",
       "bitrateDescription": "Un valore più alto conserva più dettaglio audio e occupa più spazio.",
       "channelsDescription": "Mono salva un solo canale; Stereo conserva i canali sinistro e destro.",
-      "sampleRateDescription": "Un valore più alto conserva frequenze più alte. Non migliora un audio che ne è già privo."
+      "sampleRateDescription": "Un valore più alto conserva frequenze più alte. Non migliora un audio che ne è già privo.",
+      "defaultDeviceShort": "Predefinito · {{name}}",
+      "lastInput": "Serve almeno una fonte"
     },
     "general": {
       "title": "Generale",
@@ -219,7 +221,10 @@
       "copyFormats": {
         "testo": "Testo semplice",
         "markdown": "Markdown"
-      }
+      },
+      "nomeMicrofono": "Il tuo nome",
+      "nomeMicrofonoDescription": "Usato per il Microfono quando non riconosci più parlanti: ogni Tape nuovo registrato da Entrambi lo nomina così. I Tape esistenti non cambiano.",
+      "nomeMicrofonoPlaceholder": "Microfono"
     },
     "assistants": {
       "title": "Assistenti",
@@ -236,12 +241,12 @@
     },
     "cleaning": {
       "profile": "File e audio misto",
-      "enable": "Pulisci il rumore",
+      "enable": "Filtra rumore",
       "description": "DeepFilterNet3 riduce il rumore di file, video e Tape senza Ingressi separati. I tratti già puliti vengono riusati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
       "recordingDescription": "DeepFilterNet3 riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. I tratti già puliti vengono riusati nei Tape: spegnerla non recupera l’originale."
     },
     "protection": {
-      "label": "Sensibilità del parlato",
+      "label": "Sensibilità",
       "levels": {
         "spento": "Spento",
         "sensibile": "Più sensibile",
@@ -254,6 +259,13 @@
         "sensibile": "Conserva più voci deboli e risposte brevi; può includere più rumori.",
         "bilanciato": "Bilancia il riconoscimento di voci deboli e risposte brevi con il filtro dei rumori.",
         "selettivo": "Filtra più rumori; può perdere parole brevi o deboli."
+      },
+      "fullLabel": "Sensibilità del parlato",
+      "short": {
+        "spento": "Spento",
+        "sensibile": "Sensibile",
+        "bilanciato": "Bilanciato",
+        "selettivo": "Selettivo"
       }
     },
     "help": "Informazioni su {{field}}",
@@ -327,7 +339,13 @@
       "devices": "Apertura dispositivi audio…"
     },
     "started": "Registrazione avviata, puoi parlare",
-    "cleaningPreparing": "Preparazione pulizia…"
+    "cleaningPreparing": "Preparazione pulizia…",
+    "mute": "Muto: {{input}}",
+    "muteHint": "{{input}}: clic per il muto",
+    "mutedHint": "{{input}} in muto: clic per togliere il muto",
+    "muted": "In muto",
+    "collapse": "Riduci la barra",
+    "expand": "Espandi la barra"
   },
   "about": {
     "title": "Informazioni",

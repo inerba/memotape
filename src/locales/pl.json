@@ -198,7 +198,9 @@
       "gainDescription": "Zmienia nagrywany poziom bez zmiany głośności Windows. Zmniejsz Wzmocnienie, gdy wskaźnik jest czerwony. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu.",
       "bitrateDescription": "Wyższa wartość zachowuje więcej szczegółów dźwięku i zajmuje więcej miejsca.",
       "channelsDescription": "Mono zapisuje jeden kanał; Stereo zachowuje lewy i prawy kanał.",
-      "sampleRateDescription": "Wyższa wartość zachowuje wyższe częstotliwości, ale nie odtwarza tych, których brakuje w źródle."
+      "sampleRateDescription": "Wyższa wartość zachowuje wyższe częstotliwości, ale nie odtwarza tych, których brakuje w źródle.",
+      "defaultDeviceShort": "Domyślny · {{name}}",
+      "lastInput": "Potrzebne jest co najmniej jedno źródło"
     },
     "general": {
       "title": "Ogólne",
@@ -219,7 +221,10 @@
       "copyFormats": {
         "testo": "Zwykły tekst",
         "markdown": "Markdown"
-      }
+      },
+      "nomeMicrofono": "Twoje imię",
+      "nomeMicrofonoDescription": "Używane dla Mikrofonu, gdy nie rozpoznajesz wielu mówców: każdy nowy Tape nagrany z Obu tak go nazywa. Istniejące Tape’y się nie zmieniają.",
+      "nomeMicrofonoPlaceholder": "Mikrofon"
     },
     "assistants": {
       "title": "Asystenci",
@@ -236,12 +241,12 @@
     },
     "cleaning": {
       "profile": "Pliki i dźwięk mieszany",
-      "enable": "Usuń szum",
+      "enable": "Filtruj szum",
       "description": "DeepFilterNet3 redukuje szum w plikach, filmach i Tape’ach bez oddzielnych Wejść. Oczyszczone fragmenty są używane ponownie. Tape zachowuje przetworzony dźwięk: wyłączenie czyszczenia nie przywraca oryginału.",
       "recordingDescription": "DeepFilterNet3 redukuje nagrywany szum, także bez Transkrypcji na żywo. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu. Oczyszczone fragmenty są ponownie używane w Tape’ach: wyłączenie nie przywraca oryginału."
     },
     "protection": {
-      "label": "Czułość mowy",
+      "label": "Czułość",
       "levels": {
         "spento": "Wyłączona",
         "sensibile": "Bardziej czuła",
@@ -254,6 +259,13 @@
         "sensibile": "Zachowuje więcej cichych głosów i krótkich odpowiedzi; może przepuszczać więcej hałasu.",
         "bilanciato": "Równoważy ciche głosy i krótkie odpowiedzi z filtrowaniem hałasu.",
         "selettivo": "Filtruje więcej hałasu; może pomijać krótkie lub ciche słowa."
+      },
+      "fullLabel": "Czułość mowy",
+      "short": {
+        "spento": "Wył.",
+        "sensibile": "Czuła",
+        "bilanciato": "Zrównoważona",
+        "selettivo": "Selektywna"
       }
     },
     "help": "Informacje o {{field}}",
@@ -327,7 +339,13 @@
       "devices": "Otwieranie urządzeń audio…"
     },
     "started": "Nagrywanie rozpoczęte, możesz mówić",
-    "cleaningPreparing": "Przygotowywanie oczyszczania dźwięku…"
+    "cleaningPreparing": "Przygotowywanie oczyszczania dźwięku…",
+    "mute": "Wyciszenie: {{input}}",
+    "muteHint": "{{input}}: kliknij, aby wyciszyć",
+    "mutedHint": "{{input}} wyciszony: kliknij, aby przywrócić",
+    "muted": "Wyciszony",
+    "collapse": "Zwiń pasek",
+    "expand": "Rozwiń pasek"
   },
   "about": {
     "title": "Informacje",

@@ -652,6 +652,10 @@ pub async fn transcribe(
                 &transcript.phrases,
             );
             document.diarizzazione.clone_from(&transcript.diarizzazione);
+            // Ritrascrivere toglie i nomi: il Microfono persona sola riprende quello predefinito.
+            document.set_nome_microfono(
+                settings.nome_microfono_per(separate, &settings.parlanti_trascrivi(separate)),
+            );
             document
         };
         // Il Tape con le Frasi; anche senza parlato un Tape si riscrive.

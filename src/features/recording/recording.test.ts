@@ -7,6 +7,7 @@ import {
   elapsedText,
   levelPercent,
   meters,
+  nextPeak,
   silentLevels,
 } from "@/features/recording/recording";
 import { statusText } from "@/features/status/status";
@@ -243,4 +244,21 @@ test("l'esito finale conserva e mostra il successo di un Ingresso e il guasto de
   expect(statusText(after.status, t)).toContain(
     "Audio di sistema: Diarizzazione completata"
   );
+});
+
+test("il segno di picco resta un secondo, poi scende verso il livello", () => {
+  let peak = nextPeak({ percent: 0, until: 0 }, 80, 0);
+  expect(peak).toEqual({ percent: 80, until: 1000 });
+  // Il livello scende, il picco resta fermo per un secondo.
+  peak = nextPeak(peak, 40, 500);
+  expect(peak.percent).toBe(80);
+  peak = nextPeak(peak, 40, 1100);
+  expect(peak.percent).toBeLessThan(80);
+  expect(peak.percent).toBeGreaterThan(40);
+  // Non scende mai sotto il livello, e un livello più alto lo sposta subito.
+  for (let now = 1200; now < 5000; now += 100) {
+    peak = nextPeak(peak, 40, now);
+  }
+  expect(peak.percent).toBe(40);
+  expect(nextPeak(peak, 90, 5000)).toEqual({ percent: 90, until: 6000 });
 });

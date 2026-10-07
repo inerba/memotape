@@ -1,16 +1,60 @@
-import { type ChangeEvent, useCallback, useId } from "react";
+import { useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppError, Sensibilita } from "@/bindings";
 import { FieldHelp } from "@/components/field-help";
-import { NativeSelect } from "@/components/native-select";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Segmented } from "@/components/segmented";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { SettingFeedback } from "./setting-feedback";
+import { SWITCH_CLASS } from "./setting-switch";
 import { useSettings } from "./settings-context";
 
+const LEVELS = ["spento", "sensibile", "bilanciato", "selettivo"] as const;
+
+/** Il nome di ogni Profilo audio e la spiegazione della sua pulizia. */
+const PROFILES = {
+  audioFileMisto: {
+    description: "settings.cleaning.description",
+    legend: "settings.cleaning.profile",
+  },
+  audioMicrofono: {
+    description: "settings.cleaning.recordingDescription",
+    legend: "settings.recording.inputs.mic",
+  },
+  audioSistema: {
+    description: "settings.cleaning.recordingDescription",
+    legend: "settings.recording.inputs.system",
+  },
+} as const;
+
+/** Le classi del gruppo e della Sensibilità per ogni disposizione. */
+const LAYOUTS = {
+  bar: {
+    fieldset: "flex flex-wrap items-center gap-x-5 gap-y-2",
+    sensitivity: "flex-wrap items-center gap-x-2 gap-y-1",
+    size: "sm",
+  },
+  menu: {
+    fieldset: "flex flex-col gap-1",
+    sensitivity: "flex-col gap-1.5",
+    size: "md",
+  },
+  settings: {
+    fieldset: "flex flex-col gap-4",
+    sensitivity: "flex-col gap-1.5",
+    size: "lg",
+  },
+} as const;
+
+/**
+ * Filtra rumore e Sensibilità di un Profilo audio, che salvano subito. `layout`: in Impostazioni
+ * uno sotto l'altro; nella barra della Registrazione su una riga; nel menu di Nuova registrazione
+ * come righe con l'interruttore a destra e la Sensibilità su tutta la larghezza.
+ */
 export function CleaningProfile({
   name,
   onError,
-  compact = false,
+  layout = "settings",
   disabled = false,
   bypass = false,
   hideLegend = false,
@@ -18,7 +62,7 @@ export function CleaningProfile({
 }: {
   name: "audioMicrofono" | "audioSistema" | "audioFileMisto";
   onError: (error: AppError | null) => void;
-  compact?: boolean;
+  layout?: "settings" | "bar" | "menu";
   disabled?: boolean;
   bypass?: boolean;
   hideLegend?: boolean;
@@ -27,8 +71,7 @@ export function CleaningProfile({
   const { t } = useTranslation();
   const { settings, save } = useSettings();
   const choose = useCallback(
-    async (checked: boolean | "indeterminate") => {
-      const pulizia = checked === true;
+    async (pulizia: boolean) => {
       const error = await save(
         (current) => ({
           ...current,
@@ -43,8 +86,7 @@ export function CleaningProfile({
     [inlineFeedback, name, onError, save]
   );
   const chooseSensitivity = useCallback(
-    async (event: ChangeEvent<HTMLSelectElement>) => {
-      const sensibilita = event.target.value as Sensibilita;
+    async (sensibilita: Sensibilita) => {
       const error = await save(
         (current) => ({
           ...current,
@@ -60,112 +102,107 @@ export function CleaningProfile({
   );
   const sensitivity = settings[name]?.sensibilita ?? "bilanciato";
   const id = useId();
-  const label =
-    name === "audioFileMisto"
-      ? "settings.cleaning.profile"
-      : `settings.recording.inputs.${name === "audioMicrofono" ? "mic" : "system"}`;
+  const { description, legend } = PROFILES[name];
+  const bar = layout === "bar";
+  const menu = layout === "menu";
+  // Fuori dal menu l'interruttore precede l'etichetta e ha la sua spiegazione.
+  const inline = !menu;
+  const enable = t("settings.cleaning.enable");
+  const sensitivityLabel = t("settings.protection.label");
+  const cleaningSwitch = (
+    <Switch
+      aria-describedby={`${id}-description`}
+      checked={settings[name]?.pulizia ?? false}
+      className={SWITCH_CLASS}
+      data-setting={`${name}.pulizia`}
+      disabled={disabled}
+      id={id}
+      onCheckedChange={choose}
+      size={bar ? "sm" : "default"}
+    />
+  );
   return (
     <fieldset
-      className={
-        compact
-          ? "flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 disabled:opacity-50"
-          : "flex flex-col gap-2 disabled:opacity-50"
-      }
+      className={cn("min-w-0 disabled:opacity-50", LAYOUTS[layout].fieldset)}
       disabled={disabled}
     >
       <legend
         className={
-          compact || hideLegend ? "sr-only" : "mb-2 font-medium text-sm"
+          layout === "settings" && !hideLegend
+            ? "mb-2 font-medium text-sm"
+            : "sr-only"
         }
       >
-        {t(label)}
+        {t(legend)}
       </legend>
       <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex items-center gap-1">
+        <div className={cn("flex items-center gap-1", menu && "min-h-8")}>
           <label
-            className="flex w-fit cursor-pointer items-center gap-2 text-sm"
+            className={cn(
+              "flex w-fit cursor-pointer items-center gap-2 text-sm",
+              menu && "w-auto flex-1"
+            )}
             htmlFor={id}
           >
-            <Checkbox
-              aria-describedby={`${id}-description`}
-              checked={settings[name]?.pulizia ?? false}
-              disabled={disabled}
-              id={id}
-              name={`${name}.pulizia`}
-              onCheckedChange={choose}
-            />
-            {t("settings.cleaning.enable")}
+            {inline ? cleaningSwitch : null}
+            {enable}
           </label>
-          <FieldHelp label={t("settings.cleaning.enable")}>
-            {t(
-              name === "audioFileMisto"
-                ? "settings.cleaning.description"
-                : "settings.cleaning.recordingDescription"
-            )}
-          </FieldHelp>
+          {inline ? (
+            <FieldHelp label={enable}>{t(description)}</FieldHelp>
+          ) : null}
+          {menu ? cleaningSwitch : null}
         </div>
         {inlineFeedback ? (
           <SettingFeedback
             disabled={disabled}
-            label={t("settings.cleaning.enable")}
+            label={enable}
             name={`${name}.pulizia`}
           />
         ) : null}
       </div>
-      <div
-        className={
-          compact
-            ? "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-            : "flex min-w-0 flex-col gap-2"
-        }
-      >
+      <div className={cn("flex min-w-0", LAYOUTS[layout].sensitivity)}>
         <div className="flex items-center gap-1">
-          <label className="font-medium text-sm" htmlFor={`${id}-sensitivity`}>
-            {t("settings.protection.label")}
-          </label>
-          <FieldHelp label={t("settings.protection.label")}>
-            <p>{t(`settings.protection.descriptions.${sensitivity}`)}</p>
-            <p className="mt-2">{t("settings.protection.scope")}</p>
-          </FieldHelp>
+          <span className="text-sm" id={`${id}-sensitivity`}>
+            {sensitivityLabel}
+          </span>
+          {menu ? null : (
+            <FieldHelp label={t("settings.protection.fullLabel")}>
+              <p>{t(`settings.protection.descriptions.${sensitivity}`)}</p>
+              <p className="mt-2">{t("settings.protection.scope")}</p>
+            </FieldHelp>
+          )}
         </div>
-        <NativeSelect
-          aria-describedby={`${id}-scope ${id}-tradeoff`}
-          className={compact ? "h-7 text-xs" : "h-9"}
+        <Segmented
+          className={layout === "settings" ? "w-fit" : undefined}
+          describedBy={`${id}-sensitivity ${id}-tradeoff`}
           disabled={disabled}
-          id={`${id}-sensitivity`}
+          fill={menu}
+          label={t("settings.protection.fullLabel")}
           name={`${name}.sensibilita`}
           onChange={chooseSensitivity}
+          options={LEVELS.map((level) => ({
+            label: t(`settings.protection.levels.${level}`),
+            short: t(`settings.protection.short.${level}`),
+            value: level,
+          }))}
+          size={LAYOUTS[layout].size}
           value={sensitivity}
-        >
-          {(["spento", "sensibile", "bilanciato", "selettivo"] as const).map(
-            (level) => (
-              <option key={level} value={level}>
-                {t(`settings.protection.levels.${level}`)}
-              </option>
-            )
-          )}
-        </NativeSelect>
+        />
         {inlineFeedback ? (
           <SettingFeedback
-            className={compact ? "basis-full" : undefined}
+            className={bar ? "basis-full" : undefined}
             disabled={disabled}
-            label={t("settings.protection.label")}
+            label={sensitivityLabel}
             name={`${name}.sensibilita`}
           />
         ) : null}
       </div>
       <span className="sr-only" id={`${id}-description`}>
-        {t(
-          name === "audioFileMisto"
-            ? "settings.cleaning.description"
-            : "settings.cleaning.recordingDescription"
-        )}
-      </span>
-      <span className="sr-only" id={`${id}-scope`}>
-        {t("settings.protection.scope")}
+        {t(description)}
       </span>
       <span className="sr-only" id={`${id}-tradeoff`}>
-        {t(`settings.protection.descriptions.${sensitivity}`)}
+        {t(`settings.protection.descriptions.${sensitivity}`)}{" "}
+        {t("settings.protection.scope")}
       </span>
       {bypass ? (
         <p className="basis-full text-destructive text-xs" role="status">

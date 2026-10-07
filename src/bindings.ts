@@ -139,6 +139,12 @@ export const commands = {
 	/**  Mette in pausa (`true`) o riprende la Registrazione. Restituisce `false` se non è in corso. */
 	pauseRecording: (paused: boolean) => __TAURI_INVOKE<boolean>("pause_recording", { paused }),
 	/**
+	 *  Mette in Muto (`true`) o toglie il Muto di un Ingresso della Registrazione in corso: scrive
+	 *  silenzio al posto del suo audio, senza fermare il tempo. Restituisce `false` se non c'è una
+	 *  Registrazione o se `ingresso` è il mix.
+	 */
+	setMuto: (ingresso: Ingresso, muto: boolean) => __TAURI_INVOKE<boolean>("set_muto", { ingresso, muto }),
+	/**
 	 *  Ferma e salva la Registrazione: l'esito arriva come risultato di `record`. Restituisce
 	 *  `false` se non è in corso.
 	 */
@@ -597,6 +603,11 @@ export type Settings = {
 	 */
 	guadagnoMicrofono?: number,
 	guadagnoSistema?: number,
+	/**
+	 *  Il nome che ogni Tape nuovo dà al Microfono trattato come una persona sola (ADR-0027);
+	 *  `null` o vuoto: nessuno. Manca nei file salvati prima che esistesse.
+	 */
+	nomeMicrofono?: string | null,
 };
 
 export type SpeakerAssignment = {

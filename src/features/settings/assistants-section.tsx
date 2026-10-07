@@ -7,7 +7,7 @@ import {
   type AssistantConfig,
   assistantConfigs,
 } from "@/features/settings/assistants";
-import { SettingCheckbox } from "@/features/settings/setting-checkbox";
+import { SettingSwitch } from "@/features/settings/setting-switch";
 
 const CONFIGS: AssistantConfig[] = ["claudeCode", "codex", "claudeDesktop"];
 /** Quanto resta "Copiato" sul pulsante. */
@@ -36,7 +36,7 @@ export function AssistantsSection({
   return (
     <>
       <div className="flex max-w-xl flex-col gap-1">
-        <SettingCheckbox
+        <SettingSwitch
           description={t("settings.assistants.allowDescription")}
           label={t("settings.assistants.allow")}
           name="assistenti"
