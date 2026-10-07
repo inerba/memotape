@@ -8,6 +8,7 @@ import {
   levelPercent,
   meters,
   nextPeak,
+  type PeakHold,
   silentLevels,
 } from "@/features/recording/recording";
 import { statusText } from "@/features/status/status";
@@ -247,8 +248,8 @@ test("l'esito finale conserva e mostra il successo di un Ingresso e il guasto de
 });
 
 test("il segno di picco resta un secondo, poi scende verso il livello", () => {
-  let peak = nextPeak({ percent: 0, until: 0 }, 80, 0);
-  expect(peak).toEqual({ percent: 80, until: 1000 });
+  let peak = nextPeak({ at: 0, percent: 0, until: 0 }, 80, 0);
+  expect(peak).toEqual({ at: 0, percent: 80, until: 1000 });
   // Il livello scende, il picco resta fermo per un secondo.
   peak = nextPeak(peak, 40, 500);
   expect(peak.percent).toBe(80);
@@ -260,5 +261,16 @@ test("il segno di picco resta un secondo, poi scende verso il livello", () => {
     peak = nextPeak(peak, 40, now);
   }
   expect(peak.percent).toBe(40);
-  expect(nextPeak(peak, 90, 5000)).toEqual({ percent: 90, until: 6000 });
+  expect(nextPeak(peak, 90, 5000)).toEqual({
+    at: 5000,
+    percent: 90,
+    until: 6000,
+  });
+  // La discesa dipende dal tempo, non da quanti livelli arrivano.
+  const rare = nextPeak({ at: 0, percent: 80, until: 0 }, 0, 500);
+  let dense: PeakHold = { at: 0, percent: 80, until: 0 };
+  for (let now = 50; now <= 500; now += 50) {
+    dense = nextPeak(dense, 0, now);
+  }
+  expect(dense.percent).toBeCloseTo(rare.percent);
 });

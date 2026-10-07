@@ -31,7 +31,7 @@ export function LevelMeter({
   paused?: boolean;
   percent: number;
 }) {
-  const peak = useRef<PeakHold>({ percent: 0, until: 0 });
+  const peak = useRef<PeakHold>({ at: 0, percent: 0, until: 0 });
   peak.current = nextPeak(peak.current, percent, performance.now());
   return (
     // biome-ignore lint/a11y/useSemanticElements: il <meter> nativo non si disegna con zone, tacche e picco in modo affidabile.
@@ -50,7 +50,8 @@ export function LevelMeter({
     >
       <div
         className={cn(
-          "absolute inset-0 transition-[clip-path] duration-100 ease-linear motion-reduce:transition-none",
+          // Niente transizione: il livello segue il suono senza ritardo.
+          "absolute inset-0",
           muted && "opacity-35 grayscale"
         )}
         style={{
@@ -64,7 +65,7 @@ export function LevelMeter({
       {peak.current.percent > 0 ? (
         <div
           className={cn(
-            "absolute inset-y-0 w-0.5 rounded-full bg-foreground transition-[left] duration-100 ease-linear motion-reduce:transition-none",
+            "absolute inset-y-0 w-0.5 rounded-full bg-foreground",
             muted ? "opacity-25" : "opacity-70"
           )}
           style={{ left: `calc(${peak.current.percent}% - 2px)` }}

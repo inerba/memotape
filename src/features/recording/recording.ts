@@ -36,15 +36,19 @@ export function levelPercent(peak: number | null): number {
   return Math.round(Math.max(0, 1 - db / FLOOR_DB) * 100);
 }
 
-/** Il segno di picco dell'indicatore: la percentuale e fino a quando resta fermo (ms). */
+/**
+ * Il segno di picco dell'indicatore: la percentuale, fino a quando resta fermo e l'istante
+ * dell'ultimo aggiornamento (ms).
+ */
 export interface PeakHold {
+  at: number;
   percent: number;
   until: number;
 }
 
-/** Per quanto il segno di picco resta fermo, e di quanto scende poi a ogni livello (100 ms). */
+/** Per quanto il segno di picco resta fermo, e poi quanto scende al secondo, a ogni frequenza. */
 const PEAK_HOLD_MS = 1000;
-const PEAK_FALL = 4;
+const PEAK_FALL_PER_S = 40;
 
 /** Il segno di picco dopo il livello `percent` all'istante `now`. */
 export function nextPeak(
@@ -53,13 +57,16 @@ export function nextPeak(
   now: number
 ): PeakHold {
   if (percent >= previous.percent) {
-    return { percent, until: now + PEAK_HOLD_MS };
+    return { at: now, percent, until: now + PEAK_HOLD_MS };
   }
   if (now < previous.until) {
     return previous;
   }
+  const fall =
+    (PEAK_FALL_PER_S * (now - Math.max(previous.at, previous.until))) / 1000;
   return {
-    percent: Math.max(percent, previous.percent - PEAK_FALL),
+    at: now,
+    percent: Math.max(percent, previous.percent - fall),
     until: previous.until,
   };
 }

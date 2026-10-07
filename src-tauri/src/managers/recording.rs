@@ -97,8 +97,10 @@ fn input_kinds(settings: &Settings) -> &'static [Kind] {
     }
 }
 
-/// Ogni quanto arriva `recording-tick`.
+/// Il passo massimo dell'orologio del worker, anche senza blocchi (il loopback fermo).
 const TICK: Duration = Duration::from_millis(100);
+/// Ogni quanto arriva `recording-tick` con timer e livelli: abbastanza spesso da seguire il suono.
+const LEVELS_TICK: Duration = Duration::from_millis(40);
 
 /// Guasto recuperato: la cattura continua in bypass soltanto su questo Ingresso.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
@@ -1104,7 +1106,7 @@ fn run(
             error = Some(e);
             break;
         }
-        if last_tick.elapsed() >= TICK {
+        if last_tick.elapsed() >= LEVELS_TICK {
             last_tick = Instant::now();
             let mut levels = Levels::default();
             for (&kind, peak) in kinds.iter().zip(mixer.take_peaks()) {
