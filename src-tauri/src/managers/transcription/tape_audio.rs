@@ -1,7 +1,7 @@
 //! Prepara l'audio di Trascrivi su Tape senza modificare la Sorgente. Il commit sostituisce
 //! insieme audio, Forma d'onda e documento, soltanto dopo ASR e analisi dei Parlanti.
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use transcribe_cpp::CancelToken;
@@ -33,7 +33,6 @@ impl Drop for WorkDir {
 
 struct Track {
     ingresso: Ingresso,
-    ogg: PathBuf,
     pcm: PathBuf,
     format: Format,
     frames: u64,
@@ -61,30 +60,43 @@ impl TapeAudio {
         let path = folder.join(format!("ritrascrizione-{}", tape::temporary_id()));
         std::fs::create_dir(&path).map_err(|e| io(&path, e))?;
         let work = WorkDir(path);
-        let ingressi = super::ingressi_of(source)?;
+        let jobs: Vec<_> = super::ingressi_of(source)?
+            .into_iter()
+            .map(|ingresso| (ingresso, processor(ingresso)))
+            .collect();
+        // Gli Ingressi sono indipendenti: la pulizia (DFN3, un core) di ciascuno gira in parallelo,
+        // e si ricodifica in Opus solo la traccia che è stata davvero pulita.
+        let folder = work.0.as_path();
+        let prepared = std::thread::scope(|scope| {
+            let handles: Vec<_> = jobs
+                .into_iter()
+                .map(|(ingresso, processor)| {
+                    scope.spawn(move || {
+                        let track = prepare_track(source, ingresso, folder, processor, cancel)?;
+                        let cleaned = log.intervals().iter().any(|i| i.ingresso == ingresso);
+                        let encoded = cleaned
+                            .then(|| encode_track(&track, folder, bitrate, cancel))
+                            .transpose()?;
+                        Ok::<_, AppError>((track, encoded))
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("preparazione di un Ingresso"))
+                .collect::<Result<Vec<_>, _>>()
+        })?;
         let mut tracks = Vec::new();
+        let mut replacements = Vec::new();
         let mut forma_onda = None;
-        for ingresso in ingressi {
-            let (track, wave) = prepare_track(
-                source,
-                ingresso,
-                &work.0,
-                bitrate,
-                processor(ingresso),
-                cancel,
-            )?;
-            forma_onda = Some(wave);
+        for (track, encoded) in prepared {
+            if let Some((ogg, wave)) = encoded {
+                replacements.push((track.ingresso, ogg));
+                forma_onda = Some(wave);
+            }
             tracks.push(track);
         }
-        let intervals = log.intervals();
-        let mut replacements: Vec<_> = tracks
-            .iter()
-            .filter(|track| intervals.iter().any(|i| i.ingresso == track.ingresso))
-            .map(|track| (track.ingresso, track.ogg.clone()))
-            .collect();
-        if replacements.is_empty() {
-            forma_onda = None;
-        } else if tracks.len() == 2 {
+        if !replacements.is_empty() && tracks.len() == 2 {
             let mut decoder = Decoder::open(source)?;
             let first = decoder
                 .next_block()?
@@ -98,7 +110,10 @@ impl TapeAudio {
             forma_onda = Some(wave);
         }
         let mut all_intervals = old.pulizia_audio.clone();
-        all_intervals.extend(intervals);
+        // In parallelo gli Ingressi scrivono nel registro alternandosi: si torna all'ordine delle tracce.
+        let mut fresh = log.intervals();
+        fresh.sort_by_key(|i| tracks.iter().position(|t| t.ingresso == i.ingresso));
+        all_intervals.extend(fresh);
         Ok(Self {
             _work: work,
             original: source.to_path_buf(),
@@ -148,10 +163,9 @@ fn prepare_track(
     source: &Path,
     ingresso: Ingresso,
     folder: &Path,
-    bitrate: u32,
     processor: Box<dyn AudioProcessor>,
     cancel: &CancelToken,
-) -> Result<(Track, Vec<f32>), AppError> {
+) -> Result<Track, AppError> {
     let mut decoder = Decoder::open_ingresso(source, ingresso)?;
     let first = decoder
         .next_block()?
@@ -160,27 +174,19 @@ fn prepare_track(
         rate: first.rate,
         channels: first.channels,
     };
-    let ogg = folder.join(tape::audio_entry(ingresso));
-    let pcm = ogg.with_extension("pcm");
-    let mut raw = File::create_new(&pcm).map_err(|e| io(&pcm, e))?;
-    let mut copy = OggCopy::new(
-        File::create_new(&ogg).map_err(|e| io(&ogg, e))?,
-        format.rate,
-        format.channels,
-        bitrate,
-    )?;
-    let wave = copy.forma_onda();
+    let pcm = folder
+        .join(tape::audio_entry(ingresso))
+        .with_extension("pcm");
+    let mut raw = BufWriter::new(File::create_new(&pcm).map_err(|e| io(&pcm, e))?);
     let mut stream = PcmStream::new(format, processor)?;
     let mut frames = 0;
     let mut deliver = |block: ProcessedBlock| -> Result<(), AppError> {
         frames += (block.samples.len() / format.channels) as u64;
-        let bytes: Vec<_> = block.samples.iter().flat_map(|s| s.to_le_bytes()).collect();
-        raw.write_all(&bytes).map_err(|e| io(&pcm, e))?;
-        copy.push(&Block {
-            rate: format.rate,
-            channels: format.channels,
-            samples: block.samples,
-        })
+        for sample in block.samples {
+            raw.write_all(&sample.to_le_bytes())
+                .map_err(|e| io(&pcm, e))?;
+        }
+        Ok(())
     };
     let mut block = Some(first);
     while let Some(current) = block {
@@ -195,17 +201,51 @@ fn prepare_track(
     }
     check(cancel)?;
     deliver(stream.boundary(Boundary::Finish)?)?;
+    raw.flush().map_err(|e| io(&pcm, e))?;
+    Ok(Track {
+        ingresso,
+        pcm,
+        format,
+        frames,
+    })
+}
+
+/// L'Ogg di una traccia pulita, dal suo PCM.
+fn encode_track(
+    track: &Track,
+    folder: &Path,
+    bitrate: u32,
+    cancel: &CancelToken,
+) -> Result<(PathBuf, Vec<f32>), AppError> {
+    let ogg = folder.join(tape::audio_entry(track.ingresso));
+    let mut copy = OggCopy::new(
+        File::create_new(&ogg).map_err(|e| io(&ogg, e))?,
+        track.format.rate,
+        track.format.channels,
+        bitrate,
+    )?;
+    let wave = copy.forma_onda();
+    let mut input = BufReader::new(File::open(&track.pcm).map_err(|e| io(&track.pcm, e))?);
+    let mut remaining = track.frames;
+    while remaining > 0 {
+        check(cancel)?;
+        let frames = remaining.min(4096) as usize;
+        let mut bytes = vec![0; frames * track.format.channels * 4];
+        input
+            .read_exact(&mut bytes)
+            .map_err(|e| io(&track.pcm, e))?;
+        copy.push(&Block {
+            rate: track.format.rate,
+            channels: track.format.channels,
+            samples: bytes
+                .chunks_exact(4)
+                .map(|s| f32::from_le_bytes(s.try_into().unwrap()))
+                .collect(),
+        })?;
+        remaining -= frames as u64;
+    }
     copy.finish()?;
-    Ok((
-        Track {
-            ingresso,
-            ogg,
-            pcm,
-            format,
-            frames,
-        },
-        wave.get().cloned().unwrap_or_default(),
-    ))
+    Ok((ogg, wave.get().cloned().unwrap_or_default()))
 }
 
 fn rebuild_mix(

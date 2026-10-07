@@ -7,6 +7,7 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use tauri::path::BaseDirectory;
@@ -531,21 +532,36 @@ pub async fn transcribe(
         .resolve(deepfilter::MODEL_FILE, BaseDirectory::Resource)
         .map_err(|error| AppError::Internal(error.to_string()))?;
     tauri::async_runtime::spawn_blocking(move || {
-        // La Trascrizione di ogni Ingresso, uno dopo l'altro con lo stesso motore, con la
-        // Diarizzazione; `copy` riceve l'audio di un file.
+        // La Trascrizione di ogni Ingresso, con la Diarizzazione; `copy` riceve l'audio di un file.
         let protections: Vec<_> = ingressi
             .iter()
             .map(|i| (*i, ProtectionTimeline::default()))
             .collect();
-        let run = |mut copy: Option<OggCopy>, prepared: Option<&TapeAudio>| {
+        let run = |copy: Option<OggCopy>, prepared: Option<&TapeAudio>| {
             let models = app.state::<Models>();
             let mut engine = models.take(&app, || model.id.as_str())?;
-            let mut audio = Vec::new();
-            let mut transcribed = Ok(());
-            for (index, &ingresso) in ingressi.iter().enumerate() {
+            // Gli Ingressi separati si trascrivono in parallelo, il secondo con un'istanza in più
+            // del modello (transcribe-cpp ammette un solo stream per modello), come dal vivo. Se
+            // non si carica (VRAM), uno dopo l'altro con lo stesso motore.
+            let mut second = if ingressi.len() > 1 {
+                models
+                    .load_instance(&app, &engine)
+                    .inspect_err(|e| {
+                        log::warn!(
+                            "seconda istanza del modello assente, Ingressi in sequenza: {e}"
+                        );
+                    })
+                    .ok()
+            } else {
+                None
+            };
+            let percents: Vec<_> = ingressi.iter().map(|_| AtomicU8::new(0)).collect();
+            // Un Ingresso: l'esito e, se si diarizza, il suo audio a 16 kHz.
+            let one = |index: usize, engine: &mut TranscribeCpp, copy: Option<OggCopy>| {
+                let ingresso = ingressi[index];
                 let mut pcm = Vec::new();
                 let keep = diarized.contains(&ingresso);
-                let mut audio_path = pipeline::FileAudio::from(copy.take());
+                let mut audio_path = pipeline::FileAudio::from(copy);
                 audio_path.protection = protections
                     .iter()
                     .find(|(i, _)| *i == ingresso)
@@ -581,9 +597,9 @@ pub async fn transcribe(
                                     .sensibilita
                             });
                 }
-                transcribed = run_pipeline(
+                let transcribed = run_pipeline(
                     &app,
-                    &mut engine,
+                    engine,
                     &silero,
                     &cancel,
                     EventSource {
@@ -605,24 +621,77 @@ pub async fn transcribe(
                             &cancel,
                             &mut |event| match event {
                                 PipelineEvent::Progress(percent) => {
-                                    on_event(PipelineEvent::Progress(
-                                        percent.map(|p| overall_percent(index, ingressi.len(), p)),
-                                    ));
+                                    on_event(PipelineEvent::Progress(percent.map(|p| {
+                                        percents[index].store(p, Ordering::Relaxed);
+                                        overall_percent(
+                                            &percents
+                                                .iter()
+                                                .map(|p| p.load(Ordering::Relaxed))
+                                                .collect::<Vec<_>>(),
+                                        )
+                                    })));
                                 }
                                 event => on_event(event),
                             },
                         )
                     },
                 );
-                if keep {
-                    audio.push((ingresso, pcm));
-                }
+                // Un guasto ferma anche l'altro Ingresso: il Tape non si riscriverebbe comunque.
                 if transcribed.is_err() {
-                    break;
+                    cancel.cancel();
+                }
+                (transcribed, keep.then_some((ingresso, pcm)))
+            };
+            let results = match second.as_mut() {
+                Some(second) => {
+                    let main: &mut TranscribeCpp = &mut engine;
+                    std::thread::scope(|scope| {
+                        let first = scope.spawn(|| one(0, main, copy));
+                        let other = one(1, second, None);
+                        let first = first.join().unwrap_or_else(|_| {
+                            let error =
+                                AppError::Internal("Trascrizione di un Ingresso interrotta".into());
+                            (Err(error), None)
+                        });
+                        vec![first, other]
+                    })
+                }
+                None => {
+                    let mut copy = copy;
+                    let mut results = Vec::new();
+                    for index in 0..ingressi.len() {
+                        let result = one(index, &mut engine, copy.take());
+                        let failed = result.0.is_err();
+                        results.push(result);
+                        if failed {
+                            break;
+                        }
+                    }
+                    results
+                }
+            };
+            drop(second);
+            models.release(
+                &app,
+                engine,
+                results
+                    .iter()
+                    .all(|(transcribed, _)| keep_engine(transcribed)),
+            );
+            let mut audio = Vec::new();
+            let mut failure = None;
+            for (transcribed, pcm) in results {
+                audio.extend(pcm);
+                // Il guasto vero, non l'Annulla con cui ha fermato l'altro Ingresso.
+                if let Err(error) = transcribed
+                    && matches!(failure, None | Some(AppError::Cancelled))
+                {
+                    failure = Some(error);
                 }
             }
-            models.release(&app, engine, keep_engine(&transcribed));
-            transcribed?;
+            if let Some(error) = failure {
+                return Err(error);
+            }
             let mut transcript = transcript
                 .into_inner()
                 .unwrap_or_else(PoisonError::into_inner);
@@ -740,10 +809,11 @@ fn ingressi_of(source: &Path) -> Result<Vec<Ingresso>, AppError> {
     })
 }
 
-/// Il progresso di tutta la Trascrizione con `percent` dell'Ingresso `index` di `count`, trascritti
-/// uno dopo l'altro.
-fn overall_percent(index: usize, count: usize, percent: u8) -> u8 {
-    u8::try_from((index * 100 + usize::from(percent)) / count.max(1)).unwrap_or(100)
+/// Il progresso di tutta la Trascrizione: la media di quelli degli Ingressi, che hanno la stessa
+/// durata. Vale in parallelo come uno dopo l'altro.
+fn overall_percent(percents: &[u8]) -> u8 {
+    let sum: usize = percents.iter().map(|&p| usize::from(p)).sum();
+    u8::try_from(sum / percents.len().max(1)).unwrap_or(100)
 }
 
 /// Il Tape `<nome del file>.tape` del file audio o video `source`, nella cartella `destination` (la
@@ -1687,13 +1757,16 @@ mod tests {
     }
 
     #[test]
-    fn il_progresso_degli_ingressi_trascritti_uno_dopo_l_altro_va_da_0_a_100() {
-        assert_eq!(overall_percent(0, 1, 40), 40);
-        assert_eq!([0, 100].map(|p| overall_percent(0, 2, p)), [0, 50]);
+    fn il_progresso_degli_ingressi_e_la_media_e_va_da_0_a_100() {
+        assert_eq!(overall_percent(&[40]), 40);
+        // Uno dopo l'altro: il primo arriva a 50, il secondo da 50 a 100.
+        assert_eq!([0, 100].map(|p| overall_percent(&[p, 0])), [0, 50]);
         assert_eq!(
-            [0, 50, 100].map(|p| overall_percent(1, 2, p)),
+            [0, 50, 100].map(|p| overall_percent(&[100, p])),
             [50, 75, 100]
         );
+        // In parallelo.
+        assert_eq!(overall_percent(&[30, 60]), 45);
     }
 
     fn transcript(phrases: &[&str]) -> Transcript {
