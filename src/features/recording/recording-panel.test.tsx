@@ -71,9 +71,11 @@ test("il bypass è separato dalla scelta salvata e ignora guasti obsoleti", () =
         </Tooltip.Provider>
       </SettingsProvider>
     );
-  expect(render("old")).not.toContain('role="status"');
+  // Le spunte di salvataggio sono regioni di stato sempre presenti: si conta il bypass.
+  const bypass = /La sensibilità mantiene il valore scelto/g;
+  expect(render("old")).not.toMatch(bypass);
   const html = render("current");
-  expect(html.match(/role="status"/g)).toHaveLength(1);
+  expect(html.match(bypass)).toHaveLength(1);
   expect(html).toContain('checked=""');
   expect(html).toContain('data-state="checked" value="spento"');
   expect(html).toContain("La sensibilità mantiene il valore scelto");

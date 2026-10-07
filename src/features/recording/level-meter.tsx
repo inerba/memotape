@@ -41,7 +41,7 @@ export function LevelMeter({
       aria-valuemin={0}
       aria-valuenow={percent}
       className={cn(
-        "relative min-w-0 overflow-hidden rounded-full bg-secondary transition-opacity duration-200",
+        "relative w-full min-w-0 overflow-hidden rounded-full bg-secondary transition-opacity duration-200",
         mini ? "h-1.5" : "h-2",
         paused && "opacity-50"
       )}

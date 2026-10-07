@@ -5,7 +5,7 @@ import { NativeSelect } from "@/components/native-select";
 import { GUADAGNI, guadagnoText } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { cn } from "@/lib/utils";
-import { SettingFeedback } from "./setting-feedback";
+import { SaveTick, SettingFeedback } from "./setting-feedback";
 
 /**
  * La tendina del Guadagno di un Ingresso, che salva subito: in Impostazioni e accanto al suo
@@ -44,18 +44,24 @@ export function GuadagnoSelect({
   );
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <NativeSelect
-        className={cn("tabular-nums", className)}
-        onChange={choose}
-        value={settings[name] ?? 0}
-        {...props}
-      >
-        {GUADAGNI.map((db) => (
-          <option key={db} value={db}>
-            {guadagnoText(db)}
-          </option>
-        ))}
-      </NativeSelect>
+      <div className="flex min-w-0 items-center gap-1">
+        <NativeSelect
+          className={cn("tabular-nums", className)}
+          onChange={choose}
+          value={settings[name] ?? 0}
+          {...props}
+        >
+          {GUADAGNI.map((db) => (
+            <option key={db} value={db}>
+              {guadagnoText(db)}
+            </option>
+          ))}
+        </NativeSelect>
+        <SaveTick
+          label={props["aria-label"] ?? t("settings.recording.guadagno")}
+          name={name}
+        />
+      </div>
       {inlineFeedback ? (
         <SettingFeedback
           disabled={props.disabled}

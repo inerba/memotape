@@ -41,7 +41,10 @@ import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { DeviceSelect } from "@/features/settings/device-select";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { RecordingInputs } from "@/features/settings/recording-inputs";
-import { SettingFeedback } from "@/features/settings/setting-feedback";
+import {
+  SaveTick,
+  SettingFeedback,
+} from "@/features/settings/setting-feedback";
 import { SettingSwitch } from "@/features/settings/setting-switch";
 import {
   BITRATES_KBPS,
@@ -277,8 +280,12 @@ export function SettingsPage() {
               {section.key === "registrazione" ? (
                 <>
                   <fieldset className="flex flex-col">
-                    <legend className="mb-2 font-medium text-sm">
+                    <legend className="mb-2 flex items-center gap-1 font-medium text-sm">
                       {t("settings.recording.input")}
+                      <SaveTick
+                        label={t("settings.recording.input")}
+                        name="recordingSource"
+                      />
                     </legend>
                     <RecordingInputs onError={setError} />
                   </fieldset>
@@ -477,8 +484,12 @@ export function SettingsPage() {
                     )}
                   </Field>
                   <fieldset className="flex flex-col">
-                    <legend className="mb-3 font-medium text-sm">
+                    <legend className="mb-3 flex items-center gap-1 font-medium text-sm">
                       {t("settings.general.theme")}
+                      <SaveTick
+                        label={t("settings.general.theme")}
+                        name="tema"
+                      />
                     </legend>
                     <div className="grid max-w-xl grid-cols-3 gap-4">
                       {TEMI.map((value) => (
@@ -788,6 +799,7 @@ function Field({
         {description ? (
           <FieldHelp label={label}>{description}</FieldHelp>
         ) : null}
+        {name ? <SaveTick label={feedbackLabel ?? label} name={name} /> : null}
       </div>
       {children}
       {name ? (

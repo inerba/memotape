@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ParlantiRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { cn } from "@/lib/utils";
-import { SettingFeedback } from "./setting-feedback";
+import { SaveTick, SettingFeedback } from "./setting-feedback";
 
 /** L'interruttore acceso è salvia, come Segui l'audio; spento resta il filo dei campi. */
 export const SWITCH_CLASS = "data-[state=checked]:bg-play";
@@ -85,6 +85,7 @@ export function SettingSwitch({
             {note}
           </FieldHelp>
         ) : null}
+        <SaveTick label={label} name={name} />
         {end ? control : null}
         {description ? (
           <span className="sr-only" id={`${id}-description`}>

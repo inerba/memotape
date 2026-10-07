@@ -241,3 +241,25 @@
     transform: scaleY(1);
   }
 }
+
+/* La spunta di un'impostazione salvata: compare, resta un attimo e svanisce. */
+@keyframes save-tick {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@utility animate-save-tick {
+  animation: save-tick 1.6s ease-out forwards;
+}

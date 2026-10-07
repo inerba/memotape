@@ -1,14 +1,17 @@
 import { RadioGroup } from "radix-ui";
-import { useCallback } from "react";
+import { type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
 /** L'altezza di ogni segmento, dentro una traccia con 2 px di margine. */
 const SIZES = { lg: "h-7", md: "h-6", sm: "h-[18px]" } as const;
 
-/** Una voce del controllo: il testo breve mostrato e quello intero per i lettori di schermo. */
+/**
+ * Una voce del controllo: quello che si mostra (testo breve o simbolo) e il nome intero, per il
+ * tooltip e i lettori di schermo.
+ */
 export interface SegmentedOption<T extends string> {
   label: string;
-  short: string;
+  short: ReactNode;
   value: T;
 }
 
@@ -71,7 +74,7 @@ export function Segmented<T extends string>({
         <RadioGroup.Item
           aria-label={option.label}
           className={cn(
-            "cursor-pointer whitespace-nowrap rounded-sm border border-transparent px-2 font-medium text-muted-foreground text-xs transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default data-[state=checked]:border-border data-[state=checked]:bg-card data-[state=checked]:text-foreground",
+            "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm border border-transparent px-2 font-medium text-muted-foreground text-xs transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default data-[state=checked]:border-border data-[state=checked]:bg-card data-[state=checked]:text-foreground",
             SIZES[size]
           )}
           key={option.value}

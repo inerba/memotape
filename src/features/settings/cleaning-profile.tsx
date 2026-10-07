@@ -1,3 +1,4 @@
+import { Power } from "lucide-react";
 import { useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppError, Sensibilita } from "@/bindings";
@@ -5,7 +6,7 @@ import { FieldHelp } from "@/components/field-help";
 import { Segmented } from "@/components/segmented";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { SettingFeedback } from "./setting-feedback";
+import { SaveTick, SettingFeedback } from "./setting-feedback";
 import { SWITCH_CLASS } from "./setting-switch";
 import { useSettings } from "./settings-context";
 
@@ -150,6 +151,7 @@ export function CleaningProfile({
           {inline ? (
             <FieldHelp label={enable}>{t(description)}</FieldHelp>
           ) : null}
+          <SaveTick label={enable} name={`${name}.pulizia`} />
           {menu ? cleaningSwitch : null}
         </div>
         {inlineFeedback ? (
@@ -171,6 +173,9 @@ export function CleaningProfile({
               <p className="mt-2">{t("settings.protection.scope")}</p>
             </FieldHelp>
           )}
+          {bar ? null : (
+            <SaveTick label={sensitivityLabel} name={`${name}.sensibilita`} />
+          )}
         </div>
         <Segmented
           className={layout === "settings" ? "w-fit" : undefined}
@@ -182,12 +187,20 @@ export function CleaningProfile({
           onChange={chooseSensitivity}
           options={LEVELS.map((level) => ({
             label: t(`settings.protection.levels.${level}`),
-            short: t(`settings.protection.short.${level}`),
+            short:
+              level === "spento" ? (
+                <Power aria-hidden className="size-3.5" />
+              ) : (
+                t(`settings.protection.short.${level}`)
+              ),
             value: level,
           }))}
           size={LAYOUTS[layout].size}
           value={sensitivity}
         />
+        {bar ? (
+          <SaveTick label={sensitivityLabel} name={`${name}.sensibilita`} />
+        ) : null}
         {inlineFeedback ? (
           <SettingFeedback
             className={bar ? "basis-full" : undefined}
