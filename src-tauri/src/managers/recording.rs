@@ -16,8 +16,15 @@ use tauri_specta::Event;
 use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::capture::{self, Capture, Kind};
+use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning, TrattoPulizia};
+#[cfg(test)]
+use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
+use crate::audio_toolkit::processing::AudioProcessor;
+#[cfg(test)]
+use crate::audio_toolkit::processing::Format;
+use crate::audio_toolkit::protection::{ProtectionTimeline, Sensibilita};
 use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
 use crate::library::Library;
@@ -32,8 +39,75 @@ use crate::managers::transcription::{
 use crate::tape;
 use crate::transcript::Ingresso;
 
+mod preparation;
+pub(crate) use preparation::{RecordingFilters, preload};
+
+#[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum RecordingPhase {
+    Preparing,
+    Cleaning,
+    Devices,
+    Recording,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingPhaseChanged {
+    pub session_id: String,
+    pub phase: RecordingPhase,
+}
+
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingCleaningPreparing {
+    pub session_id: String,
+    pub ingresso: Ingresso,
+    pub preparing: bool,
+}
+
+fn emit_phase(app: &AppHandle, session_id: &str, phase: RecordingPhase) {
+    if let Err(error) = (RecordingPhaseChanged {
+        session_id: session_id.into(),
+        phase,
+    })
+    .emit(app)
+    {
+        log::warn!("fase Registrazione non emessa: {error}");
+    }
+}
+
+fn emit_cleaning_preparing(app: &AppHandle, session_id: &str, ingresso: Ingresso, preparing: bool) {
+    if let Err(error) = (RecordingCleaningPreparing {
+        session_id: session_id.into(),
+        ingresso,
+        preparing,
+    })
+    .emit(app)
+    {
+        log::warn!("preparazione pulizia non emessa: {error}");
+    }
+}
+
+fn input_kinds(settings: &Settings) -> &'static [Kind] {
+    match settings.recording_source {
+        RecordingSource::Mic => &[Kind::Microphone],
+        RecordingSource::System => &[Kind::System],
+        RecordingSource::Both => &[Kind::Microphone, Kind::System],
+    }
+}
+
 /// Ogni quanto arriva `recording-tick`.
 const TICK: Duration = Duration::from_millis(100);
+
+/// Guasto recuperato: la cattura continua in bypass soltanto su questo Ingresso.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingCleaningFailed {
+    pub session_id: String,
+    pub ingresso: Ingresso,
+    pub error: AppError,
+}
 /// La cartella nascosta degli Ogg delle Registrazioni in corso, dentro la Cartella della Libreria.
 /// Dopo un crash l'audio è lì.
 pub(crate) const TEMP_FOLDER: &str = ".memotape";
@@ -72,19 +146,89 @@ pub struct RecordingSaved {
 
 #[derive(Default)]
 struct Controls {
+    session_id: String,
+    started: Mutex<bool>,
     paused: AtomicBool,
     stop: AtomicBool,
     /// Il Guadagno in dB del microfono e dell'audio di sistema.
     guadagno_microfono: AtomicI8,
     guadagno_sistema: AtomicI8,
+    pulizia_microfono: AtomicBool,
+    pulizia_sistema: AtomicBool,
+    cleaning_pending: [AtomicBool; 2],
+    sensibilita: Mutex<[Sensibilita; 2]>,
 }
 
 impl Controls {
-    fn set_guadagni(&self, settings: &Settings) {
+    fn stop(&self) {
+        let _started = self.started.lock().unwrap_or_else(PoisonError::into_inner);
+        self.stop.store(true, Ordering::Release);
+    }
+
+    fn checkpoint(&self) -> Result<(), AppError> {
+        if self.stop.load(Ordering::Acquire) {
+            Err(AppError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn begin(&self) -> Result<(), AppError> {
+        let mut started = self.started.lock().unwrap_or_else(PoisonError::into_inner);
+        self.checkpoint()?;
+        *started = true;
+        Ok(())
+    }
+    fn set_audio(&self, settings: &Settings) {
+        let _started = self.started.lock().unwrap_or_else(PoisonError::into_inner);
+        if self.stop.load(Ordering::Relaxed) {
+            return;
+        }
         self.guadagno_microfono
             .store(settings.guadagno_microfono, Ordering::Relaxed);
         self.guadagno_sistema
             .store(settings.guadagno_sistema, Ordering::Relaxed);
+        self.pulizia_microfono
+            .store(settings.audio_microfono.pulizia, Ordering::Relaxed);
+        self.pulizia_sistema
+            .store(settings.audio_sistema.pulizia, Ordering::Relaxed);
+        for kind in [Kind::Microphone, Kind::System] {
+            if !self.pulizia(kind) {
+                self.cleaning_preparing(kind, false);
+            }
+        }
+        *self
+            .sensibilita
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = [
+            settings.audio_microfono.sensibilita,
+            settings.audio_sistema.sensibilita,
+        ];
+    }
+
+    fn sensibilita(&self, kind: Kind) -> Sensibilita {
+        self.sensibilita
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)[match kind {
+            Kind::Microphone => 0,
+            Kind::System => 1,
+        }]
+    }
+
+    fn pulizia(&self, kind: Kind) -> bool {
+        match kind {
+            Kind::Microphone => self.pulizia_microfono.load(Ordering::Relaxed),
+            Kind::System => self.pulizia_sistema.load(Ordering::Relaxed),
+        }
+    }
+
+    /// Deduplica l'attesa per Ingresso; OFF la azzera anche fra due blocchi PCM.
+    fn cleaning_preparing(&self, kind: Kind, pending: bool) -> bool {
+        let index = match kind {
+            Kind::Microphone => 0,
+            Kind::System => 1,
+        };
+        self.cleaning_pending[index].swap(pending, Ordering::Relaxed) != pending
     }
 
     /// Il Guadagno in dB dell'ingresso `kind`.
@@ -100,23 +244,60 @@ impl Controls {
 #[derive(Default)]
 pub struct Recorder {
     current: Mutex<Option<Arc<Controls>>>,
+    cancelled_start: Mutex<Option<String>>,
 }
 
 impl Recorder {
     /// Mette in pausa o riprende. Restituisce `false` se non c'è una Registrazione.
     pub fn set_paused(&self, paused: bool) -> bool {
-        self.with(|c| c.paused.store(paused, Ordering::Relaxed))
+        self.with(|c| {
+            let _started = c.started.lock().unwrap_or_else(PoisonError::into_inner);
+            c.paused.store(paused, Ordering::Relaxed);
+        })
     }
 
     /// Ferma e salva. Restituisce `false` se non c'è una Registrazione.
     pub fn stop(&self) -> bool {
-        self.with(|c| c.stop.store(true, Ordering::Relaxed))
+        self.with(Controls::stop)
     }
 
-    /// Il Guadagno salvato in `store`, per la Registrazione in corso se c'è. Legge `store` sotto il
+    /// Memorizza anche Annulla arrivato prima dell'invocazione di record, per questa sola sessione.
+    pub fn cancel_start(&self, session_id: String) {
+        let mut cancelled = self
+            .cancelled_start
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(controls) = self.current().as_ref() {
+            if controls.session_id == session_id {
+                controls.stop();
+            }
+        } else {
+            *cancelled = Some(session_id);
+        }
+    }
+
+    fn register<'a>(&'a self, controls: &Arc<Controls>, settings: &Settings) -> Registration<'a> {
+        let mut cancelled = self
+            .cancelled_start
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut current = self.current();
+        controls.set_audio(settings);
+        if cancelled.as_deref() == Some(&controls.session_id) {
+            controls.stop();
+        }
+        *cancelled = None;
+        *current = Some(Arc::clone(controls));
+        Registration {
+            recorder: self,
+            session_id: controls.session_id.clone(),
+        }
+    }
+
+    /// Guadagno e pulizia salvati in `store`, per la Registrazione in corso. Legge sotto il
     /// lock dei controlli, come `record` quando li pubblica: vince sempre l'ultimo salvato.
-    pub fn set_guadagni(&self, store: &SettingsStore) {
-        self.with(|c| c.set_guadagni(&store.get()));
+    pub fn set_audio(&self, store: &SettingsStore) {
+        self.with(|c| c.set_audio(&store.get()));
     }
 
     fn with(&self, f: impl FnOnce(&Controls)) -> bool {
@@ -127,6 +308,30 @@ impl Recorder {
         self.current.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
+
+struct Registration<'a> {
+    recorder: &'a Recorder,
+    session_id: String,
+}
+impl Drop for Registration<'_> {
+    fn drop(&mut self) {
+        let mut current = self.recorder.current();
+        if current
+            .as_ref()
+            .is_some_and(|controls| controls.session_id == self.session_id)
+        {
+            *current = None;
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "recording/start_tests.rs"]
+mod start_tests;
+
+#[cfg(test)]
+#[path = "recording/cleaning_tests.rs"]
+mod cleaning_tests;
 
 /// Registra dagli ingressi delle impostazioni finché arriva Stop o un dispositivo si scollega,
 /// emettendo `recording-tick`. `prefix` è il prefisso tradotto del nome del file; il Tape va nella
@@ -142,7 +347,11 @@ pub async fn record(
 ) -> Result<RecordingSaved, AppError> {
     let folder = recordings_folder(&app)?;
     let destination = Library::raccolta_dir(&folder, raccolta.as_deref())?;
-    let controls = Arc::new(Controls::default());
+    let started_at = Instant::now();
+    let controls = Arc::new(Controls {
+        session_id: session_id.clone(),
+        ..Controls::default()
+    });
     let cancel = CancelToken::new();
     let final_cancel = CancelToken::new();
     let final_phase = Arc::new(Mutex::new(false));
@@ -157,13 +366,16 @@ pub async fn record(
             if *final_phase.lock().unwrap_or_else(PoisonError::into_inner) {
                 final_cancel.cancel();
             } else {
-                controls.stop.store(true, Ordering::Relaxed);
+                controls.stop();
                 cancel.cancel();
             }
         }
     })?;
     let internal = |e: tauri::Error| AppError::Internal(e.to_string());
     let settings = app.state::<SettingsStore>().get();
+    let registration = recorder.register(&controls, &settings);
+    controls.checkpoint()?;
+    emit_phase(&app, &session_id, RecordingPhase::Preparing);
     let diarized = settings.parlanti_registrazione();
     // La scelta si fissa all'avvio, inclusi errori di disponibilità: niente fallback implicito.
     let diarizer = if diarized.is_empty() {
@@ -180,8 +392,22 @@ pub async fn record(
             .and_then(|result| result),
         )
     };
+    controls.checkpoint()?;
     // Durante la cattura si avvia soltanto ASR. La Diarizzazione usa gli Ogg dopo Stop.
-    let (feeds, sources) = live_sources(&settings)?;
+    let (mut feeds, sources) = live_sources(&settings)?;
+    for feed in &mut feeds {
+        let (notify_app, notify_session) = (app.clone(), session_id.clone());
+        feed.on_failure(move |error| {
+            if let Err(error) = (transcription::LiveTranscriptionFailed {
+                session_id: notify_session,
+                error,
+            })
+            .emit(&notify_app)
+            {
+                log::warn!("guasto coda ASR non emesso: {error}");
+            }
+        });
+    }
     let live = if sources.is_empty() {
         None
     } else {
@@ -202,12 +428,6 @@ pub async fn record(
         }))
     };
     let separate = settings.ingressi_separati();
-    {
-        // Sotto lo stesso lock di `Recorder::set_guadagni`: un Guadagno salvato intanto non si perde.
-        let mut current = recorder.current();
-        controls.set_guadagni(&app.state::<SettingsStore>().get());
-        *current = Some(Arc::clone(&controls));
-    }
     let recorded = tauri::async_runtime::spawn_blocking({
         let (app, controls, settings) = (app.clone(), Arc::clone(&controls), settings.clone());
         let (folder, prefix) = (folder.clone(), prefix.clone());
@@ -227,7 +447,11 @@ pub async fn record(
     .await
     .map_err(internal)
     .and_then(|recorded| recorded);
-    *recorder.current() = None;
+    drop(registration);
+    log::info!(
+        "sessione {session_id}: cattura terminata dopo {:?} dalla richiesta backend",
+        started_at.elapsed()
+    );
     let recorded = match recorded {
         Ok(recorded) => recorded,
         Err(e) => {
@@ -368,6 +592,7 @@ pub async fn record(
         .as_ref()
         .and_then(|(t, _)| t.as_ref())
         .and_then(|t| t.diarizzazione.clone());
+    document.pulizia_audio = recorded.pulizia_audio.clone();
     let diarizzazione = document.diarizzazione.clone();
     let mut error = recorded.error.clone();
     let path =
@@ -469,6 +694,7 @@ struct Recorded {
     error: Option<AppError>,
     /// La Forma d'onda del mix.
     forma_onda: Vec<f32>,
+    pulizia_audio: Vec<TrattoPulizia>,
 }
 
 impl Recorded {
@@ -590,27 +816,120 @@ fn run(
     session_id: &str,
     folder: &Path,
     prefix: &str,
-    controls: &Controls,
+    controls: &Arc<Controls>,
     settings: &Settings,
     feeds: Vec<LiveFeed>,
 ) -> Result<Recorded, AppError> {
+    let preparing_at = Instant::now();
+    controls.checkpoint()?;
     let separate = settings.ingressi_separati();
     let channels = channel_count(settings.channels);
-    let kinds: &[Kind] = match settings.recording_source {
-        RecordingSource::Mic => &[Kind::Microphone],
-        RecordingSource::System => &[Kind::System],
-        RecordingSource::Both => &[Kind::Microphone, Kind::System],
-    };
+    let kinds = input_kinds(settings);
+    let log = CleaningLog::default();
+    let enabled: Vec<_> = kinds
+        .iter()
+        .map(|&kind| Arc::new(AtomicBool::new(controls.pulizia(kind))))
+        .collect();
+    // Un solo dispositivo trascrive il mix, ma usa il profilo di quel dispositivo.
+    let timelines: Vec<_> = kinds
+        .iter()
+        .enumerate()
+        .map(|(i, _)| {
+            feeds
+                .get(i)
+                .map_or_else(ProtectionTimeline::default, LiveFeed::protection)
+        })
+        .collect();
+    let model_path = preparation::resource_path(app)?;
+    let filters = app
+        .state::<RecordingFilters>()
+        .configure(model_path.clone(), settings);
+    let processors = kinds
+        .iter()
+        .zip(&enabled)
+        .zip(filters)
+        .map(|((&kind, enabled), filter)| {
+            controls.checkpoint()?;
+            let ingresso = match kind {
+                Kind::Microphone => Ingresso::Microfono,
+                Kind::System => Ingresso::Sistema,
+            };
+            let enabled = Arc::clone(enabled);
+            let (notify_app, notify_session) = (app.clone(), session_id.to_owned());
+            let deferred_filter = filter.clone();
+            let (ready_app, ready_session) = (app.clone(), session_id.to_owned());
+            let readiness_controls = Arc::clone(controls);
+            let mut processor = ConfiguredCleaning::new(
+                model_path.clone(),
+                move || enabled.load(Ordering::Relaxed),
+                ingresso,
+                log.clone(),
+            )
+            .deferred(Box::new(move || {
+                // Lo stesso lock di Stop decide se l'attivazione è ancora valida.
+                let _started = readiness_controls
+                    .started
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                if readiness_controls.stop.load(Ordering::Acquire)
+                    || readiness_controls.paused.load(Ordering::Relaxed)
+                    || !readiness_controls.pulizia(kind)
+                {
+                    return Ok(None);
+                }
+                let ready = deferred_filter.take_ready()?;
+                let pending = ready.is_none();
+                if readiness_controls.cleaning_preparing(kind, pending) {
+                    emit_cleaning_preparing(&ready_app, &ready_session, ingresso, pending);
+                }
+                Ok(ready.map(|filter| Box::new(filter) as Box<dyn AudioProcessor>))
+            }))
+            .recovering(move |error| {
+                log::warn!("pulizia {ingresso:?} interrotta: {error}");
+                if let Err(error) = (RecordingCleaningFailed {
+                    session_id: notify_session.clone(),
+                    ingresso,
+                    error,
+                })
+                .emit(&notify_app)
+                {
+                    log::warn!("recording-cleaning-failed non emesso: {error}");
+                }
+            });
+            if controls.pulizia(kind) {
+                emit_phase(app, session_id, RecordingPhase::Cleaning);
+                let waiting_at = Instant::now();
+                match filter
+                    .wait(|| controls.stop.load(Ordering::Acquire) || !controls.pulizia(kind))
+                {
+                    Ok(filter) => processor = processor.prepared(Box::new(filter)),
+                    Err(AppError::Cancelled) => controls.checkpoint()?,
+                    Err(error) => processor.preparation_failed(error)?,
+                }
+                log::info!(
+                    "sessione {session_id}: attesa pulizia {ingresso:?} {:?}",
+                    waiting_at.elapsed()
+                );
+            }
+            Ok(Box::new(processor) as Box<dyn AudioProcessor>)
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    controls.checkpoint()?;
+    emit_phase(app, session_id, RecordingPhase::Devices);
+    let devices_at = Instant::now();
     let (blocks_tx, blocks) = capture::channel(kinds.len());
     let captures = kinds
         .iter()
         .enumerate()
         .map(|(input, &kind)| {
+            controls.checkpoint()?;
             let id = match kind {
                 Kind::Microphone => settings.microphone.as_deref(),
                 Kind::System => settings.output_device.as_deref(),
             };
-            Capture::open(kind, id, input, blocks_tx.clone())
+            let capture = Capture::open(kind, id, input, blocks_tx.clone())?;
+            controls.checkpoint()?;
+            Ok::<_, AppError>(capture)
         })
         .collect::<Result<Vec<_>, _>>()?;
     // Restano solo i mittenti delle callback.
@@ -618,7 +937,15 @@ fn run(
     // Tutte le catture hanno lo stesso orologio (QPC).
     let now = || captures[0].now();
     let formats: Vec<_> = captures.iter().map(|c| (c.rate, c.channels)).collect();
-    let mut mixer = Mixer::new(now(), &formats, (settings.sample_rate, channels))?;
+    let mut mixer = Mixer::with_processors(
+        now(),
+        &formats,
+        (settings.sample_rate, channels),
+        processors,
+    )?;
+    for (input, &kind) in kinds.iter().enumerate() {
+        mixer.protect(input, &timelines[input], controls.sensibilita(kind));
+    }
     if separate {
         // Gli ingressi sono microfono e audio di sistema, in quest'ordine.
         mixer = mixer.with_tracks();
@@ -674,7 +1001,23 @@ fn run(
         for path in &created {
             let _ = std::fs::remove_file(path);
         }
+        let _ = std::fs::remove_dir(&temp);
     })?;
+    if let Err(error) = controls.begin() {
+        drop(outputs);
+        drop(captures);
+        for path in &created {
+            let _ = std::fs::remove_file(path);
+        }
+        let _ = std::fs::remove_dir(&temp);
+        return Err(error);
+    }
+    log::info!(
+        "sessione {session_id}: dispositivi e writer {:?}, avvio audio {:?}",
+        devices_at.elapsed(),
+        preparing_at.elapsed()
+    );
+    emit_phase(app, session_id, RecordingPhase::Recording);
     let mut out = Vec::new();
     let mut last_tick = Instant::now();
     let mut error = None;
@@ -698,11 +1041,34 @@ fn run(
         // Anche senza blocchi (il loopback a riproduzione ferma) l'orologio avanza ogni `TICK`.
         let received = blocks.recv_timeout(TICK);
         let paused = controls.paused.load(Ordering::Relaxed);
-        mixer.advance(now(), paused, &mut out);
+        if !paused && !controls.stop.load(Ordering::Relaxed) {
+            for (input, (&kind, applied)) in kinds.iter().zip(&enabled).enumerate() {
+                let next = controls.pulizia(kind);
+                if next != applied.load(Ordering::Relaxed) {
+                    // Scarica la coda col vecchio valore prima di osservare il nuovo PCM.
+                    mixer.configuration(input, &mut out)?;
+                    applied.store(next, Ordering::Relaxed);
+                }
+                mixer.protect(input, &timelines[input], controls.sensibilita(kind));
+            }
+        }
+        if let Err(e) = mixer.advance_pending(
+            now(),
+            paused,
+            received.as_ref().ok().map(|block| block.capture_ns),
+            &mut out,
+        ) {
+            error = Some(e);
+            break;
+        }
         match received {
             Ok(block) => {
-                mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
+                let processed = mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
                 captures[block.input].recycle(block.samples);
+                if let Err(e) = processed {
+                    error = Some(e);
+                    break;
+                }
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
@@ -737,11 +1103,17 @@ fn run(
     }
     // Quanto è stato catturato prima di Stop fa parte della Registrazione.
     let stop = now();
-    for block in blocks.try_iter().filter(|b| b.capture_ns < stop) {
-        mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
-    }
+    // Chiude prima i produttori: la coda a Stop è finita anche se il DSP è più lento della cattura.
     drop(captures);
-    mixer.finish(stop, &mut out);
+    for block in blocks.try_iter().filter(|b| b.capture_ns < stop) {
+        if let Err(e) = mixer.push(block.input, block.capture_ns, &block.samples, &mut out) {
+            error.get_or_insert(e);
+            break;
+        }
+    }
+    if let Err(e) = mixer.finish(stop, &mut out) {
+        error.get_or_insert(e);
+    }
     let durata_ms = mixer.elapsed_ms();
     let mut oggs = Vec::new();
     let mut forma_onda = Vec::new();
@@ -777,6 +1149,7 @@ fn run(
         durata_ms,
         error,
         forma_onda,
+        pulizia_audio: log.intervals(),
     })
 }
 
@@ -850,6 +1223,199 @@ pub(crate) fn create_numbered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pcm_elaborato_condivide_ogg_asr_forma_onda_e_tape_separato() {
+        use crate::audio_toolkit::decode::Decoder;
+        use crate::audio_toolkit::forma_onda::Picchi;
+        use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
+        use crate::audio_toolkit::processing::{Bypass, tests::DelayedScale};
+        use crate::audio_toolkit::resample::FrameResampler;
+        use crate::engine::pipeline::{
+            self, PipelineEvent,
+            tests::{EnergyDetector, FakeEngine},
+        };
+        use crate::managers::settings::SpeechLanguage;
+        use crate::transcript::Phrase;
+
+        let folder = temp_dir("pcm-comune-tape");
+        let cleaning_log = CleaningLog::default();
+        let processor = ConfiguredCleaning::with_factory(
+            Box::new(|| true),
+            Ingresso::Microfono,
+            cleaning_log.clone(),
+            Box::new(|_| Ok(Box::new(DelayedScale::new(2400)))),
+        )
+        .recovering(|error| panic!("{error}"));
+        let ingressi = [Ingresso::Mix, Ingresso::Microfono, Ingresso::Sistema];
+        let (feeds, sources): (Vec<_>, Vec<_>) =
+            live::channels(48_000, 2, 2).unwrap().into_iter().unzip();
+        let mut feeds = feeds.into_iter();
+        let mut outputs: Vec<_> = ingressi
+            .iter()
+            .map(|&ingresso| {
+                let path = folder.join(tape::audio_entry(ingresso));
+                Output {
+                    writer: OggOpusWriter::new(File::create(&path).unwrap(), 48_000, 2, 64)
+                        .unwrap(),
+                    ingresso,
+                    path,
+                    feed: (ingresso != Ingresso::Mix).then(|| feeds.next().unwrap()),
+                }
+            })
+            .collect();
+        let mut mixer = Mixer::with_processors(
+            0,
+            &[(48_000, 2), (48_000, 2)],
+            (48_000, 2),
+            vec![Box::new(processor), Box::new(Bypass)],
+        )
+        .unwrap()
+        .with_tracks();
+        let mic = sine(48_000, 2, 0.9);
+        let system: Vec<f32> = mic.iter().map(|s| s * 0.25).collect();
+        let expected = [
+            mic.iter()
+                .zip(&system)
+                .map(|(m, s)| m * 0.5 + s)
+                .collect::<Vec<_>>(),
+            mic.iter().map(|s| s * 0.5).collect(),
+            system.clone(),
+        ];
+        let mut out = Vec::new();
+        let mut delivered = [Vec::new(), Vec::new(), Vec::new()];
+        for (k, (m, s)) in mic.chunks(960).zip(system.chunks(960)).enumerate() {
+            mixer
+                .advance(k as u64 * 10_000_000, false, &mut out)
+                .unwrap();
+            mixer.push(0, k as u64 * 10_000_000, m, &mut out).unwrap();
+            mixer.push(1, k as u64 * 10_000_000, s, &mut out).unwrap();
+            for (all, audio) in delivered
+                .iter_mut()
+                .zip(std::iter::once(&out).chain(mixer.tracks().iter()))
+            {
+                all.extend_from_slice(audio);
+            }
+            write_ready(&mut outputs, &mut out, mixer.tracks(), false).unwrap();
+        }
+        mixer.finish(900_000_000, &mut out).unwrap();
+        for (all, audio) in delivered
+            .iter_mut()
+            .zip(std::iter::once(&out).chain(mixer.tracks().iter()))
+        {
+            all.extend_from_slice(audio);
+        }
+        write_ready(&mut outputs, &mut out, mixer.tracks(), false).unwrap();
+        assert_eq!(delivered, expected);
+        let mut picchi = Picchi::new(48_000, 2);
+        picchi.push(&expected[0]);
+        let forma_onda = picchi.values(1000);
+        let mut oggs = Vec::new();
+        for output in outputs {
+            if output.ingresso == Ingresso::Mix {
+                assert_eq!(output.writer.forma_onda(), forma_onda);
+            }
+            output.writer.finish().unwrap();
+            if let Some(feed) = output.feed {
+                feed.finish();
+            }
+            oggs.push((output.ingresso, output.path));
+        }
+        let mut phrases = Vec::new();
+        for ((ingresso, mut frames), pcm) in [Ingresso::Microfono, Ingresso::Sistema]
+            .into_iter()
+            .zip(sources)
+            .zip(&expected[1..])
+        {
+            let mut engine = FakeEngine::default();
+            pipeline::transcribe(
+                &mut frames,
+                &mut engine,
+                &mut EnergyDetector,
+                None,
+                &CancelToken::new(),
+                &mut |event| {
+                    if let PipelineEvent::Phrase {
+                        inizio_ms,
+                        fine_ms,
+                        text,
+                        tempi,
+                        ..
+                    } = event
+                    {
+                        phrases.push(Phrase {
+                            inizio_ms,
+                            fine_ms,
+                            text,
+                            tempi,
+                            ingresso,
+                            parlante: None,
+                            parlante_provvisorio: false,
+                            parlante_non_determinato: false,
+                        });
+                    }
+                },
+            )
+            .unwrap();
+            let mono: Vec<f32> = pcm.chunks_exact(2).map(|s| (s[0] + s[1]) * 0.5).collect();
+            let mut resampler = FrameResampler::new(48_000).unwrap();
+            let mut expected_asr = resampler.push(&mono);
+            expected_asr.extend(resampler.finish());
+            assert_eq!(engine.pcm, expected_asr.concat());
+        }
+        assert_eq!(phrases.len(), 2);
+        assert!(phrases.iter().all(|p| p.inizio_ms == 0 && p.fine_ms == 900));
+        let recorded = Recorded {
+            oggs,
+            start: Local::now(),
+            durata_ms: 900,
+            error: None,
+            forma_onda: forma_onda.clone(),
+            pulizia_audio: cleaning_log.intervals(),
+        };
+        let mut document = tape::Document::new(
+            tape::creato(recorded.start),
+            900,
+            tape::Modalita::IngressiSeparati,
+            Some("prova".into()),
+            SpeechLanguage::from("it"),
+            true,
+            &phrases,
+        );
+        document.pulizia_audio = recorded.pulizia_audio.clone();
+        assert_eq!(document.pulizia_audio.len(), 1);
+        assert_eq!(document.pulizia_audio[0].ingresso, Ingresso::Microfono);
+        assert_eq!(
+            (
+                document.pulizia_audio[0].inizio_frame,
+                document.pulizia_audio[0].fine_frame
+            ),
+            (0, 43200)
+        );
+        let path = save_tape(&folder, &folder, "Registrazione", &recorded, &document).unwrap();
+        assert_eq!(tape::read(&path).unwrap(), document);
+        assert_eq!(tape::forma_onda(&path), Some(forma_onda));
+        for (ingresso, pcm) in ingressi.into_iter().zip(&expected) {
+            let mut decoder = Decoder::open_ingresso(&path, ingresso).unwrap();
+            let mut reread = Vec::new();
+            while let Some(block) = decoder.next_block().unwrap() {
+                reread.extend(block.samples);
+            }
+            assert_eq!(reread.len(), pcm.len());
+            let rmse = (reread
+                .iter()
+                .zip(pcm)
+                .map(|(a, b)| (a - b).powi(2))
+                .sum::<f32>()
+                / pcm.len() as f32)
+                .sqrt();
+            assert!(rmse < 0.015, "{ingresso:?}: RMSE {rmse}");
+            let frames =
+                pipeline::FileFrames::new(Decoder::open_ingresso(&path, ingresso).unwrap(), None);
+            assert!(frames.collect::<Result<Vec<_>, _>>().is_ok());
+        }
+        std::fs::remove_dir_all(folder).unwrap();
+    }
 
     #[test]
     fn la_registrazione_avvia_solo_asr_anche_con_nemotron_e_tutti_i_parlanti_attivi() {
@@ -934,6 +1500,7 @@ mod tests {
                 durata_ms: 1000,
                 error: None,
                 forma_onda: vec![0.5],
+                pulizia_audio: Vec::new(),
             };
             let mut phrases = vec![Phrase {
                 inizio_ms: 0,
@@ -1081,6 +1648,7 @@ mod tests {
             durata_ms,
             error: None,
             forma_onda,
+            pulizia_audio: Vec::new(),
         };
         let mut document = tape::Document::new(
             tape::creato(recorded.start),
@@ -1142,6 +1710,7 @@ mod tests {
                 durata_ms: 100,
                 error: None,
                 forma_onda: vec![0.5, 0.25],
+                pulizia_audio: Vec::new(),
             }
         };
         let document = tape::Document::new(

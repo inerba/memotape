@@ -13,9 +13,39 @@ import {
   withLiveError,
   withMovedSource,
   withProgress,
+  withRecordingPhase,
 } from "@/features/status/status";
 
 const t = i18n.t.bind(i18n);
+
+test("la Registrazione resta in preparazione fino alla conferma audio e conserva i guasti anticipati", () => {
+  const preparing: Status = { phase: "preparingRecording", stage: "saving" };
+  const error = {
+    code: "liveTranscriptionUnavailable",
+    detail: "ASR",
+  } as const;
+  const waiting = withLiveError(preparing, error);
+  expect(waiting).toEqual({ ...preparing, liveError: error });
+  expect(bannerOf(waiting, t)).toEqual({
+    settings: true,
+    text: t("errors.codes.liveTranscriptionUnavailable", { detail: "ASR" }),
+    tone: "error",
+  });
+  expect(withRecordingPhase(waiting, "cleaning")).toEqual({
+    liveError: error,
+    phase: "preparingRecording",
+    stage: "cleaning",
+  });
+  expect(withRecordingPhase(waiting, "recording")).toEqual({
+    liveError: error,
+    paused: false,
+    phase: "recording",
+  });
+  const stopped: Status = { percent: null, phase: "completing" };
+  expect(withRecordingPhase(stopped, "recording")).toBe(stopped);
+  const cancelled: Status = { phase: "cancelled" };
+  expect(withRecordingPhase(cancelled, "devices")).toBe(cancelled);
+});
 
 test("la Diarizzazione autonoma ha esiti propri e conserva il collegamento alle Impostazioni", () => {
   expect(statusText({ phase: "diarizing" }, t)).toBe(

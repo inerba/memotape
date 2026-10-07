@@ -22,10 +22,10 @@
     "cancelling": "Cancelling…",
     "replace": {
       "title": "Transcribe the Tape again?",
-      "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost.",
+      "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost. Untreated audio will be cleaned according to the active profiles; previously cleaned sections are reused. Audio and text will be replaced together when finished. Cancelling or an error leaves the existing Tape unchanged.",
       "keep": "Keep the text",
       "confirm": "Replace",
-      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections."
+      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections. Untreated audio will be cleaned according to the active profiles; previously cleaned sections are reused. Audio and text will be replaced together when finished. Cancelling or an error leaves the existing Tape unchanged."
     },
     "parlanti": "Recognize speakers",
     "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
@@ -43,7 +43,10 @@
     "merge": "Merge",
     "mergeAbove": "Merge with the turn above",
     "mergeBelow": "Merge with the turn below",
-    "mergeCancel": "Cancel"
+    "mergeCancel": "Cancel",
+    "editTurn": "Edit turn text: {{name}}",
+    "emptyTurn": "Block without text",
+    "turnSaveFailed": "Correction not saved. Your text remains here; leave the field again to retry."
   },
   "diarization": {
     "start": "Diarize",
@@ -122,7 +125,11 @@
       "localDiarizerMissing": "Choose the local Nemotron Diarization model in Settings → Transcription",
       "localDiarizerIncompatible": "The local model does not match the verified Nemotron Diarization GGUF or cannot be loaded: {{detail}}",
       "liveDiarizationLagging": "Live speaker recognition fell behind and stopped. Audio and transcription continue; we will retry after Stop.",
-      "liveDiarizationUnavailable": "Live speaker recognition stopped. Audio and transcription continue; we will retry after Stop."
+      "liveDiarizationUnavailable": "Live speaker recognition stopped. Audio and transcription continue; we will retry after Stop.",
+      "audioCleaningMissing": "The DeepFilterNet3 model bundled with the app is missing. Reinstall Memotape.",
+      "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
+      "audioCleaningFailed": "Audio cleaning stopped; no new result was saved. An existing Tape remains unchanged: {{detail}}",
+      "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop."
     },
     "app": {
       "title": "Something went wrong",
@@ -144,12 +151,12 @@
       "title": "Transcription",
       "description": "Models transcribe on your computer: download them once, then they work offline.",
       "diarization": "Speaker recognition",
-      "diarizationDescription": "Choose the model for Recognize speakers in files, Tapes and recordings. Sortformer distinguishes up to 4 speakers after transcription.",
+      "diarizationDescription": "Identifies Speakers after Transcribing files and Tapes, or after Stop in Recordings. Sortformer distinguishes up to 4 Speakers.",
       "diarizer": "Speaker model",
       "nemotron3": "Nemotron 3 Diarization (experimental)",
       "localModel": "Local model",
       "experimentalDescription": "Experimental feature: speakers may be confused, especially with overlapping voices or many people.",
-      "recordingDiarizationDescription": "Speakers in recordings are recognized only after Stop. Live transcription continues during recording, without speaker recognition.",
+      "recordingDiarizationDescription": "Speakers are identified after Stop; only live Transcription continues during Recording.",
       "localModelDescription": "Select the compatible Nemotron 3 Diarization BF16 model. It is used for files, Tapes and recordings, including separate inputs.",
       "localModelMissing": "No local model selected",
       "chooseLocalModel": "Choose local model…"
@@ -165,7 +172,7 @@
       },
       "parlanti": "Recognize speakers",
       "parlantiMix": "On the mix",
-      "parlantiDescription": "With live transcription enabled, speakers in each selected input are recognized after Stop, with Nemotron or Sortformer. With Both, each input has separate speakers; the microphone is analyzed only when selected.",
+      "parlantiDescription": "With live Transcription enabled, identifies Speakers in the selected Inputs after Stop. Microphone and System audio are analysed separately.",
       "microphone": "Microphone",
       "outputDevice": "Output device",
       "defaultDevice": "System default",
@@ -178,7 +185,16 @@
       "stereo": "Stereo",
       "guadagno": "Gain",
       "sampleRate": "Sample rate",
-      "hz": "{{value, number}} Hz"
+      "hz": "{{value, number}} Hz",
+      "device": "Device",
+      "deviceFor": "Device: {{input}}",
+      "quality": "File quality",
+      "inactive": "Excluded from Recording",
+      "inactiveDescription": "This Input will not be recorded. Cleaning and Speech sensitivity remain available when Transcribing its Tapes.",
+      "gainDescription": "Changes the recorded level without changing Windows volume. Lower the Gain when the meter turns red. During Recording, changes apply to subsequent audio; when paused, from resume.",
+      "bitrateDescription": "Higher values retain more audio detail and use more storage.",
+      "channelsDescription": "Mono saves one channel; Stereo preserves the left and right channels.",
+      "sampleRateDescription": "Higher values retain higher frequencies. They cannot restore frequencies missing from the source."
     },
     "general": {
       "title": "General",
@@ -213,6 +229,37 @@
       "claudeDesktop": "Claude Desktop: merge into claude_desktop_config.json",
       "copy": "Copy",
       "copied": "Copied"
+    },
+    "cleaning": {
+      "profile": "Files and mixed audio",
+      "enable": "Clean up noise",
+      "description": "DeepFilterNet3 reduces noise in files, videos and Tapes without separate Inputs. Previously cleaned sections are reused. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
+      "recordingDescription": "DeepFilterNet3 reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. Cleaned sections are reused in Tapes: turning it off cannot restore the original."
+    },
+    "protection": {
+      "label": "Speech sensitivity",
+      "levels": {
+        "spento": "Off",
+        "sensibile": "More sensitive",
+        "bilanciato": "Balanced",
+        "selettivo": "More selective"
+      },
+      "scope": "Filters speech for Transcription without changing the audio or cleaning. Also applies to files and Tapes. During live Transcription, changes apply to subsequent speech, keeping the current Phrase intact.",
+      "descriptions": {
+        "spento": "Disables the additional filter; normal speech detection remains active.",
+        "sensibile": "Keeps more quiet voices and short replies; may include more noise.",
+        "bilanciato": "Balances quiet voices and short replies with noise filtering.",
+        "selettivo": "Filters more noise; may lose short or quiet words."
+      }
+    },
+    "help": "Information about {{field}}",
+    "save": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "failed": "{{field}}: could not save.",
+      "restored": "The previously saved value remains in effect.",
+      "retry": "Retry",
+      "retryField": "Retry saving {{field}}"
     }
   },
   "models": {
@@ -265,7 +312,18 @@
     },
     "level": "Level: {{input}}",
     "guadagno": "{{input}} gain",
-    "options": "Recording options"
+    "options": "Recording options",
+    "cleaningFailed": "Noise cleaning stopped for {{input}}. This recording continues keeping this input’s audio without further cleaning.",
+    "cleaningBypass": "Cleaning stopped: your choice remains saved, but this input continues without cleaning until Stop. Speech sensitivity keeps its selected value.",
+    "cleaningScope": "Changes affect only subsequent audio; while paused, they apply on resume. Turning cleaning off does not restore earlier audio.",
+    "preparation": {
+      "saving": "Saving settings…",
+      "preparing": "Preparing recording…",
+      "cleaning": "Preparing audio cleaning…",
+      "devices": "Opening audio devices…"
+    },
+    "started": "Recording started, you can speak",
+    "cleaningPreparing": "Preparing audio cleaning…"
   },
   "about": {
     "title": "About",
@@ -283,7 +341,8 @@
       "onnx": "Runs Silero VAD",
       "vadRs": "Bridge between Silero VAD and Rust",
       "diarization": "Speaker recognition",
-      "font": "Interface typeface"
+      "font": "Interface typeface",
+      "cleaning": "Local audio noise reduction"
     }
   },
   "transcript": {
@@ -369,7 +428,7 @@
   },
   "welcome": {
     "title": "Record, or import a file to transcribe",
-    "description": "The text appears as you work and is saved in the Library. Everything stays on your PC, with no account and, once the model is downloaded, no network."
+    "description": "Record audio or import a file to transcribe. Audio and text are saved in your Library."
   },
   "live": {
     "recording": "Recording in progress",
@@ -402,5 +461,20 @@
     "turns_one": "{{count}} turn",
     "turns_other": "{{count}} turns",
     "first": "Listen to their first turn"
+  },
+  "home": {
+    "title": "Home",
+    "back": "Back to Home",
+    "resume": "Pick up where you left off",
+    "resumeDescription": "Return to the last Tape you opened.",
+    "recentDescription": "Open a recent Tape from your Library.",
+    "lastOpened": "Last opened Tape",
+    "latestTape": "Most recent Tape",
+    "openTape": "Open Tape",
+    "openLibrary": "Open Library",
+    "loading": "Loading Library…",
+    "unreadable": "Check file",
+    "recordingTitle": "Recording at {{time}}",
+    "hint": "Record audio or import a file. Audio and text are saved in your Library."
   }
 }

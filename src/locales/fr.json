@@ -22,10 +22,10 @@
     "cancelling": "Annulation…",
     "replace": {
       "title": "Retranscrire le Tape ?",
-      "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus.",
+      "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus. L’audio non traité sera nettoyé selon les profils actifs ; les passages déjà nettoyés sont réutilisés. L’audio et le texte seront remplacés ensemble à la fin. Une annulation ou une erreur laisse le Tape existant inchangé.",
       "keep": "Garder le texte",
       "confirm": "Remplacer",
-      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles."
+      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles. L’audio non traité sera nettoyé selon les profils actifs ; les passages déjà nettoyés sont réutilisés. L’audio et le texte seront remplacés ensemble à la fin. Une annulation ou une erreur laisse le Tape existant inchangé."
     },
     "parlanti": "Reconnaître les intervenants",
     "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
@@ -43,7 +43,10 @@
     "merge": "Fusionner",
     "mergeAbove": "Fusionner avec l’intervention précédente",
     "mergeBelow": "Fusionner avec l’intervention suivante",
-    "mergeCancel": "Annuler"
+    "mergeCancel": "Annuler",
+    "editTurn": "Modifier le texte du tour : {{name}}",
+    "emptyTurn": "Bloc sans texte",
+    "turnSaveFailed": "Correction non enregistrée. Votre texte reste ici ; quittez à nouveau le champ pour réessayer."
   },
   "diarization": {
     "start": "Diariser",
@@ -122,7 +125,11 @@
       "localDiarizerMissing": "Choisissez le modèle local Nemotron Diarization dans Paramètres → Transcription",
       "localDiarizerIncompatible": "Le modèle local ne correspond pas au GGUF Nemotron Diarization vérifié ou ne peut pas être chargé : {{detail}}",
       "liveDiarizationLagging": "La reconnaissance des locuteurs en direct a pris du retard et a été interrompue. Audio et transcription continuent ; une nouvelle tentative suivra après Arrêter.",
-      "liveDiarizationUnavailable": "La reconnaissance des locuteurs en direct a été interrompue. Audio et transcription continuent ; une nouvelle tentative suivra après Arrêter."
+      "liveDiarizationUnavailable": "La reconnaissance des locuteurs en direct a été interrompue. Audio et transcription continuent ; une nouvelle tentative suivra après Arrêter.",
+      "audioCleaningMissing": "Le modèle DeepFilterNet3 fourni avec l’application est absent. Réinstallez Memotape.",
+      "audioCleaningIncompatible": "Le modèle DeepFilterNet3 fourni est incompatible : {{detail}}",
+      "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré. Un Tape existant reste inchangé : {{detail}}",
+      "liveTranscriptionLagging": "La transcription en direct a pris trop de retard et a été arrêtée. L’audio continue d’être enregistré ; vous pourrez le transcrire après Arrêter."
     },
     "app": {
       "title": "Un problème est survenu",
@@ -144,12 +151,12 @@
       "title": "Transcription",
       "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau.",
       "diarization": "Reconnaissance des intervenants",
-      "diarizationDescription": "Choisissez le modèle pour Reconnaître les intervenants dans les fichiers, les Tape et les enregistrements. Sortformer distingue jusqu’à 4 intervenants après la transcription.",
+      "diarizationDescription": "Identifie les Locuteurs après la Transcription des fichiers et Tapes, ou après Stop pour les Enregistrements. Sortformer distingue jusqu’à 4 Locuteurs.",
       "diarizer": "Modèle des locuteurs",
       "nemotron3": "Nemotron 3 Diarization (expérimental)",
       "localModel": "Modèle local",
       "experimentalDescription": "Fonction expérimentale : les intervenants peuvent être confondus, surtout lorsque les voix se chevauchent ou que les personnes sont nombreuses.",
-      "recordingDiarizationDescription": "Les intervenants des enregistrements sont reconnus uniquement après Arrêter. La transcription en direct continue pendant l’enregistrement, sans reconnaissance des intervenants.",
+      "recordingDiarizationDescription": "Les Locuteurs sont identifiés après Stop ; seule la Transcription en direct continue pendant l’Enregistrement.",
       "localModelDescription": "Sélectionnez le modèle BF16 compatible de Nemotron 3 Diarization. Il est utilisé pour les fichiers, les Tape et les enregistrements, y compris avec des entrées séparées.",
       "localModelMissing": "Aucun modèle local choisi",
       "chooseLocalModel": "Choisir un modèle local…"
@@ -165,7 +172,7 @@
       },
       "parlanti": "Reconnaître les locuteurs",
       "parlantiMix": "Sur le mixage",
-      "parlantiDescription": "Avec la transcription en direct, les intervenants de chaque entrée sélectionnée sont reconnus après Arrêter, avec Nemotron ou Sortformer. Avec Les deux, chaque entrée a ses intervenants ; le microphone est analysé seulement s’il est sélectionné.",
+      "parlantiDescription": "Avec la Transcription en direct, identifie les Locuteurs des Entrées sélectionnées après Stop. Microphone et audio système sont analysés séparément.",
       "microphone": "Microphone",
       "outputDevice": "Périphérique de sortie",
       "defaultDevice": "Par défaut du système",
@@ -178,7 +185,16 @@
       "stereo": "Stéréo",
       "guadagno": "Gain",
       "sampleRate": "Fréquence d'échantillonnage",
-      "hz": "{{value, number}} Hz"
+      "hz": "{{value, number}} Hz",
+      "device": "Périphérique",
+      "deviceFor": "Périphérique : {{input}}",
+      "quality": "Qualité du fichier",
+      "inactive": "Exclu de l’Enregistrement",
+      "inactiveDescription": "Cette Entrée ne sera pas enregistrée. Le nettoyage et la sensibilité restent disponibles pour Transcrire ses Tapes.",
+      "gainDescription": "Modifie le niveau enregistré sans changer le volume de Windows. Baissez le Gain lorsque le niveau devient rouge. En cours d’Enregistrement, les changements valent pour l’audio suivant ; en pause, à la reprise.",
+      "bitrateDescription": "Une valeur plus élevée conserve plus de détails audio et utilise plus d’espace.",
+      "channelsDescription": "Mono enregistre un canal ; Stéréo conserve les canaux gauche et droit.",
+      "sampleRateDescription": "Une valeur plus élevée conserve des fréquences plus hautes, sans restaurer celles absentes de la source."
     },
     "general": {
       "title": "Général",
@@ -213,6 +229,37 @@
       "claudeDesktop": "Claude Desktop : fusionnez dans claude_desktop_config.json",
       "copy": "Copier",
       "copied": "Copié"
+    },
+    "cleaning": {
+      "profile": "Fichiers et audio mixte",
+      "enable": "Réduire le bruit",
+      "description": "DeepFilterNet3 réduit le bruit des fichiers, vidéos et Tapes sans Entrées séparées. Les passages déjà nettoyés sont réutilisés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
+      "recordingDescription": "DeepFilterNet3 réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Les passages nettoyés sont réutilisés dans les Tapes : le désactiver ne restaure pas l’original."
+    },
+    "protection": {
+      "label": "Sensibilité de la parole",
+      "levels": {
+        "spento": "Désactivée",
+        "sensibile": "Plus sensible",
+        "bilanciato": "Équilibrée",
+        "selettivo": "Plus sélective"
+      },
+      "scope": "Filtre la parole pour la Transcription, sans modifier l’audio ni le nettoyage. Vaut aussi pour les fichiers et les Tapes. En direct, les changements valent pour la parole suivante, en gardant la Phrase en cours entière.",
+      "descriptions": {
+        "spento": "Désactive le filtre supplémentaire ; la détection habituelle de la parole reste active.",
+        "sensibile": "Conserve davantage de voix faibles et de réponses brèves ; peut inclure plus de bruit.",
+        "bilanciato": "Équilibre voix faibles et réponses brèves avec le filtrage du bruit.",
+        "selettivo": "Filtre davantage de bruit ; peut perdre des mots brefs ou faibles."
+      }
+    },
+    "help": "Informations sur {{field}}",
+    "save": {
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "failed": "{{field}} : enregistrement impossible.",
+      "restored": "La valeur précédemment enregistrée reste en vigueur.",
+      "retry": "Réessayer",
+      "retryField": "Réessayer d’enregistrer {{field}}"
     }
   },
   "models": {
@@ -265,7 +312,18 @@
     },
     "level": "Niveau : {{input}}",
     "guadagno": "Gain : {{input}}",
-    "options": "Options d'enregistrement"
+    "options": "Options d'enregistrement",
+    "cleaningFailed": "Nettoyage du bruit interrompu pour {{input}}. Cet enregistrement continue en conservant l’audio de cette entrée sans nettoyage supplémentaire.",
+    "cleaningBypass": "Nettoyage interrompu : votre choix reste enregistré, mais cette entrée continue sans nettoyage jusqu’à l’arrêt. La sensibilité conserve la valeur choisie.",
+    "cleaningScope": "Les changements concernent uniquement l’audio suivant ; en pause, ils s’appliquent à la reprise. Désactiver le nettoyage ne restaure pas l’audio précédent.",
+    "preparation": {
+      "saving": "Enregistrement des paramètres…",
+      "preparing": "Préparation de l’enregistrement…",
+      "cleaning": "Préparation du nettoyage audio…",
+      "devices": "Ouverture des périphériques audio…"
+    },
+    "started": "Enregistrement démarré, vous pouvez parler",
+    "cleaningPreparing": "Préparation du nettoyage audio…"
   },
   "about": {
     "title": "À propos",
@@ -283,7 +341,8 @@
       "onnx": "Exécution de Silero VAD",
       "vadRs": "Liaison entre Silero VAD et Rust",
       "diarization": "Reconnaissance des intervenants",
-      "font": "Police de l'interface"
+      "font": "Police de l'interface",
+      "cleaning": "Réduction locale du bruit audio"
     }
   },
   "transcript": {
@@ -369,7 +428,7 @@
   },
   "welcome": {
     "title": "Enregistrez ou importez un fichier à transcrire",
-    "description": "Le texte apparaît pendant que vous travaillez et s'enregistre dans la Bibliothèque. Tout reste sur votre PC, sans compte et, une fois le modèle téléchargé, sans réseau."
+    "description": "Enregistre de l’audio ou importe un fichier à transcrire. L’audio et le texte sont sauvegardés dans la Bibliothèque."
   },
   "live": {
     "recording": "Enregistrement en cours",
@@ -404,5 +463,20 @@
     "turns_many": "{{count}} tours",
     "turns_other": "{{count}} tours",
     "first": "Écouter sa première intervention"
+  },
+  "home": {
+    "title": "Accueil",
+    "back": "Retour à l’accueil",
+    "resume": "Reprendre",
+    "resumeDescription": "Retrouve le dernier Tape ouvert.",
+    "recentDescription": "Ouvre un Tape récent de ta Bibliothèque.",
+    "lastOpened": "Dernier Tape ouvert",
+    "latestTape": "Tape le plus récent",
+    "openTape": "Ouvrir le Tape",
+    "openLibrary": "Ouvrir la Bibliothèque",
+    "loading": "Chargement de la Bibliothèque…",
+    "unreadable": "Fichier à vérifier",
+    "recordingTitle": "Enregistrement de {{time}}",
+    "hint": "Enregistre de l’audio ou importe un fichier. L’audio et le texte sont sauvegardés dans la Bibliothèque."
   }
 }

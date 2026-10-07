@@ -1,15 +1,20 @@
 //! Fonte di frame della Trascrizione dal vivo. La Registrazione spinge l'uscita del mixer (il mix, o
-//! con gli Ingressi separati ogni Ingresso) in un canale senza limite (`LiveFeed`) e una pipeline la
+//! con gli Ingressi separati ogni Ingresso) in un canale limitato (`LiveFeed`) e una pipeline la
 //! legge in un altro thread (`LiveFrames`): la Registrazione non aspetta mai il motore, che se resta
 //! indietro accoda i frame e dopo Stop smaltisce la coda con il progresso.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 
 use super::pipeline::Feed;
+use crate::audio_toolkit::protection::ProtectionTimeline;
 use crate::audio_toolkit::resample::FrameResampler;
 use crate::error::AppError;
+
+// 2000 frame da 30 ms: al massimo 60 s, circa 3,8 MB di PCM per Ingresso.
+// Anche le chiusure di Frase occupano un posto; la cattura non aspetta mai ASR.
+const MAX_QUEUED_FEEDS: usize = 2000;
 
 /// Il progresso dello smaltimento, comune a tutti i canali di una Registrazione.
 struct Shared {
@@ -40,9 +45,14 @@ pub fn channels(
     });
     (0..n)
         .map(|_| {
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = mpsc::sync_channel(MAX_QUEUED_FEEDS);
+            let overflow = Arc::new(AtomicBool::new(false));
+            let protection = ProtectionTimeline::default();
             let feed = LiveFeed {
-                tx,
+                protection: protection.clone(),
+                tx: Some(tx),
+                overflow: overflow.clone(),
+                on_failure: None,
                 shared: Arc::clone(&shared),
                 channels,
                 resampler: FrameResampler::new(rate)?,
@@ -51,7 +61,10 @@ pub fn channels(
                 diarization: None,
             };
             let frames = LiveFrames {
+                protection,
                 rx,
+                overflow,
+                failure_reported: false,
                 shared: Arc::clone(&shared),
             };
             Ok((feed, frames))
@@ -61,8 +74,11 @@ pub fn channels(
 
 /// Il lato della Registrazione: scende in mono, ricampiona a 16 kHz e manda i frame.
 pub struct LiveFeed {
+    protection: ProtectionTimeline,
     diarization: Option<super::live_diarization::DiarizationFeed>,
-    tx: Sender<Feed>,
+    tx: Option<SyncSender<Feed>>,
+    overflow: Arc<AtomicBool>,
+    on_failure: Option<Box<dyn FnOnce(AppError) + Send>>,
     shared: Arc<Shared>,
     channels: usize,
     resampler: FrameResampler,
@@ -71,6 +87,14 @@ pub struct LiveFeed {
 }
 
 impl LiveFeed {
+    pub fn on_failure(&mut self, notify: impl FnOnce(AppError) + Send + 'static) {
+        self.on_failure = Some(Box::new(notify));
+    }
+
+    /// Il worker cattura le revisioni prima dei buffer PCM, sulla stessa linea del tempo.
+    pub fn protection(&self) -> ProtectionTimeline {
+        self.protection.clone()
+    }
     #[cfg(test)]
     pub fn set_diarization(&mut self, feed: super::live_diarization::DiarizationFeed) {
         self.diarization = Some(feed);
@@ -105,17 +129,31 @@ impl LiveFeed {
             if let Some(diarization) = &mut self.diarization {
                 diarization.push(&frame);
             }
-            // Contato prima di mandarlo: la pipeline non ne consuma mai più di quelli mandati.
-            self.shared.sent.fetch_add(1, Ordering::Relaxed);
             self.send(Feed::Frame(frame));
         }
     }
 
-    fn send(&self, input: Feed) {
-        // Una pipeline già uscita (modello assente, errore, Annulla) non riceve più: la Registrazione
-        // continua lo stesso, e i suoi frame non contano nel progresso delle altre.
-        if let Err(mpsc::SendError(Feed::Frame(_))) = self.tx.send(input) {
-            self.shared.sent.fetch_sub(1, Ordering::Relaxed);
+    fn send(&mut self, input: Feed) {
+        let Some(sender) = &self.tx else { return };
+        let frame = matches!(input, Feed::Frame(_));
+        if frame {
+            self.shared.sent.fetch_add(1, Ordering::Relaxed);
+        }
+        match sender.try_send(input) {
+            Ok(()) => {}
+            Err(error) => {
+                if frame {
+                    self.shared.sent.fetch_sub(1, Ordering::Relaxed);
+                }
+                if matches!(error, mpsc::TrySendError::Full(_)) {
+                    // La sessione ASR è fallita: non si riparte con buchi o tempi inventati.
+                    self.overflow.store(true, Ordering::Release);
+                    if let Some(notify) = self.on_failure.take() {
+                        notify(AppError::LiveTranscriptionLagging);
+                    }
+                }
+                self.tx = None;
+            }
         }
     }
 }
@@ -123,11 +161,17 @@ impl LiveFeed {
 /// Il lato della pipeline: i frame nell'ordine in cui la Registrazione li ha mandati. Finita la
 /// Registrazione, prima di ogni frame emette il progresso dello smaltimento quando cambia.
 pub struct LiveFrames {
+    protection: ProtectionTimeline,
     rx: Receiver<Feed>,
+    overflow: Arc<AtomicBool>,
+    failure_reported: bool,
     shared: Arc<Shared>,
 }
 
 impl LiveFrames {
+    pub fn protection(&self) -> ProtectionTimeline {
+        self.protection.clone()
+    }
     /// Ritardo della coda ASR, distinto dal buffer e dal calcolo dei Parlanti.
     pub fn backlog(&self) -> impl Fn() -> usize + Send + 'static {
         let shared = Arc::clone(&self.shared);
@@ -170,6 +214,13 @@ impl Iterator for LiveFrames {
     type Item = Result<Feed, AppError>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.overflow.load(Ordering::Acquire) {
+            if self.failure_reported {
+                return None;
+            }
+            self.failure_reported = true;
+            return Some(Err(AppError::LiveTranscriptionLagging));
+        }
         if let Some(percent) = self.progress_changed() {
             return Some(Ok(Feed::Progress(Some(percent))));
         }
@@ -194,6 +245,29 @@ mod tests {
     use crate::engine::pipeline::{PipelineEvent, transcribe};
     use crate::managers::settings::SpeechLanguage;
     use crate::transcript::{Ingresso, Phrase, Transcript};
+
+    #[test]
+    fn asr_bloccata_limita_coda_avvisa_e_lascia_continuare_la_cattura() {
+        let (mut feed, mut frames) = channel(16_000, 1).unwrap();
+        let warnings = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let notified = warnings.clone();
+        feed.on_failure(move |error| notified.lock().unwrap().push(error));
+        let block = vec![0.1; FRAME_SAMPLES];
+        for _ in 0..MAX_QUEUED_FEEDS + 100 {
+            feed.push(&block, false);
+        }
+        assert_eq!(frames.rx.try_iter().count(), MAX_QUEUED_FEEDS);
+        assert_eq!(
+            *warnings.lock().unwrap(),
+            [AppError::LiveTranscriptionLagging]
+        );
+        assert!(matches!(
+            frames.next(),
+            Some(Err(AppError::LiveTranscriptionLagging))
+        ));
+        assert!(frames.next().is_none());
+        feed.finish();
+    }
 
     /// Un solo canale, come per il mix.
     fn channel(rate: u32, channels: usize) -> Result<(LiveFeed, LiveFrames), AppError> {

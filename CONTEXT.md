@@ -18,6 +18,10 @@ _Avoid_: job, task, operazione
 L'Attività che cattura microfono, audio di sistema o entrambi in un unico file.
 _Avoid_: recording, cattura
 
+**Preparazione della Registrazione**:
+La fase fra la richiesta di Registra e la conferma che l'audio viene registrato. Si può annullare senza creare un Tape; non indica ancora che si possa cominciare a parlare.
+_Avoid_: Registrazione in corso, preloader, riscaldamento
+
 **Continuazione**:
 Una Registrazione che, invece di creare un Tape nuovo, accoda il suo audio e le sue Frasi a un Tape esistente; il Tape ricorda dove e quando comincia ogni Continuazione.
 _Avoid_: ripresa, riprendere (è il contrario di Pausa), append, prosecuzione
@@ -37,6 +41,21 @@ _Avoid_: sorgente (è la Sorgente), input
 **Guadagno**:
 Quanto Memotape alza o abbassa l'audio di un Ingresso durante una Registrazione, prima di unirlo agli altri: cambia l'audio salvato e quello trascritto, non il volume di Windows né quello delle altre app.
 _Avoid_: volume (è quello del player o di Windows), gain, livello (è quello che mostra l'indicatore)
+
+**Pulizia audio**:
+Il trattamento facoltativo che riduce il rumore nell'audio conservato e usato dalla Trascrizione. Spegnerlo non recupera l'originale di un tratto già elaborato.
+_Avoid_: protezione del parlato (decide quali Frasi trascrivere), Guadagno (alza o abbassa l'audio)
+
+**Sensibilità del parlato**:
+Il livello della protezione aggiuntiva che decide quali candidate Frasi inviare
+alla Trascrizione: Spento, Più sensibile, Bilanciato, Più selettivo. È distinto
+dalla Pulizia audio; Spento mantiene Silero.
+
+**Profilo audio**:
+Le preferenze persistenti del trattamento di Microfono, Audio di sistema oppure File e audio misto. Ciascun profilo è indipendente dagli altri.
+
+**Tratto di pulizia**:
+Un intervallo dell'audio di un Ingresso effettivamente elaborato, ricordato dal Tape insieme al trattamento usato. Gli intervalli non inclusi restano non trattati.
 
 **Tape**:
 Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (quando la Registrazione è da Entrambi), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.

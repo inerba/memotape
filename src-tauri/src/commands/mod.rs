@@ -234,7 +234,7 @@ pub async fn tape_text(app: AppHandle, path: String) -> Result<String, AppError>
 }
 
 /// La Forma d'onda del mix del Tape `path` per il player: `count` picchi (0–1), meno se l'audio è
-/// più corto di `count` × 20 ms. Salvata nel Tape; se manca si calcola e si prova a salvarla.
+/// più corto di `count` × 20 ms. Se manca nel Tape si calcola in memoria, senza riscrivere la Sorgente.
 #[tauri::command]
 #[specta::specta]
 pub async fn tape_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<f32>, AppError> {
@@ -311,6 +311,25 @@ pub async fn edit_frase(
 ) -> Result<(), AppError> {
     write_tape(app, &activity, tape_path(&path)?, move |path| {
         tape::edit_frase(path, ingresso, phrase_id, &testo)
+    })
+    .await
+}
+
+/// Salva il testo continuo di un Turno e restituisce il documento realmente scritto.
+#[tauri::command]
+#[specta::specta]
+pub async fn edit_turno(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    ingresso: Ingresso,
+    phrase_ids: Vec<u32>,
+    originale: String,
+    testo: String,
+) -> Result<managers::transcription::OpenedTape, AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::edit_turno(path, ingresso, &phrase_ids, &originale, &testo)?;
+        managers::transcription::open_tape(path)
     })
     .await
 }
@@ -412,7 +431,7 @@ pub fn system_language() -> Language {
 
 /// Valida e salva le impostazioni e restituisce quelle salvate: se all'avvio il file non si è letto,
 /// sono le sue con sopra le modifiche. Se cambia il modello scelto, lo carica in background; se
-/// cambia il tema, lo applica subito. Il Guadagno vale subito anche per la Registrazione in corso.
+/// cambia il tema, lo applica subito. Guadagno e pulizia valgono anche per la Registrazione in corso.
 #[tauri::command]
 #[specta::specta]
 pub fn set_settings(
@@ -423,7 +442,8 @@ pub fn set_settings(
 ) -> Result<Settings, AppError> {
     let previous = store.set(settings)?;
     let saved = store.get();
-    recorder.set_guadagni(&store);
+    recorder.set_audio(&store);
+    managers::recording::preload(&app);
     if previous.model != saved.model {
         managers::transcription::preload(&app);
     }
@@ -508,6 +528,13 @@ pub fn pause_recording(recorder: State<'_, Recorder>, paused: bool) -> bool {
 #[specta::specta]
 pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
     recorder.stop()
+}
+
+/// Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_recording_start(recorder: State<'_, Recorder>, session_id: String) {
+    recorder.cancel_start(session_id);
 }
 
 /// La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`.

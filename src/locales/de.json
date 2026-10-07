@@ -22,10 +22,10 @@
     "cancelling": "Wird abgebrochen…",
     "replace": {
       "title": "Tape erneut transkribieren?",
-      "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren.",
+      "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren. Unbearbeitetes Audio wird gemäß den aktiven Profilen bereinigt; bereits bereinigte Abschnitte werden wiederverwendet. Audio und Text werden am Ende gemeinsam ersetzt. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert.",
       "keep": "Text behalten",
       "confirm": "Ersetzen",
-      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen."
+      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen. Unbearbeitetes Audio wird gemäß den aktiven Profilen bereinigt; bereits bereinigte Abschnitte werden wiederverwendet. Audio und Text werden am Ende gemeinsam ersetzt. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert."
     },
     "parlanti": "Sprecher erkennen",
     "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
@@ -43,7 +43,10 @@
     "merge": "Zusammenführen",
     "mergeAbove": "Mit dem vorherigen Beitrag zusammenführen",
     "mergeBelow": "Mit dem nächsten Beitrag zusammenführen",
-    "mergeCancel": "Abbrechen"
+    "mergeCancel": "Abbrechen",
+    "editTurn": "Text des Sprechbeitrags bearbeiten: {{name}}",
+    "emptyTurn": "Block ohne Text",
+    "turnSaveFailed": "Korrektur nicht gespeichert. Ihr Text bleibt hier; verlassen Sie das Feld erneut, um es nochmals zu versuchen."
   },
   "diarization": {
     "start": "Diarisieren",
@@ -122,7 +125,11 @@
       "localDiarizerMissing": "Wählen Sie das lokale Nemotron-Diarization-Modell unter Einstellungen → Transkription",
       "localDiarizerIncompatible": "Das lokale Modell entspricht nicht der geprüften Nemotron-Diarization-GGUF-Datei oder kann nicht geladen werden: {{detail}}",
       "liveDiarizationLagging": "Die Live-Sprechererkennung kommt nicht hinterher und wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut.",
-      "liveDiarizationUnavailable": "Die Live-Sprechererkennung wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut."
+      "liveDiarizationUnavailable": "Die Live-Sprechererkennung wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut.",
+      "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
+      "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
+      "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert. Ein vorhandenes Tape bleibt unverändert: {{detail}}",
+      "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren."
     },
     "app": {
       "title": "Etwas ist schiefgelaufen",
@@ -144,12 +151,12 @@
       "title": "Transkription",
       "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline.",
       "diarization": "Sprechererkennung",
-      "diarizationDescription": "Wähle das Modell für Sprecher erkennen in Dateien, Tapes und Aufnahmen. Sortformer unterscheidet bis zu 4 Sprecher nach der Transkription.",
+      "diarizationDescription": "Erkennt Sprecher nach der Transkription von Dateien und Tapes oder nach Stop bei Aufnahmen. Sortformer unterscheidet bis zu 4 Sprecher.",
       "diarizer": "Sprechermodell",
       "nemotron3": "Nemotron 3 Diarization (experimentell)",
       "localModel": "Lokales Modell",
       "experimentalDescription": "Experimentelle Funktion: Sprecher können verwechselt werden, besonders bei überlappenden Stimmen oder vielen Personen.",
-      "recordingDiarizationDescription": "Sprecher in Aufnahmen werden erst nach Stopp erkannt. Die Live-Transkription läuft während der Aufnahme weiter, ohne Sprechererkennung.",
+      "recordingDiarizationDescription": "Sprecher werden nach Stop erkannt; während der Aufnahme läuft nur die Live-Transkription weiter.",
       "localModelDescription": "Wähle das kompatible BF16-Modell von Nemotron 3 Diarization. Es wird für Dateien, Tapes und Aufnahmen verwendet, auch mit getrennten Eingängen.",
       "localModelMissing": "Kein lokales Modell ausgewählt",
       "chooseLocalModel": "Lokales Modell wählen…"
@@ -165,7 +172,7 @@
       },
       "parlanti": "Sprecher erkennen",
       "parlantiMix": "Im Mix",
-      "parlantiDescription": "Mit Live-Transkription werden die Sprecher jedes ausgewählten Eingangs nach Stopp mit Nemotron oder Sortformer erkannt. Bei Beide hat jeder Eingang eigene Sprecher; das Mikrofon wird nur bei Auswahl analysiert.",
+      "parlantiDescription": "Bei Live-Transkription werden die Sprecher der ausgewählten Eingänge nach Stop erkannt. Mikrofon und Systemaudio werden getrennt analysiert.",
       "microphone": "Mikrofon",
       "outputDevice": "Ausgabegerät",
       "defaultDevice": "Systemstandard",
@@ -178,7 +185,16 @@
       "stereo": "Stereo",
       "guadagno": "Verstärkung",
       "sampleRate": "Abtastrate",
-      "hz": "{{value, number}} Hz"
+      "hz": "{{value, number}} Hz",
+      "device": "Gerät",
+      "deviceFor": "Gerät: {{input}}",
+      "quality": "Dateiqualität",
+      "inactive": "Von der Aufnahme ausgeschlossen",
+      "inactiveDescription": "Dieser Eingang wird nicht aufgenommen. Bereinigung und Sprachempfindlichkeit bleiben für die Transkription seiner Tapes verfügbar.",
+      "gainDescription": "Ändert den Aufnahmepegel, ohne die Windows-Lautstärke zu ändern. Bei roter Anzeige die Verstärkung senken. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen.",
+      "bitrateDescription": "Höhere Werte erhalten mehr Audiodetails und benötigen mehr Speicherplatz.",
+      "channelsDescription": "Mono speichert einen Kanal; Stereo erhält den linken und rechten Kanal.",
+      "sampleRateDescription": "Höhere Werte erhalten höhere Frequenzen, können aber fehlende Frequenzen der Quelle nicht wiederherstellen."
     },
     "general": {
       "title": "Allgemein",
@@ -213,6 +229,37 @@
       "claudeDesktop": "Claude Desktop: in claude_desktop_config.json einfügen",
       "copy": "Kopieren",
       "copied": "Kopiert"
+    },
+    "cleaning": {
+      "profile": "Dateien und gemischtes Audio",
+      "enable": "Rauschen reduzieren",
+      "description": "DeepFilterNet3 reduziert Rauschen in Dateien, Videos und Tapes ohne getrennte Eingänge. Bereits bereinigte Abschnitte werden wiederverwendet. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
+      "recordingDescription": "DeepFilterNet3 reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Bereinigte Abschnitte werden in Tapes wiederverwendet: Ausschalten stellt das Original nicht wieder her."
+    },
+    "protection": {
+      "label": "Sprachempfindlichkeit",
+      "levels": {
+        "spento": "Aus",
+        "sensibile": "Empfindlicher",
+        "bilanciato": "Ausgewogen",
+        "selettivo": "Selektiver"
+      },
+      "scope": "Filtert Sprache für die Transkription, ohne Audio oder Bereinigung zu ändern. Gilt auch für Dateien und Tapes. Live-Änderungen gelten für die folgende Sprache; die laufende Phrase bleibt vollständig.",
+      "descriptions": {
+        "spento": "Deaktiviert den zusätzlichen Filter; die normale Spracherkennung bleibt aktiv.",
+        "sensibile": "Behält mehr leise Stimmen und kurze Antworten; kann mehr Geräusche einschließen.",
+        "bilanciato": "Wägt leise Stimmen und kurze Antworten gegen die Geräuschfilterung ab.",
+        "selettivo": "Filtert mehr Geräusche; kann kurze oder leise Wörter verlieren."
+      }
+    },
+    "help": "Informationen zu {{field}}",
+    "save": {
+      "saving": "Wird gespeichert…",
+      "saved": "Gespeichert",
+      "failed": "{{field}}: Speichern fehlgeschlagen.",
+      "restored": "Der zuvor gespeicherte Wert bleibt gültig.",
+      "retry": "Erneut versuchen",
+      "retryField": "{{field}} erneut speichern"
     }
   },
   "models": {
@@ -265,7 +312,18 @@
     },
     "level": "Pegel: {{input}}",
     "guadagno": "Verstärkung: {{input}}",
-    "options": "Aufnahmeoptionen"
+    "options": "Aufnahmeoptionen",
+    "cleaningFailed": "Rauschbereinigung für {{input}} unterbrochen. Diese Aufnahme wird fortgesetzt und das Audio dieses Eingangs ohne weitere Bereinigung gespeichert.",
+    "cleaningBypass": "Bereinigung unterbrochen: Die Auswahl bleibt gespeichert, dieser Eingang läuft aber bis zum Stopp ohne Bereinigung weiter. Die Empfindlichkeit behält den gewählten Wert.",
+    "cleaningScope": "Änderungen gelten nur für nachfolgendes Audio; während einer Pause erst nach dem Fortsetzen. Ausschalten stellt früheres Audio nicht wieder her.",
+    "preparation": {
+      "saving": "Einstellungen werden gespeichert…",
+      "preparing": "Aufnahme wird vorbereitet…",
+      "cleaning": "Audiobereinigung wird vorbereitet…",
+      "devices": "Audiogeräte werden geöffnet…"
+    },
+    "started": "Aufnahme gestartet, Sie können sprechen",
+    "cleaningPreparing": "Audiobereinigung wird vorbereitet…"
   },
   "about": {
     "title": "Info",
@@ -283,7 +341,8 @@
       "onnx": "Ausführung von Silero VAD",
       "vadRs": "Verbindung zwischen Silero VAD und Rust",
       "diarization": "Sprechererkennung",
-      "font": "Schrift der Oberfläche"
+      "font": "Schrift der Oberfläche",
+      "cleaning": "Lokale Rauschminderung"
     }
   },
   "transcript": {
@@ -369,7 +428,7 @@
   },
   "welcome": {
     "title": "Nimm auf oder importiere eine Datei zum Transkribieren",
-    "description": "Der Text erscheint, während du arbeitest, und wird in der Bibliothek gespeichert. Alles bleibt auf deinem PC, ohne Konto und, sobald das Modell heruntergeladen ist, ohne Netzwerk."
+    "description": "Nimm Audio auf oder importiere eine Datei zum Transkribieren. Audio und Text werden in der Bibliothek gespeichert."
   },
   "live": {
     "recording": "Aufnahme läuft",
@@ -402,5 +461,20 @@
     "turns_one": "{{count}} Beitrag",
     "turns_other": "{{count}} Beiträge",
     "first": "Ersten Beitrag anhören"
+  },
+  "home": {
+    "title": "Start",
+    "back": "Zur Startseite",
+    "resume": "Weitermachen",
+    "resumeDescription": "Öffne dein zuletzt geöffnetes Tape.",
+    "recentDescription": "Öffne ein aktuelles Tape aus deiner Bibliothek.",
+    "lastOpened": "Zuletzt geöffnetes Tape",
+    "latestTape": "Neuestes Tape",
+    "openTape": "Tape öffnen",
+    "openLibrary": "Bibliothek öffnen",
+    "loading": "Bibliothek wird geladen…",
+    "unreadable": "Datei prüfen",
+    "recordingTitle": "Aufnahme um {{time}}",
+    "hint": "Nimm Audio auf oder importiere eine Datei. Audio und Text werden in der Bibliothek gespeichert."
   }
 }

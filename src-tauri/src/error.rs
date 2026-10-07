@@ -3,6 +3,12 @@
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, specta::Type)]
 #[serde(tag = "code", content = "detail", rename_all = "camelCase")]
 pub enum AppError {
+    #[error("modello DeepFilterNet3 distribuito con l'app assente")]
+    AudioCleaningMissing,
+    #[error("modello DeepFilterNet3 incompatibile: {0}")]
+    AudioCleaningIncompatible(String),
+    #[error("pulizia audio interrotta: {0}")]
+    AudioCleaningFailed(String),
     #[error("il riconoscimento dei Parlanti dal vivo non tiene il passo")]
     LiveDiarizationLagging,
     #[error("Parlanti dal vivo interrotti: {0}")]
@@ -47,6 +53,9 @@ pub enum AppError {
     /// continua senza Trascrizione dal vivo.
     #[error("Trascrizione dal vivo non disponibile: {0}")]
     LiveTranscriptionUnavailable(String),
+    /// La coda ASR ha raggiunto il limite: l'audio continua a essere salvato.
+    #[error("la Trascrizione dal vivo non tiene il passo")]
+    LiveTranscriptionLagging,
     /// Il Tape è stato scritto da una versione più nuova dell'app, con uno schema che non conosce.
     #[error("Tape di una versione più nuova")]
     UnsupportedTape,

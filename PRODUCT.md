@@ -11,7 +11,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 Memotape è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Tape con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
 - **Libreria.** La cartella in cui Memotape salva i Tape, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
-- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Tape nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Tape si legge a turni, si corregge Frase per Frase e si esporta in Markdown.
+- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Tape nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Tape si legge a turni, si corregge liberamente dentro ciascun Turno e si esporta in Markdown.
 - **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Tape della Libreria attraverso un server MCP, anche con Memotape chiuso (ADR-0012).
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
@@ -47,7 +47,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 - Finestra desktop da 1000×700, accanto ad altre app: una videochiamata durante la Registrazione, l'editor in cui incollare il testo, Esplora file per i Tape (doppio clic apre Memotape).
 - Lavori lunghi in background: download di modelli da centinaia di MB, Trascrizioni di ore, completamento e Riconoscimento dei parlanti dopo Stop. Una sola Attività alla volta; la sezione Attività della barra laterale dice sempre la fase.
-- Il testo di un Tape si legge a turni e si corregge Frase per Frase; Copia testo ed Esporta Markdown… sono le uscite. Nella vista ogni Frase conserva un paragrafo distinto, anche nello stesso turno; durante la Registrazione il Parziale cresce in un paragrafo proprio.
+- Il testo di un Tape si legge a turni e si corregge in un unico campo per Turno, con separatori testuali modificabili tra le Frasi; Copia testo ed Esporta Markdown… conservano le correzioni e gli a capo. Durante la Registrazione il Parziale cresce in un paragrafo proprio e non è modificabile. L'editor continuo del Turno è il requisito approvato il 6 ottobre 2026, implementato secondo `.scratch/editor-turno/spec.md`.
 
 ## Capabilities and Constraints
 
@@ -77,6 +77,16 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 4. Si comporta come un'app Windows: tema, lingua, Esplora file e dialog di sistema.
 5. Parole sobrie e coerenti con il glossario, uguali nelle sei lingue.
 
+## Home e ripresa del lavoro
+
+Revisione approvata il 6 ottobre 2026, mockup in `.impeccable/mocks/home-riprendi.png`.
+
+- All'avvio la Home mostra Riprendi e i tre Tape più recenti della Libreria. Il Tape in evidenza è l'ultimo aperto con successo ancora presente e leggibile nella Libreria corrente. La scelta resta sul PC tra gli avvii e segue rinomine e spostamenti fatti nell'app; un Tape eliminato non è più proposto.
+- Se non c'è un ultimo Tape valido, si propone il più recente leggibile con l'etichetta Tape più recente. Apri Tape è sempre una scelta esplicita: non avvia audio o Trascrizione. Il marchio memotape riporta alla Home; l'Attività in corso continua e si raggiunge dalla sua sezione nella barra laterale.
+- Con Libreria vuota la Home presenta Registra e Importa. Durante il caricamento iniziale mostra Caricamento della Libreria senza anticipare lo stato vuoto. Gli errori di apertura usano l'avviso esistente e non sostituiscono la Home.
+- Nei Recenti della Home e della barra laterale i nomi automatici delle Registrazioni si leggono come Registrazione delle HH:mm. Se più Registrazioni dello stesso giorno cadono nello stesso minuto, compaiono anche i secondi; gli eventuali suffissi numerici si conservano. I titoli personalizzati restano interi. Sono etichette di presentazione: nessun file viene rinominato e il nome originale resta accessibile.
+- La Home usa una barra del titolo da 48 px e separa titolo, data/ora e durata. I tre Recenti aprono gli stessi Tape della Libreria; Apri Libreria apre l'elenco completo. Le azioni principali restano nella barra laterale, con la nota Solo sul tuo PC.
+
 ## Storie utente
 
 ### Sorgente
@@ -91,6 +101,113 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 8. Come utente, voglio un errore dedicato se il file non esiste più o non è leggibile, così so che va scelto di nuovo.
 
 ### Trascrizione
+
+La pulizia di un file audio o video si attiva in Impostazioni → Trascrizione →
+File e audio misto ed è inizialmente spenta. Usa DeepFilterNet3 standard sul PC,
+senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
+reintrodurre una miscela dell'audio originale. La pulizia può attenuare anche
+voce molto debole; la Sensibilità del parlato è un controllo indipendente e non
+recupera la voce già attenuata. Il risultato elaborato alimenta Silero e il
+modello di Trascrizione e viene salvato come unico audio del Tape: player,
+Forma d'onda e analisi dei Parlanti si riferiscono a quel risultato. L'originale
+esterno resta invariato. Spegnere la pulizia non recupera l'originale nel Tape.
+
+Un cambio durante l'importazione vale sui blocchi decodificati successivi,
+prima della coda ASR, conservando durata e canali del percorso audio. Il Tape v1
+registra gli intervalli effettivamente elaborati e resta compatibile con i Tape
+precedenti. Un modello assente, incompatibile o un guasto interrompe
+l'importazione con un errore esplicito; Annulla, guasto e assenza di parlato non
+lasciano un Tape parziale. La protezione aggiuntiva del parlato è disponibile nella Trascrizione di file e Tape e nella Trascrizione dal vivo.
+
+I tre profili conservano separatamente la Sensibilità del parlato: Spento,
+Più sensibile, Bilanciato (anche per impostazioni precedenti), Più selettivo.
+Non controlla DFN3. Spento mantiene Silero e la selezione precedente; i livelli
+attivi combinano evidenza Silero e caratteristiche acustiche della candidata
+Frase, senza liste di parole vietate o una soglia energetica assoluta.
+Più selettivo può perdere parole brevi o deboli. Nei Tape senza tracce distinte
+si usa File e audio misto, anche se i metadati di pulizia ricordano un dispositivo.
+
+La sensibilità viene catturata sui blocchi decodificati prima dei buffer e
+della coda ASR. Per i Tape, le revisioni restano associate all'audio preparato
+nei temporanei del ticket 04: non si rileggono durante l'ASR successiva.
+Un cambio non chiude una Frase in corso, non revoca una parte già ammessa e
+non altera candidate già accodate. Scartare una candidata non elimina campioni
+dall'audio, dalla Forma d'onda o dall'analisi dei Parlanti.
+
+Durante la Registrazione ogni Ingresso usa il proprio profilo, anche quando
+un solo dispositivo viene salvato nel mix. La revisione viene fissata nel
+worker prima del ricampionamento, dei buffer DFN3 e delle code ASR. Il motore
+in ritardo usa quella revisione. La protezione ammette una candidata dal suo
+prefisso e conserva l'intera Frase fino alla fine: Nemotron continua a dare
+Parziali durante il parlato, senza ritiri dovuti alla protezione. Un cambio
+della sola sensibilità non resetta DFN3 e non modifica l'audio salvato.
+I cambi in Pausa valgono dalla ripresa; dopo Stop restano fissi per l'audio
+acquisito. Il bypass per guasto della pulizia mantiene la protezione del solo
+Ingresso e l'avviso di sessione previsto. La Diarizzazione resta dopo Stop
+e completamento ASR. I controlli al volo sono in Impostazioni e nella barra
+della Registrazione, accanto al Guadagno di ciascun Ingresso effettivo.
+La barra offre pulizia accesa/spenta e i quattro livelli di sensibilità,
+senza intensità DFN3 né profilo File e audio misto. Le due superfici condividono
+le preferenze persistenti: scelte rapide e contemporanee si applicano in ordine,
+senza sovrascrivere altri campi. L'avvio attende i salvataggi già richiesti.
+Un errore di salvataggio ripristina il valore confermato e viene mostrato.
+Un guasto di pulizia mantiene visibile la scelta salvata e indica sul solo
+Ingresso il bypass effettivo fino a Stop; chiudere l'avviso generale non elimina
+questa indicazione. Eventi di sessioni precedenti non la modificano.
+Controlli nativi, etichette e spiegazioni dei compromessi sono presenti nelle
+sei lingue. I test del ticket 07 verificano stato condiviso, persistenza simulata,
+concorrenza e markup; interazioni Tauri, tastiera/Narrator e ascolto restano
+da collaudare manualmente.
+
+La taratura del ticket 05 riduce le false Frasi del corpus sintetico locale
+con Bilanciato e conserva le regressioni brevi/deboli con Bilanciato e Più
+sensibile, su tre ASR e con pulizia accesa/spenta. Non attesta respiri o voce
+umana: soffio sintetico e TTS attenuata restano distinti da questi casi.
+Ascolto e collaudo Tauri sono ancora aperti; nessuna promessa di zero allucinazioni.
+
+Trascrivi su un Tape senza tracce distinte usa File e audio misto; con Ingressi
+separati usa i profili di Microfono e Audio di sistema. Riusa gli intervalli
+già puliti, anche quando un solo dispositivo è conservato nel mix, e applica
+DeepFilterNet3 soltanto ai tratti non trattati quando il profilo è attivo.
+L'assenza di metadati nei Tape precedenti non prova che l'audio esterno non
+sia mai stato filtrato. Un cambio vale dai blocchi decodificati successivi.
+
+Il nuovo audio si prepara in temporanei, conservando canali, durata e contesto
+ai confini; con Ingressi separati il mix viene ricostruito dalle tracce senza
+una seconda pulizia. Trascrizione e analisi dei Parlanti leggono l'audio che
+verrà salvato. Solo dopo il loro successo, audio, Forma d'onda, testo e
+metadati vengono sostituiti atomicamente. Annulla o errore conserva il Tape
+precedente e rimuove i temporanei. La nuova Trascrizione sostituisce anche
+correzioni e nomi dei Parlanti, come indicato nella conferma già presente.
+Non si conserva una seconda copia originale. Se non cambia l'audio, gli Ogg
+restano byte per byte quelli precedenti, anche a pulizia spenta.
+
+Aprire, riprodurre o cambiare Impostazioni non riscrive né pulisce un Tape.
+La Forma d'onda mancante nei Tape vecchi viene calcolata in memoria; una nuova
+pulizia la sostituisce insieme all'audio. Player, riapertura, copia e ricerca
+leggono il risultato salvato. Il collaudo manuale nella finestra Tauri e la
+prova con disco effettivamente pieno restano distinti dalle verifiche del core.
+
+La licenza del codice è inclusa in Informazioni. La redistribuzione dei pesi
+resta da chiarire con gli autori; la verifica locale non autorizza un rilascio.
+
+La pulizia delle Registrazioni si sceglie in Impostazioni → Registrazione,
+separatamente per Microfono e Audio di sistema, inizialmente spenta. Funziona
+anche senza Trascrivi dal vivo. Il Guadagno precede la pulizia; il risultato di
+ciascun Ingresso alimenta somma, tracce, Ogg e ASR. Player, Forma d'onda e
+analisi finale dei Parlanti usano l'audio salvato, senza una copia originale aggiuntiva.
+
+Un cambio vale dall'audio successivo nel worker, prima della coda ASR; in Pausa
+vale dalla ripresa e dopo Stop non cambia la Registrazione acquisita. I confini
+scaricano la coda utile prima di cambiare configurazione. Un guasto del filtro
+conserva i campioni non ancora consegnati e continua senza ulteriore pulizia
+soltanto sull'Ingresso interessato. L'avviso identifica l'Ingresso nella
+sessione corretta. Il Tape registra solo gli intervalli effettivamente trattati,
+anche se la Registrazione usa un solo Ingresso e conserva il solo mix.
+
+L'integrazione locale del ticket 03 è distinta dal collaudo completo di UI,
+dispositivi e carico su altre macchine. Bundle e redistribuzione dei pesi restano
+non verificati come nel ticket 02; nessun rilascio è autorizzato.
 
 9. Come utente, voglio premere Trascrivi su un file audio e vedere comparire il testo, così ottengo la sbobinatura.
 10. Come utente, voglio trascrivere anche un video MP4, MOV, M4V o MKV senza prima estrarne l'audio, così risparmio un passaggio.
@@ -137,9 +254,13 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ### Correzioni manuali della Trascrizione
 
-Requisiti approvati il 6 ottobre 2026, da implementare; dettagli e criteri di accettazione in `.scratch/trascrizione-qol/spec.md`. Sostituiscono i requisiti precedenti sulla perdita dei nomi durante una nuova Diarizzazione.
+Requisiti approvati il 6 ottobre 2026. Dettagli delle correzioni e degli avvisi in `.scratch/trascrizione-qol/spec.md`; il seguito `.scratch/editor-turno/spec.md` definisce l'editor continuo del Turno e la correzione del cursore, verificati nella WebView2 Windows come documentato in `.scratch/editor-turno/verifica.md`. Sostituiscono i requisiti precedenti sulla perdita dei nomi durante una nuova Diarizzazione; per l'editor continuo Invio inserisce un a capo anziché salvare.
 
-- Quando si corregge il testo di una Frase, cursore e selezione sono chiaramente visibili nei temi chiaro e scuro. Il clic sul nome del Parlante apre la rinomina sul posto, senza lasciare la Trascrizione.
+- Quando si corregge il testo, il clic tra due caratteri posiziona lì un cursore lampeggiante chiaramente visibile; anche la selezione è leggibile nei temi chiaro e scuro. La risoluzione va verificata nella finestra Windows reale, anche con il player collegato: la sola verifica nel browser non basta. Il clic sul nome del Parlante apre la rinomina sul posto, senza lasciare la Trascrizione.
+- Ciascun Turno modificabile ha un unico testo semplice editabile sul posto. Selezione, frecce, Backspace e Canc attraversano liberamente le Frasi dello stesso Turno e consentono di rimuovere o cambiare i separatori. La modifica non attraversa altri Turni o Ingressi e non cambia il Parlante.
+- Invio inserisce un a capo; uscire dal campo salva atomicamente l'intera correzione del Turno. Ctrl+Z annulla le singole modifiche mentre si scrive; Esc ripristina il testo presente all'ingresso nel campo e scarta la bozza. Entrare e uscire senza modifiche non registra una Correzione manuale. Un errore di salvataggio lascia la bozza recuperabile e non viene rappresentato come successo.
+- Si può svuotare e salvare il testo di un Turno senza eliminare l'audio o i suoi riferimenti. Il Turno resta raggiungibile con «Blocco senza testo», un'indicazione dell'interfaccia che non diventa testo trascritto e non si copia o esporta.
+- Testo, spazi e a capo corretti restano alla riapertura e nelle copie; Copia turno, Copia testo, esportazione Markdown, lettura per Assistenti e ricerca riflettono il contenuto salvato senza duplicare le Frasi originarie. Durante l'ascolto del testo corretto si evidenzia l'intero Turno senza inventare un allineamento delle singole parole; audio, Forma d'onda, durata e riferimenti temporali originari restano conservati. Gli aggiornamenti del player non spostano il cursore né la selezione mentre si scrive.
 - Ogni Turno modificabile ha **Unisci**, prima di Copia turno. Il menu propone **Unisci al turno sopra**, **Unisci al turno sotto** e **Annulla**. L'unione corregge l'attribuzione del solo Turno selezionato, assegnandogli il Parlante del Turno adiacente scelto; non cambia gli altri interventi del Parlante di partenza.
 - L'unione conserva parole, paragrafi, tempi e audio delle Frasi: cambia chi parla, non concatena due Frasi in una. Microfono e Audio di sistema restano distinti; una direzione senza Turno adiacente dello stesso Ingresso e con un Parlante utilizzabile è disabilitata. Un Turno non attribuito può essere corretto verso un Parlante noto dello stesso Ingresso.
 - Modificare il testo, correggere il Parlante tramite Unisci o rinominare un Parlante registra una Correzione manuale nel Tape. Sotto il titolo compare **Corretto a mano**, accanto alle informazioni sugli Ingressi e sui Parlanti. Il dato si conserva alla riapertura e nelle copie del Tape; cambiare solo titolo o data non è una Correzione manuale della Trascrizione.
@@ -171,6 +292,13 @@ Requisiti approvati il 6 ottobre 2026, da implementare; dettagli e criteri di ac
 80. Come utente, voglio fino a 8 Parlanti per Ingresso con Nemotron e la dicitura "Parlante non determinato" per le Frasi con più voci non separabili, mantenendo testo, audio e tempi nella vista, in Copia testo e nel Markdown. Nelle Registrazioni con Trascrivi dal vivo Nemotron esegue l’analisi finale dopo Stop sull’audio salvato. Durante la Registrazione si esegue soltanto ASR: il testo cresce senza riconoscimento dei Parlanti. Dopo Stop, Frasi e testo si dividono ai cambi di Parlante quando i tempi ASR sono affidabili. Da Entrambi si riconoscono per Ingresso: fino a 8 per ogni Ingresso diarizzato, con identità indipendenti.
 
 ### Impostazioni
+
+Le spiegazioni dei campi stanno in tooltip accanto all'icona di informazione,
+disponibili al passaggio del mouse e con la tastiera, anche nella barra della
+Registrazione. Dispositivo, Guadagno, pulizia e Sensibilità sono raggruppati per
+Ingresso; bitrate, canali e frequenza stanno nella sezione espandibile «Qualità
+del file». Ogni campo mostra il salvataggio in corso, una breve conferma o
+l'errore con Riprova, conservando le altre scelte salvate.
 
 54. Come utente, voglio scegliere la sorgente di registrazione predefinita e i dispositivi, così non li reimposto ogni volta.
 55. Come utente, voglio scegliere il bitrate tra 16, 24, 32, 48, 64, 96, 128, 192 e 320 kbps, così adatto la qualità.
@@ -314,7 +442,7 @@ Requisiti approvati il 6 ottobre 2026, da implementare; dettagli e criteri di ac
   - Trascrivi su un file audio o video crea `<nome del file>.tape` nella Raccolta scelta (con Tutta la Libreria in Senza raccolta), con " 2", " 3"… se c'è già: l'audio, ricodificato in Opus con bitrate, canali e frequenza delle Impostazioni di Registrazione, e il testo con i tempi delle Frasi. Il file originale non si tocca e il suo nome resta nelle informazioni. Finita la Trascrizione il Tape è la Sorgente. Annullata, guasta o senza parlato: nessun Tape.
   - Il Markdown non si salva più da solo: "Esporta Markdown…" lo salva dove si sceglie con il dialog di sistema, proponendo `<titolo>.md`. Rinominare un Parlante non riscrive più nessun Markdown. Solo se il Tape di una Registrazione non si scrive, il Markdown della Trascrizione dal vivo si salva accanto all'Ogg, come prima.
   - La vista di un Tape ha il titolo; una riga di informazioni (data e ora, durata, Raccolta o "fuori dalla Libreria", modello, Lingua del parlato, Ingressi separati, incompleto, il file d'origine); le azioni Trascrivi ▾, Copia testo, Esporta Markdown…, Mostra in Esplora file e "…" con Sposta in… (o Aggiungi alla Libreria…) ed Elimina; i Parlanti; il testo a turni, con l'etichetta del Parlante o dell'Ingresso a ogni turno, che un clic rinomina.
-  - Un clic su una Frase la rende modificabile: Invio o l'uscita dalla Frase salvano nel Tape (i tempi, i Parlanti e l'audio restano), Esc ripristina il testo. Una Frase svuotata resta. Se il salvataggio non riesce il testo resta scritto e la status bar dice l'errore. La correzione si ritrova riaprendo il Tape e si trova subito con la ricerca. Su un Tape di un'ora il salvataggio dura circa 50 ms. Il testo non si corregge durante l'Attività che lo produce; gli altri Tape sì.
+  - Il testo si corregge nell’editor continuo del Turno descritto nella sezione Correzioni manuali: Invio va a capo, uscire salva, Esc scarta la bozza e Ctrl+Z annulla durante la scrittura. Il testo corretto si conserva nella riapertura e nella ricerca. Un Turno vuoto resta accessibile con «Blocco senza testo»; un salvataggio fallito conserva la bozza e mostra l’errore vicino al campo. Il Tape dell’Attività in corso non è modificabile; gli altri Tape sì.
   - Trascrivi ▾ sceglie modello, Lingua del parlato e Riconosci i parlanti, e il pulsante dice la Lingua scelta ("Trascrivi · Italiano"); Registra ▾ sceglie Trascrivi dal vivo e Riconosci i parlanti della Registrazione. La conferma di Trascrivi si chiede solo su un Tape e avvisa che correzioni e nomi dei Parlanti si perdono; aprire un Tape o registrare non chiedono più conferma, perché non c'è più testo modificato a mano da perdere.
   - Copia testo copia sempre le Frasi: del Tape aperto, con correzioni e nomi, oppure della Trascrizione in corso o appena annullata.
 - **V11, Player e testo collegato all'audio (ticket libreria/04)**: storie 75–99 della spec v3; della 17 il player di un Tape fuori dalla Libreria, della 41 il player portato alla Frase trovata.
@@ -326,7 +454,8 @@ Requisiti approvati il 6 ottobre 2026, da implementare; dettagli e criteri di ac
 - **V12, ridisegno della finestra (contratto in `.impeccable/surfaces/src-app-routes-home-tsx.md`)**: cambiano le storie 5, 14, 16, 17, 28, 51, 64 e 65. Dove le voci precedenti dicono "status bar", da qui vale la sezione Attività per la fase e l'avviso per errori ed esiti.
   - Aspetto chiaro e caldo (carta tiepida, inchiostro bruno, salvia per l'audio in ascolto) e una variante scura calda; segue sempre il tema di Windows. Titoli in Commissioner, testo in Inter.
   - La finestra non ha la cornice di Windows: Riduci a icona, Ingrandisci e Chiudi sono disegnati nell'app, e si trascina dalla barra in alto e dal marchio. Il riquadro di Snap Layouts sul pulsante Ingrandisci non c'è.
-  - Barra laterale: Nuova registrazione ▾ (Registra da, Trascrivi dal vivo e Riconosci i parlanti nel menu), Importa un file, ricerca in tutta la Libreria (Ctrl+K, Esc la svuota), Attività (con l'avanzamento, un clic riporta alla sua vista), Recenti di tutta la Libreria per giorno, in fondo Libreria con il numero dei Tape, Impostazioni e "Solo sul tuo PC".
+  - Barra laterale: Nuova registrazione ▾ (Registra da, Trascrivi dal vivo e Riconosci i parlanti nel menu), Importa un file, ricerca in tutta la Libreria (Ctrl+K, Esc la svuota), Attività (con l'avanzamento, un clic riporta alla sua vista), Recenti di tutta la Libreria per giorno, in fondo Libreria con il numero dei Tape e Impostazioni.
+  - La finestra resta fissa: il testo e i Recenti scorrono nei propri pannelli, senza una barra di scorrimento aggiuntiva sul bordo della finestra.
   - Niente status bar: fase, avanzamento e Annulla stanno solo in Attività nella barra laterale; errori ed esiti compaiono in un avviso sopra il pannello centrale, con il link alle Impostazioni quando serve. Gli esiti spariscono da soli dopo qualche secondo, gli errori restano finché non si chiudono.
   - Le Raccolte stanno nella Libreria: Tutta la Libreria, Senza raccolta, le Raccolte e Nuova Raccolta, con Rinomina ed Elimina di quella scelta. La Raccolta scelta è anche quella in cui vanno le Registrazioni e i file importati, e la Libreria lo dice. In alto il percorso "Raccolta / titolo" porta alla Libreria su quella Raccolta.
   - Un Tape si legge come un documento: titolo grande (un clic lo rinomina), giorno, ora e durata, etichette (file d'origine o Registrazione, Parlanti, modello e Lingua del parlato, incompleto, fuori dalla Libreria). In alto Copia testo e "…" con Esporta Markdown…, Mostra in Esplora file, Sposta in…, Trascrivi di nuovo con le sue scelte ed Elimina.
@@ -362,6 +491,36 @@ Requisiti approvati il 6 ottobre 2026, da implementare; dettagli e criteri di ac
   - Il Guadagno cambia l'audio prima che i due Ingressi si uniscano: il mix salvato, l'audio di ogni Ingresso con gli Ingressi separati e quello che riceve la Trascrizione dal vivo. Non tocca il volume di Windows né le altre app.
   - L'indicatore mostra il livello dopo il Guadagno. I picchi oltre il massimo si tagliano come oggi; il rosso dell'indicatore avvisa di abbassare.
   - Il Tape non ricorda il Guadagno usato: è già dentro l'audio.
+
+## Avvio della Registrazione — requisiti concordati il 7 ottobre 2026
+
+Implementato nel checkout locale; decisione in ADR-0026 e verifiche in
+`.scratch/avvio-registrazione/verifica.md`. Il collaudo end-to-end Tauri/WASAPI
+con parlato reale resta distinto dalle prove automatiche.
+
+- Dal clic su Registra la barra mostra la Preparazione della Registrazione,
+  con indicatore di attesa, messaggi delle fasi effettive e Annulla. Non mostra
+  percentuali inventate né una Registrazione attiva prima dell'avvio reale.
+- Appena l'audio può essere acquisito e scritto dagli Ingressi richiesti,
+  la barra conferma «Registrazione avviata, puoi parlare» e mostra il timer
+  e i controlli. La conferma è visiva, senza segnale sonoro. La Trascrizione
+  dal vivo può fornire testo dopo senza perdere l'audio dall'avvio confermato.
+- Annulla prima dell'avvio ripristina la vista precedente senza creare un Tape
+  o perdere Correzioni manuali. Dopo l'avvio, Stop conserva l'audio registrato.
+  La preparazione non permette doppi avvii o altre Attività incompatibili.
+- La Pulizia audio si prepara in background e riusa le risorse compatibili
+  fra Registrazioni, accettando maggiore memoria residente. Ogni sessione e
+  Ingresso hanno stato audio nuovo. La preparazione non apre i dispositivi.
+- Se la pulizia è attiva al clic, se ne attende la disponibilità per applicarla
+  dall'inizio. Se è spenta, la sua preparazione non ritarda la Registrazione.
+  Accenderla durante una Registrazione mentre si prepara mostra «Preparazione
+  pulizia…»: l'audio continua e il filtro vale appena pronto, sull'audio successivo.
+- Un guasto a pulizia o Trascrizione dal vivo lascia registrare l'audio con
+  un avviso esplicito. Dispositivi o scrittura non disponibili impediscono
+  l'avvio; dopo l'avvio restano le regole di arresto e recupero già previste.
+- L'avvio effettivo, il primo audio conservato, il ritardo del testo e il costo
+  in memoria devono essere misurati separatamente. Nessuna latenza garantita
+  prima delle prove sul percorso reale. La Diarizzazione resta dopo Stop.
 
 ## Fuori dal perimetro
 

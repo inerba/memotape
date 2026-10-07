@@ -6,6 +6,11 @@ import { movedPath } from "@/features/source/file-name";
 export type Status =
   | { phase: "idle"; source: string | null }
   | {
+      phase: "preparingRecording";
+      stage: "saving" | "preparing" | "cleaning" | "devices";
+      liveError?: AppError;
+    }
+  | {
       phase: "recording";
       paused: boolean;
       liveError?: AppError;
@@ -35,6 +40,8 @@ export type Status =
 
 export function statusText(status: Status, t: TFunction): string {
   switch (status.phase) {
+    case "preparingRecording":
+      return t(`recording.preparation.${status.stage}`);
     case "idle":
       return status.source ?? t("status.idle");
     case "recording":
@@ -140,9 +147,28 @@ export function withDiarizing(status: Status): Status {
 
 /** Applica `live-transcription-failed`: la Registrazione continua e la status bar lo dice. */
 export function withLiveError(status: Status, liveError: AppError): Status {
-  return status.phase === "recording" || status.phase === "completing"
+  return status.phase === "preparingRecording" ||
+    status.phase === "recording" ||
+    status.phase === "completing"
     ? { ...status, liveError }
     : status;
+}
+
+/** Solo la conferma del percorso audio conclude la preparazione. Eventi terminali restano terminali. */
+export function withRecordingPhase(
+  status: Status,
+  phase: "preparing" | "cleaning" | "devices" | "recording"
+): Status {
+  if (status.phase !== "preparingRecording") {
+    return status;
+  }
+  return phase === "recording"
+    ? {
+        paused: false,
+        phase: "recording",
+        ...(status.liveError ? { liveError: status.liveError } : {}),
+      }
+    : { ...status, stage: phase };
 }
 
 /** Il guasto del solo diarizer non nasconde l'errore della Trascrizione. */
@@ -209,7 +235,9 @@ function shownError(status: Status): AppError | undefined {
   if (status.phase === "failed") {
     return status.error;
   }
-  return status.phase === "recording" || status.phase === "completing"
+  return status.phase === "preparingRecording" ||
+    status.phase === "recording" ||
+    status.phase === "completing"
     ? status.liveError
     : undefined;
 }
@@ -269,6 +297,14 @@ export function bannerOf(status: Status, t: TFunction): Banner | null {
         text: statusText(status, t),
         tone: "error",
       };
+    case "preparingRecording":
+      return status.liveError
+        ? {
+            settings: needsSettings(status),
+            text: errorText(status.liveError, t),
+            tone: "error",
+          }
+        : null;
     case "recording":
     case "completing":
       return status.liveError || diarizerErrorText(status, t)
