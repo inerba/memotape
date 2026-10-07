@@ -325,7 +325,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
         })?;
         let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
         let mut frasi: Vec<FraseOut> = document
-            .frasi
+            .frasi_visibili()
             .iter()
             .map(|f| FraseOut {
                 ingresso: f.ingresso.key().into(),
@@ -879,6 +879,62 @@ mod tests {
             ["Sciolto.tape"]
         );
         assert_eq!(list(Some("Ferrara Quarzi")).total, 1);
+    }
+
+    #[test]
+    fn editor_turno_ricerca_e_assistenti_leggono_solo_la_correzione() {
+        let (root, server) = server("editor-turno", true);
+        let path = root.join("Editor.tape");
+        tape_with(
+            &path,
+            &[
+                ("Prima originale.", Some(1)),
+                ("Seconda originale.", Some(1)),
+                ("Altro turno.", Some(2)),
+            ],
+            &[],
+        );
+        let originale = "Prima originale.\nSeconda originale.";
+        let corretto = "Testo riunito.\n\nNuovo paragrafo.";
+        tape::edit_turno(&path, Ingresso::Mix, &[0, 1], originale, corretto).unwrap();
+        let mut library =
+            Library::open(&root, &library::db_path(&server.places.index, &root)).unwrap();
+        library.sync().unwrap();
+        let Json(around) = server
+            .read_around(Parameters(AroundParams {
+                tape: "Editor.tape".into(),
+                ingresso: "mix".into(),
+                phrase_id: 0,
+                before: None,
+                after: None,
+            }))
+            .unwrap();
+        assert_eq!(around.frasi[0].testo, corretto);
+        assert_eq!(around.frasi[1].testo, "");
+        let markdown = server
+            .read_transcript(Parameters(TranscriptParams {
+                tape: "Editor.tape".into(),
+                from: None,
+            }))
+            .unwrap();
+        assert!(markdown.contains(corretto));
+        assert!(!markdown.contains("originale"));
+        let found = library.search("paragrafo", None).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].frasi[0].phrase_id, 0);
+        assert!(library.search("originale", None).unwrap().is_empty());
+        tape::edit_turno(&path, Ingresso::Mix, &[0, 1], corretto, "").unwrap();
+        library.sync().unwrap();
+        assert!(library.search("paragrafo", None).unwrap().is_empty());
+        let markdown = server
+            .read_transcript(Parameters(TranscriptParams {
+                tape: "Editor.tape".into(),
+                from: None,
+            }))
+            .unwrap();
+        assert!(!markdown.contains("Testo riunito"));
+        assert!(!markdown.contains("Blocco senza testo"));
+        assert!(markdown.contains("Altro turno."));
     }
 
     #[test]

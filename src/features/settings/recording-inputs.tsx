@@ -5,6 +5,7 @@ import type { AppError } from "@/bindings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { type RecordingInput, withInput } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import { SettingFeedback } from "./setting-feedback";
 
 const INPUTS = [
   { icon: Mic, input: "mic" },
@@ -19,39 +20,54 @@ const INPUTS = [
 export function RecordingInputs({
   compact = false,
   onError,
+  inlineFeedback = true,
 }: {
   compact?: boolean;
   onError: (error: AppError) => void;
+  inlineFeedback?: boolean;
 }) {
+  const { t } = useTranslation();
   const { save, settings } = useSettings();
   const toggle = useCallback(
     async (input: RecordingInput, on: boolean) => {
-      const recordingSource = withInput(settings.recordingSource, input, on);
-      if (recordingSource === settings.recordingSource) {
-        return;
-      }
-      const error = await save({ ...settings, recordingSource });
-      if (error) {
+      const error = await save(
+        (current) => ({
+          ...current,
+          recordingSource: withInput(current.recordingSource, input, on),
+        }),
+        "recordingSource"
+      );
+      if (error && !inlineFeedback) {
         onError(error);
       }
     },
-    [onError, save, settings]
+    [inlineFeedback, onError, save]
   );
   return (
-    <div className={compact ? "flex flex-col gap-2" : "grid grid-cols-2 gap-4"}>
-      {INPUTS.map(({ icon, input }) => (
-        <InputChoice
-          checked={
-            settings.recordingSource === "both" ||
-            settings.recordingSource === input
-          }
-          compact={compact}
-          icon={icon}
-          input={input}
-          key={input}
-          onToggle={toggle}
+    <div className="flex min-w-0 flex-col gap-1">
+      <div
+        className={compact ? "flex flex-col gap-2" : "grid grid-cols-2 gap-4"}
+      >
+        {INPUTS.map(({ icon, input }) => (
+          <InputChoice
+            checked={
+              settings.recordingSource === "both" ||
+              settings.recordingSource === input
+            }
+            compact={compact}
+            icon={icon}
+            input={input}
+            key={input}
+            onToggle={toggle}
+          />
+        ))}
+      </div>
+      {inlineFeedback ? (
+        <SettingFeedback
+          label={t("settings.recording.input")}
+          name="recordingSource"
         />
-      ))}
+      ) : null}
     </div>
   );
 }

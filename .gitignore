@@ -30,3 +30,12 @@ dist-ssr
 
 # DLL copiate da build.rs per il bundle (ONNX Runtime)
 /src-tauri/runtime-libs/
+
+# In .scratch si versionano solo i documenti Markdown
+/.scratch/**/*
+!/.scratch/**/
+!/.scratch/**/*.md
+
+# Le copie locali del checkout restano escluse anche se contengono Markdown
+/.scratch/**/baseline/
+/.scratch/**/documenti-prima/

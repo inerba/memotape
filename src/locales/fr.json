@@ -1,4 +1,8 @@
 {
+  "startup": {
+    "starting": "Démarrage de Memotape…",
+    "slow": "Le démarrage prend plus de temps que prévu…"
+  },
   "source": {
     "browse": "Ouvrir un fichier",
     "dropBusy": "Pendant un enregistrement ou une transcription, seul un Tape peut être ouvert",

@@ -3,6 +3,8 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/commissioner/full.css";
 
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme inline {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   /* Solo per titoli e marchio: FLAR allarga le aste alle estremità, VOLM rende le forme più piene. */
@@ -114,56 +116,54 @@
   --voice-6: oklch(0.72 0.05 200);
   --float-shadow: oklch(0.3 0.03 60 / 0.22);
   /* Controlli nativi (select, scrollbar, progress) nel tema giusto. */
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
-/* La WebView2 riporta in `prefers-color-scheme` il tema di Windows, o quello scelto nelle
-   impostazioni (`Tema::apply` in Rust); è anche la variante `dark:` predefinita di Tailwind 4.
-   La stessa carta, di sera. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.205 0.008 65);
-    --foreground: oklch(0.93 0.01 80);
-    --card: oklch(0.235 0.009 65);
-    --card-foreground: oklch(0.93 0.01 80);
-    --popover: oklch(0.245 0.009 65);
-    --popover-foreground: oklch(0.93 0.01 80);
-    --primary: oklch(0.92 0.012 80);
-    --primary-foreground: oklch(0.22 0.01 65);
-    --secondary: oklch(0.27 0.01 65);
-    --secondary-foreground: oklch(0.93 0.01 80);
-    --muted: oklch(0.255 0.01 65);
-    --muted-foreground: oklch(0.71 0.015 75);
-    --accent: oklch(0.285 0.012 70);
-    --accent-foreground: oklch(0.93 0.01 80);
-    --destructive: oklch(0.7 0.16 28);
-    --border: oklch(0.95 0.02 80 / 10%);
-    --input: oklch(0.95 0.02 80 / 16%);
-    --ring: oklch(0.7 0.08 125);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.178 0.008 65);
-    --sidebar-foreground: oklch(0.93 0.01 80);
-    --sidebar-primary: oklch(0.92 0.012 80);
-    --sidebar-primary-foreground: oklch(0.22 0.01 65);
-    --sidebar-accent: oklch(0.275 0.022 110);
-    --sidebar-accent-foreground: oklch(0.93 0.01 80);
-    --sidebar-border: oklch(0.95 0.02 80 / 9%);
-    --sidebar-ring: oklch(0.7 0.08 125);
-    --play: oklch(0.74 0.085 125);
-    --play-foreground: oklch(0.2 0.01 65);
-    --play-soft: oklch(0.3 0.035 118);
-    --voice-1: oklch(0.72 0.08 15);
-    --voice-2: oklch(0.72 0.065 245);
-    --voice-3: oklch(0.76 0.09 75);
-    --voice-4: oklch(0.7 0.075 150);
-    --voice-5: oklch(0.7 0.07 305);
-    --voice-6: oklch(0.72 0.06 200);
-    --float-shadow: oklch(0.05 0.01 60 / 0.6);
-  }
+/* Il documento riceve il tema prima del preload; SettingsProvider lo aggiorna dalle
+   Impostazioni e, con Sistema, segue Windows. La stessa carta, di sera. */
+:root[data-theme="dark"] {
+  --background: oklch(0.205 0.008 65);
+  --foreground: oklch(0.93 0.01 80);
+  --card: oklch(0.235 0.009 65);
+  --card-foreground: oklch(0.93 0.01 80);
+  --popover: oklch(0.245 0.009 65);
+  --popover-foreground: oklch(0.93 0.01 80);
+  --primary: oklch(0.92 0.012 80);
+  --primary-foreground: oklch(0.22 0.01 65);
+  --secondary: oklch(0.27 0.01 65);
+  --secondary-foreground: oklch(0.93 0.01 80);
+  --muted: oklch(0.255 0.01 65);
+  --muted-foreground: oklch(0.71 0.015 75);
+  --accent: oklch(0.285 0.012 70);
+  --accent-foreground: oklch(0.93 0.01 80);
+  --destructive: oklch(0.7 0.16 28);
+  --border: oklch(0.95 0.02 80 / 10%);
+  --input: oklch(0.95 0.02 80 / 16%);
+  --ring: oklch(0.7 0.08 125);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.178 0.008 65);
+  --sidebar-foreground: oklch(0.93 0.01 80);
+  --sidebar-primary: oklch(0.92 0.012 80);
+  --sidebar-primary-foreground: oklch(0.22 0.01 65);
+  --sidebar-accent: oklch(0.275 0.022 110);
+  --sidebar-accent-foreground: oklch(0.93 0.01 80);
+  --sidebar-border: oklch(0.95 0.02 80 / 9%);
+  --sidebar-ring: oklch(0.7 0.08 125);
+  --play: oklch(0.74 0.085 125);
+  --play-foreground: oklch(0.2 0.01 65);
+  --play-soft: oklch(0.3 0.035 118);
+  --voice-1: oklch(0.72 0.08 15);
+  --voice-2: oklch(0.72 0.065 245);
+  --voice-3: oklch(0.76 0.09 75);
+  --voice-4: oklch(0.7 0.075 150);
+  --voice-5: oklch(0.7 0.07 305);
+  --voice-6: oklch(0.72 0.06 200);
+  --float-shadow: oklch(0.05 0.01 60 / 0.6);
+  color-scheme: dark;
 }
 
 @layer base {
@@ -176,6 +176,10 @@
 
     /* Disable overscroll/bouncing */
     @apply h-full overscroll-none;
+  }
+  #root {
+    /* La finestra resta fissa: scorrono i pannelli, non il documento della WebView. */
+    @apply fixed inset-0;
   }
   /* Barre di scorrimento sottili, color carta, senza frecce. Niente `scrollbar-color` né
      `scrollbar-width`: in Chromium prevalgono e tornano le frecce di Windows. */

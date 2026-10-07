@@ -92,20 +92,13 @@ pub fn read(path: &Path, range: Option<&str>) -> Result<(Window, Vec<u8>), AppEr
     Ok((window, bytes))
 }
 
-/// La Forma d'onda del Tape `path` in `count` valori. Un Tape che non la ha la calcola dal mix e
-/// prova una volta a salvarla, se `activity` non lavora su quel Tape; se non riesce, la ricalcolerà
-/// alla prossima apertura (ADR-0010).
-pub fn forma_onda(path: &Path, count: usize, activity: &Activity) -> Result<Vec<f32>, AppError> {
+/// Legge la Forma d'onda, o la calcola in memoria per un Tape precedente: il player non riscrive
+/// la Sorgente e non introduce una migrazione automatica in apertura.
+pub fn forma_onda(path: &Path, count: usize, _activity: &Activity) -> Result<Vec<f32>, AppError> {
     if let Some(values) = tape::forma_onda(path) {
         return Ok(forma_onda::regroup(&values, count));
     }
     let values = decode::peaks(path, forma_onda::VALORI)?;
-    let saved = activity
-        .write(path)
-        .and_then(|_writing| tape::save_forma_onda(path, &values));
-    if let Err(e) = saved {
-        log::warn!("Forma d'onda non salvata in {}: {e}", path.display());
-    }
     Ok(forma_onda::regroup(&values, count))
 }
 
@@ -118,6 +111,7 @@ pub fn respond(request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
             .as_ref(),
     );
     let builder = Response::builder()
+        .header(header::CACHE_CONTROL, "no-store")
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CONTENT_TYPE, "audio/ogg");
     let range = request
@@ -269,9 +263,10 @@ mod tests {
     }
 
     #[test]
-    fn la_forma_d_onda_si_calcola_una_volta_e_poi_si_legge_dal_tape() {
+    fn aprire_un_tape_vecchio_calcola_la_forma_onda_senza_riscrivere_il_file() {
         let (path, _) = tape_with_mix("player-forma-onda");
         let activity = Activity::default();
+        let original = std::fs::read(&path).unwrap();
         // Durante un'Attività su quel Tape si calcola ma non si salva.
         let guard = activity.begin(Some(path.clone()), || {}).unwrap();
         let computed = forma_onda(&path, 30, &activity).unwrap();
@@ -279,10 +274,8 @@ mod tests {
         assert_eq!(tape::forma_onda(&path), None);
         drop(guard);
         assert_eq!(forma_onda(&path, 30, &activity).unwrap(), computed);
-        let saved = tape::forma_onda(&path).unwrap();
-        // 3 s sono 150 picchi da 20 ms, meno dei valori salvati.
-        assert_eq!(saved.len(), 150);
-        assert_eq!(forma_onda::regroup(&saved, 30), computed);
+        assert_eq!(tape::forma_onda(&path), None);
+        assert_eq!(std::fs::read(&path).unwrap(), original);
         assert_eq!(forma_onda(&path, 3, &activity).unwrap().len(), 3);
     }
 

@@ -12,8 +12,12 @@ use std::time::Duration;
 use transcribe_cpp::CancelToken;
 
 use super::TranscriptionEngine;
-use crate::audio_toolkit::decode::Decoder;
+use crate::audio_toolkit::decode::{Block, Decoder};
 use crate::audio_toolkit::ogg_opus::OggCopy;
+use crate::audio_toolkit::processing::{
+    AudioProcessor, Boundary, Bypass, Format, PcmStream, ProcessedBlock,
+};
+use crate::audio_toolkit::protection::{PhraseEvidence, ProtectionTimeline};
 use crate::audio_toolkit::resample::FrameResampler;
 use crate::audio_toolkit::segmenter::{Event, FRAME_MS, Params, Segmenter};
 use crate::audio_toolkit::vad::VoiceDetector;
@@ -72,6 +76,28 @@ pub fn transcribe(
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
+    transcribe_protected(
+        frames,
+        engine,
+        detector,
+        language,
+        cancel,
+        on_event,
+        &ProtectionTimeline::default(),
+    )
+}
+
+/// Ammette una candidata dal suo prefisso, poi conserva l'ammissione fino a fine Frase.
+/// La timeline appartiene al PCM acquisito, mai alle Impostazioni lette dall'ASR.
+pub fn transcribe_protected(
+    frames: &mut dyn Iterator<Item = Result<Feed, AppError>>,
+    engine: &mut dyn TranscriptionEngine,
+    detector: &mut dyn VoiceDetector,
+    language: Option<&str>,
+    cancel: &CancelToken,
+    on_event: &mut dyn FnMut(PipelineEvent),
+    protection: &ProtectionTimeline,
+) -> Result<u32, AppError> {
     detector.reset();
     // Lo usano sia la lettura dell'audio (progresso) sia il motore (Parziali), mai insieme.
     let on_event = RefCell::new(on_event);
@@ -82,6 +108,10 @@ pub fn transcribe(
         segmenter: Segmenter::new(Params::default()),
         cancel,
         queue: VecDeque::new(),
+        protection,
+        observations: VecDeque::new(),
+        candidate: None,
+        admitted: false,
         ended: false,
         received: 0,
         error: None,
@@ -213,6 +243,23 @@ pub fn transcribe_file(
     )
 }
 
+/// Copia audio e processore condividono il PCM prima del VAD e della coda ASR.
+pub struct FileAudio {
+    pub copy: Option<OggCopy>,
+    pub processor: Box<dyn AudioProcessor>,
+    pub protection: ProtectionTimeline,
+}
+
+impl From<Option<OggCopy>> for FileAudio {
+    fn from(copy: Option<OggCopy>) -> Self {
+        Self {
+            copy,
+            processor: Box::new(Bypass),
+            protection: ProtectionTimeline::default(),
+        }
+    }
+}
+
 /// Come `transcribe_file`, dall'audio di `decoder`: per esempio un Ingresso di un Tape.
 #[expect(
     clippy::too_many_arguments,
@@ -224,11 +271,12 @@ pub fn transcribe_decoded(
     detector: &mut dyn VoiceDetector,
     language: Option<&str>,
     audio: Option<&mut Vec<f32>>,
-    copy: Option<OggCopy>,
+    audio_path: impl Into<FileAudio>,
     cancel: &CancelToken,
     on_event: &mut dyn FnMut(PipelineEvent),
 ) -> Result<u32, AppError> {
-    let frames = FileFrames::new(decoder, copy);
+    let audio_path = audio_path.into();
+    let frames = FileFrames::with_processor(decoder, audio_path.copy, audio_path.processor);
     let progress = frames.progress;
     on_event(PipelineEvent::Progress(progress));
     let shared = Shared {
@@ -240,7 +288,17 @@ pub fn transcribe_decoded(
     std::thread::scope(|scope| {
         let shared = &shared;
         // Il thread tiene l'unico `sender`: quando si ferma, il motore vede la fine del canale.
-        scope.spawn(move || cut_phrases(frames, detector, audio, shared, cancel, &sender));
+        scope.spawn(move || {
+            cut_phrases(
+                frames,
+                detector,
+                audio,
+                shared,
+                cancel,
+                &sender,
+                &audio_path.protection,
+            )
+        });
         let transcribed =
             transcribe_phrases(cuts, engine, language, progress, shared, cancel, on_event);
         shared.stopped.store(true, Ordering::Relaxed);
@@ -258,11 +316,13 @@ fn cut_phrases(
     shared: &Shared,
     cancel: &CancelToken,
     sender: &mpsc::SyncSender<Result<Cut, AppError>>,
+    protection: &ProtectionTimeline,
 ) {
     detector.reset();
     let mut segmenter = Segmenter::new(Params::default());
     let mut phrase = None;
     let mut received = 0;
+    let mut observations = VecDeque::new();
     for feed in frames {
         if cancel.is_cancelled() || shared.stopped.load(Ordering::Relaxed) {
             return;
@@ -274,7 +334,17 @@ fn cut_phrases(
                     audio.extend_from_slice(&frame);
                 }
                 match detector.probability(&frame) {
-                    Ok(probability) => segmenter.push(frame, probability),
+                    Ok(probability) => {
+                        observations.push_back((
+                            received - 1,
+                            probability,
+                            protection.level(((received - 1) * 480) as u64),
+                        ));
+                        if observations.len() > 612 {
+                            observations.pop_front();
+                        }
+                        segmenter.push(frame, probability)
+                    }
                     Err(error) => {
                         let _ = sender.send(Err(error));
                         return;
@@ -291,33 +361,60 @@ fn cut_phrases(
                 return;
             }
         };
-        if !send_phrases(events, &mut phrase, sender) {
+        if !send_phrases(events, &mut phrase, sender, &observations) {
             return;
         }
     }
-    if send_phrases(segmenter.close_phrase(), &mut phrase, sender) {
+    if send_phrases(segmenter.close_phrase(), &mut phrase, sender, &observations) {
         let _ = sender.send(Ok(Cut::End(received)));
     }
+}
+
+struct Candidate {
+    start: usize,
+    frames: Vec<Vec<f32>>,
+    evidence: PhraseEvidence,
 }
 
 /// Raccoglie in `phrase` l'audio della Frase in corso e manda le Frasi finite. `false` se il motore
 /// non ascolta più.
 fn send_phrases(
     events: Vec<Event>,
-    phrase: &mut Option<(usize, Vec<Vec<f32>>)>,
+    phrase: &mut Option<Candidate>,
     sender: &mpsc::SyncSender<Result<Cut, AppError>>,
+    observations: &VecDeque<(usize, f32, crate::audio_toolkit::protection::Sensibilita)>,
 ) -> bool {
     for event in events {
         match event {
-            Event::PhraseStart(start) => *phrase = Some((start, Vec::new())),
+            Event::PhraseStart(start) => {
+                *phrase = Some(Candidate {
+                    start,
+                    frames: Vec::new(),
+                    evidence: PhraseEvidence::default(),
+                })
+            }
             Event::Audio(frame) => {
-                if let Some((_, frames)) = phrase {
-                    frames.push(frame);
+                if let Some(candidate) = phrase {
+                    let index = candidate.start + candidate.frames.len();
+                    if let Some(&(_, probability, level)) = observations
+                        .front()
+                        .and_then(|(first, _, _)| index.checked_sub(*first))
+                        .and_then(|offset| observations.get(offset))
+                    {
+                        candidate.evidence.push(&frame, probability, level);
+                    }
+                    candidate.frames.push(frame);
                 }
             }
             Event::PhraseEnd => {
-                if let Some((start, frames)) = phrase.take()
-                    && sender.send(Ok(Cut::Phrase { start, frames })).is_err()
+                if let Some(candidate) = phrase.take()
+                    && candidate.evidence.accepts()
+                    && sender
+                        .send(Ok(Cut::Phrase {
+                            start: candidate.start,
+                            frames: candidate.frames,
+                        }))
+                        .is_err()
                 {
                     return false;
                 }
@@ -394,10 +491,18 @@ fn to_ms(frames: usize) -> u32 {
     u32::try_from(frames * FRAME_MS as usize).unwrap_or(u32::MAX)
 }
 
+/// Il formato si conosce al primo blocco: lo stato trasferisce il processore una volta sola.
+enum FileProcessing {
+    Pending(Box<dyn AudioProcessor>),
+    Active { format: Format, stream: PcmStream },
+    Finished,
+}
+
 /// I frame di un file, decodificati e ricampionati un blocco alla volta.
 pub(crate) struct FileFrames {
     decoder: Decoder,
     copy: Option<OggCopy>,
+    processing: FileProcessing,
     resampler: Option<FrameResampler>,
     /// L'ultimo progresso emesso.
     progress: Option<u8>,
@@ -407,47 +512,96 @@ pub(crate) struct FileFrames {
 
 impl FileFrames {
     pub(crate) fn new(decoder: Decoder, copy: Option<OggCopy>) -> Self {
+        Self::with_processor(decoder, copy, Box::new(Bypass))
+    }
+
+    pub(crate) fn with_processor(
+        decoder: Decoder,
+        copy: Option<OggCopy>,
+        processor: Box<dyn AudioProcessor>,
+    ) -> Self {
         Self {
             progress: decoder.progress(),
             decoder,
             copy,
+            processing: FileProcessing::Pending(processor),
             resampler: None,
             ready: VecDeque::new(),
             decoded_all: false,
         }
     }
 
-    /// Decodifica il blocco successivo in `ready`.
+    /// Il blocco elaborato si dirama solo qui verso copia Ogg e VAD/ASR.
+    fn dispatch(&mut self, processed: ProcessedBlock) -> Result<(), AppError> {
+        let block = Block {
+            rate: processed.format.rate,
+            channels: processed.format.channels,
+            samples: processed.samples,
+        };
+        if let Some(copy) = &mut self.copy {
+            copy.push(&block)?;
+        }
+        let resampler = match &mut self.resampler {
+            Some(resampler) => resampler,
+            None => self.resampler.insert(FrameResampler::new(block.rate)?),
+        };
+        self.ready
+            .extend(resampler.push(&block.mono()).into_iter().map(Feed::Frame));
+        Ok(())
+    }
+
+    /// Decodifica ed elabora prima delle code ASR; la chiusura scarica la coda prima di Ogg e ASR.
     fn decode(&mut self) -> Result<(), AppError> {
-        let frames = match self.decoder.next_block()? {
+        match self.decoder.next_block()? {
             Some(block) => {
-                if let Some(copy) = &mut self.copy {
-                    copy.push(&block)?;
-                }
+                let format = Format {
+                    rate: block.rate,
+                    channels: block.channels,
+                };
+                let state = std::mem::replace(&mut self.processing, FileProcessing::Finished);
+                let mut stream = match state {
+                    FileProcessing::Pending(processor) => PcmStream::new(format, processor)?,
+                    FileProcessing::Active {
+                        format: previous,
+                        stream,
+                    } => {
+                        if format != previous {
+                            return Err(AppError::Internal("il file cambia formato PCM".into()));
+                        }
+                        stream
+                    }
+                    FileProcessing::Finished => {
+                        return Err(AppError::Internal("sessione PCM del file chiusa".into()));
+                    }
+                };
+                let processed = stream.push(&block.samples)?;
+                self.processing = FileProcessing::Active { format, stream };
+                self.dispatch(processed)?;
                 let progress = self.decoder.progress();
                 if progress != self.progress {
                     self.progress = progress;
                     self.ready.push_back(Feed::Progress(progress));
                 }
-                let resampler = match &mut self.resampler {
-                    Some(resampler) => resampler,
-                    // ponytail: frequenza fissata dal primo blocco; i file che la cambiano a metà non sono gestiti.
-                    None => self.resampler.insert(FrameResampler::new(block.rate)?),
-                };
-                resampler.push(&block.mono())
             }
             None => {
                 self.decoded_all = true;
+                if let FileProcessing::Active { mut stream, .. } =
+                    std::mem::replace(&mut self.processing, FileProcessing::Finished)
+                {
+                    let tail = stream.boundary(Boundary::Finish)?;
+                    self.dispatch(tail)?;
+                }
                 if let Some(copy) = self.copy.take() {
                     copy.finish()?;
                 }
-                self.resampler
+                let frames = self
+                    .resampler
                     .as_mut()
                     .map(FrameResampler::finish)
-                    .unwrap_or_default()
+                    .unwrap_or_default();
+                self.ready.extend(frames.into_iter().map(Feed::Frame));
             }
-        };
-        self.ready.extend(frames.into_iter().map(Feed::Frame));
+        }
         Ok(())
     }
 }
@@ -478,6 +632,10 @@ struct SegmentedSource<'a> {
     segmenter: Segmenter,
     cancel: &'a CancelToken,
     queue: VecDeque<Event>,
+    protection: &'a ProtectionTimeline,
+    observations: VecDeque<(usize, f32, crate::audio_toolkit::protection::Sensibilita)>,
+    candidate: Option<Candidate>,
+    admitted: bool,
     ended: bool,
     /// Frame ricevuti dalla fonte.
     received: usize,
@@ -502,15 +660,79 @@ impl SegmentedSource<'_> {
                 Some(Feed::Frame(frame)) => {
                     self.received += 1;
                     let probability = self.detector.probability(&frame)?;
-                    self.queue.extend(self.segmenter.push(frame, probability));
+                    self.observations.push_back((
+                        self.received - 1,
+                        probability,
+                        self.protection.level(((self.received - 1) * 480) as u64),
+                    ));
+                    // Prefill di 10 frame + onset di 2, non una seconda coda dell'audio.
+                    if self.observations.len() > 12 {
+                        self.observations.pop_front();
+                    }
+                    let events = self.segmenter.push(frame, probability);
+                    self.select(events);
                 }
-                Some(Feed::ClosePhrase) => self.queue.extend(self.segmenter.close_phrase()),
+                Some(Feed::ClosePhrase) => {
+                    let events = self.segmenter.close_phrase();
+                    self.select(events);
+                }
                 Some(Feed::Progress(progress)) => (self.emit)(PipelineEvent::Progress(progress)),
                 None => {
                     self.ended = true;
-                    self.queue.extend(self.segmenter.close_phrase());
+                    let events = self.segmenter.close_phrase();
+                    self.select(events);
                 }
             }
+        }
+    }
+
+    fn select(&mut self, events: Vec<Event>) {
+        for event in events {
+            match event {
+                Event::PhraseStart(start) => {
+                    self.admitted = false;
+                    self.candidate = Some(Candidate {
+                        start,
+                        frames: Vec::new(),
+                        evidence: PhraseEvidence::default(),
+                    });
+                }
+                Event::Audio(frame) if !self.admitted => {
+                    if let Some(candidate) = &mut self.candidate {
+                        let index = candidate.start + candidate.frames.len();
+                        if let Some(&(_, probability, level)) =
+                            self.observations.iter().find(|(i, _, _)| *i == index)
+                        {
+                            candidate.evidence.push(&frame, probability, level);
+                        }
+                        candidate.frames.push(frame);
+                    }
+                }
+                Event::Audio(frame) => self.queue.push_back(Event::Audio(frame)),
+                Event::PhraseEnd => {
+                    self.admit();
+                    if self.admitted {
+                        self.queue.push_back(Event::PhraseEnd);
+                    }
+                    self.candidate = None;
+                    self.admitted = false;
+                }
+            }
+        }
+        self.admit();
+    }
+
+    fn admit(&mut self) {
+        if self
+            .candidate
+            .as_ref()
+            .is_some_and(|c| c.evidence.accepts())
+        {
+            let candidate = self.candidate.take().expect("candidata ammessa");
+            self.admitted = true;
+            self.queue.push_back(Event::PhraseStart(candidate.start));
+            self.queue
+                .extend(candidate.frames.into_iter().map(Event::Audio));
         }
     }
 }
@@ -544,6 +766,18 @@ impl Iterator for PhraseAudio<'_, '_> {
 }
 
 #[cfg(test)]
+#[path = "pipeline/protection_tests.rs"]
+mod protection_tests;
+
+#[cfg(test)]
+#[path = "pipeline/live_protection_tests.rs"]
+mod live_protection_tests;
+
+#[cfg(test)]
+#[path = "pipeline/live_protection_native.rs"]
+mod live_protection_native;
+
+#[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use crate::audio_toolkit::resample::FRAME_SAMPLES;
@@ -572,6 +806,7 @@ pub(crate) mod tests {
     #[derive(Default)]
     pub(crate) struct FakeEngine {
         pub(crate) samples: Vec<usize>,
+        pub(crate) pcm: Vec<f32>,
         pub(crate) languages: Vec<Option<String>>,
         pub(crate) cancel_at: Option<(usize, CancelToken)>,
         pub(crate) streaming: bool,
@@ -608,6 +843,7 @@ pub(crate) mod tests {
             let n = self.samples.len() + 1;
             let mut samples = 0;
             for (i, frame) in frames.enumerate() {
+                self.pcm.extend_from_slice(&frame);
                 samples += frame.len();
                 if let Some(on_partial) = on_partial.as_mut().filter(|_| self.streaming)
                     && i % 10 == 9
@@ -734,6 +970,67 @@ pub(crate) mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn file_elaborato_ritardato_condivide_pcm_asr_ogg_e_forma_onda() {
+        use crate::audio_toolkit::processing::tests::DelayedScale;
+        let path = wav("percorso-comune", 16_000, 2, &[(0.9, true)]);
+        let ogg = path.with_extension("ogg");
+        let copy = OggCopy::new(std::fs::File::create(&ogg).unwrap(), 48_000, 2, 64).unwrap();
+        let forma_onda = copy.forma_onda();
+        let mut decoder = Decoder::open(&path).unwrap();
+        let mut expected = Vec::new();
+        while let Some(block) = decoder.next_block().unwrap() {
+            expected.extend(block.samples.iter().map(|s| s * 0.5));
+        }
+        let mut frames = FileFrames::with_processor(
+            Decoder::open(&path).unwrap(),
+            Some(copy),
+            Box::new(DelayedScale::new(160)),
+        );
+        let mut engine = FakeEngine::default();
+        let mut events = Vec::new();
+        let duration = transcribe(
+            &mut frames,
+            &mut engine,
+            &mut EnergyDetector,
+            None,
+            &CancelToken::new(),
+            &mut |event| events.push(event),
+        )
+        .unwrap();
+        assert_eq!(duration, 900);
+        assert_eq!(times(&events), [(0, 0, 900)]);
+        let mono: Vec<f32> = expected
+            .chunks_exact(2)
+            .map(|s| (s[0] + s[1]) * 0.5)
+            .collect();
+        assert_eq!(engine.pcm, mono);
+        let mut saved = Vec::new();
+        let mut resampler =
+            crate::audio_toolkit::resample::Resampler::new(16_000, 48_000, 2).unwrap();
+        resampler.push(&expected, &mut saved);
+        resampler.finish(&mut saved);
+        let mut picchi = crate::audio_toolkit::forma_onda::Picchi::new(48_000, 2);
+        picchi.push(&saved);
+        assert_eq!(forma_onda.get().unwrap(), &picchi.values(1000));
+        let mut decoder = Decoder::open(&ogg).unwrap();
+        let mut reread = Vec::new();
+        while let Some(block) = decoder.next_block().unwrap() {
+            reread.extend(block.samples);
+        }
+        assert_eq!(reread.len(), saved.len());
+        let rmse = (reread
+            .iter()
+            .zip(&saved)
+            .map(|(a, b)| (a - b).powi(2))
+            .sum::<f32>()
+            / saved.len() as f32)
+            .sqrt();
+        assert!(rmse < 0.015, "Opus RMSE {rmse}");
+        std::fs::remove_file(path).unwrap();
+        std::fs::remove_file(ogg).unwrap();
     }
 
     #[test]

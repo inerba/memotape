@@ -11,6 +11,8 @@ test("Informazioni elenca le licenze della spec, Parakeet per primo", () => {
     ["Nemotron Streaming 3.5 0.6B", "OpenMDW-1.1"],
     ["Whisper Large v3 Turbo", "MIT"],
     ["Sortformer 4spk v2.1", "NVIDIA Open Model License"],
+    ["DeepFilterNet3 / libDF 0.5.6", "MIT (libDF)"],
+    ["Tract 0.19.16", "MIT OR Apache-2.0"],
     ["Silero VAD v4", "MIT"],
     ["Symphonia", "MPL-2.0"],
     ["transcribe.cpp", "MIT"],

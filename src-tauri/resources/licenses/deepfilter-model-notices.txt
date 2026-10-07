@@ -1,0 +1,16 @@
+DeepFilterNet3 standard
+Authors: Hendrik Schröter, Tobias Rosenkranz, Alberto N. Escalante-B. and Andreas Maier.
+Paper: DeepFilterNet: Perceptually Motivated Real-Time Speech Enhancement, INTERSPEECH 2023.
+
+Original, unmodified model archive:
+https://github.com/Rikorose/DeepFilterNet/blob/978576aa8400552a4ce9730838c635aa30db5e61/models/DeepFilterNet3_onnx.tar.gz
+Size: 7 983 136 bytes
+SHA-256: c94d91f70911001c946e0fabb4aa9adc37045f45a03b56008cb0c8244cb63616
+
+The libDF code is MIT OR Apache-2.0; Memotape includes the MIT license.
+The upstream README explicitly covers code, but does not separately specify
+redistribution terms for pretrained weights. This remains unverified as of
+2026-10-06; see the open upstream clarification request:
+https://github.com/Rikorose/DeepFilterNet/issues/700
+The code license is not represented here as verified permission for the weights.
+This local integration and installer test do not authorize a public release.

@@ -421,6 +421,10 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
       last.label === label &&
       last.ingresso === item.ingresso &&
       last.parlante === parlante &&
+      Boolean(previous.parlanteNonDeterminato) ===
+        Boolean(item.parlanteNonDeterminato) &&
+      Boolean(previous.parlanteProvvisorio) ===
+        Boolean(item.parlanteProvvisorio) &&
       (labeled || silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
     ) {
       last.items.push(item);
@@ -448,8 +452,37 @@ export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
 
 /** Il testo di Copia turno, sempre semplice: `Nome: Frasi…`; un turno senza etichetta dà solo le Frasi. */
 export function turnText(turn: Turn): string {
-  const text = turn.items.map((item) => item.text).join(" ");
-  return turn.label ? `${turn.label}: ${text}` : text;
+  const text = turnBody(
+    turn,
+    turn.items.some((item) => "testoCorretto" in item && item.testoCorretto)
+      ? "\n"
+      : " "
+  );
+  return turnTextWithBody(turn, text);
+}
+
+/** Il testo appena salvato ha la stessa etichetta della normale Copia turno. */
+export function turnTextWithBody(turn: Turn, text: string): string {
+  return text && turn.label ? `${turn.label}: ${text}` : text;
+}
+
+/** I separatori sono testo modificabile; le altre Frasi della stessa correzione non si duplicano. */
+export function turnBody(turn: Turn, separator = "\n"): string {
+  return textItemsOf(turn)
+    .map((item) => item.text)
+    .filter((text) => text.length > 0)
+    .join(separator);
+}
+
+/** Le unità di testo salvate; ogni correzione del Turno ha un solo portatore. */
+export function textItemsOf(turn: Turn): Turn["items"] {
+  return turn.items.filter(
+    (item) =>
+      !("testoTurno" in item) ||
+      item.testoTurno === null ||
+      item.testoTurno === undefined ||
+      item.testoTurno === item.phraseId
+  );
 }
 
 /** Il Turno adiacente è una destinazione soltanto se ha una voce nota dello stesso Ingresso. */

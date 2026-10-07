@@ -64,12 +64,12 @@ export function TranscribeOptions({
 
   const choose = useCallback(
     async (change: Partial<typeof settings>) => {
-      const error = await save({ ...settings, ...change });
+      const error = await save((current) => ({ ...current, ...change }));
       if (error) {
         onError(error);
       }
     },
-    [onError, save, settings]
+    [onError, save]
   );
   const chooseModel = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => choose({ model: e.target.value }),

@@ -1,3 +1,4 @@
+import { Tooltip } from "radix-ui";
 import { type ReactNode, Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
 import type { AppError, Settings } from "@/bindings";
@@ -16,7 +17,9 @@ export default function AppProvider({
   return (
     <ErrorBoundary FallbackComponent={AppErrorPage}>
       <SettingsProvider initial={settings} loadError={settingsError}>
-        <Suspense fallback={null}>{children}</Suspense>
+        <Tooltip.Provider delayDuration={300}>
+          <Suspense fallback={null}>{children}</Suspense>
+        </Tooltip.Provider>
       </SettingsProvider>
     </ErrorBoundary>
   );

@@ -12,6 +12,38 @@ import {
   withInput,
 } from "@/features/settings/settings";
 
+test("la pulizia è spenta nei tre profili e il profilo File si salva indipendentemente", () => {
+  expect(defaults.audioMicrofono).toEqual({
+    pulizia: false,
+    sensibilita: "bilanciato",
+  });
+  expect(defaults.audioSistema).toEqual({
+    pulizia: false,
+    sensibilita: "bilanciato",
+  });
+  expect(defaults.audioFileMisto).toEqual({
+    pulizia: false,
+    sensibilita: "bilanciato",
+  });
+  const saved = settingsSchema.parse({
+    ...defaults,
+    audioFileMisto: { pulizia: true },
+  });
+  expect(saved.audioFileMisto).toEqual({ pulizia: true });
+  expect(saved.audioMicrofono).toEqual({
+    pulizia: false,
+    sensibilita: "bilanciato",
+  });
+  expect(saved.audioSistema).toEqual({
+    pulizia: false,
+    sensibilita: "bilanciato",
+  });
+  expect(
+    settingsSchema.safeParse({ ...defaults, audioFileMisto: { pulizia: "sì" } })
+      .success
+  ).toBe(false);
+});
+
 test("il diarizer si sceglie separatamente e il percorso locale non va perso", () => {
   const parsed = settingsSchema.parse({
     ...defaults,
@@ -183,4 +215,33 @@ test("la tendina del Guadagno va da −12 a +24 dB a passi di 3, con il segno", 
     guadagnoText(-3),
     guadagnoText(24),
   ]).toEqual(["0 dB", "+6 dB", "−3 dB", "+24 dB"]);
+});
+
+test("sensibilita distinta dalla pulizia e livelli validati", () => {
+  for (const name of [
+    "audioMicrofono",
+    "audioSistema",
+    "audioFileMisto",
+  ] as const) {
+    expect(defaults[name]?.sensibilita).toBe("bilanciato");
+    for (const sensibilita of [
+      "spento",
+      "sensibile",
+      "bilanciato",
+      "selettivo",
+    ]) {
+      expect(
+        settingsSchema.safeParse({
+          ...defaults,
+          [name]: { pulizia: true, sensibilita },
+        }).success
+      ).toBe(true);
+    }
+    expect(
+      settingsSchema.safeParse({
+        ...defaults,
+        [name]: { pulizia: false, sensibilita: "altro" },
+      }).success
+    ).toBe(false);
+  }
 });

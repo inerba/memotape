@@ -79,6 +79,15 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 
 ## Home e ripresa del lavoro
 
+All'avvio la finestra mostra il marchio con la sola bobina animata e «Avvio di
+Memotape…», nel tema e nella lingua dell'interfaccia già salvati; senza una scelta
+segue Windows. Dopo 10 secondi aggiunge «L’avvio sta richiedendo più tempo del
+previsto…», senza trattare l'attesa come un errore. Il preload scompare appena
+compare l'interfaccia, senza durata minima e senza aspettare Libreria o modelli
+in background. Con movimento ridotto il simbolo resta fermo. Riduci, Ingrandisci
+e Chiudi rimangono disponibili durante l'avvio. Un errore effettivo di avvio
+permette di ricaricare l'interfaccia.
+
 Revisione approvata il 6 ottobre 2026, mockup in `.impeccable/mocks/home-riprendi.png`.
 
 - All'avvio la Home mostra Riprendi e i tre Tape più recenti della Libreria. Il Tape in evidenza è l'ultimo aperto con successo ancora presente e leggibile nella Libreria corrente. La scelta resta sul PC tra gli avvii e segue rinomine e spostamenti fatti nell'app; un Tape eliminato non è più proposto.

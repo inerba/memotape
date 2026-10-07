@@ -196,7 +196,11 @@ impl Library {
             )
             .map_err(internal)?;
             if let Some(document) = &document {
-                for frase in &document.frasi {
+                for frase in document
+                    .frasi_visibili()
+                    .iter()
+                    .filter(|f| !f.testo.is_empty())
+                {
                     let parlante = if frase.parlante_non_determinato || frase.parlante_provvisorio {
                         None
                     } else {

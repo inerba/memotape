@@ -132,7 +132,7 @@ fn update_document(
     // Mantiene la provenienza di ogni parte: le identità vecchie non sono i numeri del modello.
     let mut next_id = document.frasi.iter().map(|f| f.id).max().unwrap_or(0);
     let mut projected = Vec::new();
-    for (index, (original, phrase)) in document.frasi.iter().zip(phrases).enumerate() {
+    for (index, (original, phrase)) in document.frasi.iter().zip(&phrases).enumerate() {
         if original.parlante_corretto {
             let mut confirmed = original.clone();
             confirmed.parlante_provvisorio = false;
@@ -145,9 +145,9 @@ fn update_document(
         let parts = if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
             found
                 .map(|(_, turns)| diarize::divide(phrase.clone(), turns, None))
-                .unwrap_or_else(|| vec![phrase])
+                .unwrap_or_else(|| vec![phrase.clone()])
         } else {
-            vec![phrase]
+            vec![phrase.clone()]
         };
         for (part, phrase) in parts.into_iter().enumerate() {
             let id = if part == 0 {
@@ -172,7 +172,7 @@ fn update_document(
             ));
         }
     }
-    reconcile_identities(document, &mut projected, turns);
+    reconcile_identities(document, &mut projected, turns, &phrases);
     projected.sort_by_key(|(_, f)| f.inizio_ms);
     document.frasi = projected.into_iter().map(|(_, f)| f).collect();
     document.diarizzazione = Some(Diarizzazione {
@@ -194,12 +194,14 @@ fn reconcile_identities(
     document: &Document,
     projected: &mut [(usize, tape::Frase)],
     turns: &[(Ingresso, Vec<Turn>)],
+    analyzed: &[Phrase],
 ) {
     use std::collections::{BTreeMap, BTreeSet};
     for (ingresso, _) in turns {
         let mut candidates: BTreeMap<u32, BTreeSet<Option<u32>>> = BTreeMap::new();
         let mut inverse: BTreeMap<Option<u32>, BTreeSet<u32>> = BTreeMap::new();
         let mut ambiguous = BTreeSet::new();
+        let mut protected_unknown = BTreeSet::new();
         let mut reserved = BTreeSet::new();
         for key in document.parlanti.keys() {
             if let Some(number) = key
@@ -212,6 +214,17 @@ fn reconcile_identities(
         for (index, current) in projected.iter().filter(|(_, f)| f.ingresso == *ingresso) {
             let old = &document.frasi[*index];
             if old.parlante_corretto {
+                // Anche il tratto protetto contribuisce alla corrispondenza delle voci,
+                // senza cambiare la sua attribuzione. Ignorarlo nominerebbe una voce diversa.
+                if let Some(number) = analyzed[*index]
+                    .parlante
+                    .filter(|_| !analyzed[*index].parlante_non_determinato)
+                {
+                    candidates.entry(number).or_default().insert(old.parlante);
+                    inverse.entry(old.parlante).or_default().insert(number);
+                } else {
+                    protected_unknown.insert(old.parlante);
+                }
                 if let Some(number) = old.parlante {
                     reserved.insert(number);
                 }
@@ -245,6 +258,7 @@ fn reconcile_identities(
                 .copied()
                 .filter(|_| old.len() == 1)
                 .filter(|_| !ambiguous.contains(&number))
+                .filter(|identity| !protected_unknown.contains(identity))
                 .filter(|identity| inverse.get(identity).is_some_and(|found| found.len() == 1))
                 .filter(|identity| {
                     document
@@ -632,6 +646,91 @@ mod tests {
                 .info
                 .corretto_a_mano
         );
+    }
+
+    #[test]
+    fn editor_turno_ridiarizzazione_conserva_correzioni_senza_inventare_allineamenti() {
+        for (suffix, corretto, protected) in [
+            ("unito", "Testo unito.", false),
+            ("multilinea", "Testo.\n\nParagrafo.", true),
+            ("vuoto", "", false),
+            ("protetto-ambiguo", "Correzione protetta.", true),
+        ] {
+            let (path, mut original) = fixture(&format!("editor-rediari-{suffix}"), false);
+            if suffix != "protetto-ambiguo" {
+                original.frasi[0].fine_ms = 900;
+            }
+            if protected {
+                original.frasi[0].parlante_corretto = true;
+            }
+            tape::rewrite(&path, &original).unwrap();
+            let text = original
+                .frasi
+                .iter()
+                .map(|f| f.testo.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            tape::edit_turno(&path, Ingresso::Mix, &[0, 1], &text, corretto).unwrap();
+            let audio = entry(&path, "mix.ogg");
+            let before = tape::read(&path).unwrap();
+            diarize_tape(
+                &path,
+                &Settings {
+                    diarizer: Diarizer::Nemotron3,
+                    ..Default::default()
+                },
+                &CancelToken::new(),
+                |_| Ok(found()),
+            )
+            .unwrap();
+            let after = tape::read(&path).unwrap();
+            assert_eq!(after.correzioni_testo, before.correzioni_testo);
+            assert_eq!(after.frasi.len(), 2);
+            assert!(
+                after
+                    .frasi
+                    .iter()
+                    .all(|f| f.tempi.is_empty() && f.testo_corretto)
+            );
+            if protected {
+                assert_eq!(after.frasi[0].parlante, Some(7));
+                assert!(after.frasi[0].parlante_corretto);
+            }
+            assert_ne!(after.frasi[1].parlante, original.frasi[1].parlante);
+            let opened = crate::managers::transcription::open_tape(&path).unwrap();
+            assert_eq!(opened.phrases[0].text, corretto);
+            assert_eq!(opened.phrases[1].text, "");
+            assert!(opened.phrases.iter().all(|f| f.parlante_non_determinato));
+            assert_eq!(entry(&path, "mix.ogg"), audio);
+            assert_eq!(tape::forma_onda(&path), Some(vec![0.2, 0.4, 0.1]));
+        }
+        // Un Turno non corretto pu\u00F2 ancora dividersi in parti con tempi ASR reali.
+        let (path, mut original) = fixture("editor-rediari-nuovi-confini", false);
+        original.frasi[1].parlante = Some(8);
+        tape::rewrite(&path, &original).unwrap();
+        tape::edit_turno(&path, Ingresso::Mix, &[1], &original.frasi[1].testo, "").unwrap();
+        diarize_tape(
+            &path,
+            &Settings {
+                diarizer: Diarizer::Nemotron3,
+                ..Default::default()
+            },
+            &CancelToken::new(),
+            |_| Ok(found()),
+        )
+        .unwrap();
+        let opened = crate::managers::transcription::open_tape(&path).unwrap();
+        assert_eq!(opened.phrases.len(), 3);
+        assert!(
+            opened
+                .phrases
+                .iter()
+                .find(|f| f.phrase_id == 1)
+                .unwrap()
+                .text
+                .is_empty()
+        );
+        assert!(opened.phrases.iter().any(|f| f.phrase_id > 1));
     }
 
     #[test]

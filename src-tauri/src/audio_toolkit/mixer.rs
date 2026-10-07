@@ -9,6 +9,9 @@
 //! deriva tra il clock del dispositivo e QPC. ponytail: a scatti da `HOLE_NS`; se si sentono,
 //! correggere con continuità con un resampler asincrono di rubato.
 
+use crate::audio_toolkit::processing::{
+    AudioProcessor, Boundary, Format, PcmStream, ProcessedBlock,
+};
 use crate::audio_toolkit::resample::Resampler;
 use crate::error::AppError;
 
@@ -48,10 +51,14 @@ pub struct Mixer {
 
 struct Input {
     rate: u64,
+    out_rate: u32,
     channels: usize,
     resampler: Resampler,
+    processing: PcmStream,
     /// Frame alla frequenza del dispositivo già sulla linea del tempo, silenzio compreso.
     frames: u64,
+    /// Frame ricampionati consegnati allo stadio PCM, prima del suo ritardo.
+    processed_frames: u64,
     /// Frame alla frequenza della Registrazione già sommati nel mix.
     mixed: usize,
     /// Il picco dopo il Guadagno.
@@ -61,6 +68,8 @@ struct Input {
     guadagno_target: f32,
     guadagno_step: f32,
     resampled: Vec<f32>,
+    /// Contesto a monte del PCM, limitato alla storia richiesta dal ricampionatore.
+    resampling_history: Vec<f32>,
     /// Per il log a fine Registrazione: frame di silenzio inseriti e scartati, e per misurare la
     /// deriva del clock del dispositivo rispetto a QPC i frame ricevuti (pause comprese) tra il
     /// timestamp del primo blocco e la fine dell'ultimo.
@@ -104,6 +113,30 @@ impl Mix {
 }
 
 impl Input {
+    /// Scarica anche il ricampionamento a monte, con la configurazione ancora precedente.
+    fn boundary(&mut self, boundary: Boundary, mix: &mut Mix) -> Result<(), AppError> {
+        self.resampled.clear();
+        self.resampler.finish(&mut self.resampled);
+        // La continuazione mantiene la griglia globale, senza tagliare campioni di coda.
+        let expected = (self.frames * u64::from(self.out_rate)).div_ceil(self.rate);
+        let remaining = expected.saturating_sub(self.processed_frames) as usize;
+        if self.resampled.len() != remaining * mix.channels {
+            return Err(AppError::Internal(
+                "durata del ricampionamento non conservata".into(),
+            ));
+        }
+        self.processed_frames += (self.resampled.len() / mix.channels) as u64;
+        let block = self.processing.push(&self.resampled)?;
+        self.add(block, mix);
+        let tail = self.processing.boundary(boundary)?;
+        self.add(tail, mix);
+        if boundary != Boundary::Finish {
+            self.resampler = self
+                .resampler
+                .continuation(&self.resampling_history, self.frames)?;
+        }
+        Ok(())
+    }
     /// Fine dell'audio già scritto, sulla linea del tempo (ns).
     fn end_ns(&self) -> u64 {
         self.frames * NS_PER_S / self.rate
@@ -115,18 +148,29 @@ impl Input {
     }
 
     /// Ricampiona `samples` (già nei canali della Registrazione) e li somma nel mix.
-    fn feed(&mut self, samples: &[f32], mix: &mut Mix) {
+    fn feed(&mut self, samples: &[f32], mix: &mut Mix) -> Result<(), AppError> {
         self.frames += (samples.len() / mix.channels) as u64;
+        let history_size = self.resampler.history_frames() * mix.channels;
+        if history_size != 0 {
+            self.resampling_history.extend_from_slice(samples);
+            let excess = self.resampling_history.len().saturating_sub(history_size);
+            self.resampling_history.drain(..excess);
+        }
         self.resampled.clear();
         self.resampler.push(samples, &mut self.resampled);
-        self.add(mix);
+        self.processed_frames += (self.resampled.len() / mix.channels) as u64;
+        let block = self.processing.push(&self.resampled)?;
+        self.add(block, mix);
+        Ok(())
     }
 
     /// Somma nel mix `resampled`, e lo tiene per l'audio dell'ingresso.
-    fn add(&mut self, mix: &mut Mix) {
-        mix.add(&mut self.mixed, &self.resampled);
+    fn add(&mut self, block: ProcessedBlock, mix: &mut Mix) {
+        debug_assert_eq!(block.start_frame, self.mixed as u64);
+        debug_assert_eq!(block.format.channels, mix.channels);
+        mix.add(&mut self.mixed, &block.samples);
         if let Some(pending) = &mut self.pending {
-            pending.extend_from_slice(&self.resampled);
+            pending.extend_from_slice(&block.samples);
         }
     }
 
@@ -146,9 +190,9 @@ impl Input {
         }
     }
 
-    fn feed_silence(&mut self, frames: u64, mix: &mut Mix) {
+    fn feed_silence(&mut self, frames: u64, mix: &mut Mix) -> Result<(), AppError> {
         self.silence += frames;
-        self.feed(&vec![0.0; frames as usize * mix.channels], mix);
+        self.feed(&vec![0.0; frames as usize * mix.channels], mix)
     }
 }
 
@@ -190,25 +234,56 @@ pub(crate) fn downmix(frame: &[f32], out_channels: usize, out: &mut Vec<f32>) {
 impl Mixer {
     /// `origin_ns`: l'inizio della sessione (QPC); `inputs`: frequenza e canali di ogni
     /// dispositivo; `output`: quelli della Registrazione.
+    #[cfg(test)]
     pub fn new(
         origin_ns: u64,
         inputs: &[(u32, usize)],
         (out_rate, out_channels): (u32, usize),
     ) -> Result<Self, AppError> {
+        let processors = inputs
+            .iter()
+            .map(|_| Box::new(crate::audio_toolkit::processing::Bypass) as Box<dyn AudioProcessor>)
+            .collect();
+        Self::with_processors(origin_ns, inputs, (out_rate, out_channels), processors)
+    }
+
+    /// Uno stato per Ingresso dopo conversione/Guadagno e ricampionamento, prima della somma.
+    pub fn with_processors(
+        origin_ns: u64,
+        inputs: &[(u32, usize)],
+        (out_rate, out_channels): (u32, usize),
+        processors: Vec<Box<dyn AudioProcessor>>,
+    ) -> Result<Self, AppError> {
+        if inputs.len() != processors.len() {
+            return Err(AppError::Internal(
+                "serve un processore per Ingresso".into(),
+            ));
+        }
         let inputs = inputs
             .iter()
-            .map(|&(rate, channels)| {
+            .zip(processors)
+            .map(|(&(rate, channels), processor)| {
                 Ok(Input {
                     rate: u64::from(rate),
+                    out_rate,
                     channels: channels.max(1),
                     resampler: Resampler::new(rate, out_rate, out_channels)?,
+                    processing: PcmStream::new(
+                        Format {
+                            rate: out_rate,
+                            channels: out_channels,
+                        },
+                        processor,
+                    )?,
                     frames: 0,
+                    processed_frames: 0,
                     mixed: 0,
                     peak: 0.0,
                     guadagno: 1.0,
                     guadagno_target: 1.0,
                     guadagno_step: 0.0,
                     resampled: Vec::new(),
+                    resampling_history: Vec::new(),
                     silence: 0,
                     dropped: 0,
                     received: 0,
@@ -254,7 +329,13 @@ impl Mixer {
 
     /// Un blocco dell'ingresso `input`: `capture_ns` è il suo timestamp di cattura, `samples` i
     /// campioni interleaved del dispositivo. In pausa si scarta. Accoda in `out` l'audio pronto.
-    pub fn push(&mut self, input: usize, capture_ns: u64, samples: &[f32], out: &mut Vec<f32>) {
+    pub fn push(
+        &mut self,
+        input: usize,
+        capture_ns: u64,
+        samples: &[f32],
+        out: &mut Vec<f32>,
+    ) -> Result<(), AppError> {
         let t = self.timeline(capture_ns);
         let paused = self.pause_start.is_some();
         let Self {
@@ -269,14 +350,14 @@ impl Mixer {
         input.first_ns.get_or_insert(capture_ns);
         input.last_end_ns = capture_ns + frames as u64 * NS_PER_S / input.rate;
         if paused {
-            return;
+            return Ok(());
         }
         let start = input.frame_at(t);
         let position = input.frames as i64;
         let tolerance = input.frame_at(HOLE_NS as i64);
         let mut skip = 0;
         if start - position >= tolerance {
-            input.feed_silence((start - position) as u64, mix);
+            input.feed_silence((start - position) as u64, mix)?;
         } else if position - start >= tolerance {
             // Sovrapposto a quanto già scritto (o prima dell'inizio): la parte in più si scarta.
             skip = ((position - start) as usize).min(frames);
@@ -290,23 +371,32 @@ impl Mixer {
         // Il picco dei campioni del dispositivo, con il Guadagno a fine blocco.
         let raw = samples.iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
         input.peak = input.peak.max(raw * input.guadagno).min(1.0);
-        input.feed(converted, mix);
+        input.feed(converted, mix)?;
         self.emit(out);
+        Ok(())
     }
 
     /// L'orologio (QPC, ns) e lo stato della pausa, da chiamare di continuo (almeno ogni 100 ms).
     /// Conta pause e sospensioni e riempie di silenzio gli ingressi rimasti indietro, come il
     /// loopback a riproduzione ferma. All'inizio di una pausa li completa fino a lì, così in `out`
     /// esce subito tutto l'audio prima della pausa. Accoda in `out` l'audio pronto.
-    pub fn advance(&mut self, now_ns: u64, paused: bool, out: &mut Vec<f32>) {
+    pub fn advance(
+        &mut self,
+        now_ns: u64,
+        paused: bool,
+        out: &mut Vec<f32>,
+    ) -> Result<(), AppError> {
         if paused {
             if self.pause_start.is_none() {
                 self.pause_start = Some(now_ns);
                 // I blocchi arrivati in pausa si scartano: quello che manca fin qui è silenzio.
-                self.fill_to(self.timeline(now_ns), HOLE_NS);
+                self.fill_to(self.timeline(now_ns), HOLE_NS)?;
+                for input in &mut self.inputs {
+                    input.boundary(Boundary::Pause, &mut self.mix)?;
+                }
                 self.emit(out);
             }
-            return;
+            return Ok(());
         }
         let excluded = match self.pause_start.take() {
             Some(start) => now_ns.saturating_sub(start),
@@ -315,22 +405,40 @@ impl Mixer {
         };
         self.paused_ns += excluded;
         self.last_now = now_ns;
-        self.fill_to(self.timeline(now_ns) - LAG_NS as i64, HOLE_NS);
+        self.fill_to(self.timeline(now_ns) - LAG_NS as i64, HOLE_NS)?;
         self.emit(out);
+        Ok(())
+    }
+
+    /// Non colma di silenzio il tempo che contiene ancora blocchi acquisiti da elaborare.
+    /// Pausa/Riprendi usano l'orologio reale; durante la cattura la coda governa l'avanzamento.
+    pub fn advance_pending(
+        &mut self,
+        now_ns: u64,
+        paused: bool,
+        capture_ns: Option<u64>,
+        out: &mut Vec<f32>,
+    ) -> Result<(), AppError> {
+        let clock = if paused || self.pause_start.is_some() {
+            now_ns
+        } else {
+            capture_ns.map_or(now_ns, |capture| {
+                capture.min(now_ns).max(self.last_now).max(self.origin)
+            })
+        };
+        self.advance(clock, paused, out)
     }
 
     /// Chiude la sessione all'istante `now_ns` (Stop): gli ingressi si completano di silenzio fino
     /// a lì (in pausa fino al più lungo) e in `out` arriva tutto l'audio rimasto.
-    pub fn finish(&mut self, now_ns: u64, out: &mut Vec<f32>) {
+    pub fn finish(&mut self, now_ns: u64, out: &mut Vec<f32>) -> Result<(), AppError> {
         if self.pause_start.is_none() {
-            self.fill_to(self.timeline(now_ns), HOLE_NS);
+            self.fill_to(self.timeline(now_ns), HOLE_NS)?;
         }
         let end = self.inputs.iter().map(Input::end_ns).max().unwrap_or(0);
-        self.fill_to(end as i64, 0);
+        self.fill_to(end as i64, 0)?;
         for input in &mut self.inputs {
-            input.resampled.clear();
-            input.resampler.finish(&mut input.resampled);
-            input.add(&mut self.mix);
+            input.boundary(Boundary::Finish, &mut self.mix)?;
             // Con una consegna continua (il microfono, il loopback durante una riproduzione) la
             // differenza tra le due durate è la deriva del clock del dispositivo rispetto a QPC.
             log::info!(
@@ -350,12 +458,32 @@ impl Mixer {
             .samples
             .resize((last - self.mix.emitted) * self.mix.channels, 0.0);
         self.emit_to(last, out);
+        Ok(())
     }
 
     /// La durata registrata, pause escluse, dai timestamp.
     pub fn elapsed_ms(&self) -> u32 {
         let end = self.inputs.iter().map(Input::end_ns).max().unwrap_or(0);
         u32::try_from(end / 1_000_000).unwrap_or(u32::MAX)
+    }
+
+    /// Da chiamare prima di pubblicare la nuova configurazione al processore dell'Ingresso.
+    pub fn configuration(&mut self, input: usize, out: &mut Vec<f32>) -> Result<(), AppError> {
+        self.inputs[input].boundary(Boundary::Configuration, &mut self.mix)?;
+        self.emit(out);
+        Ok(())
+    }
+
+    /// Fissa la revisione al prossimo campione acquisito, prima anche del ricampionatore.
+    /// Non scarica o resetta il DSP: cambiare la selezione non modifica l'audio salvato.
+    pub fn protect(
+        &self,
+        input: usize,
+        timeline: &super::protection::ProtectionTimeline,
+        level: super::protection::Sensibilita,
+    ) {
+        let input = &self.inputs[input];
+        timeline.record(input.frames * 16_000 / input.rate, level);
     }
 
     /// Il Guadagno (lineare) dell'ingresso `input`. Prima del suo primo audio vale da subito,
@@ -384,13 +512,14 @@ impl Mixer {
     }
 
     /// Completa di silenzio fino a `t_ns` gli ingressi indietro di almeno `tolerance_ns`.
-    fn fill_to(&mut self, t_ns: i64, tolerance_ns: u64) {
+    fn fill_to(&mut self, t_ns: i64, tolerance_ns: u64) -> Result<(), AppError> {
         for input in &mut self.inputs {
             let missing = input.frame_at(t_ns) - input.frames as i64;
             if missing > 0 && missing >= input.frame_at(tolerance_ns as i64) {
-                input.feed_silence(missing as u64, &mut self.mix);
+                input.feed_silence(missing as u64, &mut self.mix)?;
             }
         }
+        Ok(())
     }
 
     /// Accoda in `out` i frame che tutti gli ingressi hanno già sommato.
@@ -418,8 +547,207 @@ mod tests {
     use super::*;
     use crate::audio_toolkit::ogg_opus::OggOpusWriter;
     use crate::audio_toolkit::ogg_opus::tests::{decoded_seconds, sine, temp_dir};
+    use crate::audio_toolkit::processing::Bypass;
 
     const MS: u64 = 1_000_000;
+
+    #[test]
+    fn blocchi_acquisiti_in_coda_non_diventano_silenzio_se_il_worker_ritarda() {
+        use super::super::processing::tests::DelayedScale;
+        let mut mixer = Mixer::with_processors(
+            0,
+            &[(16_000, 1), (16_000, 1)],
+            (16_000, 1),
+            vec![
+                Box::new(DelayedScale::new(160)),
+                Box::new(DelayedScale::new(160)),
+            ],
+        )
+        .unwrap()
+        .with_tracks();
+        let mut out = Vec::new();
+        // I blocchi sono già acquisiti: il lavoro DSP porta il worker oltre LAG_NS.
+        for block in 0..2 {
+            for input in 0..2 {
+                let captured = block * 10 * MS;
+                mixer
+                    .advance_pending(800 * MS + captured, false, Some(captured), &mut out)
+                    .unwrap();
+                mixer.push(input, captured, &[0.4; 160], &mut out).unwrap();
+            }
+        }
+        mixer.finish(1000 * MS, &mut out).unwrap();
+        for track in mixer.tracks() {
+            assert!(
+                track[..320]
+                    .iter()
+                    .all(|sample| (*sample - 0.2).abs() < 1e-6),
+                "il parlato acquisito viene sostituito da silenzio prima di elaborare la coda"
+            );
+        }
+    }
+
+    #[test]
+    fn cambi_indipendenti_e_pausa_conservano_pcm_e_intervalli_prima_del_mix() {
+        use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
+        use crate::audio_toolkit::processing::tests::DelayedScale;
+        use crate::transcript::Ingresso;
+        use std::sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        };
+        let enabled = Arc::new(AtomicBool::new(false));
+        let control = enabled.clone();
+        let log = CleaningLog::default();
+        let processor = ConfiguredCleaning::with_factory(
+            Box::new(move || control.load(Ordering::Relaxed)),
+            Ingresso::Microfono,
+            log.clone(),
+            Box::new(|_| Ok(Box::new(DelayedScale::new(160)))),
+        )
+        .recovering(|error| panic!("{error}"));
+        let mut mixer = Mixer::with_processors(
+            0,
+            &[(16_000, 1), (16_000, 2)],
+            (16_000, 2),
+            vec![Box::new(processor), Box::new(Bypass)],
+        )
+        .unwrap()
+        .with_tracks();
+        let mut output = Vec::new();
+        mixer.push(0, 0, &[0.4; 160], &mut output).unwrap();
+        mixer
+            .push(1, 0, &[0.1, -0.1].repeat(160), &mut output)
+            .unwrap();
+        mixer.configuration(0, &mut output).unwrap();
+        enabled.store(true, Ordering::Relaxed);
+        mixer.push(0, 10 * MS, &[0.4; 160], &mut output).unwrap();
+        mixer
+            .push(1, 10 * MS, &[0.1, -0.1].repeat(160), &mut output)
+            .unwrap();
+        mixer.advance(20 * MS, true, &mut output).unwrap();
+        assert_eq!(output.len(), 640);
+        enabled.store(false, Ordering::Relaxed);
+        mixer.advance(1020 * MS, false, &mut output).unwrap();
+        mixer.push(0, 1020 * MS, &[0.4; 160], &mut output).unwrap();
+        mixer
+            .push(1, 1020 * MS, &[0.1, -0.1].repeat(160), &mut output)
+            .unwrap();
+        mixer.finish(1030 * MS, &mut output).unwrap();
+        assert_eq!(output.len(), 960);
+        let tracks = mixer.tracks();
+        assert_eq!(tracks[1], [0.1, -0.1].repeat(480));
+        assert_eq!(
+            tracks[0],
+            [[0.4; 320].as_slice(), &[0.2; 320], &[0.4; 320]].concat()
+        );
+        for (frame, mic) in output.chunks_exact(2).zip(tracks[0].chunks_exact(2)) {
+            assert!((frame[0] - mic[0] - 0.1).abs() < 1e-6);
+            assert!((frame[1] - mic[1] + 0.1).abs() < 1e-6);
+        }
+        let intervals = log.intervals();
+        assert_eq!(intervals.len(), 1);
+        assert_eq!(
+            (intervals[0].inizio_frame, intervals[0].fine_frame),
+            (160, 320)
+        );
+    }
+
+    #[test]
+    fn il_ritardo_non_sposta_buchi_loopback_pause_o_stop_con_frequenze_diverse() {
+        use crate::audio_toolkit::processing::tests::DelayedScale;
+        let devices = [(44_100, 1), (48_000, 2)];
+        for rate in [8_000, 16_000, 24_000, 48_000] {
+            for channels in [1, 2] {
+                let mut reference = Mixer::new(0, &devices, (rate, channels))
+                    .unwrap()
+                    .with_tracks();
+                let mut delayed = Mixer::with_processors(
+                    0,
+                    &devices,
+                    (rate, channels),
+                    vec![
+                        Box::new(DelayedScale::new(rate as usize / 10)),
+                        Box::new(Bypass),
+                    ],
+                )
+                .unwrap()
+                .with_tracks();
+                delayed.set_guadagno(0, 2.0);
+                let mut results = [Vec::new(), Vec::new()];
+                for (mixer, out) in [&mut reference, &mut delayed].into_iter().zip(&mut results) {
+                    let mic = crate::audio_toolkit::ogg_opus::tests::sine(44_100, 1, 0.01);
+                    for k in 0..150 {
+                        let t = k * 10 * MS;
+                        mixer.advance(t, false, out).unwrap();
+                        // Un buco del microfono e il loopback a riproduzione ferma.
+                        if !(40..65).contains(&k) {
+                            mixer.push(0, t, &mic, out).unwrap();
+                        }
+                        if (20..40).contains(&k) {
+                            mixer.push(1, t, &[0.1, -0.1].repeat(480), out).unwrap();
+                        }
+                    }
+                    mixer.advance(1_500 * MS, true, out).unwrap();
+                    mixer.push(0, 2_000 * MS, &mic, out).unwrap();
+                    mixer.advance(3_500 * MS, false, out).unwrap();
+                    // Stop subito dopo un blocco: l'impulso finale non deve andare perso.
+                    mixer.push(0, 3_500 * MS, &mic, out).unwrap();
+                    mixer.finish(3_510 * MS, out).unwrap();
+                    assert_eq!(mixer.elapsed_ms(), 1_510);
+                    assert_eq!(out.len(), (rate as usize * 151 / 100) * channels);
+                }
+                assert_eq!(results[0], results[1], "{rate} Hz, {channels} canali");
+                assert_eq!(reference.tracks(), delayed.tracks());
+            }
+        }
+    }
+
+    #[test]
+    fn il_processore_ritardato_precede_somma_tracce_e_chiusura() {
+        use crate::audio_toolkit::processing::tests::DelayedScale;
+        let mut mixer = Mixer::with_processors(
+            0,
+            &[(48_000, 1), (48_000, 2)],
+            (48_000, 2),
+            vec![
+                Box::new(DelayedScale::new(480)),
+                Box::new(crate::audio_toolkit::processing::Bypass),
+            ],
+        )
+        .unwrap()
+        .with_tracks();
+        mixer.set_guadagno(0, 2.0);
+        let mut out = Vec::new();
+        mixer.push(0, 0, &[0.4; 480], &mut out).unwrap();
+        mixer
+            .push(1, 0, &[0.1, -0.1].repeat(480), &mut out)
+            .unwrap();
+        assert!(out.is_empty());
+        mixer.advance(10 * MS, true, &mut out).unwrap();
+        assert_eq!(out.len(), 960);
+        assert!(
+            out.chunks_exact(2)
+                .all(|s| (s[0] - 0.5).abs() < 1e-6 && (s[1] - 0.3).abs() < 1e-6)
+        );
+        // In Pausa niente audio; alla ripresa stesso allineamento, anche con una coda diversa.
+        mixer.advance(1_010 * MS, false, &mut out).unwrap();
+        mixer.push(0, 1_010 * MS, &[0.2; 480], &mut out).unwrap();
+        mixer
+            .push(1, 1_010 * MS, &[0.1, -0.1].repeat(480), &mut out)
+            .unwrap();
+        mixer.finish(1_020 * MS, &mut out).unwrap();
+        assert_eq!(mixer.elapsed_ms(), 20);
+        assert_eq!(out.len(), 1920);
+        let tracks = mixer.tracks();
+        assert_eq!(tracks[0].len(), out.len());
+        assert_eq!(tracks[1].len(), out.len());
+        assert!(tracks[0][..960].iter().all(|s| (*s - 0.4).abs() < 1e-6));
+        assert!(tracks[0][960..].iter().all(|s| (*s - 0.2).abs() < 1e-6));
+        for (i, sample) in out.iter().enumerate() {
+            assert!((sample - tracks[0][i] - tracks[1][i]).abs() < 1e-6);
+        }
+    }
 
     /// Spinge `seconds` di sinusoide nell'ingresso `input` in blocchi da 10 ms a partire da
     /// `start_ns`, come un dispositivo, con l'orologio che avanza a ogni blocco (in pausa se
@@ -437,8 +765,8 @@ mod tests {
         let mut ts = start_ns;
         for chunk in sine(rate, channels, seconds).chunks(block) {
             // Come il worker: prima l'orologio, poi il blocco.
-            mixer.advance(ts, paused, out);
-            mixer.push(input, ts, chunk, out);
+            mixer.advance(ts, paused, out).unwrap();
+            mixer.push(input, ts, chunk, out).unwrap();
             ts += 10 * MS;
         }
         ts
@@ -450,7 +778,7 @@ mod tests {
         let mut mixer = Mixer::new(5_000 * MS, &[device], (16_000, 1)).unwrap();
         let mut out = Vec::new();
         let end = capture(&mut mixer, 0, device, 5_000 * MS, 2.0, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(out.len(), 32_000);
         assert_eq!(mixer.elapsed_ms(), 2_000);
     }
@@ -467,7 +795,7 @@ mod tests {
         assert_eq!(mixer.elapsed_ms(), 1_000);
         // Dopo Riprendi l'audio continua senza vuoti.
         let end = capture(&mut mixer, 0, device, ts, 0.5, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 1_500);
         assert_eq!(out.len(), 72_000);
     }
@@ -480,11 +808,11 @@ mod tests {
         let mut out = Vec::new();
         let ts = capture(&mut mixer, 0, device, 0, 1.0, false, &mut out);
         assert!(out.len() < 48_000);
-        mixer.advance(ts, true, &mut out);
+        mixer.advance(ts, true, &mut out).unwrap();
         assert_eq!(out.len(), 48_000);
         // Dopo Riprendi l'audio continua da lì.
         let end = capture(&mut mixer, 0, device, ts + 2_000 * MS, 0.5, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(out.len(), 72_000);
     }
 
@@ -496,7 +824,7 @@ mod tests {
         let ts = capture(&mut mixer, 0, device, 0, 1.0, false, &mut out);
         // 250 ms senza pacchetti (discontinuità), poi l'audio riprende.
         let end = capture(&mut mixer, 0, device, ts + 250 * MS, 1.0, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 2_250);
         assert_eq!(out.len(), 36_000);
         assert!(out[16_000..20_000].iter().all(|&s| s == 0.0));
@@ -512,7 +840,7 @@ mod tests {
         // Il loopback non consegna nulla per 3 s: l'orologio avanza ogni 100 ms.
         for _ in 0..30 {
             ts += 100 * MS;
-            mixer.advance(ts, false, &mut out);
+            mixer.advance(ts, false, &mut out).unwrap();
         }
         // Il timer resta indietro di poco rispetto all'orologio, non è fermo a 1 s.
         assert!(
@@ -521,7 +849,7 @@ mod tests {
             mixer.elapsed_ms()
         );
         let end = capture(&mut mixer, 0, device, ts, 1.0, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 5_000);
         assert_eq!(out.len(), 80_000);
         // Silenzio, a parte lo smorzamento del filtro del resampler ai bordi.
@@ -536,9 +864,9 @@ mod tests {
         let mut out = Vec::new();
         // Il loopback non consegna mai nulla: Stop dopo 2 s.
         for ms in (100..=2_000).step_by(100) {
-            mixer.advance(ms * MS, false, &mut out);
+            mixer.advance(ms * MS, false, &mut out).unwrap();
         }
-        mixer.finish(2_000 * MS, &mut out);
+        mixer.finish(2_000 * MS, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 2_000);
         assert_eq!(out.len(), 96_000);
     }
@@ -559,7 +887,7 @@ mod tests {
             false,
             &mut out,
         );
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 2_000);
         assert_eq!(out.len(), 32_000);
     }
@@ -569,14 +897,14 @@ mod tests {
         // Stereo con un canale muto → mono: la media dei due.
         let mut mixer = Mixer::new(0, &[(48_000, 2)], (48_000, 1)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.8, 0.0, -0.4, 0.0], &mut out);
+        mixer.push(0, 0, &[0.8, 0.0, -0.4, 0.0], &mut out).unwrap();
         assert_eq!(out, [0.4, -0.2]);
         assert_eq!(mixer.take_peaks(), [0.8]);
         assert_eq!(mixer.take_peaks(), [0.0]);
         // Mono → stereo: il campione si duplica.
         let mut mixer = Mixer::new(0, &[(48_000, 1)], (48_000, 2)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.5, -0.25], &mut out);
+        mixer.push(0, 0, &[0.5, -0.25], &mut out).unwrap();
         assert_eq!(out, [0.5, 0.5, -0.25, -0.25]);
     }
 
@@ -588,13 +916,15 @@ mod tests {
         // Microfono mono continuo per 2 s; il loopback consegna solo tra 1 s e 1,5 s.
         for k in 0..200u64 {
             let ts = k * 10 * MS;
-            mixer.advance(ts, false, &mut out);
-            mixer.push(0, ts, &[0.25; 441], &mut out);
+            mixer.advance(ts, false, &mut out).unwrap();
+            mixer.push(0, ts, &[0.25; 441], &mut out).unwrap();
             if (100..150).contains(&k) {
-                mixer.push(1, ts, &[0.5, -0.5].repeat(480), &mut out);
+                mixer
+                    .push(1, ts, &[0.5, -0.5].repeat(480), &mut out)
+                    .unwrap();
             }
         }
-        mixer.finish(2_000 * MS, &mut out);
+        mixer.finish(2_000 * MS, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 2_000);
         assert_eq!(out.len(), 96_000 * 2);
         let frame = |seconds: f64| {
@@ -614,8 +944,8 @@ mod tests {
     fn la_somma_si_ferma_a_fondo_scala() {
         let mut mixer = Mixer::new(0, &[(48_000, 1), (48_000, 2)], (48_000, 1)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.8, -0.8], &mut out);
-        mixer.push(1, 0, &[0.8, 0.8, -0.8, -0.8], &mut out);
+        mixer.push(0, 0, &[0.8, -0.8], &mut out).unwrap();
+        mixer.push(1, 0, &[0.8, 0.8, -0.8, -0.8], &mut out).unwrap();
         assert_eq!(out, [1.0, -1.0]);
         assert_eq!(mixer.take_peaks(), [0.8, 0.8]);
     }
@@ -630,11 +960,11 @@ mod tests {
             let mut out = Vec::new();
             let mut ts = 0;
             for _ in 0..1_000 {
-                mixer.advance(ts, false, &mut out);
-                mixer.push(0, ts, &[0.25; 480], &mut out);
+                mixer.advance(ts, false, &mut out).unwrap();
+                mixer.push(0, ts, &[0.25; 480], &mut out).unwrap();
                 ts += step_us * 1_000;
             }
-            mixer.finish(ts, &mut out);
+            mixer.finish(ts, &mut out).unwrap();
             let file_ms = out.len() as i64 * 1_000 / 48_000;
             let timeline_ms = i64::try_from(ts / MS).unwrap();
             assert!(
@@ -663,16 +993,18 @@ mod tests {
             let sound = sine(system.0, system.1, 0.5);
             let mut ts = 0;
             for k in 0..120 {
-                mixer.advance(ts, false, &mut out);
-                mixer.push(0, ts, &sine(mic.0, mic.1, 0.01), &mut out);
+                mixer.advance(ts, false, &mut out).unwrap();
+                mixer
+                    .push(0, ts, &sine(mic.0, mic.1, 0.01), &mut out)
+                    .unwrap();
                 if let Some(block) = sound.chunks(960).nth(k) {
-                    mixer.push(1, ts, block, &mut out);
+                    mixer.push(1, ts, block, &mut out).unwrap();
                 }
                 ts += 10 * MS;
             }
             let ts = capture(&mut mixer, 0, mic, ts, 2.0, true, &mut out);
             let end = capture(&mut mixer, 0, mic, ts, 0.8, false, &mut out);
-            mixer.finish(end, &mut out);
+            mixer.finish(end, &mut out).unwrap();
             writer.write(&out).unwrap();
             writer.finish().unwrap();
             let seconds = decoded_seconds(&path);
@@ -699,10 +1031,10 @@ mod tests {
         // Microfono continuo per 1 s; il loopback consegna solo tra 0,2 s e 0,4 s.
         for k in 0..100u64 {
             let ts = k * 10 * MS;
-            mixer.advance(ts, false, &mut out);
-            mixer.push(0, ts, &[0.25; 441], &mut out);
+            mixer.advance(ts, false, &mut out).unwrap();
+            mixer.push(0, ts, &[0.25; 441], &mut out).unwrap();
             if (20..40).contains(&k) {
-                mixer.push(1, ts, &[0.5; 960], &mut out);
+                mixer.push(1, ts, &[0.5; 960], &mut out).unwrap();
             }
             collect(&mut mixer);
         }
@@ -710,7 +1042,7 @@ mod tests {
         let ts = capture(&mut mixer, 0, mic, 1_000 * MS, 2.0, true, &mut out);
         collect(&mut mixer);
         let end = capture(&mut mixer, 0, mic, ts, 0.5, false, &mut out);
-        mixer.finish(end, &mut out);
+        mixer.finish(end, &mut out).unwrap();
         collect(&mut mixer);
         // Pause escluse, ogni Ingresso lungo quanto il mix e il mix è la loro somma.
         assert_eq!(out.len(), 72_000);
@@ -736,8 +1068,8 @@ mod tests {
         // +6 dB al microfono (× 2), 0 dB all'audio di sistema.
         mixer.set_guadagno(0, 2.0);
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.2; 480], &mut out);
-        mixer.push(1, 0, &[0.1; 480], &mut out);
+        mixer.push(0, 0, &[0.2; 480], &mut out).unwrap();
+        mixer.push(1, 0, &[0.1; 480], &mut out).unwrap();
         assert_eq!(out.len(), 480);
         assert!(
             out.iter().all(|s| (s - 0.5).abs() < 1e-6),
@@ -760,10 +1092,10 @@ mod tests {
                 // Da 0 a +12 dB (× 4) a metà.
                 mixer.set_guadagno(0, 4.0);
             }
-            mixer.push(0, k * 10 * MS, &[0.1; 480], &mut out);
+            mixer.push(0, k * 10 * MS, &[0.1; 480], &mut out).unwrap();
             track.append(&mut mixer.tracks()[0]);
         }
-        mixer.finish(1_000 * MS, &mut out);
+        mixer.finish(1_000 * MS, &mut out).unwrap();
         track.append(&mut mixer.tracks()[0]);
         assert_eq!(out.len(), 48_000);
         assert!((out[24_000 - 1] - 0.1).abs() < 1e-6);
@@ -781,8 +1113,8 @@ mod tests {
     fn senza_ingressi_separati_non_c_e_l_audio_di_ogni_ingresso() {
         let mut mixer = Mixer::new(0, &[(48_000, 1), (48_000, 1)], (48_000, 1)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.5; 480], &mut out);
-        mixer.push(1, 0, &[0.5; 480], &mut out);
+        mixer.push(0, 0, &[0.5; 480], &mut out).unwrap();
+        mixer.push(1, 0, &[0.5; 480], &mut out).unwrap();
         assert_eq!(out.len(), 480);
         assert!(mixer.tracks().is_empty());
     }
@@ -792,16 +1124,65 @@ mod tests {
         let device = (48_000, 1);
         let mut mixer = Mixer::new(0, &[device], (48_000, 1)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &[0.5; 4_800], &mut out);
+        mixer.push(0, 0, &[0.5; 4_800], &mut out).unwrap();
         // Un blocco da 100 ms che parte a 50 ms: i primi 50 ms sono già scritti e si scartano.
-        mixer.push(0, 50 * MS, &[-0.5; 4_800], &mut out);
+        mixer.push(0, 50 * MS, &[-0.5; 4_800], &mut out).unwrap();
         // Un blocco già scritto per intero (timestamp all'indietro) si scarta tutto.
-        mixer.push(0, 60 * MS, &[0.9; 480], &mut out);
-        mixer.finish(150 * MS, &mut out);
+        mixer.push(0, 60 * MS, &[0.9; 480], &mut out).unwrap();
+        mixer.finish(150 * MS, &mut out).unwrap();
         assert_eq!(mixer.elapsed_ms(), 150);
         assert_eq!(out.len(), 7_200);
         assert!(out[..4_800].iter().all(|&s| s == 0.5));
         assert!(out[4_800..].iter().all(|&s| s == -0.5));
+    }
+
+    #[test]
+    fn cambi_ravvicinati_non_accumulano_arrotondamenti_di_durata() {
+        let mut mixer = Mixer::new(0, &[(48_000, 1)], (16_000, 1)).unwrap();
+        let mut out = Vec::new();
+        for segment in 0..100u64 {
+            let timestamp = segment * 128 * NS_PER_S / 48_000;
+            mixer.push(0, timestamp, &[0.25; 128], &mut out).unwrap();
+            mixer.configuration(0, &mut out).unwrap();
+        }
+        mixer.finish(12_800 * NS_PER_S / 48_000, &mut out).unwrap();
+        assert_eq!(out.len(), 12_800usize.div_ceil(3));
+    }
+
+    #[test]
+    fn i_cambi_conservano_la_fase_del_segnale_a_frequenze_diverse() {
+        let signal: Vec<_> = (0..40_030)
+            .map(|i| (i as f32 * 0.071).sin() * 0.25)
+            .collect();
+        let run = |changes: bool| {
+            let mut mixer = Mixer::new(0, &[(48_000, 1)], (16_000, 1)).unwrap();
+            let mut out = Vec::new();
+            for (segment, block) in signal.chunks(4_003).enumerate() {
+                let timestamp = segment as u64 * 4_003 * NS_PER_S / 48_000;
+                mixer.push(0, timestamp, block, &mut out).unwrap();
+                if changes {
+                    mixer.configuration(0, &mut out).unwrap();
+                }
+            }
+            mixer
+                .finish(signal.len() as u64 * NS_PER_S / 48_000, &mut out)
+                .unwrap();
+            out
+        };
+        let continuous = run(false);
+        let changed = run(true);
+        assert_eq!(continuous.len(), changed.len());
+        for segment in 1..10usize {
+            // Fuori dalla coda del filtro al confine, la griglia temporale deve coincidere.
+            let start = (segment * 4_003).div_ceil(3) + 400;
+            let end = ((segment + 1) * 4_003).div_ceil(3) - 400;
+            let difference = continuous[start..end]
+                .iter()
+                .zip(&changed[start..end])
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0, f32::max);
+            assert!(difference < 1e-5, "segmento {segment}: {difference}");
+        }
     }
 
     #[test]
@@ -810,7 +1191,7 @@ mod tests {
         let frame = [0.1, 0.2, 0.4, 0.9, 0.3, 0.0];
         let mut mixer = Mixer::new(0, &[(48_000, 6)], (48_000, 2)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &frame, &mut out);
+        mixer.push(0, 0, &frame, &mut out).unwrap();
         // Centrale e surround a -3 dB (× 0,7071), subwoofer escluso.
         let (left, right) = (0.1 + 0.282_84 + 0.212_13, 0.2 + 0.282_84);
         assert!(
@@ -819,7 +1200,7 @@ mod tests {
         );
         let mut mixer = Mixer::new(0, &[(48_000, 6)], (48_000, 1)).unwrap();
         let mut out = Vec::new();
-        mixer.push(0, 0, &frame, &mut out);
+        mixer.push(0, 0, &frame, &mut out).unwrap();
         assert!((out[0] - (left + right) / 2.0).abs() < 1e-4, "{out:?}");
     }
 }

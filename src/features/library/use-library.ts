@@ -4,8 +4,9 @@ import { type AppError, commands, events, type LibraryList } from "@/bindings";
 const EMPTY: LibraryList = { raccolte: [], tapes: [] };
 
 /** L'elenco della Libreria, riletto a ogni `library-changed`. */
-export function useLibrary(onError: (error: AppError) => void): LibraryList {
+export function useLibrary(onError: (error: AppError) => void) {
   const [list, setList] = useState(EMPTY);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const load = async () => {
       const result = await commands.libraryList();
@@ -14,6 +15,7 @@ export function useLibrary(onError: (error: AppError) => void): LibraryList {
       } else {
         onError(result.error);
       }
+      setLoading(false);
     };
     const changed = events.libraryChanged.listen(load);
     load();
@@ -21,5 +23,5 @@ export function useLibrary(onError: (error: AppError) => void): LibraryList {
       changed.then((stop) => stop());
     };
   }, [onError]);
-  return list;
+  return { list, loading };
 }

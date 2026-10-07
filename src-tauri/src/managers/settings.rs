@@ -12,9 +12,23 @@ pub const BITRATES_KBPS: [u32; 9] = [16, 24, 32, 48, 64, 96, 128, 192, 320];
 /// Le frequenze di una Registrazione, in Hz.
 pub const SAMPLE_RATES: [u32; 4] = [8_000, 16_000, 24_000, 48_000];
 
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct ProfiloAudio {
+    #[serde(default)]
+    pub pulizia: bool,
+    #[serde(default)]
+    pub sensibilita: crate::audio_toolkit::protection::Sensibilita,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default)]
+    pub audio_microfono: ProfiloAudio,
+    #[serde(default)]
+    pub audio_sistema: ProfiloAudio,
+    #[serde(default)]
+    pub audio_file_misto: ProfiloAudio,
     pub recording_source: RecordingSource,
     /// `null`: il microfono predefinito di sistema.
     pub microphone: Option<String>,
@@ -265,6 +279,9 @@ impl From<&str> for SpeechLanguage {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            audio_microfono: ProfiloAudio::default(),
+            audio_sistema: ProfiloAudio::default(),
+            audio_file_misto: ProfiloAudio::default(),
             recording_source: RecordingSource::Mic,
             microphone: None,
             output_device: None,
@@ -293,6 +310,15 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// L'Ingresso effettivo del Tape; senza tracce distinte il profilo resta File e audio misto.
+    pub fn profilo_audio(&self, ingresso: Ingresso) -> &ProfiloAudio {
+        match ingresso {
+            Ingresso::Microfono => &self.audio_microfono,
+            Ingresso::Sistema => &self.audio_sistema,
+            Ingresso::Mix => &self.audio_file_misto,
+        }
+    }
+
     /// Gli audio da diarizzare dopo Stop: quelli trascritti dal vivo (il mix, o da Entrambi ogni
     /// Ingresso) con la loro casella attiva. Senza Trascrizione dal vivo nessuno: non ci sono Frasi
     /// da attribuire.
@@ -510,6 +536,56 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[test]
+    fn sensibilita_precedente_bilanciata_e_profili_persistenti_indipendenti() {
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value["audioMicrofono"] = serde_json::json!({"pulizia": true});
+        value["audioSistema"] = serde_json::json!({"pulizia": false, "sensibilita": "selettivo"});
+        value["audioFileMisto"] = serde_json::json!({"pulizia": true, "sensibilita": "spento"});
+        let path = temp_file("sensibilita-profili");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let read = Settings::load(&path).unwrap();
+        read.save(&path).unwrap();
+        let saved = serde_json::to_value(Settings::load(&path).unwrap()).unwrap();
+        assert_eq!(saved["audioMicrofono"]["sensibilita"], "bilanciato");
+        assert_eq!(saved["audioSistema"]["sensibilita"], "selettivo");
+        assert_eq!(saved["audioFileMisto"]["sensibilita"], "spento");
+        assert_eq!(saved["audioMicrofono"]["pulizia"], true);
+        assert_eq!(saved["audioFileMisto"]["pulizia"], true);
+        value["audioSistema"]["sensibilita"] = "inesistente".into();
+        std::fs::write(&path, value.to_string()).unwrap();
+        assert!(serde_json::from_value::<Settings>(value).is_err());
+    }
+
+    #[test]
+    fn profili_audio_precedenti_spenti_e_nuovi_valori_indipendenti() {
+        let mut old = serde_json::to_value(Settings {
+            parlanti_file: true,
+            ..Settings::default()
+        })
+        .unwrap();
+        for field in ["audioMicrofono", "audioSistema", "audioFileMisto"] {
+            old.as_object_mut().unwrap().remove(field);
+        }
+        let mut settings: Settings = serde_json::from_value(old).unwrap();
+        assert!(settings.parlanti_file);
+        assert!(
+            !settings.audio_microfono.pulizia
+                && !settings.audio_sistema.pulizia
+                && !settings.audio_file_misto.pulizia
+        );
+        settings.audio_file_misto.pulizia = true;
+        let path = temp_file("profili-audio");
+        settings.save(&path).unwrap();
+        let read = Settings::load(&path).unwrap();
+        assert!(read.audio_file_misto.pulizia);
+        assert!(!read.audio_microfono.pulizia && !read.audio_sistema.pulizia);
+        assert_eq!(
+            serde_json::from_str::<ProfiloAudio>("{}").unwrap(),
+            ProfiloAudio::default()
+        );
+    }
 
     #[test]
     fn senza_scelta_del_diarizer_si_conservano_sortformer_e_le_impostazioni() {
@@ -744,6 +820,15 @@ mod tests {
         let path = temp_file("salvate");
         let settings = Settings {
             recording_source: RecordingSource::Both,
+            audio_microfono: ProfiloAudio::default(),
+            audio_sistema: ProfiloAudio {
+                pulizia: true,
+                ..ProfiloAudio::default()
+            },
+            audio_file_misto: ProfiloAudio {
+                pulizia: true,
+                ..ProfiloAudio::default()
+            },
             microphone: Some("Microfono USB".into()),
             output_device: Some("Cuffie".into()),
             model: "whisper-large-v3-turbo-q5km".into(),

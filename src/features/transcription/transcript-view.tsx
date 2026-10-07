@@ -13,8 +13,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  type FocusEvent,
-  type KeyboardEvent,
   type ReactNode,
   useCallback,
   useEffect,
@@ -39,10 +37,14 @@ import {
   type PhraseRef,
   phraseKey,
   type Turn,
+  textItemsOf,
+  turnBody,
   turnsOf,
   turnText,
+  turnTextWithBody,
   voiceColors,
 } from "@/features/transcription/phrases";
+import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
@@ -54,7 +56,7 @@ function scrollBehavior(): ScrollBehavior {
 /**
  * La trascrizione come documento a turni: per ogni turno il pallino e il nome della voce (un clic
  * rinomina il Parlante sul posto), il tempo che porta lì il player, ▶ che lo avvia, e le Frasi. Con
- * `onEdit` ogni Frase si corregge al suo posto: Invio o l'uscita salvano, Esc ripristina, e
+ * `onEdit` offre un editor continuo del Turno: Invio va a capo, l'uscita salva, Esc ripristina, e
  * correggere non tocca mai il player. `highlight` è la Frase di un risultato della ricerca,
  * evidenziata e portata in vista. Con `player` la Frase in ascolto si evidenzia e resta in vista
  * finché l'utente non scorre da solo; allora "Torna al punto in ascolto" la riporta. `header` sta in
@@ -79,7 +81,7 @@ export function TranscriptView({
   header?: ReactNode;
   highlight?: PhraseRef | null;
   /** Salva la correzione; `false` se non si è salvata, e il testo resta com'è scritto. */
-  onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
+  onEdit?: EditTurn;
   onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
   onRename?: (voce: Parlante, nome: string) => void;
   /** Apre (o con `null` chiude) il campo del nome di un Parlante. */
@@ -303,7 +305,7 @@ function TurnBlock({
   followed: string | undefined;
   highlight?: PhraseRef | null;
   list: Parlante[];
-  onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
+  onEdit?: EditTurn;
   onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
   onJump?: (ms: number) => void;
   onPlay?: (ms: number) => void;
@@ -334,6 +336,21 @@ function TurnBlock({
     [onRenaming, turn.key]
   );
   const indent = turn.label ? "pl-[1.375rem]" : "";
+  const commit = useRef<CommitTurn | null>(null);
+  const registerCommit = useCallback((save: CommitTurn) => {
+    commit.current = save;
+  }, []);
+  const beforeCopy = useCallback<CommitTurn>(
+    () => commit.current?.() ?? Promise.resolve(turnBody(turn)),
+    [turn]
+  );
+  const merge = useCallback(
+    async (source: Turn, target: PhraseRef) => {
+      const saved = await beforeCopy();
+      return saved !== null && onMerge ? onMerge(source, target) : false;
+    },
+    [beforeCopy, onMerge]
+  );
 
   return (
     <article
@@ -399,37 +416,49 @@ function TurnBlock({
         !turn.items.some((item) =>
           partials.includes(item as TranscriptPartial)
         ) ? (
-          <MergeTurn
-            above={above}
-            below={below}
-            onMerge={onMerge}
-            turn={turn}
-          />
+          <MergeTurn above={above} below={below} onMerge={merge} turn={turn} />
         ) : null}
-        <CopyTurn turn={turn} />
+        <CopyTurn beforeCopy={onEdit ? beforeCopy : undefined} turn={turn} />
       </div>
       <div
-        className={`mt-1 space-y-2 text-[1.0625rem] leading-[1.7] ${indent}`}
+        className={`mt-1 flex flex-col gap-2 text-[1.0625rem] leading-[1.7] ${indent}`}
       >
-        {turn.items.map((item, i) => {
-          const partial = partials.includes(item as TranscriptPartial);
-          const key = phraseKey(item);
-          return (
-            <p key={`${key}${partial ? ":parziale" : ""}`}>
-              <PhraseText
-                highlighted={
-                  highlight?.ingresso === item.ingresso &&
-                  highlight.phraseId === item.phraseId
-                }
-                item={item}
-                onEdit={partial ? undefined : onEdit}
-                onJump={partial || i === 0 ? undefined : onJump}
-                partial={partial}
-                playing={!partial && playing.includes(key)}
-              />
-            </p>
-          );
-        })}
+        {onEdit &&
+        !turn.items.some((item) =>
+          partials.includes(item as TranscriptPartial)
+        ) ? (
+          <TurnEditor
+            highlight={highlight}
+            onCommit={registerCommit}
+            onEdit={onEdit}
+            playing={playing}
+            turn={turn}
+          />
+        ) : (
+          textItemsOf(turn).map((item, i) => {
+            const partial = partials.includes(item as TranscriptPartial);
+            const key = phraseKey(item);
+            return (
+              <p key={`${key}${partial ? ":parziale" : ""}`}>
+                <PhraseText
+                  highlighted={
+                    highlight?.ingresso === item.ingresso &&
+                    highlight.phraseId === item.phraseId
+                  }
+                  item={item}
+                  onJump={partial || i === 0 ? undefined : onJump}
+                  partial={partial}
+                  playing={
+                    !(
+                      partial ||
+                      ("testoCorretto" in item && item.testoCorretto)
+                    ) && playing.includes(key)
+                  }
+                />
+              </p>
+            );
+          })
+        )}
       </div>
     </article>
   );
@@ -520,7 +549,13 @@ function MergeTurn({
 const COPIED_MS = 1500;
 
 /** Copia turno: il testo semplice del turno negli appunti; si vede col mouse o il focus sul turno. */
-function CopyTurn({ turn }: { turn: Turn }) {
+function CopyTurn({
+  turn,
+  beforeCopy,
+}: {
+  turn: Turn;
+  beforeCopy?: CommitTurn;
+}) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -531,9 +566,17 @@ function CopyTurn({ turn }: { turn: Turn }) {
     return () => clearTimeout(timer);
   }, [copied]);
   const copy = useCallback(async () => {
-    await navigator.clipboard.writeText(turnText(turn));
+    const savedText = await beforeCopy?.();
+    if (savedText === null) {
+      return;
+    }
+    await navigator.clipboard.writeText(
+      savedText === undefined
+        ? turnText(turn)
+        : turnTextWithBody(turn, savedText)
+    );
     setCopied(true);
-  }, [turn]);
+  }, [turn, beforeCopy]);
   const label = copied
     ? t("transcription.copied")
     : t("transcription.copyTurn");
@@ -686,63 +729,32 @@ function inView(el: Element, container: HTMLElement | null): boolean {
   return box.top >= view.top && box.bottom <= view.bottom;
 }
 
-/** Il testo scritto nella Frase: senza a capo né spazi non separabili. */
-function typedText(el: HTMLElement): string {
-  return (el.textContent ?? "").replace(/\s/g, " ");
-}
-
 /**
- * Una Frase, seguita da uno spazio. Modificabile solo come testo semplice; il `key` del suo span
- * cambia quando il testo arriva da fuori o con Esc, così React non scrive mai nel testo modificato.
+ * Una Frase in lettura o un Parziale, seguiti da uno spazio.
  * Con `onJump`, passando il mouse (o con il focus) compare sopra la Frase il pulsante del suo tempo,
  * che porta lì il player senza spostare il testo.
  */
 function PhraseText({
   highlighted,
   item,
-  onEdit,
   onJump,
   partial,
   playing,
 }: {
   highlighted: boolean;
   item: TranscriptPhrase | TranscriptPartial;
-  onEdit?: (phrase: PhraseRef, text: string) => Promise<boolean>;
   onJump?: (ms: number) => void;
   /** Il Parziale della Frase in corso, ancora provvisorio. */
   partial: boolean;
   playing: boolean;
 }) {
   const { t } = useTranslation();
-  const [resets, setResets] = useState(0);
   const span = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (highlighted) {
       span.current?.scrollIntoView({ block: "center" });
     }
   }, [highlighted]);
-  const save = useCallback(
-    (e: FocusEvent<HTMLSpanElement>) => {
-      const text = typedText(e.currentTarget);
-      if (onEdit && text !== item.text) {
-        onEdit(item, text);
-      }
-    },
-    [item, onEdit]
-  );
-  const keyDown = useCallback(
-    (e: KeyboardEvent<HTMLSpanElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        e.currentTarget.blur();
-      } else if (e.key === "Escape") {
-        e.currentTarget.textContent = item.text;
-        e.currentTarget.blur();
-        setResets((n) => n + 1);
-      }
-    },
-    [item.text]
-  );
   const jump = useCallback(
     () => onJump?.(item.inizioMs),
     [item.inizioMs, onJump]
@@ -769,33 +781,10 @@ function PhraseText({
       {elapsedText(item.inizioMs)}
     </button>
   ) : null;
-  if (!onEdit) {
-    return (
-      <span className="group/frase relative" data-phrase={phraseKey(item)}>
-        {time}
-        <span className={className} ref={span}>
-          {item.text}
-        </span>{" "}
-      </span>
-    );
-  }
   return (
     <span className="group/frase relative" data-phrase={phraseKey(item)}>
       {time}
-      {/* biome-ignore lint/a11y/useSemanticElements: un campo spezzerebbe il testo del turno, la Frase si corregge al suo posto */}
-      <span
-        aria-label={t("transcription.edit")}
-        className={`${className} transcript-editor cursor-text select-text empty:inline-block empty:min-w-8 empty:border-b empty:border-dashed hover:bg-accent focus:bg-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
-        contentEditable="plaintext-only"
-        key={`${resets}:${item.text}`}
-        onBlur={save}
-        onKeyDown={keyDown}
-        ref={span}
-        role="textbox"
-        suppressContentEditableWarning
-        tabIndex={0}
-        title={t("transcription.edit")}
-      >
+      <span className={`${className} whitespace-pre-wrap`} ref={span}>
         {item.text}
       </span>{" "}
     </span>

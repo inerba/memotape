@@ -8,6 +8,7 @@ import {
   nomeTaken,
   parlanteStats,
   parlantiOf,
+  turnBody,
   turnsOf,
   turnText,
   VOICE_COLORS,
@@ -21,6 +22,74 @@ import {
   withPhrase,
   withTesto,
 } from "@/features/transcription/phrases";
+
+test("un Turno vuoto unito non aggiunge separatori e conserva gli a capo del testo vicino", () => {
+  for (const emptyFirst of [true, false]) {
+    const items = [
+      { ...phrase(0, 0, ""), parlante: 1, testoCorretto: true, testoTurno: 0 },
+      { ...phrase(1, 500, "\nTesto.\n\nParagrafo.\n"), parlante: 1 },
+    ];
+    const [turn] = turnsOf(
+      {
+        ...EMPTY_CONVERSATION,
+        phrases: (emptyFirst ? items : [...items].reverse()).map(
+          (item, index) => ({
+            ...item,
+            fineMs: index * 500 + 400,
+            inizioMs: index * 500,
+          })
+        ),
+      },
+      t
+    );
+    if (!turn) {
+      throw new Error("Turno atteso");
+    }
+    expect(turnBody(turn)).toBe("\nTesto.\n\nParagrafo.\n");
+    expect(turnText(turn)).toBe("Parlante 1: \nTesto.\n\nParagrafo.\n");
+  }
+});
+
+test("Copia turno conserva a capo e testo corretto senza duplicare le Frasi originali", () => {
+  const conversation: Conversation = {
+    ...EMPTY_CONVERSATION,
+    phrases: [
+      {
+        ...phrase(0, 0, "Testo unito.\n\nParagrafo."),
+        parlante: 1,
+        testoCorretto: true,
+        testoTurno: 0,
+      },
+      {
+        ...phrase(1, 500, ""),
+        parlante: 1,
+        testoCorretto: true,
+        testoTurno: 0,
+      },
+      { ...phrase(2, 1000, "Altra frase."), parlante: 1 },
+    ],
+  };
+  const [turn] = turnsOf(conversation, t);
+  if (!turn) {
+    throw new Error("Turno atteso");
+  }
+  expect(turnBody(turn)).toBe("Testo unito.\n\nParagrafo.\nAltra frase.");
+  expect(turnText(turn)).toBe(
+    "Parlante 1: Testo unito.\n\nParagrafo.\nAltra frase."
+  );
+  const [first] = conversation.phrases;
+  if (!first) {
+    throw new Error("Frase attesa");
+  }
+  conversation.phrases[0] = { ...first, text: "" };
+  conversation.phrases.pop();
+  const [empty] = turnsOf(conversation, t);
+  if (!empty) {
+    throw new Error("Turno vuoto atteso");
+  }
+  expect(turnBody(empty)).toBe("");
+  expect(turnText(empty)).toBe("");
+});
 
 test("l'unione considera solo il vicino e richiede una voce nota dello stesso Ingresso", () => {
   const conversation: Conversation = {

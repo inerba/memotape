@@ -4,10 +4,345 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>Memotape</title>
+    <script>
+    "use strict";
+    const startupTheme = window.__MEMOTAPE_STARTUP__?.theme;
+    document.documentElement.dataset.theme =
+      startupTheme ??
+      (window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light");
+    if (startupTheme) {
+      document.documentElement.dataset.startupTheme = startupTheme;
+    }
+    </script>
+    <style id="startup-style">
+    @font-face {
+      font-family: "Startup Inter";
+      src: url("/node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2")
+        format("woff2");
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    :root {
+      --startup-paper: oklch(0.985 0.006 85);
+      --startup-ink: oklch(0.24 0.012 60);
+      --startup-muted: oklch(0.5 0.016 65);
+      --startup-reel: #241e1a;
+      --startup-ring: oklch(0.55 0.07 128);
+      color-scheme: light dark;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-startup-theme="light"]) {
+        --startup-paper: oklch(0.205 0.008 65);
+        --startup-ink: oklch(0.93 0.01 80);
+        --startup-muted: oklch(0.71 0.015 75);
+        --startup-reel: #45392f;
+        --startup-ring: oklch(0.7 0.08 125);
+      }
+    }
+    :root[data-startup-theme="dark"] {
+      --startup-paper: oklch(0.205 0.008 65);
+      --startup-ink: oklch(0.93 0.01 80);
+      --startup-muted: oklch(0.71 0.015 75);
+      --startup-reel: #45392f;
+      --startup-ring: oklch(0.7 0.08 125);
+      color-scheme: dark;
+    }
+    :root[data-startup-theme="light"] {
+      color-scheme: light;
+    }
+    body {
+      margin: 0;
+      background: var(--startup-paper);
+    }
+    #startup {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: grid;
+      place-items: center;
+      font:
+        14px / 1.5 "Startup Inter",
+        ui-sans-serif,
+        system-ui,
+        sans-serif;
+      color: var(--startup-ink);
+      background: var(--startup-paper);
+    }
+    .startup-titlebar {
+      position: absolute;
+      inset: 0 0 auto;
+      display: flex;
+      align-items: center;
+      height: 48px;
+      padding-inline: 18px 138px;
+    }
+    .startup-brand {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--startup-muted);
+      pointer-events: none;
+    }
+    .startup-brand img {
+      display: block;
+      width: 24px;
+      height: 24px;
+    }
+    .startup-controls {
+      position: absolute;
+      inset: 0 0 auto auto;
+      display: flex;
+      height: 36px;
+    }
+    .startup-controls button {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      padding: 0;
+      color: var(--startup-ink);
+      background: transparent;
+      border: 0;
+    }
+    .startup-controls button:hover {
+      background: color-mix(in oklab, var(--startup-ink) 8%, transparent);
+    }
+    .startup-controls svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.25;
+    }
+    #startup-close:hover {
+      color: white;
+      background: #c42b1c;
+    }
+    #startup button:focus-visible {
+      outline: 3px solid var(--startup-ring);
+      outline-offset: -3px;
+    }
+    .startup-content {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: calc(100% - 48px);
+      text-align: center;
+      transform: translateY(-24px);
+    }
+    .startup-symbol {
+      width: 76px;
+      height: 76px;
+    }
+    .startup-hub {
+      transform-origin: 176px 176px;
+      animation: startup-spin 2.8s linear infinite;
+    }
+    .startup-wordmark {
+      display: block;
+      width: 184px;
+      margin-top: 17px;
+    }
+    .startup-wordmark img {
+      display: block;
+      width: 100%;
+    }
+    #startup-status {
+      max-width: 360px;
+      margin: 26px 0 0;
+      color: var(--startup-muted);
+    }
+    #startup-slow {
+      position: absolute;
+      top: 100%;
+      width: 320px;
+      max-width: calc(100vw - 48px);
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: var(--startup-muted);
+    }
+    #startup-retry {
+      padding: 8px 16px;
+      margin-top: 20px;
+      font: inherit;
+      color: var(--startup-ink);
+      background: transparent;
+      border: 1px solid var(--startup-muted);
+      border-radius: 8px;
+    }
+    #startup[data-failed] .startup-hub {
+      animation-play-state: paused;
+    }
+    @keyframes startup-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .startup-hub {
+        animation: none;
+      }
+    }
+    </style>
   </head>
 
   <body>
     <div id="root"></div>
-    <script src="/src/main.tsx" type="module"></script>
+    <section aria-label="Memotape" id="startup">
+      <div class="startup-titlebar" data-tauri-drag-region>
+        <span aria-hidden="true" class="startup-brand">
+          <picture>
+            <source
+              media="(prefers-color-scheme: dark)"
+              srcset="/docs/brand/svg/memotape-simbolo-piccolo-negativo.svg"
+            >
+            <img
+              alt=""
+              height="24"
+              src="/docs/brand/svg/memotape-simbolo-piccolo.svg"
+              width="24"
+            >
+          </picture>
+          Memotape
+        </span>
+      </div>
+      <div class="startup-controls">
+        <button aria-label="Riduci a icona" id="startup-minimize" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+        <button aria-label="Ingrandisci" id="startup-maximize" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <rect height="14" rx="1" width="14" x="5" y="5" />
+          </svg>
+        </button>
+        <button aria-label="Chiudi" id="startup-close" type="button">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <path d="m6 6 12 12M6 18 18 6" />
+          </svg>
+        </button>
+      </div>
+      <div class="startup-content">
+        <!-- Il marchio approvato: solo il mozzo ruota, sul centro originale del simbolo. -->
+        <svg aria-hidden="true" class="startup-symbol" viewBox="0 0 256 256">
+          <defs>
+            <clipPath id="startup-logo-clip">
+              <path
+                d="M52,16H204A36,36 0 0 1 240,52V204A36,36 0 0 1 204,240H52A36,36 0 0 1 16,204V52A36,36 0 0 1 52,16Z"
+              />
+            </clipPath>
+          </defs>
+          <path
+            d="M52,16H204A36,36 0 0 1 240,52V204A36,36 0 0 1 204,240H52A36,36 0 0 1 16,204V52A36,36 0 0 1 52,16Z"
+            fill="#576b3c"
+          />
+          <g clip-path="url(#startup-logo-clip)">
+            <rect fill="#f2c14e" height="16" width="256" y="40" />
+            <rect fill="#fcfaf6" height="16" width="256" y="64" />
+            <path
+              d="M40,176A136,136 0 1 1 312,176A136,136 0 1 1 40,176Z"
+              fill="var(--startup-reel)"
+            />
+            <path
+              d="M112,176A64,64 0 1 1 240,176A64,64 0 1 1 112,176Z"
+              fill="#fcfaf6"
+            />
+            <path
+              class="startup-hub"
+              d="M168,140.9L168,153.37A24,24 0 0 1 184,153.37L184,140.9A36,36 0 0 1 202.4,151.52L191.6,157.76A24,24 0 0 1 199.6,171.61L210.4,165.38A36,36 0 0 1 210.4,186.62L199.6,180.39A24,24 0 0 1 191.6,194.24L202.4,200.48A36,36 0 0 1 184,211.1L184,198.63A24,24 0 0 1 168,198.63L168,211.1A36,36 0 0 1 149.6,200.48L160.4,194.24A24,24 0 0 1 152.4,180.39L141.6,186.62A36,36 0 0 1 141.6,165.38L152.4,171.61A24,24 0 0 1 160.4,157.76L149.6,151.52A36,36 0 0 1 168,140.9Z"
+              fill="#576b3c"
+            />
+          </g>
+        </svg>
+        <picture class="startup-wordmark">
+          <source
+            media="(prefers-color-scheme: dark)"
+            srcset="/docs/brand/svg/memotape-logotipo-negativo.svg"
+          >
+          <img
+            alt="memotape"
+            height="40"
+            src="/docs/brand/svg/memotape-logotipo.svg"
+            width="184"
+          >
+        </picture>
+        <p id="startup-status" role="status">Avvio di Memotape…</p>
+        <p hidden id="startup-slow" role="status"></p>
+        <button hidden id="startup-retry" type="button">Ricarica</button>
+      </div>
+    </section>
+    <script>
+    "use strict";
+    (() => {
+      const preload = document.getElementById("startup");
+      const root = document.getElementById("root");
+      const statusText = document.getElementById("startup-status");
+      const slowText = document.getElementById("startup-slow");
+      const retry = document.getElementById("startup-retry");
+      const data = window.__MEMOTAPE_STARTUP__;
+      if (data) {
+        document.documentElement.lang = data.language;
+        statusText.textContent = data.startup.starting;
+        retry.textContent = data.error.action;
+        if (data.theme) {
+          for (const source of preload.querySelectorAll("picture source")) {
+            source.media = data.theme === "dark" ? "all" : "not all";
+          }
+        }
+        for (const action of ["minimize", "maximize", "close"]) {
+          document
+            .getElementById(`startup-${action}`)
+            .setAttribute("aria-label", data.window[action]);
+        }
+      }
+      const timer = window.setTimeout(() => {
+        slowText.textContent =
+          data?.startup.slow ??
+          "L’avvio sta richiedendo più tempo del previsto…";
+        slowText.hidden = false;
+      }, 10_000);
+      const failed = () => {
+        window.clearTimeout(timer);
+        preload.dataset.failed = "true";
+        statusText.textContent =
+          data?.error.description ??
+          "L’app ha incontrato un errore e va ricaricata.";
+        statusText.setAttribute("role", "alert");
+        slowText.hidden = true;
+        retry.hidden = false;
+      };
+      const scriptFailed = (event) => {
+        if (
+          event instanceof ErrorEvent ||
+          event.target instanceof HTMLScriptElement
+        ) {
+          failed();
+        }
+      };
+      const observer = new MutationObserver(() => {
+        // Una fallback Suspense vuota non nasconde il preload. Anche una pagina di errore
+        // renderizzata conta come interfaccia disponibile e conserva la sua azione Ricarica.
+        if (root.childElementCount > 0) {
+          window.clearTimeout(timer);
+          observer.disconnect();
+          window.removeEventListener("memotape-startup-error", failed);
+          window.removeEventListener("error", scriptFailed, true);
+          preload.remove();
+          document.getElementById("startup-style").remove();
+          delete document.documentElement.dataset.startupTheme;
+          window.dispatchEvent(new Event("memotape-startup-ready"));
+        }
+      });
+      observer.observe(root, { childList: true });
+      retry.addEventListener("click", () => window.location.reload());
+      window.addEventListener("memotape-startup-error", failed);
+      window.addEventListener("error", scriptFailed, true);
+    })();
+    </script>
+    <script src="/src/startup-controls.ts" type="module"></script>
   </body>
 </html>

@@ -14,6 +14,7 @@ import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { clockText, groupByDate } from "@/features/library/library";
+import { recentTitle } from "@/features/library/recent-tapes";
 import { SearchResults } from "@/features/library/search-results";
 import { elapsedText } from "@/features/recording/recording";
 import type { PhraseRef } from "@/features/transcription/phrases";
@@ -39,11 +40,13 @@ export function Sidebar({
   onCancel,
   onError,
   onImport,
+  onHome,
   onOpen,
   onShowAll,
   record,
   selected,
   showingAll,
+  showingHome,
 }: {
   /** L'Attività in corso, se c'è. */
   activity: ActivitySummary | null;
@@ -55,6 +58,7 @@ export function Sidebar({
   onCancel: () => void;
   onError: (error: AppError) => void;
   onImport: () => void;
+  onHome: () => void;
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: PhraseRef) => void;
   onShowAll: () => void;
@@ -63,6 +67,7 @@ export function Sidebar({
   selected: string | null;
   /** La Libreria completa è aperta. */
   showingAll: boolean;
+  showingHome: boolean;
 }) {
   const { i18n, t } = useTranslation();
   const [query, setQuery] = useState("");
@@ -117,13 +122,19 @@ export function Sidebar({
         className="flex h-14 shrink-0 items-center gap-2.5 px-5"
         data-tauri-drag-region
       >
-        <BrandMark className="size-7" small />
-        <span
-          className="pointer-events-none font-display font-medium text-[1.375rem] tracking-[-0.01em]"
-          data-tauri-drag-region
+        <button
+          aria-current={showingHome ? "page" : undefined}
+          aria-label={t("home.back")}
+          className="flex items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          onClick={onHome}
+          title={t("home.back")}
+          type="button"
         >
-          memotape
-        </span>
+          <BrandMark className="size-7" small />
+          <span className="font-display font-medium text-[1.375rem] tracking-[-0.01em]">
+            memotape
+          </span>
+        </button>
       </div>
       <div className="flex flex-col gap-1 px-3 pt-1">
         {record}
@@ -191,6 +202,7 @@ export function Sidebar({
                           onOpen={onOpen}
                           selected={tape.path === selected}
                           tape={tape}
+                          title={recentTitle(tape, list.tapes, t)}
                         />
                       </li>
                     ))}
@@ -337,16 +349,18 @@ function TapeItem({
   tape,
   onOpen,
   selected,
+  title,
 }: {
   tape: TapeEntry;
   onOpen: (path: string) => void;
   selected: boolean;
+  title: string;
 }) {
   const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
   return (
     <button
       aria-current={selected ? "page" : undefined}
-      className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
+      className="group flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
       onClick={open}
       title={tape.path}
       type="button"
@@ -356,9 +370,12 @@ function TapeItem({
         className="size-4 shrink-0 text-muted-foreground group-aria-[current=page]:text-foreground"
       />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm group-aria-[current=page]:font-medium">
-          {tape.titolo}
+        <span className="wrap-anywhere text-sm leading-snug group-aria-[current=page]:font-medium">
+          {title}
         </span>
+        {title === tape.titolo ? null : (
+          <span className="sr-only">{tape.titolo}</span>
+        )}
         <span className="text-muted-foreground text-xs tabular-nums">
           {clockText(tape.creato)}
           {tape.durataMs === null ? "" : ` · ${elapsedText(tape.durataMs)}`}

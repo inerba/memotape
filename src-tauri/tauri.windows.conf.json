@@ -8,6 +8,7 @@
     },
     "resources": {
       "resources/silero_vad.onnx": "resources/silero_vad.onnx",
+      "resources/models/DeepFilterNet3_onnx.tar.gz": "resources/models/DeepFilterNet3_onnx.tar.gz",
       "resources/licenses/": "licenses/",
       "runtime-libs/": "."
     }

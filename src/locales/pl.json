@@ -1,4 +1,8 @@
 {
+  "startup": {
+    "starting": "Uruchamianie Memotape…",
+    "slow": "Uruchamianie trwa dłużej niż oczekiwano…"
+  },
   "source": {
     "browse": "Otwórz plik",
     "dropBusy": "Podczas nagrywania lub transkrypcji można otworzyć tylko plik Tape",

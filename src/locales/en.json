@@ -1,4 +1,8 @@
 {
+  "startup": {
+    "starting": "Starting Memotape…",
+    "slow": "Startup is taking longer than expected…"
+  },
   "source": {
     "browse": "Open file",
     "dropBusy": "During a recording or a transcription you can only open a Tape",

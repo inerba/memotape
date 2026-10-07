@@ -2,6 +2,16 @@
 
 Status: ready-for-agent
 
+Revisione approvata dall'utente il 6 ottobre 2026, dopo ascolto del campione
+reale: usare DFN3 diretto senza la miscela aggiuntiva dell'originale. Curva SNR,
+limite aggiuntivo di 6 dB, smoothing e crossfade dell'integrazione precedente
+vengono rimossi. Questa scelta sostituisce la conservazione dell'onset tramite
+miscela: DFN3 può attenuare voce molto debole. La protezione prudente e la sua
+Sensibilità restano indipendenti. Durata, canali, instradamento comune, metadati,
+bypass dopo guasto e riuso dei Tape già puliti restano requisiti. Le prove
+precedenti relative alla miscela sono storiche e non validano la nuova qualità.
+Vedi la revisione di ADR-0019 e `dfn3-diretto/README.md` per le nuove verifiche.
+
 Data: 6 ottobre 2026. Specifica pubblicata con `to-spec`; punti di verifica
 confermati dall'utente. Descrive requisiti da implementare, non funzionalità
 già disponibili. Non avvia automaticamente l'implementazione né autorizza

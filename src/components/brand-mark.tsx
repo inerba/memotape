@@ -20,18 +20,23 @@ export function BrandMark({
     ? [piccolo, piccoloNegativo]
     : [grande, grandeNegativo];
   return (
-    <picture
-      className={`pointer-events-none block shrink-0 ${className ?? ""}`}
-    >
-      <source media="(prefers-color-scheme: dark)" srcSet={dark} />
+    <span className={`pointer-events-none block shrink-0 ${className ?? ""}`}>
       <img
         alt=""
-        className="size-full"
+        className="block size-full dark:hidden"
         draggable={false}
         height={256}
         src={light}
         width={256}
       />
-    </picture>
+      <img
+        alt=""
+        className="hidden size-full dark:block"
+        draggable={false}
+        height={256}
+        src={dark}
+        width={256}
+      />
+    </span>
   );
 }

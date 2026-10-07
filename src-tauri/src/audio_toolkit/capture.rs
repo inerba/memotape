@@ -90,6 +90,16 @@ pub struct Capture {
     pub channels: usize,
     /// Il nome del dispositivo, per l'errore "dispositivo scollegato".
     pub name: String,
+    #[cfg(test)]
+    pub metrics: std::sync::Arc<CaptureMetrics>,
+}
+
+/// Misura del pool nello smoke nativo; nessuna inferenza o attesa nella callback.
+#[cfg(test)]
+#[derive(Default)]
+pub struct CaptureMetrics {
+    pub lost_frames: std::sync::atomic::AtomicU64,
+    pub in_flight: std::sync::atomic::AtomicUsize,
 }
 
 impl Capture {
@@ -135,10 +145,39 @@ impl Capture {
         let (errors_tx, errors) = std::sync::mpsc::channel();
         let format = config.sample_format();
         let config = config.config();
+        #[cfg(test)]
+        let metrics = std::sync::Arc::new(CaptureMetrics::default());
         let stream = match format {
-            SampleFormat::F32 => build::<f32>(&device, config, input, pool, blocks, errors_tx),
-            SampleFormat::I16 => build::<i16>(&device, config, input, pool, blocks, errors_tx),
-            SampleFormat::I32 => build::<i32>(&device, config, input, pool, blocks, errors_tx),
+            SampleFormat::F32 => build::<f32>(
+                &device,
+                config,
+                input,
+                pool,
+                blocks,
+                errors_tx,
+                #[cfg(test)]
+                metrics.clone(),
+            ),
+            SampleFormat::I16 => build::<i16>(
+                &device,
+                config,
+                input,
+                pool,
+                blocks,
+                errors_tx,
+                #[cfg(test)]
+                metrics.clone(),
+            ),
+            SampleFormat::I32 => build::<i32>(
+                &device,
+                config,
+                input,
+                pool,
+                blocks,
+                errors_tx,
+                #[cfg(test)]
+                metrics.clone(),
+            ),
             other => {
                 return Err(AppError::Internal(format!(
                     "formato audio non supportato da {name}: {other}"
@@ -154,6 +193,8 @@ impl Capture {
             rate,
             channels,
             name,
+            #[cfg(test)]
+            metrics,
         })
     }
 
@@ -164,6 +205,10 @@ impl Capture {
 
     /// Restituisce al pool il buffer di un blocco già elaborato.
     pub fn recycle(&self, samples: Vec<f32>) {
+        #[cfg(test)]
+        self.metrics
+            .in_flight
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
         // Il pool contiene al massimo i suoi buffer: c'è sempre posto.
         let _ = self.recycle.try_send(samples);
     }
@@ -176,21 +221,39 @@ fn build<T>(
     pool: Receiver<Vec<f32>>,
     blocks: SyncSender<Block>,
     errors: std::sync::mpsc::Sender<cpal::Error>,
+    #[cfg(test)] metrics: std::sync::Arc<CaptureMetrics>,
 ) -> Result<cpal::Stream, cpal::Error>
 where
     T: SizedSample,
     f32: FromSample<T>,
 {
+    #[cfg(test)]
+    let channels = usize::from(config.channels);
     device.build_input_stream::<T, _, _>(
         config,
         move |data: &[T], info: &cpal::InputCallbackInfo| {
             // Niente allocazioni, lock o log: senza buffer libero il blocco si perde e il mixer
             // lo riempie di silenzio dai timestamp.
             let Ok(mut buffer) = pool.try_recv() else {
+                #[cfg(test)]
+                metrics.lost_frames.fetch_add(
+                    (data.len() / channels) as u64,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
                 return;
             };
             buffer.clear();
             let n = data.len().min(buffer.capacity());
+            #[cfg(test)]
+            {
+                metrics.lost_frames.fetch_add(
+                    ((data.len() - n) / channels) as u64,
+                    std::sync::atomic::Ordering::Relaxed,
+                );
+                metrics
+                    .in_flight
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
             buffer.extend(data[..n].iter().map(|s| s.to_sample::<f32>()));
             let capture_ns = u64::try_from(info.timestamp().capture.as_nanos()).unwrap_or(0);
             // Il canale ha posto per tutti i buffer del pool: l'invio non fallisce.
@@ -209,4 +272,97 @@ where
 
 fn cpal_error(e: cpal::Error) -> AppError {
     AppError::Internal(format!("audio: {e}"))
+}
+
+#[cfg(all(test, windows))]
+#[test]
+#[ignore = "WASAPI reale: riproduce la fixture e verifica il segnale nel mixer"]
+fn cattura_nativa_non_diventa_silenzio_nel_mixer() {
+    use crate::audio_toolkit::mixer::Mixer;
+    use std::os::windows::process::CommandExt;
+    use std::time::{Duration, Instant};
+    let cleaning = std::env::var_os("MEMOTAPE_CAPTURE_CLEANING").is_some();
+    let mut processors: Vec<Box<dyn crate::audio_toolkit::processing::AudioProcessor>> = Vec::new();
+    if cleaning {
+        let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join(crate::audio_toolkit::deepfilter::MODEL_FILE);
+        for ingresso in [
+            crate::transcript::Ingresso::Microfono,
+            crate::transcript::Ingresso::Sistema,
+        ] {
+            let mut processor = crate::audio_toolkit::cleaning::ConfiguredCleaning::new(
+                model.clone(),
+                || true,
+                ingresso,
+                crate::audio_toolkit::cleaning::CleaningLog::default(),
+            )
+            .recovering(|error| panic!("pulizia fallita: {error}"));
+            processor
+                .prepare(crate::audio_toolkit::processing::Format {
+                    rate: 16_000,
+                    channels: 1,
+                })
+                .unwrap();
+            processors.push(Box::new(processor));
+        }
+    }
+    let (sender, blocks) = channel(2);
+    let captures = [
+        Capture::open(Kind::Microphone, None, 0, sender.clone()).unwrap(),
+        Capture::open(Kind::System, None, 1, sender).unwrap(),
+    ];
+    let origin = captures[0].now();
+    let formats: Vec<_> = captures.iter().map(|c| (c.rate, c.channels)).collect();
+    let mut mixer = if cleaning {
+        Mixer::with_processors(origin, &formats, (16_000, 1), processors).unwrap()
+    } else {
+        Mixer::new(origin, &formats, (16_000, 1)).unwrap()
+    };
+    let fixture =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parlato-it.wav");
+    let mut playback = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command"])
+        .arg(format!(
+            "(New-Object System.Media.SoundPlayer '{}').PlaySync()",
+            fixture.display()
+        ))
+        .creation_flags(0x08000000)
+        .spawn()
+        .unwrap();
+    let started = Instant::now();
+    let mut out = Vec::new();
+    let mut raw_peak = [0.0_f32; 2];
+    let mut counts = [0_usize; 2];
+    let mut first = [None; 2];
+    while started.elapsed() < Duration::from_secs(3) {
+        let received = blocks.recv_timeout(Duration::from_millis(100));
+        mixer.advance(captures[0].now(), false, &mut out).unwrap();
+        if let Ok(block) = received {
+            counts[block.input] += 1;
+            first[block.input].get_or_insert(block.capture_ns);
+            for &sample in &block.samples {
+                raw_peak[block.input] = raw_peak[block.input].max(sample.abs());
+            }
+            mixer
+                .push(block.input, block.capture_ns, &block.samples, &mut out)
+                .unwrap();
+            captures[block.input].recycle(block.samples);
+        }
+    }
+    mixer.finish(captures[0].now(), &mut out).unwrap();
+    let _ = playback.kill();
+    let _ = playback.wait();
+    let peak = out.iter().map(|x| x.abs()).fold(0.0_f32, f32::max);
+    eprintln!(
+        "origin={origin}, first={first:?}, blocchi={counts:?}, picchi grezzi={raw_peak:?}, mix={peak}, durata={}ms",
+        mixer.elapsed_ms()
+    );
+    assert!(
+        raw_peak[1] > 0.001,
+        "la fixture deve raggiungere il loopback"
+    );
+    assert!(
+        peak > 0.001,
+        "la cattura non deve diventare silenzio nel mixer"
+    );
 }

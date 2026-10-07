@@ -147,9 +147,11 @@ fn un_ingresso_nativo_con_guasto_dei_parlanti_conserva_audio_testo_e_tape() {
         let mut out = Vec::new();
         while start.elapsed() < Duration::from_secs(29) {
             let paused = (14..15).contains(&start.elapsed().as_secs());
-            mixer.advance(capture.now(), paused, &mut out);
+            mixer.advance(capture.now(), paused, &mut out).unwrap();
             while let Ok(block) = captured.try_recv() {
-                mixer.push(block.input, block.capture_ns, &block.samples, &mut out);
+                mixer
+                    .push(block.input, block.capture_ns, &block.samples, &mut out)
+                    .unwrap();
                 capture.recycle(block.samples);
             }
             writer.write(&out).unwrap();
@@ -157,7 +159,7 @@ fn un_ingresso_nativo_con_guasto_dei_parlanti_conserva_audio_testo_e_tape() {
             out.clear();
             std::thread::sleep(Duration::from_millis(10));
         }
-        mixer.finish(capture.now(), &mut out);
+        mixer.finish(capture.now(), &mut out).unwrap();
         writer.write(&out).unwrap();
         feed.push(&out, false);
         feed.finish();

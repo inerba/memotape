@@ -26,6 +26,8 @@ pub struct Resampler {
     delay_left: usize,
     in_frames: usize,
     out_frames: usize,
+    /// Prefisso di storia già consegnato prima di un confine, da usare solo come contesto.
+    history_left: usize,
 }
 
 impl Resampler {
@@ -55,7 +57,43 @@ impl Resampler {
             delay_left,
             in_frames: 0,
             out_frames: 0,
+            history_left: 0,
         })
+    }
+
+    fn phase_period(&self) -> usize {
+        let (mut a, mut b) = (self.in_rate, self.out_rate);
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        self.in_rate / a
+    }
+
+    /// Storia finita sufficiente al filtro FFT, più un periodo della griglia razionale.
+    pub fn history_frames(&self) -> usize {
+        if self.fft.is_none() {
+            0
+        } else {
+            self.frames_needed() * 2 + self.phase_period()
+        }
+    }
+
+    /// Riparte dopo uno scarico mantenendo storia e fase assoluta. Il prefisso non viene
+    /// consegnato due volte e il nuovo segmento termina sulla stessa griglia temporale globale.
+    pub fn continuation(&self, history: &[f32], input_end: u64) -> Result<Self, AppError> {
+        let mut next = Self::new(self.in_rate as u32, self.out_rate as u32, self.channels)?;
+        if self.fft.is_none() {
+            return Ok(next);
+        }
+        let end = input_end as usize;
+        let earliest = end - history.len() / self.channels;
+        let start = earliest.div_ceil(self.phase_period()) * self.phase_period();
+        let offset = (start - earliest) * self.channels;
+        let mut discarded = Vec::new();
+        next.push(&history[offset..], &mut discarded);
+        let prefix = ((end - start) * self.out_rate).div_ceil(self.in_rate);
+        next.history_left = prefix - next.out_frames;
+        Ok(next)
     }
 
     /// Ricampiona `samples` (interleaved) e accoda in `out` quanto è pronto.
@@ -129,7 +167,9 @@ impl Resampler {
             .expect("dimensioni dei buffer coerenti con il resampler");
         let skip = self.delay_left.min(produced);
         self.delay_left -= skip;
-        out.extend_from_slice(&self.chunk_out[skip * channels..produced * channels]);
+        let history = self.history_left.min(produced - skip);
+        self.history_left -= history;
+        out.extend_from_slice(&self.chunk_out[(skip + history) * channels..produced * channels]);
         self.out_frames += produced - skip;
     }
 }

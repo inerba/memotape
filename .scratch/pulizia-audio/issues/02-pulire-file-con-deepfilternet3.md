@@ -4,17 +4,17 @@
 
 **Blocked by:** 01 — Preparare un percorso audio condiviso senza cambiare il risultato.
 
-**Status:** ready-for-agent
+**Status:** partial — smoke tecnico superato; bundle, licenza dei pesi e suite completa restano da chiudere.
 
 Suddivisione approvata con la richiesta di implementazione del 6 ottobre 2026. Requisiti: [spec approvata](../spec.md).
 
-- [ ] DeepFilterNet3 standard gira nel backend Rust originale, su CPU, senza Python, processo esterno o servizio remoto. libDF 0.5.6 è fissato alla revisione 978576aa8400552a4ce9730838c635aa30db5e61 con Tract 0.19.16 e sole feature necessarie; il grafo completo dell'app compila su Windows/MSVC.
+- [x] DeepFilterNet3 standard gira nel backend Rust originale, su CPU, senza Python, processo esterno o servizio remoto. libDF 0.5.6 è fissato alla revisione 978576aa8400552a4ce9730838c635aa30db5e61 con Tract 0.19.16 e sole feature necessarie; il grafo completo dell'app compila su Windows/MSVC.
 - [ ] Il modello distribuito con l'app è quello verificato: 7 983 136 byte, SHA-256 c94d91f70911001c946e0fabb4aa9adc37045f45a03b56008cb0c8244cb63616. Un artefatto assente o incompatibile dà un errore esplicito, senza sostituzione. Un avvio dal bundle verifica disponibilità senza download manuale o dipendenze della prova separata.
 - [ ] Licenze e attribuzioni di codice e pesi sono verificate e incluse nel bundle e in Informazioni. La prova dell'installer è distinta dai sei controlli ordinari e non autorizza pubblicazione o rilascio.
 - [ ] I tre profili persistenti hanno un campo indipendente di attivazione della pulizia, inizialmente falso e compatibile con le impostazioni precedenti. In questo ticket il controllo utilizzabile è File e audio misto; non si espongono controlli su percorsi ancora privi di effetto.
 - [ ] Il controllo in Impostazioni è accessibile e tradotto nelle sei lingue. Spiega che il Tape conserva il risultato elaborato e che spegnere la pulizia non recupera l'originale. Non aggiunge un selettore di intensità.
-- [ ] Il processore condiviso mantiene stato tra blocchi, lavora internamente a 48 kHz con hop di 480 campioni e restituisce formato e durata corretti. Audio stereo o multicanale non diventa involontariamente mono; il profilo misto non tenta di separare gli Ingressi.
-- [ ] L'audio elaborato alimenta sia copia Ogg sia Silero/ASR. Il Tape e la Forma d'onda derivano da quell'audio; non viene archiviata una seconda copia originale. Le eventuali analisi dei Parlanti usano il risultato salvato.
+- [x] Il processore condiviso mantiene stato tra blocchi, lavora internamente a 48 kHz con hop di 480 campioni e restituisce formato e durata corretti. Audio stereo o multicanale non diventa involontariamente mono; il profilo misto non tenta di separare gli Ingressi.
+- [x] L'audio elaborato alimenta sia copia Ogg sia Silero/ASR. Il Tape e la Forma d'onda derivano da quell'audio; non viene archiviata una seconda copia originale. Le eventuali analisi dei Parlanti usano il risultato salvato.
 - [ ] Metadati facoltativi compatibili con Tape v1 descrivono algoritmo/versione, Ingresso e intervalli effettivamente elaborati. Il contratto supporta fin da ora più Ingressi, cambi di configurazione e intervalli non trattati, senza attribuire a file misti Ingressi inesistenti.
 - [ ] Un cambio del profilo durante la decodifica vale sui blocchi successivi, prima della coda ASR; blocchi già elaborati conservano la loro configurazione. Transizioni e chiusura compensano il ritardo senza tagliare parole o cambiare durata, verificando anche la scorciatoia libDF sui frame a energia molto bassa.
 - [ ] Con pulizia spenta la selezione Silero resta quella precedente. Non vengono introdotti filtri aggiuntivi, AGC, normalizzazione, nuovi confini testuali o nuovi comportamenti di Diarizzazione.
@@ -24,4 +24,8 @@ Suddivisione approvata con la richiesta di implementazione del 6 ottobre 2026. R
 
 ## Comments
 
-La prova Rust precedente è un punto di partenza, non una verifica del bundle o della qualità nell'app.
+Smoke finali sul target isolato `.scratch/pulizia-audio/target-rust` (Windows x64/MSVC, GPU Vulkan RTX 2070 SUPER per ASR; DFN3 resta su CPU): `native-dfn3-final.log` riporta 7 test ignorati superati. Verificati PCM nullo bit-identico (35.200 frame), round-trip 16/48/16 kHz sul «No» (lag 0 campioni), equivalenza spettrale col runtime libDF, pause/sessioni/coda e import WAV+MP4 con riapertura Tape su Nemotron, Whisper e Parakeet. `native-corpus-calibrated.log` confronta pulizia accesa/spenta: voce italiana attenuata a −30 dB integra per tutti e tre gli ASR; Silero apre a 480 ms in entrambi i percorsi; errore sul riferimento noto migliorato di 1,2714058 dB. Il soffio è sintetico, non una registrazione umana. Sul rumore intermittente Whisper produce «Grazie.» anche senza pulizia e conserva la stessa uscita con pulizia: il campione non prova la rimozione generale di allucinazioni. «Sì. No.» è preservato da Nemotron e Whisper; Parakeet restituisce «C No.» sia con sia senza pulizia. Il test breve è incluso anche in `native-dfn3-final.log`.
+
+Frontend: `bun run test` (117 test) e `bun run check` (116 file) verdi; `cargo fmt --check` verde. Il typecheck non ha prodotto diagnostica, ma il suo esito non è stato acquisito esplicitamente. Clippy era ancora in compilazione quando l'utente ha chiesto di fermare le prove ed è stato interrotto; non è stata lanciata la suite Rust completa né una build Tauri/installer. La verifica finale ha usato il target isolato; il primo tentativo sul target esistente si è fermato con errore Win32 32 in `tauri-build`, senza cancellarlo o ripulirlo.
+
+Restano non verificati il bundle avviato senza download manuale, la suite Rust completa, typecheck/Clippy con esito acquisito, collaudo accessibilità nativo e smoke di carico con due Ingressi. La licenza dei pesi non è determinata: il README upstream concede MIT/Apache al codice, mentre le richieste upstream [#697](https://github.com/Rikorose/DeepFilterNet/issues/697) e [#700](https://github.com/Rikorose/DeepFilterNet/issues/700) lasciano esplicitamente aperta la copertura dei pesi. Non chiudere il ticket né distribuire l'installer finché questo punto non è chiarito. Nessun commit o rilascio.

@@ -15,6 +15,7 @@ export interface Credit {
   /** Quale parte di Memotape è: la chiave in `about.roles`. */
   role:
     | "decoder"
+    | "cleaning"
     | "diarization"
     | "engine"
     | "font"
@@ -77,6 +78,22 @@ export const CREDITS: Credit[] = [
     "diarization",
     "Q8_0"
   ),
+  {
+    author: "Hendrik Schröter",
+    file: "deepfilter.txt",
+    license: "MIT (libDF)",
+    name: "DeepFilterNet3 / libDF 0.5.6",
+    notices: "deepfilter-model-notices.txt",
+    role: "cleaning",
+    url: "https://github.com/Rikorose/DeepFilterNet/tree/978576aa8400552a4ce9730838c635aa30db5e61",
+  },
+  {
+    file: "tract.txt",
+    license: "MIT OR Apache-2.0",
+    name: "Tract 0.19.16",
+    role: "cleaning",
+    url: "https://github.com/sonos/tract/tree/v0.19.16",
+  },
   {
     author: "Silero Team",
     file: "silero-vad.txt",

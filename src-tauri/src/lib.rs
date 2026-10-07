@@ -8,6 +8,7 @@ mod library;
 mod managers;
 mod mcp;
 mod player;
+mod startup;
 mod tape;
 mod transcript;
 mod updates;
@@ -138,9 +139,10 @@ pub fn run() {
             builder.mount_events(app);
             let data = app.path().app_data_dir()?;
             let settings = managers::settings::SettingsStore::load(data.join("settings.json"));
-            settings.get().tema.apply(app.handle());
             app.manage(settings);
             app.manage(managers::models::Models::new(data.join("models"))?);
+            // Tema e lingua sono già disponibili quando la WebView legge il documento iniziale.
+            startup::create_main(app)?;
             managers::transcription::preload(app.handle());
             managers::recording::preload(app.handle());
             managers::library::sync_in_background(app.handle());

@@ -37,13 +37,11 @@ export function AssistantsSection({
     <>
       <div className="flex max-w-xl flex-col gap-1">
         <SettingCheckbox
+          description={t("settings.assistants.allowDescription")}
           label={t("settings.assistants.allow")}
           name="assistenti"
           onError={onError}
         />
-        <p className="text-muted-foreground text-sm">
-          {t("settings.assistants.allowDescription")}
-        </p>
       </div>
       <div className="flex max-w-xl flex-col gap-1">
         <h3 className="font-medium text-sm">

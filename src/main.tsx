@@ -9,7 +9,7 @@ import { DEFAULT_SETTINGS, languageOf } from "@/features/settings/settings";
 
 /**
  * Le impostazioni si leggono prima del primo render: nessun valore predefinito compare per un
- * attimo. Se non si leggono l'app parte comunque, con i predefiniti e l'errore nella status bar.
+ * attimo. Se non si leggono l'app parte comunque, con i predefiniti e l'errore nell'avviso.
  */
 async function loadSettings(): Promise<[Settings, AppError | null]> {
   try {
@@ -43,4 +43,6 @@ async function start() {
   );
 }
 
-start();
+start().catch(() => {
+  window.dispatchEvent(new Event("memotape-startup-error"));
+});

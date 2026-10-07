@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowLeft,
   Captions,
+  ChevronDown,
   Info,
   type LucideIcon,
   Mic,
@@ -27,15 +28,18 @@ import {
   type Settings,
   type Tema,
 } from "@/bindings";
+import { FieldHelp } from "@/components/field-help";
 import { NativeSelect } from "@/components/native-select";
 import { Button } from "@/components/ui/button";
 import { WINDOW_CONTROLS_PADDING } from "@/components/window-controls";
 import { About } from "@/features/about/about";
 import { ModelList } from "@/features/models/model-list";
 import { AssistantsSection } from "@/features/settings/assistants-section";
+import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { RecordingInputs } from "@/features/settings/recording-inputs";
 import { SettingCheckbox } from "@/features/settings/setting-checkbox";
+import { SettingFeedback } from "@/features/settings/setting-feedback";
 import {
   BITRATES_KBPS,
   LANGUAGE_NAMES,
@@ -46,6 +50,7 @@ import {
   settingsSchema,
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import type { SettingField } from "@/features/settings/settings-writer";
 import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
@@ -85,13 +90,12 @@ export function SettingsPage() {
   const choose = useCallback(
     (patch: Partial<Settings>) => {
       reset({ ...settings, ...patch });
-      handleSubmit(async (values) => {
-        const failed = await save(values);
-        setError(failed);
-        if (failed) {
-          // La scelta non è salvata: il form torna alle impostazioni correnti.
-          reset(settings);
-        }
+      handleSubmit(async () => {
+        await save(
+          (current) => ({ ...current, ...patch }),
+          Object.keys(patch)[0] as keyof Settings
+        );
+        // SettingsProvider ripristina il valore confermato e riapplica le altre scelte pendenti.
       })();
     },
     [handleSubmit, reset, save, settings]
@@ -271,62 +275,18 @@ export function SettingsPage() {
                     </legend>
                     <RecordingInputs onError={setError} />
                   </fieldset>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field
-                      id="microphone"
-                      label={t("settings.recording.microphone")}
-                    >
-                      <DeviceSelect
-                        devices={microphones}
-                        disabled={settings.recordingSource === "system"}
-                        id="microphone"
-                        onChange={chooseMicrophone}
-                        value={settings.microphone}
-                      />
-                    </Field>
-                    <Field
-                      id="output-device"
-                      label={t("settings.recording.outputDevice")}
-                    >
-                      <DeviceSelect
-                        devices={outputs}
-                        disabled={settings.recordingSource === "mic"}
-                        id="output-device"
-                        onChange={chooseOutput}
-                        value={settings.outputDevice}
-                      />
-                    </Field>
-                    <Field
-                      id="guadagno-microfono"
-                      label={t("settings.recording.guadagno")}
-                    >
-                      <GuadagnoSelect
-                        aria-label={t("recording.guadagno", {
-                          input: t("settings.recording.inputs.mic"),
-                        })}
-                        className="h-9"
-                        disabled={settings.recordingSource === "system"}
-                        id="guadagno-microfono"
-                        name="guadagnoMicrofono"
-                        onError={setError}
-                      />
-                    </Field>
-                    <Field
-                      id="guadagno-sistema"
-                      label={t("settings.recording.guadagno")}
-                    >
-                      <GuadagnoSelect
-                        aria-label={t("recording.guadagno", {
-                          input: t("settings.recording.inputs.system"),
-                        })}
-                        className="h-9"
-                        disabled={settings.recordingSource === "mic"}
-                        id="guadagno-sistema"
-                        name="guadagnoSistema"
-                        onError={setError}
-                      />
-                    </Field>
-                  </div>
+                  <RecordingInputSettings
+                    devices={microphones}
+                    input="mic"
+                    onChange={chooseMicrophone}
+                    onError={setError}
+                  />
+                  <RecordingInputSettings
+                    devices={outputs}
+                    input="system"
+                    onChange={chooseOutput}
+                    onError={setError}
+                  />
                   <fieldset
                     aria-describedby={
                       settings.diarizer === "nemotron3"
@@ -335,8 +295,20 @@ export function SettingsPage() {
                     }
                     className="flex flex-col gap-2"
                   >
-                    <legend className="mb-2 font-medium text-sm">
-                      {t("settings.recording.parlanti")}
+                    <legend className="mb-2">
+                      <span className="flex items-center gap-1 font-medium text-sm">
+                        {t("settings.recording.parlanti")}
+                        <FieldHelp label={t("settings.recording.parlanti")}>
+                          <p>{t("settings.recording.parlantiDescription")}</p>
+                          {settings.diarizer === "nemotron3" ? (
+                            <p className="mt-2">
+                              {t(
+                                "settings.transcription.experimentalDescription"
+                              )}
+                            </p>
+                          ) : null}
+                        </FieldHelp>
+                      </span>
                     </legend>
                     <div className="flex flex-wrap gap-x-5 gap-y-2">
                       {parlantiRegistrazione(settings).map((name) => (
@@ -348,15 +320,12 @@ export function SettingsPage() {
                         />
                       ))}
                     </div>
-                    <p
-                      className="text-muted-foreground text-sm leading-relaxed"
-                      id="recording-parlanti-description"
-                    >
+                    <p className="sr-only" id="recording-parlanti-description">
                       {t("settings.recording.parlantiDescription")}
                     </p>
                     {settings.diarizer === "nemotron3" ? (
                       <p
-                        className="text-muted-foreground text-sm leading-relaxed"
+                        className="sr-only"
                         id="recording-nemotron-description"
                       >
                         {t(
@@ -365,73 +334,100 @@ export function SettingsPage() {
                       </p>
                     ) : null}
                   </fieldset>
-                  <div className="grid grid-cols-3 gap-4 border-t pt-7">
-                    <Field id="bitrate" label={t("settings.recording.bitrate")}>
-                      <NativeSelect
-                        className="h-9 tabular-nums"
+                  <details className="group border-t pt-5">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-md font-medium text-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40">
+                      {t("settings.recording.quality")}
+                      <ChevronDown
+                        aria-hidden
+                        className="size-4 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+                      />
+                    </summary>
+                    <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <Field
+                        description={t("settings.recording.bitrateDescription")}
                         id="bitrate"
-                        onChange={chooseBitrate}
-                        value={settings.bitrateKbps}
+                        label={t("settings.recording.bitrate")}
+                        name="bitrateKbps"
                       >
-                        {BITRATES_KBPS.map((value) => (
-                          <option key={value} value={value}>
-                            {t("settings.recording.kbps", { value })}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                    </Field>
-                    <Field
-                      id="channels"
-                      label={t("settings.recording.channels")}
-                    >
-                      <NativeSelect
-                        className="h-9"
+                        <NativeSelect
+                          aria-describedby="bitrate-description"
+                          className="h-9 tabular-nums"
+                          id="bitrate"
+                          onChange={chooseBitrate}
+                          value={settings.bitrateKbps}
+                        >
+                          {BITRATES_KBPS.map((value) => (
+                            <option key={value} value={value}>
+                              {t("settings.recording.kbps", { value })}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      </Field>
+                      <Field
+                        description={t(
+                          "settings.recording.channelsDescription"
+                        )}
                         id="channels"
-                        onChange={chooseChannels}
-                        value={settings.channels}
+                        label={t("settings.recording.channels")}
+                        name="channels"
                       >
-                        <option value="mono">
-                          {t("settings.recording.mono")}
-                        </option>
-                        <option value="stereo">
-                          {t("settings.recording.stereo")}
-                        </option>
-                      </NativeSelect>
-                    </Field>
-                    <Field
-                      id="sample-rate"
-                      label={t("settings.recording.sampleRate")}
-                    >
-                      <NativeSelect
-                        className="h-9 tabular-nums"
-                        id="sample-rate"
-                        onChange={chooseSampleRate}
-                        value={settings.sampleRate}
-                      >
-                        {SAMPLE_RATES.map((value) => (
-                          <option key={value} value={value}>
-                            {t("settings.recording.hz", { value })}
+                        <NativeSelect
+                          aria-describedby="channels-description"
+                          className="h-9"
+                          id="channels"
+                          onChange={chooseChannels}
+                          value={settings.channels}
+                        >
+                          <option value="mono">
+                            {t("settings.recording.mono")}
                           </option>
-                        ))}
-                      </NativeSelect>
-                    </Field>
-                  </div>
+                          <option value="stereo">
+                            {t("settings.recording.stereo")}
+                          </option>
+                        </NativeSelect>
+                      </Field>
+                      <Field
+                        description={t(
+                          "settings.recording.sampleRateDescription"
+                        )}
+                        id="sample-rate"
+                        label={t("settings.recording.sampleRate")}
+                        name="sampleRate"
+                      >
+                        <NativeSelect
+                          aria-describedby="sample-rate-description"
+                          className="h-9 tabular-nums"
+                          id="sample-rate"
+                          onChange={chooseSampleRate}
+                          value={settings.sampleRate}
+                        >
+                          {SAMPLE_RATES.map((value) => (
+                            <option key={value} value={value}>
+                              {t("settings.recording.hz", { value })}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      </Field>
+                    </div>
+                  </details>
                 </>
               ) : null}
               {section.key === "trascrizione" ? (
                 <>
+                  <CleaningProfile name="audioFileMisto" onError={setError} />
                   <ModelList
                     kind="trascrizione"
                     onSelect={selectModel}
                     selected={settings.model}
                   />
-                  <div className="flex flex-col gap-1 border-t pt-7">
+                  <SettingFeedback label={t("models.choose")} name="model" />
+                  <div className="flex items-center gap-1 border-t pt-7">
                     <h3 className="font-medium text-sm">
                       {t("settings.transcription.diarization")}
                     </h3>
-                    <p className="text-muted-foreground text-sm leading-relaxed">
+                    <FieldHelp label={t("settings.transcription.diarization")}>
                       {t("settings.transcription.diarizationDescription")}
-                    </p>
+                    </FieldHelp>
                   </div>
                   <ModelList kind="diarizzazione" />
                   <DiarizerSettings
@@ -445,6 +441,7 @@ export function SettingsPage() {
                   <Field
                     description={t("settings.general.folderDescription")}
                     label={t("settings.general.folder")}
+                    name="recordingsFolder"
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -505,10 +502,15 @@ export function SettingsPage() {
                       ))}
                     </div>
                   </fieldset>
+                  <SettingFeedback
+                    label={t("settings.general.theme")}
+                    name="tema"
+                  />
                   <Field
                     description={t("settings.general.languageRestart")}
                     id="interface-language"
                     label={t("settings.general.language")}
+                    name="interfaceLanguage"
                   >
                     <NativeSelect
                       aria-describedby="interface-language-description"
@@ -524,7 +526,11 @@ export function SettingsPage() {
                       ))}
                     </NativeSelect>
                   </Field>
-                  <Field id="copy-format" label={t("settings.general.copyAs")}>
+                  <Field
+                    id="copy-format"
+                    label={t("settings.general.copyAs")}
+                    name="copiaCome"
+                  >
                     <NativeSelect
                       className="h-9"
                       id="copy-format"
@@ -552,6 +558,83 @@ export function SettingsPage() {
   );
 }
 
+/** Dispositivo e trattamento dello stesso Ingresso, sempre nello stesso ordine. */
+function RecordingInputSettings({
+  input,
+  devices,
+  onChange,
+  onError,
+}: {
+  input: "mic" | "system";
+  devices: AudioDevice[] | null;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  onError: (error: AppError | null) => void;
+}) {
+  const { t } = useTranslation();
+  const { settings } = useSettings();
+  const inactive =
+    settings.recordingSource !== "both" && settings.recordingSource !== input;
+  const mic = input === "mic";
+  const label = t(`settings.recording.inputs.${input}`);
+  const deviceId = mic ? "microphone" : "output-device";
+  return (
+    <section
+      aria-labelledby={`input-${input}-title`}
+      className="flex min-w-0 flex-col gap-4 border-t pt-5"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 className="font-medium text-sm" id={`input-${input}-title`}>
+          {label}
+        </h3>
+        {inactive ? (
+          <span className="flex items-center gap-1 text-muted-foreground text-xs">
+            {t("settings.recording.inactive")}
+            <FieldHelp label={label}>
+              {t("settings.recording.inactiveDescription")}
+            </FieldHelp>
+          </span>
+        ) : null}
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          feedbackLabel={t("settings.recording.deviceFor", { input: label })}
+          id={deviceId}
+          label={t("settings.recording.device")}
+          name={mic ? "microphone" : "outputDevice"}
+        >
+          <DeviceSelect
+            devices={devices}
+            disabled={inactive}
+            id={deviceId}
+            onChange={onChange}
+            value={mic ? settings.microphone : settings.outputDevice}
+          />
+        </Field>
+        <Field
+          description={t("settings.recording.gainDescription")}
+          id={`guadagno-${input}`}
+          label={t("settings.recording.guadagno")}
+        >
+          <GuadagnoSelect
+            aria-describedby={`guadagno-${input}-description`}
+            aria-label={t("recording.guadagno", { input: label })}
+            className="h-9"
+            disabled={inactive}
+            id={`guadagno-${input}`}
+            name={mic ? "guadagnoMicrofono" : "guadagnoSistema"}
+            onError={onError}
+          />
+        </Field>
+      </div>
+      <CleaningProfile
+        hideLegend
+        name={mic ? "audioMicrofono" : "audioSistema"}
+        onError={onError}
+      />
+    </section>
+  );
+}
+
 /** Il modello dei Parlanti e le indicazioni per la scelta sperimentale. */
 function DiarizerSettings({
   onChange,
@@ -567,11 +650,12 @@ function DiarizerSettings({
       <Field
         description={
           settings.diarizer === "nemotron3"
-            ? t("settings.transcription.experimentalDescription")
+            ? `${t("settings.transcription.experimentalDescription")} ${t("settings.transcription.recordingDiarizationDescription")}`
             : undefined
         }
         id="diarizer"
         label={t("settings.transcription.diarizer")}
+        name="diarizer"
       >
         <NativeSelect
           aria-describedby={
@@ -591,23 +675,19 @@ function DiarizerSettings({
         </NativeSelect>
       </Field>
       {settings.diarizer === "nemotron3" ? (
-        <>
-          <Field
-            description={t("settings.transcription.localModelDescription")}
-            label={t("settings.transcription.localModel")}
-          >
-            <span className="break-all text-sm">
-              {settings.nemotron3Path ??
-                t("settings.transcription.localModelMissing")}
-            </span>
-            <Button className="self-start" onClick={onPick} variant="outline">
-              {t("settings.transcription.chooseLocalModel")}
-            </Button>
-          </Field>
-          <p className="text-muted-foreground text-sm leading-relaxed">
-            {t("settings.transcription.recordingDiarizationDescription")}
-          </p>
-        </>
+        <Field
+          description={t("settings.transcription.localModelDescription")}
+          label={t("settings.transcription.localModel")}
+          name="nemotron3Path"
+        >
+          <span className="break-all text-sm">
+            {settings.nemotron3Path ??
+              t("settings.transcription.localModelMissing")}
+          </span>
+          <Button className="self-start" onClick={onPick} variant="outline">
+            {t("settings.transcription.chooseLocalModel")}
+          </Button>
+        </Field>
       ) : null}
     </>
   );
@@ -662,33 +742,42 @@ function DeviceSelect({
   );
 }
 
-/** Etichetta sopra, controllo, nota sotto (`<id>-description`, per `aria-describedby`). */
+/** Etichetta e aiuto contestuale, controllo ed esito del salvataggio. */
 function Field({
   children,
   description,
   id,
   label,
+  name,
+  feedbackLabel,
 }: {
   children: ReactNode;
   description?: string;
   id?: string;
   label: string;
+  name?: SettingField;
+  feedbackLabel?: string;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      {id ? (
-        <label className="font-medium text-sm" htmlFor={id}>
-          {label}
-        </label>
-      ) : (
-        <span className="font-medium text-sm">{label}</span>
-      )}
+      <div className="flex items-center gap-1">
+        {id ? (
+          <label className="font-medium text-sm" htmlFor={id}>
+            {label}
+          </label>
+        ) : (
+          <span className="font-medium text-sm">{label}</span>
+        )}
+        {description ? (
+          <FieldHelp label={label}>{description}</FieldHelp>
+        ) : null}
+      </div>
       {children}
+      {name ? (
+        <SettingFeedback label={feedbackLabel ?? label} name={name} />
+      ) : null}
       {description ? (
-        <p
-          className="text-muted-foreground text-sm leading-relaxed"
-          id={id ? `${id}-description` : undefined}
-        >
+        <p className="sr-only" id={id ? `${id}-description` : undefined}>
           {description}
         </p>
       ) : null}

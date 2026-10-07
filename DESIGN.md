@@ -189,7 +189,7 @@ components:
 
 Un Tape si legge come un documento e si ascolta come un nastro, e le due cose sono collegate. Il testo sta al centro, su un foglio di carta tiepida, in una colonna da lettura; i comandi stanno ai margini (barra laterale, riga del titolo, player sospeso in basso) e compaiono solo dove servono. Rifiuta l'impianto da pannello di controllo: niente fila di pulsanti sopra un'area di testo, niente status bar.
 
-La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema segue Windows con `prefers-color-scheme`; in Impostazioni → Generale si può fissarlo chiaro o scuro.
+La densità è quella di un'app da lettura e ascolto lunghi: molto respiro attorno alla colonna, controlli piccoli e quieti, un solo pulsante pieno per vista. La carta è calda in entrambi i temi (lo scuro è "la stessa carta, di sera"), l'inchiostro è bruno-nero, e un unico accento salvia segna soltanto l'audio in ascolto. Il tema visivo è espresso da `html[data-theme]`, inizializzato prima della prima pittura con la scelta salvata; `Sistema` segue Windows tramite `prefers-color-scheme`. In Impostazioni → Generale si può fissarlo chiaro o scuro.
 
 Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tiene preciso con la tipografia (un sans glifico solo per i titoli, sans leggibile per tutto il resto, cifre tabulari per i tempi), con il ritmo della colonna e con l'accento usato con parsimonia.
 
@@ -203,7 +203,7 @@ Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tien
 
 ## Colors
 
-Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–128) e una piccola famiglia di pastelli per le voci; i valori OKLCH di `src/app/global.css` sono la fonte normativa, con i gemelli scuri sotto `@media (prefers-color-scheme: dark)`.
+Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–128) e una piccola famiglia di pastelli per le voci; i valori OKLCH di `src/app/global.css` sono la fonte normativa, con i gemelli scuri sotto `:root[data-theme="dark"]`. `Sistema` aggiorna l'attributo quando cambia la preferenza di Windows.
 
 ### Primary
 - **Salvia d'ascolto** (`play`): l'unico accento. Interruttore Segui l'audio acceso, parte già ascoltata della forma d'onda, riempimento delle barre di avanzamento, barre animate del turno in ascolto, spunte di conferma (Copia testo, avviso riuscito), freccia di "Torna al punto in ascolto", selezione del testo (con testo `play-foreground`), cursore del testo nei campi e cursore del volume (`accent-color`). Nel tema scuro si schiarisce per restare leggibile sull'inchiostro. Nelle Frasi in correzione il cursore usa `foreground`, per distinguersi dal fondo e dalla selezione in entrambi i temi.
@@ -314,7 +314,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 
 ### Navigation
-- **Barra laterale:** marchio (simbolo e "memotape"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio, Impostazioni e "Solo sul tuo PC".
+- **Barra laterale:** marchio (simbolo e "memotape"), pulsante primario, Importa, ricerca, poi i gruppi Attività e Recenti con l'etichetta di gruppo; i Recenti si raggruppano per giorno (titoletti a 12 px in `ink-muted`). La voce aperta ha il fondo `sidebar-selected` e 10 px di angolo. In fondo, separati da un filo: Libreria con il conteggio e Impostazioni.
 - **Breadcrumb:** Raccolta / Tape a 14 px, la Raccolta in `ink-muted` e cliccabile, il Tape in inchiostro; separatore `/` tenue.
 - **Schede:** Trascrizione e Parlanti a 44 px, peso 500, `ink-muted`; la scelta passa all'inchiostro con un trattino inferiore da 2 px a capi tondi, sopra il filo della barra. Il conteggio accanto è in cifre tabulari tenui.
 - **Menu a comparsa:** popover nativo ancorato (`position-area`), largo almeno 240 px, voci da 32 px con icona tenue a sinistra, divisori da 1 px e titoletti a 12 px; Elimina in mattone, in fondo.
@@ -322,7 +322,7 @@ Quieti e piccoli; uno solo pieno per vista.
 
 ### Turno (componente firma)
 
-Ogni Frase occupa un paragrafo distinto, con 8 px tra le Frasi dello stesso turno. Il Parziale in corso ha il proprio paragrafo. La testata del Parlante resta comune al turno; l'evidenziazione e la correzione restano per Frase.
+L'editor continuo del Turno, definito in `.scratch/editor-turno/spec.md`, offre un unico campo di testo semplice per Turno. Le separazioni tra Frasi sono spazi o a capo modificabili: selezione, frecce, Backspace e Canc le attraversano. Invio va a capo, uscire dal campo salva, Esc scarta la bozza corrente e Ctrl+Z annulla mentre si scrive. Un Turno svuotato resta accessibile con «Blocco senza testo». La testata del Parlante resta comune; il Parziale in corso ha il proprio paragrafo e non è modificabile. Sul testo corretto l'ascolto evidenzia l'intero Turno, senza suggerire un allineamento delle parole; sul testo non modificato resta l'evidenziazione della Frase disponibile. Il cursore lampeggiante deve essere visibile nel punto cliccato e verificato nella finestra Windows, nei due temi e anche durante l'ascolto.
 Una riga di testata alta 28 px (pallino del Parlante, icona Mic o Speaker da 16 px per gli Ingressi separati, nome del Parlante quando disponibile a 14 px peso 500, tempo tabulare che fa da salto, piccolo ▶ per ascoltare il turno) e sotto il testo in Reading. All'estremità destra della testata Copia turno, un'icona da 24 px che compare in hover o con il focus nel turno e per 1,5 s diventa una spunta salvia; sul turno in ascolto "Riascolta" le sta a sinistra. Il turno in ascolto prende il fondo `play-soft` al 55% su 14 px di angolo, le tre barre salvia animate al posto del pallino e "Riascolta" a destra; la Frase in ascolto ha un fondo `play` al 18% con 5 px di angolo che segue le righe. Al passaggio su una Frase il suo tempo compare sopra, nel margine, come una piccola etichetta sospesa. I Parziali sono in corsivo `ink-muted`. Il testo è un campo che si corregge sul posto senza mai toccare il player.
 
 ### Player (componente firma)
@@ -332,6 +332,15 @@ Una striscia sospesa, foglio, 16 px di angolo, `shadow-float`. In alto il nome d
 Sospeso in alto al centro del pannello, foglio, 14 px di angolo, icona di stato (mattone per l'errore, spunta salvia per l'esito), testo a 14 px, link sottolineato alle Impostazioni quando serve e una X per chiuderlo. Entra con una dissolvenza e uno scivolamento dall'alto, solo se il movimento è consentito.
 
 ### Movimento
+Il preload di avvio approvato il 7 ottobre 2026 usa il simbolo originale da 76 px,
+il logotipo da 184 px e una sola animazione: il mozzo gira intorno al suo centro
+originale in 2,8 s, con velocità costante. Quadrato, strisce, bobina esterna e
+logotipo restano fermi. Niente barrette o percentuali. Carta e inchiostro seguono
+il tema salvato prima che compaia la finestra. Lo stato è a 14 px, il messaggio
+dopo 10 s a 12 px; quest'ultimo compare sotto senza spostare il gruppo centrale.
+Il preload si rimuove appena il primo contenuto dell'app è montato, senza durata
+minima o attese per i modelli. Con `prefers-reduced-motion` non ruota.
+
 Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato con un tratto che scorre (1.4 s); barre dell'ascolto a 0.9 s sfasate. Animazioni d'ingresso e barre animate solo con `motion-safe`.
 
 ## Do's and Don'ts
@@ -353,4 +362,12 @@ Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato 
 - **Don't** segnare il turno o la Frase in ascolto con una barra colorata sul bordo sinistro: si usa il fondo salvia tenue.
 - **Don't** usare l'etichetta di gruppo maiuscola e spaziata fuori dalla barra laterale, e mai come occhiello sopra un titolo.
 - **Don't** reintrodurre una status bar o una fila di pulsanti sopra il testo: fase, avanzamento e Annulla stanno solo nella barra laterale, gli esiti negli avvisi.
-- **Don't** usare un colore fisso o una classe `.dark`: lo scuro arriva solo da `prefers-color-scheme`, che la scelta del tema pilota da Rust (`Tema::apply`).
+- **Don't** usare un colore fisso o una classe `.dark`: i token scuri arrivano da `html[data-theme="dark"]`, inizializzato prima della prima pittura e aggiornato dal provider; `Sistema` segue `prefers-color-scheme`, mentre `Tema::apply` sincronizza la finestra nativa.
+
+## Home — ripresa del lavoro (6 ottobre 2026)
+
+Riferimento approvato: `.impeccable/mocks/home-riprendi.png`, generato con imagegen dal precedente screenshot e scelto dall'utente. Implementazione: `src/features/library/library-home.tsx`.
+
+La Home mantiene carta e inchiostro nei due temi. Barra del titolo da 48 px, colonna fino a 64 rem, margini da 32 a 56 px, titolo da 36 px. Un solo pannello con bordo e fondo card identifica il Tape da riprendere; sotto, tre righe separate da divisori. Le azioni di creazione rimangono nella sidebar, e compaiono anche nel centro solo con Libreria vuota. Il marchio è il ritorno alla Home, raggiungibile da tastiera. I titoli automatici compatti e i titoli personalizzati possono andare a capo senza coprire durata o comandi. Contenuto scorrevole alla dimensione minima Windows di 880×600.
+
+L'ultima apertura è ricordata dopo un'apertura riuscita e validata rispetto alla Libreria corrente. Senza ricordo valido il pannello è etichettato Tape più recente. I valori nel mockup sono esemplificativi; l'interfaccia usa i dati della Libreria.

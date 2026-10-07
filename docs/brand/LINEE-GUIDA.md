@@ -61,6 +61,9 @@ Nei lockup il logotipo ha corpo pari a metà del lato del simbolo, con la fascia
 - Spostare il mozzo, togliere le strisce dalla versione principale o aggiungerne altre.
 - Usare la versione principale sotto i 48 px.
 - Allungare, ruotare o ricomporre simbolo e logotipo con altre proporzioni.
+  Nel solo preload di avvio, approvato il 7 ottobre 2026, il mozzo può ruotare
+  intorno al suo centro originale; tutte le altre parti restano ferme. Con
+  movimento ridotto anche il mozzo resta fermo.
 - Riscrivere "memotape" con un altro font o con la maiuscola nel logo (nel testo resta "Memotape").
 - Mettere il quadrato salvia su un fondo salvia o verde scuro, dove sparisce.
 

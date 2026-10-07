@@ -24,6 +24,11 @@ const DOCUMENT: &str = "trascrizione.json";
 /// La Forma d'onda del mix: facoltativa, un Tape scritto prima di lei non ce l'ha.
 const FORMA_ONDA: &str = "forma-onda.json";
 
+pub(crate) fn temporary_id() -> u64 {
+    use std::hash::{BuildHasher, RandomState};
+    RandomState::new().hash_one(std::time::SystemTime::now())
+}
+
 /// La voce dello zip con l'audio dell'Ingresso; è anche la fine del nome del suo Ogg temporaneo.
 pub fn audio_entry(ingresso: Ingresso) -> &'static str {
     match ingresso {
@@ -54,6 +59,18 @@ pub struct Document {
     pub origine: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diarizzazione: Option<crate::transcript::Diarizzazione>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pulizia_audio: Vec<crate::audio_toolkit::cleaning::TrattoPulizia>,
+    /// Testo corretto come unità, collegato alle Frasi senza inventare nuovi tempi delle parole.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub correzioni_testo: Vec<TestoTurno>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TestoTurno {
+    pub ingresso: Ingresso,
+    pub frasi: Vec<u32>,
+    pub testo: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -96,10 +113,126 @@ pub fn creato(start: DateTime<Local>) -> String {
 impl Document {
     pub fn corretto_a_mano(&self) -> bool {
         !self.parlanti.is_empty()
+            || !self.correzioni_testo.is_empty()
             || self
                 .frasi
                 .iter()
                 .any(|f| f.testo_corretto || f.parlante_corretto)
+    }
+
+    pub fn correzione_testo(&self, frase: &Frase) -> Option<&TestoTurno> {
+        self.correzioni_testo
+            .iter()
+            .find(|c| c.ingresso == frase.ingresso && c.frasi.contains(&frase.id))
+    }
+
+    /// Proiezione comune a vista, ricerca e copia. Ogni riferimento audio resta presente;
+    /// solo la prima Frase porta il testo della correzione. Voci discordanti non allineano parole.
+    pub fn frasi_visibili(&self) -> Vec<Frase> {
+        let mut frasi = self.frasi.clone();
+        for correzione in &self.correzioni_testo {
+            let members: Vec<_> = self
+                .frasi
+                .iter()
+                .filter(|f| f.ingresso == correzione.ingresso && correzione.frasi.contains(&f.id))
+                .collect();
+            let Some(first) = members.first() else {
+                continue;
+            };
+            let same_voice = members.iter().all(|f| same_voice(first, f));
+            for frase in frasi
+                .iter_mut()
+                .filter(|f| f.ingresso == correzione.ingresso && correzione.frasi.contains(&f.id))
+            {
+                frase.testo = if correzione.frasi.first() == Some(&frase.id) {
+                    correzione.testo.clone()
+                } else {
+                    String::new()
+                };
+                if !same_voice {
+                    frase.parlante = None;
+                    frase.parlante_non_determinato = true;
+                    frase.parlante_provvisorio = false;
+                }
+            }
+        }
+        frasi
+    }
+
+    /// Turni della proiezione, con le stesse pause e identità della vista.
+    pub fn turni(&self) -> Vec<Vec<usize>> {
+        let frasi = self.frasi_visibili();
+        let labeled = frasi.iter().any(|f| {
+            f.ingresso != Ingresso::Mix
+                || f.parlante.is_some()
+                || f.parlante_non_determinato
+                || self.parlanti.contains_key("mix")
+        });
+        let mut ordered: Vec<_> = (0..frasi.len()).collect();
+        ordered.sort_by_key(|&i| frasi[i].inizio_ms);
+        let mut turni: Vec<Vec<usize>> = Vec::new();
+        for index in ordered {
+            if let Some(last) = turni.last_mut() {
+                let previous = &frasi[*last.last().expect("Turno non vuoto")];
+                let current = &frasi[index];
+                let gap = current.inizio_ms.saturating_sub(previous.fine_ms);
+                let silence = if gap == 0 {
+                    0
+                } else {
+                    gap.saturating_add(1000)
+                };
+                if same_voice(previous, current) && (labeled || silence <= 2000) {
+                    last.push(index);
+                    continue;
+                }
+            }
+            turni.push(vec![index]);
+        }
+        turni
+    }
+
+    pub fn testo_del_turno(&self, indices: &[usize], separator: &str) -> String {
+        indices
+            .iter()
+            .filter_map(|&i| {
+                let frase = &self.frasi[i];
+                match self.correzione_testo(frase) {
+                    Some(c) if c.frasi.first() == Some(&frase.id) => Some(c.testo.as_str()),
+                    Some(_) => None,
+                    None => Some(frase.testo.as_str()),
+                }
+            })
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>()
+            .join(separator)
+    }
+
+    /// Un'unità testuale per Turno, usata solo nelle uscite del documento, senza modificare gli id.
+    pub fn frasi_per_lettura(&self) -> Vec<Frase> {
+        let visible = self.frasi_visibili();
+        self.turni()
+            .into_iter()
+            .flat_map(|indices| {
+                if !indices
+                    .iter()
+                    .any(|&i| self.correzione_testo(&self.frasi[i]).is_some())
+                {
+                    return indices
+                        .into_iter()
+                        .map(|i| visible[i].clone())
+                        .collect::<Vec<_>>();
+                }
+                let mut first = visible[indices[0]].clone();
+                first.testo = self.testo_del_turno(&indices, "\n");
+                first.fine_ms = indices
+                    .iter()
+                    .map(|&i| visible[i].fine_ms)
+                    .max()
+                    .unwrap_or(first.fine_ms);
+                vec![first]
+            })
+            .filter(|f| !f.testo.is_empty())
+            .collect()
     }
 
     /// La data e l'ora locali di `creato`, ai minuti: `2026-10-03 17:05`.
@@ -131,6 +264,8 @@ impl Document {
             completa,
             parlanti: BTreeMap::new(),
             diarizzazione: None,
+            pulizia_audio: Vec::new(),
+            correzioni_testo: Vec::new(),
             frasi: phrases
                 .iter()
                 .zip(0..)
@@ -151,6 +286,13 @@ impl Document {
             origine: None,
         }
     }
+}
+
+fn same_voice(a: &Frase, b: &Frase) -> bool {
+    a.ingresso == b.ingresso
+        && (a.parlante_non_determinato || a.parlante == b.parlante)
+        && a.parlante_non_determinato == b.parlante_non_determinato
+        && a.parlante_provvisorio == b.parlante_provvisorio
 }
 
 /// Crea il Tape `path` con gli Ogg di `audio` (il mix e, con gli Ingressi separati, ogni Ingresso),
@@ -221,6 +363,7 @@ pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
 }
 
 /// Aggiunge al Tape la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
+#[cfg(test)]
 pub fn save_forma_onda(path: &Path, values: &[f32]) -> Result<(), AppError> {
     let _writing = writing();
     if forma_onda(path).is_some() {
@@ -258,6 +401,112 @@ pub fn rewrite_cancellable(
             }
         },
     )
+}
+
+/// Trascrivi su Tape: sostituisce in una sola transazione documento, audio e Forma d'onda.
+/// Le voci non sostituite restano byte-identiche, inclusi gli Ogg già trattati e dati aggiuntivi.
+pub fn rewrite_audio_cancellable(
+    path: &Path,
+    document: &Document,
+    audio: &[(Ingresso, &Path)],
+    forma_onda: Option<&[f32]>,
+    cancel: &transcribe_cpp::CancelToken,
+) -> Result<(), AppError> {
+    let _writing = writing();
+    let check = || {
+        if cancel.is_cancelled() {
+            Err(AppError::Cancelled)
+        } else {
+            Ok(())
+        }
+    };
+    check()?;
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".{}.tmp", temporary_id()));
+    let temp = PathBuf::from(name);
+    let mut created = false;
+    let written = (|| {
+        let mut old = open(path)?;
+        // Conserva i campi JSON sconosciuti senza ripristinare dati testuali rimossi dalla nuova ASR.
+        let mut json: serde_json::Value =
+            serde_json::from_reader(old.by_name(DOCUMENT).map_err(|e| unreadable(path, &e))?)
+                .map_err(|e| unreadable(path, &e))?;
+        let fields = json
+            .as_object_mut()
+            .ok_or_else(|| unreadable(path, &"documento non valido"))?;
+        for key in [
+            "version",
+            "creato",
+            "durata_ms",
+            "modalita",
+            "modello",
+            "lingua_parlato",
+            "completa",
+            "parlanti",
+            "frasi",
+            "origine",
+            "diarizzazione",
+            "pulizia_audio",
+            "correzioni_testo",
+        ] {
+            fields.remove(key);
+        }
+        let new = serde_json::to_value(document).map_err(|e| unwritable(&temp, &e))?;
+        fields.extend(new.as_object().unwrap().clone());
+        let file = File::create_new(&temp).map_err(|e| unwritable(&temp, &e))?;
+        created = true;
+        let mut zip = ZipWriter::new(file);
+        for i in 0..old.len() {
+            check()?;
+            let entry = old.by_index_raw(i).map_err(|e| unreadable(path, &e))?;
+            let replaced = entry.name() == DOCUMENT
+                || (forma_onda.is_some() && entry.name() == FORMA_ONDA)
+                || audio
+                    .iter()
+                    .any(|(ingresso, _)| entry.name() == audio_entry(*ingresso));
+            if !replaced {
+                zip.raw_copy_file(entry)
+                    .map_err(|e| unwritable(&temp, &e))?;
+            }
+        }
+        for &(ingresso, ogg) in audio {
+            let mut input = File::open(ogg).map_err(|e| unreadable(ogg, &e))?;
+            zip.start_file(
+                audio_entry(ingresso),
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
+            )
+            .map_err(|e| unwritable(&temp, &e))?;
+            let mut bytes = [0_u8; 65536];
+            loop {
+                check()?;
+                let count = input.read(&mut bytes).map_err(|e| unreadable(ogg, &e))?;
+                if count == 0 {
+                    break;
+                }
+                std::io::Write::write_all(&mut zip, &bytes[..count])
+                    .map_err(|e| unwritable(&temp, &e))?;
+            }
+        }
+        if let Some(wave) = forma_onda {
+            write_forma_onda(&mut zip, &temp, wave)?;
+        }
+        zip.start_file(
+            DOCUMENT,
+            SimpleFileOptions::default().compression_method(CompressionMethod::Deflated),
+        )
+        .map_err(|e| unwritable(&temp, &e))?;
+        serde_json::to_writer_pretty(&mut zip, &json).map_err(|e| unwritable(&temp, &e))?;
+        let file = zip.finish().map_err(|e| unwritable(&temp, &e))?;
+        file.sync_all().map_err(|e| unwritable(&temp, &e))?;
+        drop(file);
+        drop(old);
+        check()?;
+        std::fs::rename(&temp, path).map_err(|e| unwritable(path, &e))
+    })();
+    if written.is_err() && created {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
 }
 
 /// Riscrive il Tape con la voce `name` scritta da `add` al posto di quella che c'era, se c'era.
@@ -305,6 +554,15 @@ fn replace_checked(
 /// restano come sono.
 pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Result<(), AppError> {
     update(path, |document| {
+        if document
+            .correzioni_testo
+            .iter()
+            .any(|c| c.ingresso == ingresso && c.frasi.contains(&id))
+        {
+            return Err(AppError::Internal(
+                "questa Frase appartiene a una correzione del Turno".into(),
+            ));
+        }
         let frase = document
             .frasi
             .iter_mut()
@@ -325,6 +583,49 @@ pub fn edit_frase(path: &Path, ingresso: Ingresso, id: u32, testo: &str) -> Resu
     })
 }
 
+/// Corregge un Turno completo; il testo originale atteso impedisce di sovrascrivere una bozza obsoleta.
+pub fn edit_turno(
+    path: &Path,
+    ingresso: Ingresso,
+    ids: &[u32],
+    originale: &str,
+    testo: &str,
+) -> Result<(), AppError> {
+    let _writing = writing();
+    let mut document = read(path)?;
+    let indices = document
+        .turni()
+        .into_iter()
+        .find(|indices| {
+            indices.len() == ids.len()
+                && indices.iter().zip(ids).all(|(&i, &id)| {
+                    document.frasi[i].ingresso == ingresso && document.frasi[i].id == id
+                })
+        })
+        .ok_or_else(|| AppError::Internal("il Turno non è più disponibile".into()))?;
+    if document.testo_del_turno(&indices, "\n") != originale {
+        return Err(AppError::Internal(
+            "il testo del Turno è cambiato: riaprire il Tape prima di correggerlo".into(),
+        ));
+    }
+    if originale == testo {
+        return Ok(());
+    }
+    document
+        .correzioni_testo
+        .retain(|c| !(c.ingresso == ingresso && c.frasi.iter().any(|id| ids.contains(id))));
+    for &i in &indices {
+        document.frasi[i].tempi.clear();
+        document.frasi[i].testo_corretto = true;
+    }
+    document.correzioni_testo.push(TestoTurno {
+        ingresso,
+        frasi: ids.to_vec(),
+        testo: testo.to_string(),
+    });
+    rewrite(path, &document)
+}
+
 /// Attribuisce un Turno intero al Parlante del Turno immediatamente adiacente.
 /// I riferimenti, il testo e i tempi restano invariati; richieste obsolete non scrivono nulla.
 pub fn unisci_turno(
@@ -336,14 +637,10 @@ pub fn unisci_turno(
     update(path, |document| {
         let invalid =
             || AppError::Internal("il Turno o la destinazione non sono più disponibili".into());
-        let mut ordered: Vec<_> = document.frasi.iter().enumerate().collect();
+        let visible = document.frasi_visibili();
+        let mut ordered: Vec<_> = visible.iter().enumerate().collect();
         ordered.sort_by_key(|(_, f)| f.inizio_ms);
-        let same = |a: &Frase, b: &Frase| {
-            a.ingresso == b.ingresso
-                && (a.parlante_non_determinato || a.parlante == b.parlante)
-                && a.parlante_non_determinato == b.parlante_non_determinato
-                && a.parlante_provvisorio == b.parlante_provvisorio
-        };
+        let same = same_voice;
         let positions: Vec<_> = ordered
             .iter()
             .enumerate()
@@ -649,6 +946,8 @@ mod tests {
     fn document(frasi: &[&str]) -> Document {
         Document {
             version: VERSION,
+            pulizia_audio: Vec::new(),
+            correzioni_testo: Vec::new(),
             creato: "2026-10-03T17:05:00+02:00".into(),
             durata_ms: 1500,
             modalita: Modalita::Mix,
@@ -923,6 +1222,187 @@ mod tests {
         let old = dir.join("Vecchio.tape");
         tape_with(&old, &json.to_string());
         assert_eq!(read(&old).unwrap().origine, None);
+    }
+
+    #[test]
+    fn il_testo_del_turno_si_corregge_in_un_solo_salvataggio_e_si_riapre() {
+        let dir = temp_dir("editor-turno");
+        let path = dir.join("Call.tape");
+        let mut original = document(&["Prima.", "Seconda.", "Altro turno."]);
+        original.frasi[2].parlante = Some(2);
+        let audio = ogg(&dir);
+        write(
+            &path,
+            &[(Ingresso::Mix, &audio)],
+            &original,
+            Some(&[0.2, 0.7]),
+        )
+        .unwrap();
+        let audio_before = std::fs::read(&audio).unwrap();
+        edit_turno(
+            &path,
+            Ingresso::Mix,
+            &[0, 1],
+            "Prima.\nSeconda.",
+            "Prima e seconda.\n\nNuovo paragrafo.",
+        )
+        .unwrap();
+        let opened = crate::managers::transcription::open_tape(&path).unwrap();
+        assert_eq!(
+            opened.phrases[0].text,
+            "Prima e seconda.\n\nNuovo paragrafo."
+        );
+        assert_eq!(opened.phrases[1].text, "");
+        assert_eq!(opened.phrases[2].text, "Altro turno.");
+        assert!(opened.info.corretto_a_mano);
+        let after = read(&path).unwrap();
+        assert_eq!(after.frasi.len(), original.frasi.len());
+        for (saved, before) in after.frasi.iter().zip(&original.frasi) {
+            assert_eq!(
+                (
+                    saved.id,
+                    saved.inizio_ms,
+                    saved.fine_ms,
+                    saved.ingresso,
+                    saved.parlante
+                ),
+                (
+                    before.id,
+                    before.inizio_ms,
+                    before.fine_ms,
+                    before.ingresso,
+                    before.parlante
+                )
+            );
+        }
+        let mut saved_audio = Vec::new();
+        Mix::open(&path)
+            .unwrap()
+            .read_to_end(&mut saved_audio)
+            .unwrap();
+        assert_eq!(saved_audio, audio_before);
+        assert_eq!(forma_onda(&path), Some(vec![0.2, 0.7]));
+        let rendered = crate::managers::transcription::tape_text(
+            &path,
+            &crate::managers::settings::Settings::default(),
+            crate::managers::settings::CopiaCome::Testo,
+        )
+        .unwrap();
+        assert!(rendered.contains("Prima e seconda.\n\nNuovo paragrafo."));
+        assert_eq!(rendered.matches("Nuovo paragrafo.").count(), 1);
+        assert!(!rendered.contains("Seconda."));
+    }
+
+    #[test]
+    fn editor_turno_noop_richieste_obsolete_ed_errore_non_riscrivono_il_tape() {
+        let dir = temp_dir("editor-turno-atomicita");
+        let path = dir.join("Call.tape");
+        let doc = document(&["Prima.", "Seconda."]);
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &doc, None).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        edit_turno(
+            &path,
+            Ingresso::Mix,
+            &[0, 1],
+            "Prima.\nSeconda.",
+            "Prima.\nSeconda.",
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        for ids in [vec![0], vec![0, 0], vec![1, 0], vec![0, 1, 2]] {
+            assert!(edit_turno(&path, Ingresso::Mix, &ids, "Prima.\nSeconda.", "Bozza").is_err());
+        }
+        assert!(
+            edit_turno(
+                &path,
+                Ingresso::Sistema,
+                &[0, 1],
+                "Prima.\nSeconda.",
+                "Bozza"
+            )
+            .is_err()
+        );
+        assert!(edit_turno(&path, Ingresso::Mix, &[0, 1], "Obsoleto", "Bozza").is_err());
+        std::fs::create_dir(path.with_extension("tape.tmp")).unwrap();
+        assert!(edit_turno(&path, Ingresso::Mix, &[0, 1], "Prima.\nSeconda.", "Bozza").is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(read(&path).unwrap().correzioni_testo.is_empty());
+    }
+
+    #[test]
+    fn editor_turno_vuoto_unito_non_aggiunge_separatori_alle_uscite() {
+        for (suffix, empty_id, target_id) in [("sopra", 1, 0), ("sotto", 0, 1)] {
+            let dir = temp_dir(&format!("editor-turno-vuoto-join-{suffix}"));
+            let path = dir.join("Call.tape");
+            let mut doc = document(&["Prima.", "Seconda."]);
+            doc.frasi[1].parlante = Some(2);
+            let original = doc.frasi[empty_id].testo.clone();
+            let expected = doc.frasi[target_id].testo.clone();
+            let audio = ogg(&dir);
+            write(&path, &[(Ingresso::Mix, &audio)], &doc, None).unwrap();
+            edit_turno(&path, Ingresso::Mix, &[empty_id as u32], &original, "").unwrap();
+            unisci_turno(&path, Ingresso::Mix, &[empty_id as u32], target_id as u32).unwrap();
+            let after = read(&path).unwrap();
+            assert_eq!(after.testo_del_turno(&[0, 1], "\n"), expected);
+            let exported = crate::managers::transcription::tape_text(
+                &path,
+                &crate::managers::settings::Settings::default(),
+                crate::managers::settings::CopiaCome::Testo,
+            )
+            .unwrap();
+            assert!(exported.contains(&expected));
+            assert_eq!(after.frasi_per_lettura()[0].testo, expected);
+            assert_eq!(after.frasi.len(), 2);
+            assert_eq!(after.correzioni_testo[0].testo, "");
+        }
+    }
+
+    #[test]
+    fn editor_turno_vuoto_e_unisci_conservano_testo_audio_e_localita() {
+        let dir = temp_dir("editor-turno-vuoto-unisci");
+        let path = dir.join("Call.tape");
+        let mut doc = document(&["Prima.", "Seconda.", "Anna.", "Altro ingresso."]);
+        doc.frasi[2].parlante = Some(2);
+        doc.frasi[3].ingresso = Ingresso::Sistema;
+        let other = doc.frasi[3].clone();
+        let audio = ogg(&dir);
+        write(&path, &[(Ingresso::Mix, &audio)], &doc, Some(&[0.2])).unwrap();
+        edit_turno(
+            &path,
+            Ingresso::Mix,
+            &[0, 1],
+            "Prima.\nSeconda.",
+            "Testo unito.\n\nParagrafo.",
+        )
+        .unwrap();
+        unisci_turno(&path, Ingresso::Mix, &[2], 1).unwrap();
+        let after = read(&path).unwrap();
+        assert_eq!(after.frasi[3], other);
+        assert_eq!(
+            after.correzioni_testo[0].testo,
+            "Testo unito.\n\nParagrafo."
+        );
+        assert_eq!(after.frasi[2].parlante, Some(1));
+        edit_turno(
+            &path,
+            Ingresso::Mix,
+            &[0, 1, 2],
+            "Testo unito.\n\nParagrafo.\nAnna.",
+            "",
+        )
+        .unwrap();
+        let opened = crate::managers::transcription::open_tape(&path).unwrap();
+        assert!(opened.phrases[..3].iter().all(|f| f.text.is_empty()));
+        assert_eq!(opened.phrases[3].text, "Altro ingresso.");
+        assert!(opened.info.corretto_a_mano);
+        let mut saved_audio = Vec::new();
+        Mix::open(&path)
+            .unwrap()
+            .read_to_end(&mut saved_audio)
+            .unwrap();
+        assert_eq!(saved_audio, std::fs::read(audio).unwrap());
+        assert_eq!(forma_onda(&path), Some(vec![0.2]));
+        assert_eq!(read(&path).unwrap().frasi[3], other);
     }
 
     #[test]

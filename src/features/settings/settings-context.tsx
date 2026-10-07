@@ -1,18 +1,27 @@
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
 import { type AppError, commands, type Settings } from "@/bindings";
+import {
+  createSettingsWriter,
+  type SaveFeedback,
+  type SettingField,
+} from "./settings-writer";
 
 interface SettingsContextValue {
+  clearFeedback: ReturnType<typeof createSettingsWriter>["clearFeedback"];
+  feedback: Partial<Record<SettingField, SaveFeedback>>;
+  flush: () => Promise<AppError | null>;
   /** Perché all'avvio le impostazioni non si sono lette: allora valgono i predefiniti. */
   loadError: AppError | null;
+  retry: ReturnType<typeof createSettingsWriter>["retry"];
   /** Salva le impostazioni; restituisce l'errore se Rust le rifiuta o non riesce a scriverle. */
-  save: (next: Settings) => Promise<AppError | null>;
+  save: ReturnType<typeof createSettingsWriter>["save"];
   settings: Settings;
 }
 
@@ -29,18 +38,45 @@ export function SettingsProvider({
   loadError: AppError | null;
 }) {
   const [settings, setSettings] = useState(initial);
-  const save = useCallback(async (next: Settings) => {
-    const result = await commands.setSettings(next);
-    if (result.status === "error") {
-      return result.error;
+  useLayoutEffect(() => {
+    const system = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      document.documentElement.dataset.theme =
+        settings.tema === "scuro" ||
+        (settings.tema !== "chiaro" && system.matches)
+          ? "dark"
+          : "light";
+    };
+    apply();
+    if (!settings.tema || settings.tema === "sistema") {
+      system.addEventListener("change", apply);
+      return () => system.removeEventListener("change", apply);
     }
-    // Non sempre `next`: se all'avvio il file non si è letto, è il file con sopra la modifica.
-    setSettings(result.data);
-    return null;
-  }, []);
+  }, [settings.tema]);
+  const [feedback, setFeedback] = useState<
+    Partial<Record<SettingField, SaveFeedback>>
+  >({});
+  const [writer] = useState(() =>
+    createSettingsWriter(
+      initial,
+      commands.setSettings,
+      setSettings,
+      (field, state) =>
+        setFeedback((current) => ({ ...current, [field]: state }))
+    )
+  );
+  const { clearFeedback, save, flush, retry } = writer;
   const value = useMemo(
-    () => ({ loadError, save, settings }),
-    [loadError, save, settings]
+    () => ({
+      clearFeedback,
+      feedback,
+      flush,
+      loadError,
+      retry,
+      save,
+      settings,
+    }),
+    [clearFeedback, feedback, loadError, retry, save, flush, settings]
   );
   return (
     <SettingsContext.Provider value={value}>

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { Tooltip } from "radix-ui";
 import { renderToStaticMarkup } from "react-dom/server";
 import "@/lib/i18n";
 import { DEFAULT_SETTINGS } from "@/features/settings/settings";
@@ -10,20 +11,22 @@ const noAction = () => undefined;
 function render(diarized: boolean, disabled: boolean) {
   return renderToStaticMarkup(
     <SettingsProvider initial={DEFAULT_SETTINGS} loadError={null}>
-      <TapeMenu
-        diarized={diarized}
-        diarizingDisabled={disabled}
-        disabled={disabled}
-        library={{ raccolte: [], tapes: [] }}
-        onDiarize={noAction}
-        onError={noAction}
-        onExported={noAction}
-        onMove={noAction}
-        onReveal={noAction}
-        onTranscribe={disabled ? undefined : noAction}
-        onTrash={noAction}
-        path="D:\Call.tape"
-      />
+      <Tooltip.Provider>
+        <TapeMenu
+          diarized={diarized}
+          diarizingDisabled={disabled}
+          disabled={disabled}
+          library={{ raccolte: [], tapes: [] }}
+          onDiarize={noAction}
+          onError={noAction}
+          onExported={noAction}
+          onMove={noAction}
+          onReveal={noAction}
+          onTranscribe={disabled ? undefined : noAction}
+          onTrash={noAction}
+          path="D:\Call.tape"
+        />
+      </Tooltip.Provider>
     </SettingsProvider>
   );
 }
