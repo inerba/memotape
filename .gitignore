@@ -31,6 +31,9 @@ dist-ssr
 # DLL copiate da build.rs per il bundle (ONNX Runtime)
 /src-tauri/runtime-libs/
 
+# Riferimenti e materiali di design locali
+/.impeccable/
+
 # In .scratch si versionano solo i documenti Markdown
 /.scratch/**/*
 !/.scratch/**/
