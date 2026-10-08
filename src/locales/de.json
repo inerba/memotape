@@ -172,7 +172,7 @@
       "add": "Hinzufügen",
       "remove": "{{termine}} entfernen",
       "doppione": "„{{termine}}“ ist bereits im Vokabular.",
-      "nonAmmesso": "„{{termine}}“ enthält <| oder |>, was das Vokabular nicht zulässt.",
+      "nonAmmesso": "„{{termine}}“ enthält <| oder |>, was der Whisper-Prompt nicht zulässt.",
       "scartati_one": "{{count}} Zeile übersprungen: doppelt oder mit <| oder |>.",
       "scartati_other": "{{count}} Zeilen übersprungen: doppelt oder mit <| oder |>.",
       "whisper": "Mit Whisper gehen die Begriffe auch in den Anfangsprompt: Bei einer langen Liste berücksichtigt Whisper nur die letzten."

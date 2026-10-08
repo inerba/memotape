@@ -120,7 +120,7 @@
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
       "unsupportedTape": "This Tape comes from a newer version of Memotape: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
-      "invalidTermine": "The term {{detail}} contains <| or |>, which the Whisper prompt does not allow",
+      "invalidTermine": "The Term {{detail}} contains <| or |>, which the Whisper prompt does not allow",
       "nameTaken": "The name {{detail}} is already used",
       "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Tape first",
       "tapeNotFound": "The Tape is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
@@ -167,15 +167,15 @@
     "vocabolario": {
       "title": "Vocabulary",
       "description": "Names, brands and technical words that every Transcription should spell exactly like this. They apply from the next Transcription and don't change Tapes already transcribed.",
-      "label": "New term",
+      "label": "New Term",
       "placeholder": "A name, a brand, a technical word",
       "add": "Add",
       "remove": "Remove {{termine}}",
       "doppione": "“{{termine}}” is already in the Vocabulary.",
-      "nonAmmesso": "“{{termine}}” contains <| or |>, which the Vocabulary doesn't allow.",
+      "nonAmmesso": "“{{termine}}” contains <| or |>, which the Whisper prompt does not allow.",
       "scartati_one": "{{count}} line skipped: duplicate or containing <| or |>.",
       "scartati_other": "{{count}} lines skipped: duplicates or containing <| or |>.",
-      "whisper": "With Whisper the terms also go into the initial prompt: with a long list Whisper only considers the last ones."
+      "whisper": "With Whisper the Terms also go into the initial prompt: with a long list Whisper only considers the last ones."
     },
     "recording": {
       "title": "Recording and audio",

@@ -172,7 +172,7 @@
       "add": "Aggiungi",
       "remove": "Rimuovi {{termine}}",
       "doppione": "«{{termine}}» è già nel Vocabolario.",
-      "nonAmmesso": "«{{termine}}» contiene <| o |>, che il Vocabolario non ammette.",
+      "nonAmmesso": "«{{termine}}» contiene <| o |>, che il prompt di Whisper non ammette.",
       "scartati_one": "{{count}} riga scartata: doppione o con <| o |>.",
       "scartati_many": "{{count}} righe scartate: doppioni o con <| o |>.",
       "scartati_other": "{{count}} righe scartate: doppioni o con <| o |>.",

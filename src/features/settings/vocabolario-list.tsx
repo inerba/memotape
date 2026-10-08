@@ -153,15 +153,17 @@ export function VocabolarioList() {
               <span className="min-w-0 [overflow-wrap:anywhere]">
                 {termine}
               </span>
-              <button
+              <Button
                 aria-label={t("settings.vocabolario.remove", { termine })}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                className="shrink-0 text-foreground/70"
                 onClick={remove}
+                size="icon-xs"
                 type="button"
                 value={termine}
+                variant="ghost"
               >
                 <X aria-hidden className="size-3.5" />
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

@@ -167,17 +167,17 @@
     "vocabolario": {
       "title": "Słownik",
       "description": "Nazwy, marki i terminy techniczne, które każda Transkrypcja ma zapisać dokładnie tak. Obowiązują od następnej Transkrypcji i nie zmieniają już przetranskrybowanych Tape’ów.",
-      "label": "Nowy termin",
+      "label": "Nowy Termin",
       "placeholder": "Nazwa, marka, termin techniczny",
       "add": "Dodaj",
       "remove": "Usuń {{termine}}",
       "doppione": "„{{termine}}” jest już w Słowniku.",
-      "nonAmmesso": "„{{termine}}” zawiera <| lub |>, czego Słownik nie dopuszcza.",
+      "nonAmmesso": "„{{termine}}” zawiera <| lub |>, czego prompt Whispera nie dopuszcza.",
       "scartati_one": "Pominięto {{count}} wiersz: duplikat lub z <| albo |>.",
       "scartati_few": "Pominięto {{count}} wiersze: duplikaty lub z <| albo |>.",
       "scartati_many": "Pominięto {{count}} wierszy: duplikaty lub z <| albo |>.",
       "scartati_other": "Pominięto {{count}} wiersza: duplikaty lub z <| albo |>.",
-      "whisper": "Z Whisperem terminy trafiają też do początkowego promptu: przy długiej liście Whisper bierze pod uwagę tylko ostatnie."
+      "whisper": "Z Whisperem Terminy trafiają też do początkowego promptu: przy długiej liście Whisper bierze pod uwagę tylko ostatnie."
     },
     "recording": {
       "title": "Nagrywanie i dźwięk",

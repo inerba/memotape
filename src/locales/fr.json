@@ -120,7 +120,7 @@
       "liveTranscriptionUnavailable": "Transcription en direct indisponible : le modèle {{detail}} n'est pas téléchargé ou ne se charge pas (l'enregistrement est sauvegardé quand même)",
       "unsupportedTape": "Ce Tape provient d'une version plus récente de Memotape : mettez l'application à jour pour l'ouvrir",
       "invalidName": "Nom non valide : {{detail}}. Interdits : < > : \" / \\ | ? *, les noms réservés comme CON, un point au début et un point ou une espace à la fin",
-      "invalidTermine": "Le terme {{detail}} contient <| ou |>, que le prompt de Whisper n’accepte pas",
+      "invalidTermine": "Le Terme {{detail}} contient <| ou |>, que le prompt de Whisper n’accepte pas",
       "nameTaken": "Le nom {{detail}} est déjà utilisé",
       "raccoltaNotEmpty": "La Collection {{detail}} n'est pas vide : déplacez ou supprimez d'abord ses Tape",
       "tapeNotFound": "Le Tape n'est plus à sa place (déplacé, renommé ou supprimé hors de l'application) : {{detail}}",
@@ -167,16 +167,16 @@
     "vocabolario": {
       "title": "Vocabulaire",
       "description": "Noms, marques et termes techniques que chaque Transcription doit écrire exactement ainsi. Ils s’appliquent à partir de la prochaine Transcription et ne modifient pas les Tapes déjà transcrits.",
-      "label": "Nouveau terme",
+      "label": "Nouveau Terme",
       "placeholder": "Un nom, une marque, un terme technique",
       "add": "Ajouter",
       "remove": "Retirer {{termine}}",
       "doppione": "« {{termine}} » est déjà dans le Vocabulaire.",
-      "nonAmmesso": "« {{termine}} » contient <| ou |>, que le Vocabulaire n’accepte pas.",
+      "nonAmmesso": "« {{termine}} » contient <| ou |>, que le prompt de Whisper n’accepte pas.",
       "scartati_one": "{{count}} ligne ignorée : doublon ou avec <| ou |>.",
       "scartati_many": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
       "scartati_other": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
-      "whisper": "Avec Whisper, les termes entrent aussi dans le prompt initial : avec une longue liste, Whisper ne prend en compte que les derniers."
+      "whisper": "Avec Whisper, les Termes entrent aussi dans le prompt initial : avec une longue liste, Whisper ne prend en compte que les derniers."
     },
     "recording": {
       "title": "Enregistrement et audio",
