@@ -213,7 +213,10 @@ pub fn folded(text: &str) -> String {
 
 /// La chiave di confronto: lettere e cifre, minuscole, senza accenti.
 fn key(text: &str) -> String {
-    folded(text).chars().filter(|c| c.is_alphanumeric()).collect()
+    folded(text)
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
 }
 
 /// Se la chiave ha solo lettere latine (senza accenti) e cifre ASCII.
