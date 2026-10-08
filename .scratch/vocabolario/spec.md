@@ -1,6 +1,6 @@
 # Vocabolario
 
-Status: ready-for-agent
+Status: resolved
 
 Data: 8 ottobre 2026. Decisioni concordate in una sessione di grilling; requisito in `PRODUCT.md` (sezione Vocabolario, storie 81–83). Termini in `CONTEXT.md`: **Vocabolario**, **Termine**.
 
