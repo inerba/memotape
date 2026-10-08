@@ -30,3 +30,8 @@ Scelte e deviazioni da Handy:
 - Soundex americano scritto qui, solo per chiavi di sole lettere ASCII.
 
 Da tenere d'occhio nella prova a mano: con il Soundex ×0,3 parole italiane con lo stesso scheletro di consonanti e un Termine di almeno 4 lettere passano la soglia (per esempio "luce" → Luca, "marzo" → Marco, "vulcano" → Vulkan, "Nicola" → Niccolò). È l'algoritmo della spec, non un difetto di questa implementazione.
+
+### 2026-10-08, code review (branch `feat/vocabolario-review`)
+
+- Tratti a cavallo di più tempi: `fits_tempi` ammette un n-gram dentro un solo `TempoTesto`, oppure su più tempi solo se ognuno sta tutto nel tratto salvo spazi e punteggiatura (parole di Nemotron/Parakeet). Un n-gram che attraversa due segmenti di Whisper (`"Poi charge" | "B dopo"`) non si sostituisce più; il controllo è nel ciclo degli n-gram, quindi un n-gram più corto dentro un segmento resta possibile. Test `un_tratto_a_cavallo_di_due_segmenti_resta_com_e`.
+- Elisione: in `words` un prefisso di lettere seguito da `'` o `’` dentro la parola resta fuori dalla parola e dalla chiave, come la punteggiatura in testa: "compro l'iphone" → "compro l'iPhone", anche "dell’", "Un'". Test `l_elisione_davanti_al_termine_resta`.
