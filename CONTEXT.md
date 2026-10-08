@@ -10,6 +10,10 @@ App desktop che trasforma in testo, interamente in locale, il parlato di file au
 Il file audio, video o Tape selezionato, su cui agiscono le Attività. Il Tape prodotto da una Registrazione o da una Trascrizione diventa la Sorgente.
 _Avoid_: input, file sorgente, audio sorgente
 
+**Tape consultato**:
+Un Tape aperto dalla Libreria durante un'Attività, accanto alla sua vista, senza diventare la Sorgente. Finita l'Attività torna la vista della Sorgente.
+_Avoid_: Tape sfogliato, anteprima
+
 **Attività**:
 Una tra Registrazione, Trascrizione e Diarizzazione di un Tape già trascritto (Riconosci i parlanti). Ne è in corso al massimo una alla volta; il download di un modello non è un'Attività.
 _Avoid_: job, task, operazione

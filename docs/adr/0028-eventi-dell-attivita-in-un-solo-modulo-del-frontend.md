@@ -25,3 +25,4 @@ La sessione ha stati espliciti: nessuna → aperta → in chiusura → chiusa. I
 - `withPhrase`, `withPartial` e `withParlanti` restano trasformazioni pure della Conversation, senza controllo di sessione.
 - `RecordingPanel` riceve liste già filtrate e conserva il proprio listener dei livelli, per non far passare i 40 ms da HomePage.
 - Presuppone la revisione dell'8 ottobre di ADR-0016: resta solo lo snapshot finale di `LiveTranscriptUpdated`.
+- La vista della Sorgente (`features/source/view.ts`, `.scratch/vista-sorgente/`) condivide lo stato con questo modulo in un solo reducer composto della route: Sorgente aperta, Tape modificato e Tape spostato aggiornano Sorgente e Tape consultato in un passo.
