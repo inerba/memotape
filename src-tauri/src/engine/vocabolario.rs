@@ -32,6 +32,9 @@ pub fn correct(mut result: AsrResult, termini: &[String]) -> AsrResult {
             {
                 break;
             }
+            if !fits_tempi(&result, ngram[0].start, ngram[n - 1].end) {
+                break;
+            }
             let candidate: String = ngram.iter().map(|w| w.key.as_str()).collect();
             // Una parola in più vince solo se avvicina davvero al Termine: con la distanza divisa
             // per la lunghezza maggiore, "charge B per" (2 su 10) batterebbe "charge B" (2 su 9)
@@ -86,6 +89,26 @@ pub fn correct(mut result: AsrResult, termini: &[String]) -> AsrResult {
     result
 }
 
+/// Se il tratto `a..b` si può sostituire senza fondere tempi: dentro un solo tempo, oppure ogni
+/// tempo che tocca sta tutto nel tratto, salvo spazi e punteggiatura (le parole di Nemotron e
+/// Parakeet, non due segmenti di Whisper attraversati).
+fn fits_tempi(result: &AsrResult, a: usize, b: usize) -> bool {
+    let touched: Vec<&TempoTesto> = result
+        .tempi
+        .iter()
+        .filter(|t| t.inizio_byte < b && t.fine_byte > a)
+        .collect();
+    let outside = |from: usize, to: usize| {
+        !result.text[from..to.max(from)]
+            .chars()
+            .any(char::is_alphanumeric)
+    };
+    touched.len() < 2
+        || touched
+            .iter()
+            .all(|t| outside(t.inizio_byte, a) && outside(b, t.fine_byte))
+}
+
 /// Una parola del testo: byte di lettere e cifre tra la punteggiatura ai bordi, e la sua chiave.
 struct Word {
     start: usize,
@@ -99,7 +122,15 @@ fn words(text: &str) -> Vec<Word> {
     text.split_whitespace()
         .map(|w| {
             let at = w.as_ptr() as usize - text.as_ptr() as usize;
-            let core = w.trim_matches(|c: char| !c.is_alphanumeric());
+            let mut core = w.trim_matches(|c: char| !c.is_alphanumeric());
+            // L'elisione ("l'", "dell'", "un’") resta fuori dalla parola, come la punteggiatura.
+            if let Some((prefix, rest)) = core.split_once(['\'', '’'])
+                && !prefix.is_empty()
+                && !rest.is_empty()
+                && prefix.chars().all(char::is_alphabetic)
+            {
+                core = rest;
+            }
             let start = at + (core.as_ptr() as usize - w.as_ptr() as usize);
             Word {
                 start,
@@ -276,6 +307,14 @@ mod tests {
     }
 
     #[test]
+    fn l_elisione_davanti_al_termine_resta() {
+        let termini = &["iPhone"];
+        assert_eq!(text("compro l'iphone", termini), "compro l'iPhone");
+        assert_eq!(text("dell’iphone nuovo", termini), "dell’iPhone nuovo");
+        assert_eq!(text("Un'iphone", termini), "Un'iPhone");
+    }
+
+    #[test]
     fn un_termine_breve_si_sostituisce_solo_se_identico() {
         let termini = &["Ada"];
         assert_eq!(text("chiedi ad ada", termini), "chiedi ad Ada");
@@ -347,6 +386,15 @@ mod tests {
         );
         assert_eq!(atteso.tempi.len(), 2);
         assert_eq!(correct(asr, &termini(&["ChargeBee", "Niccolò"])), atteso);
+    }
+
+    #[test]
+    fn un_tratto_a_cavallo_di_due_segmenti_resta_com_e() {
+        let asr = timed(
+            "Poi charge B dopo.",
+            &[(0, 1500, "Poi charge"), (1600, 3000, "B dopo.")],
+        );
+        assert_eq!(correct(asr.clone(), &termini(&["ChargeBee"])), asr);
     }
 
     #[test]
