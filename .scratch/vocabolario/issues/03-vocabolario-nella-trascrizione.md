@@ -14,3 +14,5 @@
 - [ ] I sei controlli passano.
 
 ## Comments
+
+- 2026-10-08, dal ticket 02: `Settings::load` non scarta un Termine con `<|`/`|>` scritto a mano in `settings.json`; escluderlo dal prompt di Whisper qui.

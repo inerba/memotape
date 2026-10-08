@@ -58,6 +58,10 @@ pub enum AppError {
     /// Il nome di una Raccolta o il titolo di un Tape non è ammesso da Windows.
     #[error("nome non valido: {0}")]
     InvalidName(String),
+    /// Un Termine del Vocabolario contiene `<|` o `|>`, che nel prompt di Whisper farebbero fallire
+    /// la Trascrizione: porta il Termine.
+    #[error("Termine non valido: {0}")]
+    InvalidTermine(String),
     /// C'è già una Raccolta, o un Tape nella stessa cartella, con questo nome.
     #[error("nome già usato: {0}")]
     NameTaken(String),

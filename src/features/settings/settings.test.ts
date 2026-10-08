@@ -159,6 +159,7 @@ test("lo schema accetta le impostazioni predefinite e quelle complete", () => {
     sampleRate: 8000,
     speechLanguage: "it",
     trascrizioneDalVivo: true,
+    vocabolario: ["ChargeBee", "Niccolò"],
   };
   expect(settingsSchema.parse(full)).toEqual(full);
 });
@@ -176,6 +177,7 @@ test("lo schema rifiuta valori fuori dagli elenchi e campi mancanti", () => {
     { ...defaults, copiaCome: "html" },
     { ...defaults, parlantiFile: "sì" },
     { ...defaults, parlantiSistema: 1 },
+    { ...defaults, vocabolario: "ChargeBee" },
     { model: defaults.model },
   ];
   for (const value of invalid) {

@@ -96,6 +96,10 @@ pub struct Settings {
     /// `null` o vuoto: nessuno. Manca nei file salvati prima che esistesse.
     #[serde(default)]
     pub nome_microfono: Option<String>,
+    /// Il Vocabolario: i Termini che ogni Trascrizione riconosce, nell'ordine di aggiunta.
+    /// Manca nei file salvati prima che esistesse: allora è vuoto.
+    #[serde(default)]
+    pub vocabolario: Vec<String>,
 }
 
 /// Il fattore per cui un Guadagno di `db` moltiplica i campioni.
@@ -310,6 +314,7 @@ impl Default for Settings {
             guadagno_microfono: 0,
             guadagno_sistema: 0,
             nome_microfono: None,
+            vocabolario: Vec::new(),
         }
     }
 }
@@ -509,7 +514,8 @@ impl SettingsStore {
     /// Salva `settings` e le rende correnti; restituisce le precedenti. Se all'avvio il file non si è
     /// letto, non lo sovrascrive con i predefiniti: lo rilegge e applica sopra solo i campi che
     /// `settings` cambia rispetto alle correnti, o risponde con l'errore se ancora non si legge.
-    pub fn set(&self, settings: Settings) -> Result<Settings, AppError> {
+    pub fn set(&self, mut settings: Settings) -> Result<Settings, AppError> {
+        settings.vocabolario = vocabolario(settings.vocabolario)?;
         let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
         let mut load_error = self
             .load_error
@@ -525,6 +531,22 @@ impl SettingsStore {
         *load_error = None;
         Ok(std::mem::replace(&mut current, settings))
     }
+}
+
+/// I Termini senza spazi in testa e in coda, senza vuoti né doppioni esatti, nel loro ordine.
+/// `invalidTermine` per un Termine con `<|` o `|>`: nel prompt di Whisper la Frase fallirebbe.
+fn vocabolario(termini: Vec<String>) -> Result<Vec<String>, AppError> {
+    let mut kept: Vec<String> = Vec::with_capacity(termini.len());
+    for termine in termini {
+        let termine = termine.trim();
+        if termine.contains("<|") || termine.contains("|>") {
+            return Err(AppError::InvalidTermine(termine.to_owned()));
+        }
+        if !termine.is_empty() && !kept.iter().any(|k| k == termine) {
+            kept.push(termine.to_owned());
+        }
+    }
+    Ok(kept)
 }
 
 /// `onto` con i campi che `next` cambia rispetto a `base`.
@@ -888,6 +910,7 @@ mod tests {
             guadagno_microfono: 6,
             guadagno_sistema: -3,
             nome_microfono: Some("Francesco".into()),
+            vocabolario: vec!["ChargeBee".into(), "Niccolò".into()],
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));
@@ -1053,6 +1076,60 @@ mod tests {
             };
             assert!(invalid.save(&path).is_err(), "{microfono} {sistema}");
         }
+    }
+
+    #[test]
+    fn il_vocabolario_e_vuoto_di_default_e_nei_file_di_prima() {
+        assert_eq!(Settings::default().vocabolario, Vec::<String>::new());
+        let path = temp_file("senza-vocabolario");
+        let mut value = serde_json::to_value(Settings {
+            bitrate_kbps: 64,
+            ..Settings::default()
+        })
+        .unwrap();
+        value.as_object_mut().unwrap().remove("vocabolario");
+        std::fs::write(&path, value.to_string()).unwrap();
+        let settings = Settings::load(&path).unwrap();
+        assert_eq!(settings.bitrate_kbps, 64);
+        assert!(settings.vocabolario.is_empty());
+    }
+
+    #[test]
+    fn al_salvataggio_i_termini_perdono_spazi_vuoti_e_doppioni() {
+        let path = temp_file("vocabolario-normalizzato");
+        let store = SettingsStore::load(path.clone());
+        store
+            .set(Settings {
+                vocabolario: vec![
+                    "  ChargeBee ".into(),
+                    "   ".into(),
+                    String::new(),
+                    "Niccolò".into(),
+                    "ChargeBee".into(),
+                    // Solo i doppioni esatti: maiuscole e accenti li controlla il campo.
+                    "chargebee".into(),
+                ],
+                ..Settings::default()
+            })
+            .unwrap();
+        let expected = vec!["ChargeBee", "Niccolò", "chargebee"];
+        assert_eq!(store.get().vocabolario, expected);
+        assert_eq!(Settings::load(&path).unwrap().vocabolario, expected);
+    }
+
+    #[test]
+    fn un_termine_con_un_token_speciale_di_whisper_si_rifiuta() {
+        let path = temp_file("vocabolario-rifiutato");
+        let store = SettingsStore::load(path.clone());
+        for termine in ["<|it|>", "a <| b", "fine|>"] {
+            let refused = store.set(Settings {
+                vocabolario: vec!["ChargeBee".into(), format!(" {termine} ")],
+                ..Settings::default()
+            });
+            assert_eq!(refused, Err(AppError::InvalidTermine(termine.into())));
+        }
+        assert_eq!(store.get(), Settings::default());
+        assert!(!path.exists());
     }
 
     #[test]

@@ -120,6 +120,7 @@
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
       "unsupportedTape": "This Tape comes from a newer version of Memotape: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
+      "invalidTermine": "The term {{detail}} contains <| or |>, which the Whisper prompt does not allow",
       "nameTaken": "The name {{detail}} is already used",
       "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Tape first",
       "tapeNotFound": "The Tape is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
