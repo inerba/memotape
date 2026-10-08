@@ -237,6 +237,11 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
 { code: "unsupportedTape" } | 
 /**  Il nome di una Raccolta o il titolo di un Tape non è ammesso da Windows. */
 { code: "invalidName"; detail: string } | 
+/**
+ *  Un Termine del Vocabolario contiene `<|` o `|>`, che nel prompt di Whisper farebbero fallire
+ *  la Trascrizione: porta il Termine.
+ */
+{ code: "invalidTermine"; detail: string } | 
 /**  C'è già una Raccolta, o un Tape nella stessa cartella, con questo nome. */
 { code: "nameTaken"; detail: string } | 
 /**  Si elimina solo una Raccolta vuota. */
@@ -594,6 +599,11 @@ export type Settings = {
 	 *  `null` o vuoto: nessuno. Manca nei file salvati prima che esistesse.
 	 */
 	nomeMicrofono?: string | null,
+	/**
+	 *  Il Vocabolario: i Termini che ogni Trascrizione riconosce, nell'ordine di aggiunta.
+	 *  Manca nei file salvati prima che esistesse: allora è vuoto.
+	 */
+	vocabolario?: string[],
 };
 
 export type SpeakerAssignment = {

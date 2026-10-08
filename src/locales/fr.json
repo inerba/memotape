@@ -120,6 +120,7 @@
       "liveTranscriptionUnavailable": "Transcription en direct indisponible : le modèle {{detail}} n'est pas téléchargé ou ne se charge pas (l'enregistrement est sauvegardé quand même)",
       "unsupportedTape": "Ce Tape provient d'une version plus récente de Memotape : mettez l'application à jour pour l'ouvrir",
       "invalidName": "Nom non valide : {{detail}}. Interdits : < > : \" / \\ | ? *, les noms réservés comme CON, un point au début et un point ou une espace à la fin",
+      "invalidTermine": "Le terme {{detail}} contient <| ou |>, que le prompt de Whisper n’accepte pas",
       "nameTaken": "Le nom {{detail}} est déjà utilisé",
       "raccoltaNotEmpty": "La Collection {{detail}} n'est pas vide : déplacez ou supprimez d'abord ses Tape",
       "tapeNotFound": "Le Tape n'est plus à sa place (déplacé, renommé ou supprimé hors de l'application) : {{detail}}",

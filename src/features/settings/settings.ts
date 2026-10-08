@@ -77,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speechLanguage: "auto",
   tema: "sistema",
   trascrizioneDalVivo: false,
+  vocabolario: [],
 };
 
 /** `auto` o il codice ISO 639 di una lingua senza regione, come in Rust. */
@@ -145,6 +146,8 @@ export const settingsSchema = z.object({
   tema: z.enum(["sistema", "chiaro", "scuro"]).optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   trascrizioneDalVivo: z.boolean().optional(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  vocabolario: z.array(z.string()).optional(),
 }) satisfies z.ZodType<Settings>;
 
 /** Cosa mostra il selettore della Lingua del parlato, oltre ad Automatica. */
