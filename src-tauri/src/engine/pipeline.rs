@@ -1658,4 +1658,50 @@ pub(crate) mod tests {
             }
         }
     }
+
+    /// Il Vocabolario con i modelli veri: il Termine "Trascrizzione" (una z in più) prende il posto
+    /// di "trascrizione" con tutti e tre, e con Whisper entra anche nel prompt senza errori.
+    #[test]
+    #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
+    fn i_tre_modelli_usano_il_vocabolario() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let dir =
+            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
+        let mut detector =
+            crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
+                .unwrap();
+        for model in crate::managers::models::catalog()
+            .iter()
+            .filter(|m| m.mode.is_some())
+        {
+            let mut engine =
+                super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
+            let cancel = CancelToken::new();
+            engine.set_cancel_token(&cancel);
+            engine.set_termini(&["Trascrizzione".to_owned()]);
+            let mut phrases = Vec::new();
+            transcribe_file(
+                &fixture("parlato-it.wav"),
+                &mut engine,
+                &mut detector,
+                Some("it"),
+                None,
+                None,
+                &cancel,
+                &mut |event| {
+                    if let PipelineEvent::Phrase { text, .. } = event {
+                        phrases.push(text);
+                    }
+                },
+            )
+            .unwrap();
+            let text = phrases.join(" ");
+            println!("{}: {text}", model.id);
+            assert!(
+                text.contains("Trascrizzione") && !text.to_lowercase().contains("trascrizione"),
+                "{}: {text}",
+                model.id
+            );
+        }
+    }
 }

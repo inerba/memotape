@@ -435,6 +435,7 @@ pub async fn transcribe(
                     engine,
                     &silero,
                     &cancel,
+                    &settings.vocabolario,
                     EventSource {
                         ingresso,
                         session_id: None,
@@ -868,6 +869,7 @@ pub fn transcribe_live(
                                 engine,
                                 silero,
                                 cancel,
+                                &settings.vocabolario,
                                 EventSource {
                                     ingresso,
                                     session_id: Some(session_id),
@@ -1140,12 +1142,19 @@ struct EventSource<'a> {
 /// `transcription-progress`, `transcript-partial` e `transcript-phrase` con `ingresso`, e
 /// inserisce le Frasi in `transcript` in ordine di inizio, e alla fine la durata. Aggiorna anche
 /// `LastTranscript` a ogni Frase. Con gli Ingressi separati girano due pipeline sullo stesso
-/// `transcript`.
+/// `transcript`. Annulla e i Termini del Vocabolario (quelli delle impostazioni all'avvio della
+/// Trascrizione) si installano qui sul motore: file, Trascrivi su un Tape e dal vivo passano tutti
+/// da `run_pipeline`, anche con un'istanza in più del modello.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Annulla e Termini sono lo stato della Trascrizione da installare sul motore"
+)]
 fn run_pipeline(
     app: &AppHandle,
     engine: &mut TranscribeCpp,
     silero: &Path,
     cancel: &CancelToken,
+    termini: &[String],
     source: EventSource<'_>,
     transcript: &Mutex<Transcript>,
     run: impl FnOnce(
@@ -1159,6 +1168,7 @@ fn run_pipeline(
         session_id,
     } = source;
     engine.set_cancel_token(cancel);
+    engine.set_termini(termini);
     let last = app.state::<LastTranscript>();
     let update = |change: &dyn Fn(&mut Transcript)| {
         last.update(change);

@@ -6,10 +6,6 @@ pub mod live;
 pub mod local_diarizer;
 pub mod pipeline;
 pub mod transcribe_cpp;
-#[allow(
-    dead_code,
-    reason = "la Trascrizione la usa dal ticket 03 del Vocabolario"
-)]
 pub mod vocabolario;
 
 use crate::error::AppError;

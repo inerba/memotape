@@ -27,6 +27,8 @@ pub struct TranscribeCpp {
     /// `Feature::TemperatureFallback`: fra i modelli del catalogo, solo Whisper.
     fallback: bool,
     timestamps: TimestampKind,
+    /// Il Vocabolario della Trascrizione in corso (`set_termini`).
+    termini: Vec<String>,
 }
 
 impl TranscribeCpp {
@@ -54,6 +56,7 @@ impl TranscribeCpp {
             streaming: capabilities.supports_streaming,
             fallback,
             timestamps: capabilities.max_timestamp_kind,
+            termini: Vec::new(),
         };
         engine.warm_up();
         Ok(engine)
@@ -83,6 +86,12 @@ impl TranscribeCpp {
     pub fn set_cancel_token(&mut self, cancel: &CancelToken) {
         self.session.set_cancel_token(cancel);
     }
+
+    /// I Termini del Vocabolario della prossima Trascrizione, com'erano al suo avvio: il prompt di
+    /// Whisper e la correzione delle Frasi concluse.
+    pub fn set_termini(&mut self, termini: &[String]) {
+        termini.clone_into(&mut self.termini);
+    }
 }
 
 impl TranscriptionEngine for TranscribeCpp {
@@ -97,18 +106,11 @@ impl TranscriptionEngine for TranscribeCpp {
             language: language.and_then(|l| super::resolve_language(l, &self.languages)),
             family: self
                 .fallback
-                .then(|| RunExtension::Whisper(confident_only())),
+                .then(|| RunExtension::Whisper(confident_only(&self.termini))),
             ..RunOptions::default()
         };
-        // Una Frase in una scrittura che la lingua scelta non usa è inventata: si scarta.
-        let keep = |transcript: transcribe_cpp::Transcript| {
-            let text = transcript.text.trim();
-            if language.is_some_and(|l| super::foreign_script(text, l)) {
-                log::info!("Frase scartata, scrittura estranea alla Lingua del parlato: {text}");
-                return AsrResult::default();
-            }
-            timed_result(transcript)
-        };
+        let termini = &self.termini;
+        let keep = |transcript| concluded(transcript, language, termini);
         // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
         // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
         let Some(on_partial) = on_partial.filter(|_| self.streaming) else {
@@ -139,6 +141,21 @@ impl TranscriptionEngine for TranscribeCpp {
         catch_native(|| stream.finalize())?;
         Ok(keep(stream.snapshot()))
     }
+}
+
+/// Il risultato di una Frase conclusa, mai di un Parziale. Una Frase in una scrittura che la lingua
+/// scelta non usa è inventata: si scarta. Poi i tratti simili a un Termine diventano il Termine.
+fn concluded(
+    transcript: transcribe_cpp::Transcript,
+    language: Option<&str>,
+    termini: &[String],
+) -> AsrResult {
+    let text = transcript.text.trim();
+    if language.is_some_and(|l| super::foreign_script(text, l)) {
+        log::info!("Frase scartata, scrittura estranea alla Lingua del parlato: {text}");
+        return AsrResult::default();
+    }
+    super::vocabolario::correct(timed_result(transcript), termini)
 }
 
 /// Le parole del runtime includono i token della parola: non si taglia dentro un token/parola.
@@ -188,9 +205,19 @@ fn timed_result(transcript: transcribe_cpp::Transcript) -> AsrResult {
 /// parole a caso in più lingue. La regola di salto è `no_speech_prob > no_speech_thold` e
 /// confidenza sotto soglia, quindi con `no_speech_thold` 0 basta la confidenza. Su una
 /// Registrazione di 7 minuti (76 Frasi) ha scartato le 7 inventate e lasciato identiche le altre.
-fn confident_only() -> WhisperRunOptions {
+///
+/// Il prompt iniziale sono i Termini del Vocabolario uniti da `", "`; oltre circa 223 token
+/// transcribe-cpp ne toglie l'inizio. Un `<|…|>` farebbe fallire la Frase con `INVALID_ARG`:
+/// `set_settings` lo rifiuta, ma un `settings.json` scritto a mano può averlo, quindi si salta.
+fn confident_only(termini: &[String]) -> WhisperRunOptions {
+    let prompt: Vec<&str> = termini
+        .iter()
+        .map(String::as_str)
+        .filter(|t| !t.contains("<|") && !t.contains("|>"))
+        .collect();
     WhisperRunOptions {
         no_speech_thold: Some(0.0),
+        initial_prompt: (!prompt.is_empty()).then(|| prompt.join(", ")),
         ..WhisperRunOptions::default()
     }
 }
@@ -343,4 +370,88 @@ fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T
             transcribe_cpp::Error::Busy(_) => EngineError::Busy,
             e => EngineError::Internal(format!("transcribe-cpp: {e}")),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transcript::TempoTesto;
+
+    fn termini(t: &[&str]) -> Vec<String> {
+        t.iter().map(|&t| t.to_owned()).collect()
+    }
+
+    #[test]
+    fn whisper_riceve_i_termini_nel_prompt_iniziale() {
+        let options = confident_only(&termini(&["ChargeBee", "Niccolò", "Kubernetes"]));
+        assert_eq!(
+            options.initial_prompt.as_deref(),
+            Some("ChargeBee, Niccolò, Kubernetes")
+        );
+        assert_eq!(options.no_speech_thold, Some(0.0));
+    }
+
+    fn words(rows: &[(i64, i64, &str)]) -> transcribe_cpp::Transcript {
+        transcribe_cpp::Transcript {
+            text: rows.iter().map(|r| r.2).collect(),
+            timestamp_kind: TimestampKind::Word,
+            words: rows
+                .iter()
+                .map(|&(t0_ms, t1_ms, text)| transcribe_cpp::Word {
+                    t0_ms,
+                    t1_ms,
+                    text: text.to_owned(),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    fn tempo(inizio_byte: usize, fine_byte: usize, inizio_ms: u32, fine_ms: u32) -> TempoTesto {
+        TempoTesto {
+            inizio_byte,
+            fine_byte,
+            inizio_ms,
+            fine_ms,
+        }
+    }
+
+    #[test]
+    fn la_frase_conclusa_prende_i_termini_con_i_tempi_uniti() {
+        let transcript = words(&[(0, 300, " Uso"), (300, 700, " Charge"), (700, 900, " B.")]);
+        let result = concluded(transcript, Some("it"), &termini(&["ChargeBee"]));
+        assert_eq!(result.text, "Uso ChargeBee.");
+        assert_eq!(
+            result.tempi,
+            vec![tempo(0, 4, 0, 300), tempo(4, 14, 300, 900)]
+        );
+    }
+
+    #[test]
+    fn la_frase_in_scrittura_estranea_si_scarta_anche_con_i_termini() {
+        let transcript = words(&[(0, 500, " Привет"), (500, 900, " мир")]);
+        let result = concluded(transcript, Some("it"), &termini(&["Привет"]));
+        assert_eq!(result, AsrResult::default());
+    }
+
+    #[test]
+    fn senza_termini_la_frase_conclusa_resta_com_e() {
+        let transcript = words(&[(0, 300, " Uso"), (300, 700, " Charge"), (700, 900, " B.")]);
+        let result = concluded(transcript, None, &[]);
+        assert_eq!(result.text, "Uso Charge B.");
+        assert_eq!(result.tempi.len(), 3);
+    }
+
+    #[test]
+    fn senza_termini_whisper_non_ha_prompt() {
+        assert_eq!(confident_only(&[]).initial_prompt, None);
+    }
+
+    #[test]
+    fn un_termine_con_token_speciali_non_entra_nel_prompt() {
+        let options = confident_only(&termini(&["<|it|>", "ChargeBee", "a|>b"]));
+        assert_eq!(options.initial_prompt.as_deref(), Some("ChargeBee"));
+        assert_eq!(confident_only(&termini(&["<|en|>"])).initial_prompt, None);
+    }
 }
