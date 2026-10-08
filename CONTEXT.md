@@ -11,7 +11,7 @@ Il file audio, video o Tape selezionato, su cui agiscono le Attività. Il Tape p
 _Avoid_: input, file sorgente, audio sorgente
 
 **Attività**:
-Una tra Registrazione e Trascrizione. Ne è in corso al massimo una alla volta; il download di un modello non è un'Attività.
+Una tra Registrazione, Trascrizione e Diarizzazione di un Tape già trascritto (Riconosci i parlanti). Ne è in corso al massimo una alla volta; il download di un modello non è un'Attività.
 _Avoid_: job, task, operazione
 
 **Registrazione**:
@@ -91,7 +91,7 @@ _Avoid_: segmento, utterance, chunk
 Il legame fra un tratto del testo e l'intervallo audio realmente fornito dalla Trascrizione. Quel tratto resta indivisibile nell'attribuzione dei Parlanti; se comprende più voci, il suo Parlante resta non determinato.
 
 **Parziale**:
-Il testo provvisorio di una Frase ancora in corso. Dal vivo può essere mostrato in più parti ai cambi di Parlante sostenuti dai tempi ASR; una revisione sostituisce tutte le parti insieme. La Frase conclusa le sostituisce senza duplicazioni.
+Il testo provvisorio di una Frase ancora in corso, senza Parlante. La Frase conclusa lo sostituisce senza duplicazioni.
 _Avoid_: anteprima, testo tentativo
 
 **Ingressi separati**:
@@ -99,7 +99,7 @@ Il modo in cui si trascrive sempre una Registrazione da Entrambi, dal vivo o dop
 _Avoid_: canali, flussi, modalità chat
 
 **Diarizzazione**:
-L'attribuzione di ogni Frase a un Parlante. Dal vivo attribuisce e suddivide anche i Parziali disponibili, in modo provvisorio e rettificabile; l’analisi finale dopo Stop consolida il risultato.
+L'attribuzione di ogni Frase a un Parlante. In una Registrazione avviene solo dopo Stop, con l'analisi finale: durante la Registrazione il testo non ha Parlanti.
 _Avoid_: speaker detection, riconoscimento dei parlanti
 
 **Parlante**:

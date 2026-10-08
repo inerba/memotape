@@ -11,7 +11,8 @@
 - [x] `LiveTranscriptUpdated` ha solo `sessionId`, `ingresso`, `phrases`; `final_speakers` lo emette una volta per Ingresso con Frasi, solo per una Registrazione. `bindings.ts` è rigenerato e committato.
 - [x] Il frontend compila con la forma nuova: lo snapshot finale sostituisce le Frasi del suo Ingresso e un secondo snapshot dello stesso Ingresso nella stessa sessione si scarta; il listener di `liveDiarizationFailed`, `withLiveDiarizationError` con i suoi test e le chiavi i18n rimaste senza uso spariscono. Il resto del protocollo lo riscrive il ticket 02.
 - [x] AGENTS.md non descrive più i Parlanti dal vivo dei ticket 05–07, le revisioni per Ingresso, `live-diarization-failed` né lo smoke `un_ingresso_nativo`; una riga descrive lo snapshot finale.
-- [x] I sei controlli passano. Prova manuale con `bun tauri dev`: Registrazione da Entrambi con Trascrivi dal vivo e Riconosci i parlanti, Stop, testo finale con i Parlanti nella vista e nel Tape riaperto.
+- [x] I sei controlli passano.
+- [ ] Prova manuale con `bun tauri dev`: Registrazione da Entrambi con Trascrivi dal vivo e Riconosci i parlanti, Stop, testo finale con i Parlanti nella vista e nel Tape riaperto.
 
 ## Comments
 
