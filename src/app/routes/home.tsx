@@ -4,6 +4,7 @@ import { Check, CircleAlert, Copy, X } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
+import { useHomeState } from "@/app/routes/home-state";
 import {
   type AppError,
   commands,
@@ -28,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { WindowControls } from "@/components/window-controls";
-import { useActivity } from "@/features/activity/use-activity";
 import { AllTapes } from "@/features/library/all-tapes";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
@@ -62,7 +62,8 @@ import { nomeMicrofonoRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
-import { fileName, isTape, movedPath } from "@/features/source/file-name";
+import { fileName, isTape } from "@/features/source/file-name";
+import type { TapeView } from "@/features/source/view";
 import {
   afterDiarization,
   afterTranscription,
@@ -79,7 +80,6 @@ import {
 import { ParlantiTab } from "@/features/transcription/parlanti-tab";
 import {
   type Conversation,
-  EMPTY_CONVERSATION,
   type Parlante,
   type PhraseRef,
   parlantiOf,
@@ -93,13 +93,6 @@ import { TranscriptView } from "@/features/transcription/transcript-view";
 const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
 const NOTICE_MS = 6000;
-
-/** Un Tape aperto: le Frasi e le informazioni. */
-interface TapeView {
-  conversation: Conversation;
-  info: TapeInfo | null;
-  path: string;
-}
 
 /** Il Tape evidenziato nella barra laterale: quello mostrato nell'area principale. */
 function selectedTape(
@@ -136,11 +129,6 @@ function isHomeView(view: {
 export function HomePage() {
   const { t } = useTranslation();
   const pendingEdits = useRef(new Map<string, Promise<boolean>>());
-  const [source, setSource] = useState<string | null>(null);
-  const visibleSource = useRef(source);
-  useEffect(() => {
-    visibleSource.current = source;
-  }, [source]);
   const { loadError, save, flush, settings } = useSettings();
   const recordingInFlight = useRef<boolean>(false);
   const pendingRecording = useRef<{
@@ -155,9 +143,10 @@ export function HomePage() {
     }
   }, []);
   // Lo Status, le Frasi e le informazioni della Sorgente (del Tape aperto o dell'Attività in
-  // corso), il timer e la pulizia. Impostazioni illeggibili all'avvio: l'avviso lo dice finché
-  // non c'è altro.
+  // corso), il timer, la pulizia e il Tape consultato. Impostazioni illeggibili all'avvio: l'avviso
+  // lo dice finché non c'è altro.
   const {
+    browsed,
     cleaningDismissed,
     cleaningFailures,
     cleaningPreparing,
@@ -167,8 +156,9 @@ export function HomePage() {
     info,
     ready,
     session,
+    source,
     status,
-  } = useActivity(
+  } = useHomeState(
     loadError
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null },
@@ -197,10 +187,6 @@ export function HomePage() {
   // I file trascinati da Esplora file sopra la finestra, e quelli appena rilasciati.
   const [dragged, setDragged] = useState<string[] | null>(null);
   const [dropped, setDropped] = useState<string[] | null>(null);
-  // Il Parlante di cui si sta scrivendo il nome nuovo.
-  const [renaming, setRenaming] = useState<Parlante | null>(null);
-  // Il Tape aperto dalla barra laterale durante un'Attività.
-  const [browsed, setBrowsed] = useState<TapeView | null>(null);
   // L'elenco completo dei Tape della Raccolta nell'area principale.
   const [listOpen, setListOpen] = useState(false);
   const [homeOpen, setHomeOpen] = useState(false);
@@ -226,11 +212,10 @@ export function HomePage() {
       return;
     }
     setHighlight(null);
-    setRenaming(null);
     setHomeOpen(false);
     setListOpen(false);
-    setBrowsed(null);
-  }, [status.phase]);
+    dispatch({ type: "browsingClosed" });
+  }, [dispatch, status.phase]);
 
   // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
   // il listener, così uno arrivato nel frattempo non si perde.
@@ -308,10 +293,8 @@ export function HomePage() {
       }
       remember(path);
       setHomeOpen(false);
-      setSource(path);
-      dispatch({ tape: result.data, type: "sourceOpened" });
+      dispatch({ path, tape: result.data, type: "sourceOpened" });
       setHighlight(phrase ?? null);
-      setRenaming(null);
       return null;
     },
     [dispatch, remember]
@@ -320,12 +303,9 @@ export function HomePage() {
   const openTape = useCallback(
     async (path: string, phrase?: PhraseRef) => {
       const error = await loadTape(path, phrase);
-      dispatch({
-        status: error
-          ? { error, phase: "failed" }
-          : { phase: "idle", source: path },
-        type: "status",
-      });
+      if (error) {
+        dispatch({ status: { error, phase: "failed" }, type: "status" });
+      }
     },
     [dispatch, loadTape]
   );
@@ -335,11 +315,10 @@ export function HomePage() {
   const browse = useCallback(
     async (path: string, phrase?: PhraseRef) => {
       setHighlight(phrase ?? null);
-      setRenaming(null);
       // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Tape come gli altri.
       if (path === source && (running || diarizing)) {
         setHomeOpen(false);
-        setBrowsed(null);
+        dispatch({ type: "browsingClosed" });
         return;
       }
       const result = await commands.openTape(path);
@@ -347,24 +326,19 @@ export function HomePage() {
         setNotice(result.error);
         return;
       }
-      const { info: opened, parlanti, phrases } = result.data;
       remember(path);
       setHomeOpen(false);
-      setBrowsed({
-        conversation: { ...EMPTY_CONVERSATION, parlanti, phrases },
-        info: opened,
-        path,
-      });
+      dispatch({ path, tape: result.data, type: "tapeBrowsed" });
     },
-    [diarizing, remember, running, source]
+    [diarizing, dispatch, remember, running, source]
   );
 
   // Finita l'Attività torna la sua vista, con il suo esito aperto (il Tape di una Registrazione).
   useEffect(() => {
     if (!busy) {
-      setBrowsed(null);
+      dispatch({ type: "browsingClosed" });
     }
-  }, [busy]);
+  }, [busy, dispatch]);
 
   // Una Sorgente scelta con Apri file o con il doppio clic su un Tape in Esplora file.
   const openPath = useCallback(
@@ -374,10 +348,8 @@ export function HomePage() {
         return;
       }
       setHomeOpen(false);
-      setSource(path);
-      dispatch({ type: "sourceOpened" });
+      dispatch({ path, type: "sourceOpened" });
       setHighlight(null);
-      dispatch({ status: { phase: "idle", source: path }, type: "status" });
     },
     [dispatch, openTape]
   );
@@ -412,11 +384,11 @@ export function HomePage() {
   // "Attività in corso" riporta alla sua vista.
   const showActivity = useCallback(() => {
     setHomeOpen(false);
-    setBrowsed(null);
+    dispatch({ type: "browsingClosed" });
     // La Frase trovata era del Tape consultato.
     setHighlight(null);
     setListOpen(false);
-  }, []);
+  }, [dispatch]);
 
   const showAll = useCallback(() => setListOpen(true), []);
   const showHome = useCallback(() => {
@@ -438,12 +410,7 @@ export function HomePage() {
   const moved = useCallback(
     (from: string, to: string) => {
       moveLastTape(from, to);
-      setSource((current) => current && movedPath(current, from, to));
-      setBrowsed(
-        (current) =>
-          current && { ...current, path: movedPath(current.path, from, to) }
-      );
-      dispatch({ from, to, type: "moved" });
+      dispatch({ from, to, type: "tapeMoved" });
     },
     [dispatch, moveLastTape]
   );
@@ -452,16 +419,9 @@ export function HomePage() {
   const trashed = useCallback(
     (path: string) => {
       forget(path);
-      setBrowsed((current) => (current?.path === path ? null : current));
-      if (path === source) {
-        setSource(null);
-        if (!busy) {
-          dispatch({ type: "sourceOpened" });
-          dispatch({ status: { phase: "idle", source: null }, type: "status" });
-        }
-      }
+      dispatch({ path, type: "tapeTrashed" });
     },
-    [busy, dispatch, forget, source]
+    [dispatch, forget]
   );
 
   const { dialog, moveTape, renameTape, requestTrash, reveal } =
@@ -524,7 +484,6 @@ export function HomePage() {
     }
     dispatch({ kind: "transcription", type: "start" });
     setHighlight(null);
-    setRenaming(null);
     setCancelling(false);
     try {
       const result = await commands.transcribe(source, raccolta);
@@ -554,7 +513,6 @@ export function HomePage() {
     diarizationInFlight.current = true;
     setConfirmDiarize(false);
     dispatch({ kind: "diarization", type: "start" });
-    setRenaming(null);
     setCancelling(false);
     try {
       const result = await commands.diarize(source);
@@ -607,7 +565,7 @@ export function HomePage() {
       if (opened && isTape(opened)) {
         error = await loadTape(opened);
       } else if (after.source) {
-        setSource(after.source);
+        dispatch({ path: after.source, type: "sourceOpened" });
       }
       dispatch({
         status:
@@ -769,51 +727,16 @@ export function HomePage() {
     [t]
   );
 
-  // Una correzione o un nome salvati nel Tape `path` valgono per la sua vista.
-  const updateView = useCallback(
-    (path: string, change: (c: Conversation) => Conversation) => {
-      setBrowsed((current) =>
-        current?.path === path
-          ? { ...current, conversation: change(current.conversation) }
-          : current
-      );
-      if (visibleSource.current === path) {
-        dispatch({ change, type: "sourceChanged" });
-      }
-    },
-    [dispatch]
-  );
-
-  // Il dato manuale viene mostrato soltanto dopo una scrittura riuscita.
-  const markCorrected = useCallback(
-    (path: string) => {
-      setBrowsed((current) =>
-        current?.path === path && current.info
-          ? { ...current, info: { ...current.info, correttoAMano: true } }
-          : current
-      );
-      if (visibleSource.current === path) {
-        dispatch({
-          info: (current) => current && { ...current, correttoAMano: true },
-          type: "sourceChanged",
-        });
-      }
-    },
-    [dispatch]
-  );
-
+  // Il testo e le informazioni scritti nel Tape `path` valgono per ogni sua vista.
   const applyOpenedTape = useCallback(
-    (path: string, opened: OpenedTape) => {
-      const { info: updated, parlanti, phrases } = opened;
-      updateView(path, (c) => ({ ...c, parlanti, phrases }));
-      setBrowsed((current) =>
-        current?.path === path ? { ...current, info: updated } : current
-      );
-      if (visibleSource.current === path) {
-        dispatch({ info: () => updated, type: "sourceChanged" });
-      }
-    },
-    [dispatch, updateView]
+    (path: string, { info: updated, parlanti, phrases }: OpenedTape) =>
+      dispatch({
+        change: (c) => ({ ...c, parlanti, phrases }),
+        info: () => updated,
+        path,
+        type: "tapeChanged",
+      }),
+    [dispatch]
   );
 
   const merge = useCallback(
@@ -849,7 +772,6 @@ export function HomePage() {
 
   const rename = useCallback(
     async (path: string, voce: Parlante, nome: string) => {
-      setRenaming(null);
       const result = await commands.renameParlante(
         path,
         voce.ingresso,
@@ -860,12 +782,18 @@ export function HomePage() {
         setNotice(result.error);
         return;
       }
-      updateView(path, (c) => withNome(c, voce.ingresso, voce.parlante, nome));
-      if (nome.trim() !== voce.nome) {
-        markCorrected(path);
-      }
+      // Il dato manuale viene mostrato soltanto dopo una scrittura riuscita.
+      dispatch({
+        change: (c) => withNome(c, voce.ingresso, voce.parlante, nome),
+        info:
+          nome.trim() === voce.nome
+            ? undefined
+            : (current) => current && { ...current, correttoAMano: true },
+        path,
+        type: "tapeChanged",
+      });
     },
-    [markCorrected, updateView]
+    [dispatch]
   );
 
   // La risposta contiene la proiezione realmente scritta; una bozza fallita resta nell'editor.
@@ -912,17 +840,11 @@ export function HomePage() {
         return;
       }
       const creato = result.data;
-      setBrowsed((current) =>
-        current?.path === path && current.info
-          ? { ...current, info: { ...current.info, creato } }
-          : current
-      );
-      if (visibleSource.current === path) {
-        dispatch({
-          info: (current) => current && { ...current, creato },
-          type: "sourceChanged",
-        });
-      }
+      dispatch({
+        info: (current) => current && { ...current, creato },
+        path,
+        type: "tapeChanged",
+      });
     },
     [dispatch]
   );
@@ -1000,14 +922,12 @@ export function HomePage() {
       onRaccolta={openRaccolta}
       onRenameParlante={rename}
       onRenameTitle={renameTape}
-      onRenaming={setRenaming}
       onReveal={reveal}
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
       own={own}
       processing={own && (running || diarizing)}
       recording={recording}
-      renaming={renaming}
       running={running}
       view={view}
     />
@@ -1541,14 +1461,12 @@ function TapePane({
   onRaccolta,
   onRenameParlante,
   onRenameTitle,
-  onRenaming,
   onReveal,
   onTranscribe,
   onTrash,
   own,
   processing,
   recording,
-  renaming,
   running,
   view: { conversation, info, path },
 }: {
@@ -1573,19 +1491,22 @@ function TapePane({
   onRaccolta: (raccolta: string) => void;
   onRenameParlante: (path: string, voce: Parlante, nome: string) => void;
   onRenameTitle: (path: string, titolo: string) => void;
-  onRenaming: (voce: Parlante | null) => void;
   onReveal: (path: string) => void;
   onTranscribe: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
   own: boolean;
   processing: boolean;
   recording: boolean;
-  renaming: Parlante | null;
   running: boolean;
   view: TapeView;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"transcript" | "parlanti">("transcript");
+  // Il Parlante di cui si sta scrivendo il nome nuovo; si annulla quando ci lavora un'Attività.
+  const [renaming, setRenaming] = useState<Parlante | null>(null);
+  if (renaming && !editable) {
+    setRenaming(null);
+  }
   const parlanti = editable ? parlantiOf(conversation, t) : [];
   const transcribing = own && running;
   const player = usePlayer(info?.durataMs ?? 0);
@@ -1608,7 +1529,10 @@ function TapePane({
   }, [audio, highlight, move]);
   const copy = useCallback(() => onCopy(path), [onCopy, path]);
   const rename = useCallback(
-    (voce: Parlante, nome: string) => onRenameParlante(path, voce, nome),
+    (voce: Parlante, nome: string) => {
+      setRenaming(null);
+      onRenameParlante(path, voce, nome);
+    },
     [onRenameParlante, path]
   );
   const edit = useCallback(
@@ -1710,7 +1634,7 @@ function TapePane({
               list={parlanti}
               onPlay={listening?.playFrom}
               onRename={rename}
-              onRenaming={onRenaming}
+              onRenaming={setRenaming}
               renaming={renaming}
             />
           </div>
@@ -1723,7 +1647,7 @@ function TapePane({
           highlight={highlight}
           {...editingActions}
           onRename={rename}
-          onRenaming={onRenaming}
+          onRenaming={setRenaming}
           parlanti={parlanti}
           player={listening}
           renaming={renaming}

@@ -111,7 +111,7 @@ type CommandAction =
       info?: (i: TapeInfo | null) => TapeInfo | null;
     };
 
-type EventAction =
+export type EventAction =
   | { type: "phrase"; payload: TranscriptPhrase }
   | { type: "partial"; payload: TranscriptPartial }
   | { type: "liveTranscript"; payload: LiveTranscriptUpdated }

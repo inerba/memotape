@@ -1,22 +1,17 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { events } from "@/bindings";
-import { activity, INITIAL_ACTIVITY } from "@/features/activity/activity";
-import type { Status } from "@/features/status/status";
+import type { EventAction } from "@/features/activity/activity";
 
 /**
- * L'Attività in corso: inoltra i suoi eventi al modulo dell'Attività. `ready` si risolve quando
+ * L'Attività in corso: inoltra i suoi eventi a `dispatch`. Restituisce `ready`, che si risolve quando
  * tutti i listener sono registrati; la Registrazione lo aspetta prima di partire.
  * `onRecordingStarted` riceve la sessione partita nel listener stesso, prima del render: così un
  * errore di `record` subito dopo non la scambia per una Registrazione mai partita.
  */
-export function useActivity(
-  initialStatus: Status,
+export function useActivityEvents(
+  dispatch: (action: EventAction) => void,
   onRecordingStarted: (sessionId: string) => void
 ) {
-  const [state, dispatch] = useReducer(activity, initialStatus, (status) => ({
-    ...INITIAL_ACTIVITY,
-    status,
-  }));
   const listeners = useRef<Promise<unknown>>(Promise.resolve());
   useEffect(() => {
     const all = [
@@ -63,7 +58,6 @@ export function useActivity(
         listener.then((stop) => stop());
       }
     };
-  }, [onRecordingStarted]);
-  const ready = useCallback(() => listeners.current, []);
-  return { ...state, dispatch, ready };
+  }, [dispatch, onRecordingStarted]);
+  return useCallback(() => listeners.current, []);
 }
