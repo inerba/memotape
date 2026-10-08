@@ -491,7 +491,8 @@ export function HomePage() {
       if (opened && isTape(opened)) {
         error = await loadTape(opened);
       } else if (after.source) {
-        dispatch({ path: after.source, type: "sourceOpened" });
+        // L'Ogg tenuto: come Sorgente, senza chiudere Home o Libreria aperte intanto.
+        dispatch({ keepView: true, path: after.source, type: "sourceOpened" });
       }
       dispatch({
         status:

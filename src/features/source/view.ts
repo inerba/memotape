@@ -82,7 +82,8 @@ export function pendingTape(
 export type SourceViewAction =
   /**
    * Il file o il Tape diventa la Sorgente, con la Frase trovata; senza percorso nessuna (il
-   * Cestino). `restart`: la sua vista riparte dall'inizio.
+   * Cestino). `restart`: la sua vista riparte dall'inizio. `keepView`: cambia solo il percorso e
+   * la vista mostrata resta (l'Ogg tenuto da una Registrazione).
    */
   | {
       type: "sourceOpened";
@@ -90,6 +91,7 @@ export type SourceViewAction =
       tape?: OpenedTape;
       phrase?: PhraseRef;
       restart?: boolean;
+      keepView?: boolean;
     }
   | { type: "tapeBrowsed"; path: string; tape: OpenedTape; phrase?: PhraseRef }
   /** Un Tape della barra laterale, della Libreria o della ricerca, di Apri file, del doppio clic o rilasciato. */
@@ -116,6 +118,9 @@ export function sourceView(
   const { browsed, source } = state;
   switch (action.type) {
     case "sourceOpened":
+      if (action.keepView) {
+        return { ...state, source: action.path };
+      }
       return {
         ...state,
         highlight: action.phrase ?? null,
@@ -188,9 +193,10 @@ function requested(
   }: { fromLibrary?: boolean; path: string; phrase?: PhraseRef },
   status: Status
 ): SourceView {
-  const next = {
-    ...state,
-    libraryOpen: false,
+  const next = { ...state, libraryOpen: false };
+  // Il Tape del doppio clic resta in attesa finché non diventa la Sorgente.
+  const opened = {
+    ...next,
     pending: state.pending === path ? null : state.pending,
   };
   switch (opening(state, status, path, fromLibrary)) {
@@ -204,11 +210,13 @@ function requested(
     // Il Tape già aperto: torna alla Frase trovata, o all'inizio del testo.
     case "restart":
       return {
-        ...next,
+        ...opened,
         highlight: phrase ?? null,
         homeOpen: false,
         revision: state.revision + 1,
       };
+    case "source":
+      return opened;
     default:
       return next;
   }

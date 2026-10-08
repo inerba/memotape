@@ -401,3 +401,14 @@ test("aprire un altro Tape o registrare cambia la vista del Tape, e con lei la r
   expect(center.kind === "tape" && center.tape.path).toBe("b.tape");
   expect(centerView(run(recording, other)).kind).toBe("live");
 });
+
+test("finita la Registrazione con l'Ogg tenuto, la Home aperta intanto resta aperta", () => {
+  const state = run([
+    ...recording,
+    { type: "homeShown" },
+    { keepView: true, path: "r.ogg", type: "sourceOpened" },
+    { status: { path: "r.ogg", phase: "recorded" }, type: "outcome" },
+  ]);
+  expect(state.view.source).toBe("r.ogg");
+  expect(centerView(state).kind).toBe("home");
+});

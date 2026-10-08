@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { OpenedTape } from "@/bindings";
 import {
   INITIAL_VIEW,
+  pendingTape,
   type SourceViewAction,
   sourceView,
 } from "@/features/source/view";
@@ -70,4 +71,17 @@ test("una modifica vale per il Tape consultato con quel percorso e solo per quel
   expect(
     sourceView(state, change("b.tape"), idle).browsed?.conversation.parlanti
   ).toEqual({ "mix:1": "Anna" });
+});
+
+test("il Tape del doppio clic consultato durante l'Attività diventa la Sorgente alla fine", () => {
+  const transcribing = { percent: null, phase: "transcribing" } as const;
+  const state = [
+    { path: "c.tape", type: "tapeRequested" },
+    { fromLibrary: true, path: "c.tape", type: "openRequested" },
+    { path: "c.tape", tape: opened("C."), type: "tapeBrowsed" },
+  ].reduce(
+    (s, a) => sourceView(s, a as SourceViewAction, transcribing),
+    INITIAL_VIEW
+  );
+  expect(pendingTape(state, idle, false)).toBe("c.tape");
 });
