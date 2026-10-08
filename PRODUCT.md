@@ -276,6 +276,18 @@ Requisiti approvati il 6 ottobre 2026. Dettagli delle correzioni e degli avvisi 
 - **Diarizza** e **Diarizza di nuovo** avvisano della presenza di Correzioni manuali prima di partire e spiegano che saranno conservate. Le Frasi attribuite a mano non vengono suddivise o riassegnate dall'analisi; le altre possono essere aggiornate. La dicitura **Corretto a mano** resta.
 - **Trascrivi di nuovo** avvisa esplicitamente che sostituirà testo, attribuzioni e nomi corretti a mano. Solo la conferma permette di partire. Dopo la sostituzione riuscita il nuovo testo non porta più la dicitura **Corretto a mano**, fino a una nuova correzione; Annulla o un errore non elimina le correzioni del Tape precedente.
 
+### Vocabolario
+
+Requisiti concordati l'8 ottobre 2026, ispirati alle parole personalizzate di Handy. Dettagli in `.scratch/vocabolario/spec.md`.
+
+81. Come utente, voglio un Vocabolario di Termini (nomi, marchi, parole tecniche, anche di più parole) che ogni Trascrizione successiva scriva esattamente così, così non correggo a mano sempre gli stessi errori.
+82. Come utente, voglio gestire il Vocabolario in Impostazioni → Trascrizione come una lista di pillole: aggiungo un Termine con Invio o Aggiungi, ne incollo più righe in una volta e ne tolgo uno con la sua ×, e ogni modifica si salva subito.
+83. Come utente, voglio che un Termine doppione o non ammesso non si aggiunga e che un messaggio accanto al campo lo dica, così la lista resta pulita.
+
+- Vale per tutte le Trascrizioni (file, Trascrivi su un Tape, Frasi concluse dal vivo) con ogni modello e ogni Lingua del parlato; non tocca i Parziali né i Tape già trascritti. Una Trascrizione usa il Vocabolario com'era al suo avvio.
+- Con Whisper i Termini entrano anche nel prompt iniziale; con un elenco lungo Whisper ne considera solo gli ultimi, e lo dice una nota sotto la lista. Con ogni modello un tratto della Frase simile per scrittura o pronuncia a un Termine diventa quel Termine, senza distinguere maiuscole e accenti; un Termine di meno di 4 lettere si sostituisce solo se coincide. I Termini in scritture non latine agiscono solo nel prompt di Whisper.
+- Ciò che il Vocabolario scrive è testo della Trascrizione: non è una Correzione manuale, non mostra **Corretto a mano** e il Tape non ricorda la parola sostituita né il Vocabolario usato. Il Termine occupa l'intervallo audio delle parole che sostituisce.
+
 ### Registrazione
 
 40. Come utente, voglio registrare dal Microfono, dall'Audio di sistema o da Entrambi, così catturo la mia voce, una videochiamata o tutte e due.
@@ -550,7 +562,7 @@ con parlato reale resta distinto dalle prove automatiche.
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
-- Timestamp nel testo copiato o esportato, traduzione, prompt iniziale di Whisper e Lingue del parlato oltre le sei dell'interfaccia.
+- Timestamp nel testo copiato o esportato, traduzione, prompt iniziale di Whisper (salvo i Termini del Vocabolario) e Lingue del parlato oltre le sei dell'interfaccia.
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.

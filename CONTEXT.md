@@ -135,6 +135,14 @@ _Avoid_: modifica del Tape, revisione automatica
 La correzione con cui l'utente attribuisce un Turno al Parlante del Turno adiacente, formando un unico Turno. Le Frasi conservano il loro testo e i loro intervalli audio; gli altri interventi del Parlante di partenza restano distinti.
 _Avoid_: unione di Frasi, fusione di Parlanti, concatenazione del testo
 
+**Vocabolario**:
+L'elenco dei Termini che l'utente vuole scritti esattamente così, unico per tutta l'app. Orienta ogni Trascrizione successiva verso quei Termini; i Tape già trascritti non cambiano. Ciò che il Vocabolario fa scrivere è testo della Trascrizione, non una Correzione manuale.
+_Avoid_: parole personalizzate, hotword, dizionario, glossario
+
+**Termine**:
+Una voce del Vocabolario, di una o più parole, come un nome proprio, un marchio o una parola tecnica. Un tratto del testo simile per scrittura o pronuncia diventa il Termine, che nell'audio occupa l'intervallo delle parole sostituite.
+_Avoid_: parola chiave, hotword, voce
+
 ### Lingue
 
 **Lingua del parlato**:
