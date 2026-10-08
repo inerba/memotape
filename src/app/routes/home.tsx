@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { WindowControls } from "@/components/window-controls";
+import { useActivity } from "@/features/activity/use-activity";
 import { AllTapes } from "@/features/library/all-tapes";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
@@ -90,12 +91,7 @@ import {
   parlantiOf,
   type Turn,
   visiblePhrases,
-  withLiveTranscript,
   withNome,
-  withoutPartials,
-  withParlanti,
-  withPartial,
-  withPhrase,
 } from "@/features/transcription/phrases";
 import { TranscribeMenu } from "@/features/transcription/transcribe-menu";
 import { TranscriptView } from "@/features/transcription/transcript-view";
@@ -152,14 +148,10 @@ export function HomePage() {
   useEffect(() => {
     visibleSource.current = source;
   }, [source]);
-  // Le Frasi della Sorgente: quelle del Tape aperto, o quelle che arrivano da un'Attività con i
-  // Parziali in corso (Nemotron), uno per Ingresso.
-  const [conversation, setConversation] =
-    useState<Conversation>(EMPTY_CONVERSATION);
+  // Le Frasi della Sorgente: quelle del Tape aperto, o quelle che arrivano dall'Attività in corso.
+  const { conversation, dispatch, ready, session } = useActivity();
   // Le informazioni del Tape aperto come Sorgente.
   const [info, setInfo] = useState<TapeInfo | null>(null);
-  // Gli eventi possono arrivare dopo la risposta di `record`: un Parziale tardivo si ignora.
-  const acceptPartials = useRef<boolean>(false);
   const recordingSession = useRef<string | null>(null);
   const recordingInFlight = useRef<boolean>(false);
   const recordingListeners = useRef<Promise<unknown>>(Promise.resolve());
@@ -169,8 +161,6 @@ export function HomePage() {
     controller: AbortController;
     completed: boolean;
     started: boolean;
-    live: boolean;
-    nomeMicrofono: string | null;
     previousStatus: Status;
     previousSession: string | null;
     previousCleaningFailures: RecordingCleaningFailed[];
@@ -251,17 +241,6 @@ export function HomePage() {
         }
         if (payload.phase === "recording" && !request.started) {
           request.started = true;
-          acceptPartials.current = request.live;
-          const fresh = {
-            ...EMPTY_CONVERSATION,
-            sessionId: request.sessionId,
-          };
-          // Il Microfono persona sola ha già il nome predefinito, come nel Tape che nascerà.
-          setConversation(
-            request.nomeMicrofono
-              ? withNome(fresh, "microfono", null, request.nomeMicrofono)
-              : fresh
-          );
           setInfo(null);
           setHighlight(null);
           setRenaming(null);
@@ -282,19 +261,6 @@ export function HomePage() {
         }
       }
     );
-    // Le Frasi in ordine di inizio; la Frase fissa il Parziale del suo Ingresso.
-    const phrases = events.transcriptPhrase.listen(({ payload }) => {
-      setConversation((current) => withPhrase(current, payload));
-    });
-    const partials = events.transcriptPartial.listen(({ payload }) => {
-      if (acceptPartials.current) {
-        setConversation((current) => withPartial(current, payload));
-      }
-    });
-    // Lo snapshot finale di un Ingresso, dopo l'analisi finale dei Parlanti.
-    const liveText = events.liveTranscriptUpdated.listen(({ payload }) => {
-      setConversation((current) => withLiveTranscript(current, payload));
-    });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       if (!inEventSession(payload, recordingSession.current)) {
         return;
@@ -310,19 +276,12 @@ export function HomePage() {
         setStatus(withDiarizing);
       }
     );
-    const assigned = events.speakersAssigned.listen(({ payload }) => {
-      setConversation((current) =>
-        withParlanti(current, payload.speakers, payload.sessionId)
-      );
-    });
     // La Trascrizione dal vivo si è fermata: la Registrazione continua e la status bar lo dice.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
       if (!inEventSession(payload, recordingSession.current)) {
         return;
       }
-      if (pendingRecording.current?.started !== false) {
-        setConversation(withoutPartials);
-      }
+      dispatch({ sessionId: payload.sessionId, type: "liveFailed" });
       setStatus((current) => withLiveError(current, payload.error));
     });
     const ticks = events.recordingTick.listen(({ payload }) => {
@@ -351,9 +310,6 @@ export function HomePage() {
     recordingListeners.current = Promise.all([
       recordingPhase,
       preparingCleaning,
-      phrases,
-      partials,
-      liveText,
       progress,
       liveFailed,
       cleaningFailed,
@@ -362,18 +318,14 @@ export function HomePage() {
     return () => {
       recordingPhase.then((stop) => stop());
       preparingCleaning.then((stop) => stop());
-      phrases.then((stop) => stop());
-      partials.then((stop) => stop());
-      liveText.then((stop) => stop());
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
       diarizationStarted.then((stop) => stop());
-      assigned.then((stop) => stop());
       ticks.then((stop) => stop());
       cleaningFailed.then((stop) => stop());
       tapeRequested.then((stop) => stop());
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     setCleaningPreparing((current) =>
@@ -435,18 +387,17 @@ export function HomePage() {
       if (result.status === "error") {
         return result.error;
       }
-      const { info: opened, parlanti, phrases } = result.data;
       remember(path);
       setHomeOpen(false);
       recordingSession.current = null;
       setSource(path);
-      setConversation({ ...EMPTY_CONVERSATION, parlanti, phrases });
-      setInfo(opened);
+      dispatch({ tape: result.data, type: "sourceOpened" });
+      setInfo(result.data.info);
       setHighlight(phrase ?? null);
       setRenaming(null);
       return null;
     },
-    [remember]
+    [dispatch, remember]
   );
 
   const openTape = useCallback(
@@ -505,12 +456,12 @@ export function HomePage() {
       }
       setHomeOpen(false);
       setSource(path);
-      setConversation(EMPTY_CONVERSATION);
+      dispatch({ type: "sourceOpened" });
       setInfo(null);
       setHighlight(null);
       setStatus({ phase: "idle", source: path });
     },
-    [openTape]
+    [dispatch, openTape]
   );
 
   const pickFile = useCallback(async () => {
@@ -587,13 +538,13 @@ export function HomePage() {
       if (path === source) {
         setSource(null);
         if (!busy) {
-          setConversation(EMPTY_CONVERSATION);
+          dispatch({ type: "sourceOpened" });
           setInfo(null);
           setStatus({ phase: "idle", source: null });
         }
       }
     },
-    [busy, forget, source]
+    [busy, dispatch, forget, source]
   );
 
   const { dialog, moveTape, renameTape, requestTrash, reveal } =
@@ -652,13 +603,20 @@ export function HomePage() {
       return;
     }
     recordingSession.current = null;
-    setConversation(EMPTY_CONVERSATION);
+    dispatch({
+      kind: "transcription",
+      nomeMicrofono: null,
+      partials: false,
+      sessionId: null,
+      type: "start",
+    });
     setHighlight(null);
     setRenaming(null);
     setCancelling(false);
     setStatus({ percent: null, phase: "transcribing" });
     try {
       const result = await commands.transcribe(source, raccolta);
+      dispatch({ type: "outcome" });
       let opened: string | null = isTape(source) ? source : null;
       if (result.status === "ok" && result.data.outcome === "saved") {
         opened = result.data.path;
@@ -669,9 +627,10 @@ export function HomePage() {
       );
     } catch (e) {
       // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
+      dispatch({ type: "outcome" });
       setStatus({ error: internalError(e), phase: "failed" });
     }
-  }, [loadTape, raccolta, source]);
+  }, [dispatch, loadTape, raccolta, source]);
 
   // La nuova Diarizzazione lascia in vista il risultato precedente fino al salvataggio riuscito.
   const diarize = useCallback(async () => {
@@ -681,11 +640,19 @@ export function HomePage() {
     diarizationInFlight.current = true;
     setConfirmDiarize(false);
     recordingSession.current = null;
+    dispatch({
+      kind: "diarization",
+      nomeMicrofono: null,
+      partials: false,
+      sessionId: null,
+      type: "start",
+    });
     setRenaming(null);
     setCancelling(false);
     setStatus({ phase: "diarizing" });
     try {
       const result = await commands.diarize(source);
+      dispatch({ type: "outcome" });
       const error = result.status === "ok" ? await loadTape(source) : null;
       if (result.status === "ok" && !error) {
         setRevision((current) => current + 1);
@@ -694,12 +661,13 @@ export function HomePage() {
         error ? { error, phase: "failed" } : afterDiarization(result, source)
       );
     } catch (e) {
+      dispatch({ type: "outcome" });
       setStatus({ error: internalError(e), phase: "failed" });
     } finally {
       diarizationInFlight.current = false;
       setCancelling(false);
     }
-  }, [busy, loadTape, source]);
+  }, [busy, dispatch, loadTape, source]);
 
   const requestDiarization = useCallback(() => {
     if (busy || !conversation.phrases.length) {
@@ -724,8 +692,7 @@ export function HomePage() {
       before: string | null
     ) => {
       const after = afterRecording(result);
-      acceptPartials.current = false;
-      setConversation(withoutPartials);
+      dispatch({ type: "outcome" });
       const opened = after.source ?? before;
       let error: AppError | null = null;
       if (opened && isTape(opened)) {
@@ -739,7 +706,7 @@ export function HomePage() {
           : after.status
       );
     },
-    [loadTape]
+    [dispatch, loadTape]
   );
 
   // Il Tape della Registrazione diventa la Sorgente; se non è partita torna quella di prima.
@@ -753,8 +720,6 @@ export function HomePage() {
       completed: false,
       controller: new AbortController(),
       dispatched: false,
-      live: settings.trascrizioneDalVivo ?? false,
-      nomeMicrofono: nomeMicrofonoRegistrazione(settings),
       previousCleaningDismissed: cleaningDismissed,
       previousCleaningFailures: cleaningFailures,
       previousSession: recordingSession.current,
@@ -767,12 +732,20 @@ export function HomePage() {
     setCleaningFailures([]);
     setCleaningPreparing([]);
     setCleaningDismissed(false);
-    acceptPartials.current = false;
+    // Il Microfono persona sola ha già il nome predefinito, come nel Tape che nascerà.
+    dispatch({
+      kind: "recording",
+      nomeMicrofono: nomeMicrofonoRegistrazione(settings),
+      partials: settings.trascrizioneDalVivo ?? false,
+      sessionId: request.sessionId,
+      type: "start",
+    });
     setCancelling(false);
     setElapsedMs(0);
     setStatus({ phase: "preparingRecording", stage: "saving" });
     const restore = (error?: AppError) => {
       recordingSession.current = request.previousSession;
+      dispatch({ type: "restore" });
       setStatus(request.previousStatus);
       setCleaningFailures(request.previousCleaningFailures);
       setCleaningDismissed(request.previousCleaningDismissed);
@@ -793,7 +766,7 @@ export function HomePage() {
           );
         },
         request.controller.signal,
-        recordingListeners.current
+        Promise.all([recordingListeners.current, ready()])
       );
       request.completed = true;
       if (result.status === "error" && !request.started) {
@@ -805,12 +778,12 @@ export function HomePage() {
       request.completed = true;
       const error = internalError(e);
       if (request.started) {
+        dispatch({ type: "outcome" });
         setStatus({ error, phase: "failed" });
       } else {
         restore(error);
       }
     } finally {
-      acceptPartials.current = false;
       pendingRecording.current = null;
       recordingInFlight.current = false;
       setCancelling(false);
@@ -818,9 +791,11 @@ export function HomePage() {
   }, [
     cleaningDismissed,
     cleaningFailures,
+    dispatch,
     finishRecording,
     flush,
     raccolta,
+    ready,
     settings,
     source,
     status,
@@ -922,10 +897,10 @@ export function HomePage() {
           : current
       );
       if (visibleSource.current === path) {
-        setConversation(change);
+        dispatch({ change, type: "sourceChanged" });
       }
     },
-    []
+    [dispatch]
   );
 
   // Il dato manuale viene mostrato soltanto dopo una scrittura riuscita.
@@ -1217,6 +1192,7 @@ export function HomePage() {
           onError={setNotice}
           onPausedChange={setPaused}
           paused={paused}
+          sessionId={"id" in session ? session.id : null}
           status={status}
         />
       );
@@ -1377,6 +1353,7 @@ function LiveView({
   onError,
   onPausedChange,
   paused,
+  sessionId,
   status,
 }: {
   cleaningFailures: RecordingCleaningFailed[];
@@ -1387,6 +1364,7 @@ function LiveView({
   onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
+  sessionId: string | null;
   status: Status;
 }) {
   const { t } = useTranslation();
@@ -1432,11 +1410,11 @@ function LiveView({
           <RecordingPanel
             cleaningFailures={cleaningFailures}
             cleaningPreparing={cleaningPreparing}
-            key={conversation.sessionId}
+            key={sessionId}
             onError={onError}
             onPausedChange={onPausedChange}
             paused={paused}
-            sessionId={conversation.sessionId}
+            sessionId={sessionId ?? undefined}
           />
         </Dock>
       ) : null}

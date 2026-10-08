@@ -22,12 +22,9 @@ export type ConversationPartial = TranscriptPartial &
   >;
 
 export interface Conversation {
-  /** Gli Ingressi che hanno già ricevuto lo snapshot finale della Registrazione. */
-  finali?: Partial<Record<Ingresso, true>>;
   parlanti: Partial<Record<string, string>>;
   partials: ConversationPartial[];
   phrases: TranscriptPhrase[];
-  sessionId?: string;
 }
 
 export const EMPTY_CONVERSATION: Conversation = {
@@ -73,12 +70,6 @@ export function withPhrase(
   conversation: Conversation,
   phrase: TranscriptPhrase
 ): Conversation {
-  if (
-    (phrase.sessionId ?? undefined) !== conversation.sessionId ||
-    conversation.finali?.[phrase.ingresso]
-  ) {
-    return conversation;
-  }
   return {
     ...conversation,
     partials: conversation.partials.filter(
@@ -93,24 +84,13 @@ export function withPhrase(
   };
 }
 
-/**
- * Lo snapshot finale di un Ingresso della Registrazione sostituisce le sue Frasi e toglie il suo
- * Parziale; un secondo snapshot dello stesso Ingresso e gli eventi tardivi per lui si scartano.
- */
+/** Lo snapshot finale di un Ingresso della Registrazione sostituisce le sue Frasi e il suo Parziale. */
 export function withLiveTranscript(
   conversation: Conversation,
-  snapshot: LiveTranscriptUpdated
+  { ingresso, phrases }: LiveTranscriptUpdated
 ): Conversation {
-  const { ingresso, phrases } = snapshot;
-  if (
-    snapshot.sessionId !== conversation.sessionId ||
-    conversation.finali?.[ingresso]
-  ) {
-    return conversation;
-  }
   return {
     ...conversation,
-    finali: { ...conversation.finali, [ingresso]: true },
     partials: conversation.partials.filter((p) => p.ingresso !== ingresso),
     phrases: [
       ...conversation.phrases.filter((p) => p.ingresso !== ingresso),
@@ -124,12 +104,6 @@ export function withPartial(
   conversation: Conversation,
   partial: TranscriptPartial
 ): Conversation {
-  if (
-    (partial.sessionId ?? undefined) !== conversation.sessionId ||
-    conversation.finali?.[partial.ingresso]
-  ) {
-    return conversation;
-  }
   const others = conversation.partials.filter(
     (p) => p.ingresso !== partial.ingresso
   );
@@ -147,18 +121,11 @@ export function withoutPartials(conversation: Conversation): Conversation {
 /** Applica `speakers-assigned`: il Parlante di ogni Frase dopo la Diarizzazione. */
 export function withParlanti(
   conversation: Conversation,
-  assignments: SpeakerAssignment[],
-  sessionId?: string | null
+  assignments: SpeakerAssignment[]
 ): Conversation {
-  if ((sessionId ?? undefined) !== conversation.sessionId) {
-    return conversation;
-  }
   return {
     ...conversation,
     phrases: conversation.phrases.map((phrase) => {
-      if (conversation.finali?.[phrase.ingresso]) {
-        return phrase;
-      }
       const assigned = assignments.find(
         (s) => s.ingresso === phrase.ingresso && s.phraseId === phrase.phraseId
       );

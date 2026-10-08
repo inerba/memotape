@@ -13,9 +13,7 @@ import {
   turnsOf,
   turnText,
   VOICE_COLORS,
-  visiblePhrases,
   voiceColors,
-  withLiveTranscript,
   withNome,
   withoutPartials,
   withParlanti,
@@ -136,102 +134,6 @@ test("l'unione considera solo il vicino e richiede una voce nota dello stesso In
   ).toBeNull();
   expect(mergeDestination(source, { ...below, label: null }, [])).toBeNull();
   expect(mergeDestination(source, below, [sourcePhrase])).toBeNull();
-});
-
-test("lo snapshot finale sostituisce le Frasi del suo Ingresso e toglie il suo Parziale", () => {
-  let view = [
-    phrase(0, 0, "Uno. Due.", "microfono"),
-    phrase(0, 500, "Sistema.", "sistema"),
-  ]
-    .map((p) => ({ ...p, sessionId: "live" }))
-    .reduce(withPhrase, { ...EMPTY_CONVERSATION, sessionId: "live" });
-  view = withPartial(view, {
-    ...phrase(1, 3000, "Parzi", "microfono"),
-    sessionId: "live",
-  });
-  view = withPartial(view, {
-    ...phrase(1, 3500, "Altro", "sistema"),
-    sessionId: "live",
-  });
-  view = withLiveTranscript(view, {
-    ingresso: "microfono",
-    phrases: [
-      { ...phrase(0, 100, "Uno. ", "microfono"), parlante: 1 },
-      { ...phrase(1, 1500, "Due.", "microfono"), parlante: 2 },
-    ],
-    sessionId: "live",
-  });
-  expect(visiblePhrases(view).map((p) => p.text)).toEqual([
-    "Uno. ",
-    "Sistema.",
-    "Due.",
-    "Altro",
-  ]);
-  expect(view.partials.map((p) => p.ingresso)).toEqual(["sistema"]);
-});
-
-test("un secondo snapshot dello stesso Ingresso nella stessa sessione si scarta", () => {
-  const first = withLiveTranscript(
-    { ...EMPTY_CONVERSATION, sessionId: "live" },
-    {
-      ingresso: "mix",
-      phrases: [phrase(0, 0, "Testo finale.")],
-      sessionId: "live",
-    }
-  );
-  expect(
-    withLiveTranscript(first, {
-      ingresso: "mix",
-      phrases: [phrase(0, 0, "Un altro testo.")],
-      sessionId: "live",
-    })
-  ).toBe(first);
-  const late = { ...phrase(0, 0, "Frase tardiva"), sessionId: "live" };
-  expect(withPhrase(first, late)).toBe(first);
-  expect(withPartial(first, late)).toBe(first);
-  // L'altro Ingresso ha ancora il suo snapshot.
-  const other = withLiveTranscript(first, {
-    ingresso: "sistema",
-    phrases: [phrase(0, 500, "Sistema.", "sistema")],
-    sessionId: "live",
-  });
-  expect(other.phrases.map((p) => p.text)).toEqual([
-    "Testo finale.",
-    "Sistema.",
-  ]);
-});
-
-test("la nuova Registrazione rifiuta ogni testo tardivo della precedente", () => {
-  const current = { ...EMPTY_CONVERSATION, sessionId: "second" };
-  const old = { ...phrase(0, 0, "Vecchia registrazione"), sessionId: "first" };
-  expect(
-    withLiveTranscript(current, {
-      ingresso: "mix",
-      phrases: [old],
-      sessionId: "first",
-    })
-  ).toBe(current);
-  expect(withPhrase(current, old)).toBe(current);
-  expect(withPartial(current, old)).toBe(current);
-  expect(withParlanti(current, [], "first")).toBe(current);
-});
-
-test("il fallback Ogg accetta lo snapshot finale dopo la risposta a Stop", () => {
-  const snapshot = {
-    ingresso: "mix" as const,
-    phrases: [phrase(0, 0, "Testo finale completo")],
-    sessionId: "current",
-  };
-  const final = withLiveTranscript(
-    { ...EMPTY_CONVERSATION, sessionId: "current" },
-    snapshot
-  );
-  expect(final.phrases[0]?.text).toBe("Testo finale completo");
-  expect(final.partials).toEqual([]);
-  // Una Sorgente già riaperta non viene sostituita dall'evento tardivo.
-  expect(withLiveTranscript(EMPTY_CONVERSATION, snapshot)).toBe(
-    EMPTY_CONVERSATION
-  );
 });
 
 const t = ((key: string, options?: { n?: number }) =>
