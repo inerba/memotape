@@ -33,7 +33,6 @@ import {
 import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { useSettings } from "@/features/settings/settings-context";
-import { inEventSession } from "@/lib/event-session";
 import { cn } from "@/lib/utils";
 
 const AUDIO_INPUTS = {
@@ -69,6 +68,7 @@ function savedCollapsed(): boolean {
  * mette in Muto), il livello con il suo Guadagno, Filtra rumore e Sensibilità. Ridotta, resta una
  * riga con timer, icone e livelli. L'esito arriva a chi ha chiamato `record`; `onPausedChange`
  * riceve la pausa confermata dal backend; gli esiti del salvataggio restano accanto ai controlli.
+ * Preparazioni e guasti della pulizia arrivano già filtrati per la Registrazione in corso.
  */
 export function RecordingPanel({
   cleaningFailures = [],
@@ -111,7 +111,7 @@ export function RecordingPanel({
 
   useEffect(() => {
     const ticks = events.recordingTick.listen(({ payload }) => {
-      if (inEventSession(payload, sessionId)) {
+      if (payload.sessionId === sessionId) {
         setTick(payload);
       }
     });
@@ -291,15 +291,10 @@ export function RecordingPanel({
                 <div className="col-span-2 col-start-2 min-w-0">
                   {settings[audio.profilo]?.pulizia &&
                   cleaningPreparing.some(
-                    (item) =>
-                      inEventSession(item, sessionId) &&
-                      item.ingresso === audio.ingresso &&
-                      item.preparing
+                    (item) => item.ingresso === audio.ingresso && item.preparing
                   ) &&
                   !cleaningFailures.some(
-                    (item) =>
-                      item.ingresso === audio.ingresso &&
-                      inEventSession(item, sessionId)
+                    (item) => item.ingresso === audio.ingresso
                   ) ? (
                     <p
                       className="mb-1 text-muted-foreground text-xs"
@@ -310,9 +305,7 @@ export function RecordingPanel({
                   ) : null}
                   <CleaningProfile
                     bypass={cleaningFailures.some(
-                      (failure) =>
-                        inEventSession(failure, sessionId) &&
-                        failure.ingresso === audio.ingresso
+                      (failure) => failure.ingresso === audio.ingresso
                     )}
                     disabled={stopping}
                     layout="bar"

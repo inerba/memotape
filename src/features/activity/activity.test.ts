@@ -24,6 +24,11 @@ const phrase = (
   text,
 });
 
+const stop: ActivityAction = {
+  status: { path: "a.tape", phase: "finished" },
+  type: "outcome",
+};
+
 const run = (actions: ActivityAction[], from = INITIAL_ACTIVITY) =>
   actions.reduce(activity, from);
 
@@ -116,7 +121,7 @@ test("dopo Stop la Registrazione accetta solo il suo snapshot finale, finché no
   const stopped = run([
     record("live"),
     { payload: phrase(0, 0, "Parzi", "mix", "live"), type: "partial" },
-    { type: "outcome" },
+    stop,
     { payload: phrase(0, 0, "Frase tardiva", "mix", "live"), type: "phrase" },
   ]);
   expect(texts(stopped)).toEqual([]);
@@ -130,7 +135,7 @@ test("dopo Stop la Registrazione accetta solo il suo snapshot finale, finché no
 test("una nuova Registrazione rifiuta il testo tardivo della precedente", () => {
   const state = run([
     record("first"),
-    { type: "outcome" },
+    stop,
     record("second"),
     { payload: phrase(0, 0, "Vecchia", "mix", "first"), type: "phrase" },
     { payload: phrase(0, 0, "Vecchio", "mix", "first"), type: "partial" },
@@ -164,7 +169,7 @@ test("dopo l'esito di Trascrivi Frasi e Parlanti tardivi non entrano nel Tape ri
   );
   const late = run(
     [
-      { type: "outcome" },
+      stop,
       tape,
       { payload: phrase(1, 2000, "Tardiva."), type: "phrase" },
       speakers(2),
@@ -220,15 +225,192 @@ test("il Microfono ha il suo nome dal primo istante; annullare la Preparazione r
   ).toBe(restored);
 });
 
-test("il guasto della Trascrizione dal vivo toglie i Parziali, le Frasi restano", () => {
+test("il guasto della Trascrizione dal vivo toglie i Parziali e lo dice la fase; le Frasi restano", () => {
+  const failed = (sessionId: string): ActivityAction => ({
+    payload: {
+      error: { code: "liveTranscriptionUnavailable", detail: "Nemotron" },
+      sessionId,
+    },
+    type: "liveFailed",
+  });
   const state = run([
     record("live"),
+    {
+      payload: { phase: "recording", sessionId: "live" },
+      type: "recordingPhase",
+    },
     { payload: phrase(0, 0, "Mi senti?", "mix", "live"), type: "phrase" },
     { payload: phrase(1, 1000, "Sì", "mix", "live"), type: "partial" },
-    { sessionId: "other", type: "liveFailed" },
+    failed("other"),
   ]);
   expect(texts(state)).toEqual(["Mi senti?", "Sì"]);
+  expect(state.status).toEqual({ paused: false, phase: "recording" });
+  const after = activity(state, failed("live"));
+  expect(texts(after)).toEqual(["Mi senti?"]);
+  expect(after.status).toEqual({
+    liveError: { code: "liveTranscriptionUnavailable", detail: "Nemotron" },
+    paused: false,
+    phase: "recording",
+  });
+});
+
+test("fase, progresso e analisi dei Parlanti seguono solo la Registrazione in corso", () => {
+  const phase = (
+    sessionId: string,
+    value: "cleaning" | "recording"
+  ): ActivityAction => ({
+    payload: { phase: value, sessionId },
+    type: "recordingPhase",
+  });
+  const progress = (
+    sessionId: string | null,
+    percent: number | null
+  ): ActivityAction => ({ payload: { percent, sessionId }, type: "progress" });
+  const preparing = run([
+    record("first"),
+    { status: { path: "a.tape", phase: "recorded" }, type: "outcome" },
+    record("second"),
+  ]);
+  expect(preparing.status).toEqual({
+    phase: "preparingRecording",
+    stage: "saving",
+  });
+  const recording = run(
+    [
+      phase("first", "recording"),
+      phase("second", "cleaning"),
+      phase("second", "recording"),
+      progress("first", 100),
+      progress(null, 100),
+      { payload: { sessionId: "first" }, type: "diarizationStarted" },
+    ],
+    preparing
+  );
+  expect(recording.status).toEqual({ paused: false, phase: "recording" });
+  const completing = run([progress("second", 10)], recording);
+  expect(completing.status).toEqual({ percent: 10, phase: "completing" });
   expect(
-    texts(activity(state, { sessionId: "live", type: "liveFailed" }))
-  ).toEqual(["Mi senti?"]);
+    activity(completing, {
+      payload: { sessionId: "second" },
+      type: "diarizationStarted",
+    }).status
+  ).toEqual({ diarizing: true, percent: null, phase: "completing" });
+});
+
+const recordingIn = (sessionId: string): ActivityAction[] => [
+  record(sessionId),
+  { payload: { phase: "recording", sessionId }, type: "recordingPhase" },
+];
+
+const tick = (sessionId: string, elapsedMs: number): ActivityAction => ({
+  payload: { elapsedMs, levels: { microphone: 0, system: null }, sessionId },
+  type: "tick",
+});
+
+const cleaningFailed = (
+  sessionId: string,
+  ingresso: Ingresso
+): ActivityAction => ({
+  payload: { error: { code: "audioCleaningMissing" }, ingresso, sessionId },
+  type: "cleaningFailed",
+});
+
+test("il timer riparte da zero a ogni Registrazione e ignora i tick della precedente", () => {
+  const first = run([...recordingIn("first"), tick("first", 28_000), stop]);
+  expect(first.elapsedMs).toBe(28_000);
+  const second = run(recordingIn("second"), first);
+  expect(second.elapsedMs).toBe(0);
+  expect(
+    run([tick("first", 29_000), tick("second", 100)], second).elapsedMs
+  ).toBe(100);
+});
+
+test("Pausa e Riprendi cambiano solo la fase della Registrazione", () => {
+  const paused = run([...recordingIn("live"), { paused: true, type: "pause" }]);
+  expect(paused.status).toEqual({ paused: true, phase: "recording" });
+  const idle = run([{ paused: true, type: "pause" }]);
+  expect(idle.status).toBe(INITIAL_ACTIVITY.status);
+});
+
+test("i guasti della pulizia restano uno per Ingresso; chiuso l'avviso, un nuovo guasto lo riapre", () => {
+  const state = run([
+    ...recordingIn("live"),
+    cleaningFailed("old", "microfono"),
+    cleaningFailed("live", "microfono"),
+    cleaningFailed("live", "microfono"),
+    cleaningFailed("live", "sistema"),
+    { type: "cleaningDismissed" },
+  ]);
+  expect(state.cleaningFailures.map((f) => f.ingresso)).toEqual([
+    "microfono",
+    "sistema",
+  ]);
+  expect(state.cleaningDismissed).toBe(true);
+  // Chiudere l'avviso non toglie il guasto: la barra mostra ancora il bypass.
+  expect(state.cleaningFailures).toHaveLength(2);
+  expect(
+    activity(state, cleaningFailed("live", "sistema")).cleaningDismissed
+  ).toBe(false);
+});
+
+test("la preparazione della pulizia è della Registrazione in corso e sparisce con la pulizia spenta", () => {
+  const preparing = (
+    sessionId: string,
+    ingresso: Ingresso
+  ): ActivityAction => ({
+    payload: { ingresso, preparing: true, sessionId },
+    type: "cleaningPreparing",
+  });
+  const state = run([
+    ...recordingIn("live"),
+    preparing("old", "microfono"),
+    preparing("live", "microfono"),
+    preparing("live", "sistema"),
+    { ingresso: "microfono", type: "cleaningOff" },
+  ]);
+  expect(state.cleaningPreparing.map((p) => p.ingresso)).toEqual(["sistema"]);
+});
+
+test("annullare la Preparazione riporta fase, avvisi di pulizia e sessione di prima", () => {
+  const before = run([
+    ...recordingIn("first"),
+    cleaningFailed("first", "microfono"),
+    { type: "cleaningDismissed" },
+    stop,
+  ]);
+  const preparing = run(
+    [
+      record("second"),
+      {
+        payload: { phase: "cleaning", sessionId: "second" },
+        type: "recordingPhase",
+      },
+    ],
+    before
+  );
+  expect(preparing.status).toEqual({
+    phase: "preparingRecording",
+    stage: "cleaning",
+  });
+  expect(preparing.cleaningFailures).toEqual([]);
+  const restored = activity(preparing, { type: "restore" });
+  expect(restored.status).toEqual({ path: "a.tape", phase: "finished" });
+  expect(restored.cleaningFailures.map((f) => f.ingresso)).toEqual([
+    "microfono",
+  ]);
+  expect(restored.cleaningDismissed).toBe(true);
+  // La Registrazione annullata non cambia più nulla.
+  expect(
+    run(
+      [
+        {
+          payload: { phase: "recording", sessionId: "second" },
+          type: "recordingPhase",
+        },
+        tick("second", 500),
+        cleaningFailed("second", "sistema"),
+      ],
+      restored
+    )
+  ).toBe(restored);
 });

@@ -49,7 +49,6 @@ import {
   type PlayerState,
   usePlayer,
 } from "@/features/player/player";
-import { withCleaningFailure } from "@/features/recording/cleaning";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
 import { RecordMenu } from "@/features/recording/record-menu";
 import {
@@ -72,11 +71,6 @@ import {
   errorText,
   type Status,
   statusText,
-  withDiarizing,
-  withLiveError,
-  withMovedSource,
-  withProgress,
-  withRecordingPhase,
 } from "@/features/status/status";
 import {
   diarizationNeedsConfirmation,
@@ -95,7 +89,6 @@ import {
 } from "@/features/transcription/phrases";
 import { TranscribeMenu } from "@/features/transcription/transcribe-menu";
 import { TranscriptView } from "@/features/transcription/transcript-view";
-import { inEventSession } from "@/lib/event-session";
 
 const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
@@ -148,42 +141,37 @@ export function HomePage() {
   useEffect(() => {
     visibleSource.current = source;
   }, [source]);
-  // Le Frasi della Sorgente: quelle del Tape aperto, o quelle che arrivano dall'Attività in corso.
-  const { conversation, dispatch, ready, session } = useActivity();
-  // Le informazioni del Tape aperto come Sorgente.
-  const [info, setInfo] = useState<TapeInfo | null>(null);
-  const recordingSession = useRef<string | null>(null);
-  const recordingInFlight = useRef<boolean>(false);
-  const recordingListeners = useRef<Promise<unknown>>(Promise.resolve());
-  const pendingRecording = useRef<{
-    sessionId: string;
-    dispatched: boolean;
-    controller: AbortController;
-    completed: boolean;
-    started: boolean;
-    previousStatus: Status;
-    previousSession: string | null;
-    previousCleaningFailures: RecordingCleaningFailed[];
-    previousCleaningDismissed: boolean;
-  } | null>(null);
-  const [cleaningPreparing, setCleaningPreparing] = useState<
-    RecordingCleaningPreparing[]
-  >([]);
   const { loadError, save, flush, settings } = useSettings();
-  // Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro da mostrare.
-  const [status, setStatus] = useState<Status>(() =>
+  // Lo Status, le Frasi della Sorgente (del Tape aperto o dell'Attività in corso), il timer e la
+  // pulizia. Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro.
+  const {
+    cleaningDismissed,
+    cleaningFailures,
+    cleaningPreparing,
+    conversation,
+    dispatch,
+    elapsedMs,
+    ready,
+    session,
+    status,
+  } = useActivity(
     loadError
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null }
   );
+  // Le informazioni del Tape aperto come Sorgente.
+  const [info, setInfo] = useState<TapeInfo | null>(null);
+  const recordingInFlight = useRef<boolean>(false);
+  const pendingRecording = useRef<{
+    sessionId: string;
+    dispatched: boolean;
+    controller: AbortController;
+    started: boolean;
+  } | null>(null);
   // L'errore di un'operazione su un Tape o sulla Libreria, o un avviso (il Markdown esportato): la
   // status bar lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [cleaningFailures, setCleaningFailures] = useState<
-    RecordingCleaningFailed[]
-  >([]);
-  const [cleaningDismissed, setCleaningDismissed] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [copied, setCopied] = useState(false);
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
@@ -211,8 +199,6 @@ export function HomePage() {
   const [listOpen, setListOpen] = useState(false);
   const [homeOpen, setHomeOpen] = useState(false);
   const { lastPath, remember, move: moveLastTape, forget } = useLastTape();
-  // Il timer della Registrazione per la barra laterale.
-  const [elapsedMs, setElapsedMs] = useState(0);
   const running = status.phase === "transcribing";
   const diarizing = status.phase === "diarizing";
   const recording = status.phase === "recording";
@@ -228,114 +214,44 @@ export function HomePage() {
   const { list: library, loading: libraryLoading } = useLibrary(setNotice);
   const raccolta = chosenRaccolta(settings.raccolta, library.raccolte);
 
+  // La Registrazione è partita: la sua vista prende il posto di quella di prima.
   useEffect(() => {
-    const recordingPhase = events.recordingPhaseChanged.listen(
-      ({ payload }) => {
-        const request = pendingRecording.current;
-        if (
-          !request ||
-          request.completed ||
-          payload.sessionId !== request.sessionId
-        ) {
-          return;
-        }
-        if (payload.phase === "recording" && !request.started) {
-          request.started = true;
-          setInfo(null);
-          setHighlight(null);
-          setRenaming(null);
-          setHomeOpen(false);
-          setListOpen(false);
-          setBrowsed(null);
-        }
-        setStatus((current) => withRecordingPhase(current, payload.phase));
-      }
-    );
-    const preparingCleaning = events.recordingCleaningPreparing.listen(
-      ({ payload }) => {
-        if (inEventSession(payload, recordingSession.current)) {
-          setCleaningPreparing((current) => [
-            ...current.filter((item) => item.ingresso !== payload.ingresso),
-            payload,
-          ]);
-        }
-      }
-    );
-    const progress = events.transcriptionProgress.listen(({ payload }) => {
-      if (!inEventSession(payload, recordingSession.current)) {
-        return;
-      }
-      setStatus((current) => withProgress(current, payload.percent));
-    });
-    // Finita la Trascrizione, Riconosci i parlanti attribuisce le Frasi ai Parlanti.
-    const diarizationStarted = events.diarizationStarted.listen(
-      ({ payload }) => {
-        if (!inEventSession(payload, recordingSession.current)) {
-          return;
-        }
-        setStatus(withDiarizing);
-      }
-    );
-    // La Trascrizione dal vivo si è fermata: la Registrazione continua e la status bar lo dice.
-    const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
-      if (!inEventSession(payload, recordingSession.current)) {
-        return;
-      }
-      dispatch({ sessionId: payload.sessionId, type: "liveFailed" });
-      setStatus((current) => withLiveError(current, payload.error));
-    });
-    const ticks = events.recordingTick.listen(({ payload }) => {
-      if (!inEventSession(payload, recordingSession.current)) {
-        return;
-      }
-      setElapsedMs(payload.elapsedMs);
-    });
-    const cleaningFailed = events.recordingCleaningFailed.listen(
-      ({ payload }) => {
-        if (!inEventSession(payload, recordingSession.current)) {
-          return;
-        }
-        setCleaningDismissed(false);
-        setCleaningFailures((current) =>
-          withCleaningFailure(current, payload, recordingSession.current)
-        );
-      }
-    );
-    // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
-    // il listener, così uno arrivato nel frattempo non si perde.
+    const request = pendingRecording.current;
+    if (status.phase !== "recording" || !request || request.started) {
+      return;
+    }
+    request.started = true;
+    setInfo(null);
+    setHighlight(null);
+    setRenaming(null);
+    setHomeOpen(false);
+    setListOpen(false);
+    setBrowsed(null);
+  }, [status.phase]);
+
+  // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
+  // il listener, così uno arrivato nel frattempo non si perde.
+  useEffect(() => {
     const takeTape = () =>
       commands.takePendingTape().then((path) => path && setPendingTape(path));
     const tapeRequested = events.tapeRequested.listen(takeTape);
     tapeRequested.then(takeTape);
-    recordingListeners.current = Promise.all([
-      recordingPhase,
-      preparingCleaning,
-      progress,
-      liveFailed,
-      cleaningFailed,
-      ticks,
-    ]);
     return () => {
-      recordingPhase.then((stop) => stop());
-      preparingCleaning.then((stop) => stop());
-      progress.then((stop) => stop());
-      liveFailed.then((stop) => stop());
-      diarizationStarted.then((stop) => stop());
-      ticks.then((stop) => stop());
-      cleaningFailed.then((stop) => stop());
       tapeRequested.then((stop) => stop());
     };
-  }, [dispatch]);
+  }, []);
 
+  // Spenta la pulizia di un Ingresso, la sua preparazione non si mostra più.
+  const microfonoPulito = settings.audioMicrofono?.pulizia;
+  const sistemaPulito = settings.audioSistema?.pulizia;
   useEffect(() => {
-    setCleaningPreparing((current) =>
-      current.filter((pending) =>
-        pending.ingresso === "microfono"
-          ? settings.audioMicrofono?.pulizia
-          : settings.audioSistema?.pulizia
-      )
-    );
-  }, [settings.audioMicrofono?.pulizia, settings.audioSistema?.pulizia]);
+    if (!microfonoPulito) {
+      dispatch({ ingresso: "microfono", type: "cleaningOff" });
+    }
+    if (!sistemaPulito) {
+      dispatch({ ingresso: "sistema", type: "cleaningOff" });
+    }
+  }, [dispatch, microfonoPulito, sistemaPulito]);
 
   // Il drop dei file passa da Tauri, che dà i percorsi già all'ingresso (ADR-0011).
   useEffect(() => {
@@ -389,7 +305,6 @@ export function HomePage() {
       }
       remember(path);
       setHomeOpen(false);
-      recordingSession.current = null;
       setSource(path);
       dispatch({ tape: result.data, type: "sourceOpened" });
       setInfo(result.data.info);
@@ -403,11 +318,14 @@ export function HomePage() {
   const openTape = useCallback(
     async (path: string, phrase?: PhraseRef) => {
       const error = await loadTape(path, phrase);
-      setStatus(
-        error ? { error, phase: "failed" } : { phase: "idle", source: path }
-      );
+      dispatch({
+        status: error
+          ? { error, phase: "failed" }
+          : { phase: "idle", source: path },
+        type: "status",
+      });
     },
-    [loadTape]
+    [dispatch, loadTape]
   );
 
   // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla; quello su cui
@@ -449,7 +367,6 @@ export function HomePage() {
   // Una Sorgente scelta con Apri file o con il doppio clic su un Tape in Esplora file.
   const openPath = useCallback(
     (path: string, phrase?: PhraseRef) => {
-      recordingSession.current = null;
       if (isTape(path)) {
         openTape(path, phrase);
         return;
@@ -459,7 +376,7 @@ export function HomePage() {
       dispatch({ type: "sourceOpened" });
       setInfo(null);
       setHighlight(null);
-      setStatus({ phase: "idle", source: path });
+      dispatch({ status: { phase: "idle", source: path }, type: "status" });
     },
     [dispatch, openTape]
   );
@@ -525,9 +442,9 @@ export function HomePage() {
         (current) =>
           current && { ...current, path: movedPath(current.path, from, to) }
       );
-      setStatus((current) => withMovedSource(current, from, to));
+      dispatch({ from, to, type: "moved" });
     },
-    [moveLastTape]
+    [dispatch, moveLastTape]
   );
 
   // Il Tape nel Cestino, se era aperto, non lo è più; la vista di un'Attività però resta.
@@ -540,7 +457,7 @@ export function HomePage() {
         if (!busy) {
           dispatch({ type: "sourceOpened" });
           setInfo(null);
-          setStatus({ phase: "idle", source: null });
+          dispatch({ status: { phase: "idle", source: null }, type: "status" });
         }
       }
     },
@@ -592,9 +509,12 @@ export function HomePage() {
     }
     const result = await commands.openSource(source);
     if (result.status === "error") {
-      setStatus({ error: result.error, phase: "failed" });
+      dispatch({
+        status: { error: result.error, phase: "failed" },
+        type: "status",
+      });
     }
-  }, [source]);
+  }, [dispatch, source]);
 
   // Un file diventa un Tape nella Raccolta scelta; un Tape si ritrascrive. Finita (o annullata) la
   // Trascrizione, il Tape si rilegge dal disco.
@@ -602,7 +522,6 @@ export function HomePage() {
     if (!source) {
       return;
     }
-    recordingSession.current = null;
     dispatch({
       kind: "transcription",
       nomeMicrofono: null,
@@ -613,22 +532,23 @@ export function HomePage() {
     setHighlight(null);
     setRenaming(null);
     setCancelling(false);
-    setStatus({ percent: null, phase: "transcribing" });
     try {
       const result = await commands.transcribe(source, raccolta);
-      dispatch({ type: "outcome" });
       let opened: string | null = isTape(source) ? source : null;
       if (result.status === "ok" && result.data.outcome === "saved") {
         opened = result.data.path;
       }
       const error = opened ? await loadTape(opened) : null;
-      setStatus(
-        error ? { error, phase: "failed" } : afterTranscription(result)
-      );
+      dispatch({
+        status: error ? { error, phase: "failed" } : afterTranscription(result),
+        type: "outcome",
+      });
     } catch (e) {
       // `typedError` rilancia gli `Error` di IPC: la Trascrizione non deve restare "in corso".
-      dispatch({ type: "outcome" });
-      setStatus({ error: internalError(e), phase: "failed" });
+      dispatch({
+        status: { error: internalError(e), phase: "failed" },
+        type: "outcome",
+      });
     }
   }, [dispatch, loadTape, raccolta, source]);
 
@@ -639,7 +559,6 @@ export function HomePage() {
     }
     diarizationInFlight.current = true;
     setConfirmDiarize(false);
-    recordingSession.current = null;
     dispatch({
       kind: "diarization",
       nomeMicrofono: null,
@@ -649,20 +568,23 @@ export function HomePage() {
     });
     setRenaming(null);
     setCancelling(false);
-    setStatus({ phase: "diarizing" });
     try {
       const result = await commands.diarize(source);
-      dispatch({ type: "outcome" });
       const error = result.status === "ok" ? await loadTape(source) : null;
       if (result.status === "ok" && !error) {
         setRevision((current) => current + 1);
       }
-      setStatus(
-        error ? { error, phase: "failed" } : afterDiarization(result, source)
-      );
+      dispatch({
+        status: error
+          ? { error, phase: "failed" }
+          : afterDiarization(result, source),
+        type: "outcome",
+      });
     } catch (e) {
-      dispatch({ type: "outcome" });
-      setStatus({ error: internalError(e), phase: "failed" });
+      dispatch({
+        status: { error: internalError(e), phase: "failed" },
+        type: "outcome",
+      });
     } finally {
       diarizationInFlight.current = false;
       setCancelling(false);
@@ -692,7 +614,6 @@ export function HomePage() {
       before: string | null
     ) => {
       const after = afterRecording(result);
-      dispatch({ type: "outcome" });
       const opened = after.source ?? before;
       let error: AppError | null = null;
       if (opened && isTape(opened)) {
@@ -700,11 +621,13 @@ export function HomePage() {
       } else if (after.source) {
         setSource(after.source);
       }
-      setStatus(
-        error && after.status.phase !== "failed"
-          ? { error, phase: "failed" }
-          : after.status
-      );
+      dispatch({
+        status:
+          error && after.status.phase !== "failed"
+            ? { error, phase: "failed" }
+            : after.status,
+        type: "outcome",
+      });
     },
     [dispatch, loadTape]
   );
@@ -717,21 +640,12 @@ export function HomePage() {
     recordingInFlight.current = true;
     const before = source;
     const request = {
-      completed: false,
       controller: new AbortController(),
       dispatched: false,
-      previousCleaningDismissed: cleaningDismissed,
-      previousCleaningFailures: cleaningFailures,
-      previousSession: recordingSession.current,
-      previousStatus: status,
       sessionId: crypto.randomUUID(),
       started: false,
     };
     pendingRecording.current = request;
-    recordingSession.current = request.sessionId;
-    setCleaningFailures([]);
-    setCleaningPreparing([]);
-    setCleaningDismissed(false);
     // Il Microfono persona sola ha già il nome predefinito, come nel Tape che nascerà.
     dispatch({
       kind: "recording",
@@ -741,14 +655,8 @@ export function HomePage() {
       type: "start",
     });
     setCancelling(false);
-    setElapsedMs(0);
-    setStatus({ phase: "preparingRecording", stage: "saving" });
     const restore = (error?: AppError) => {
-      recordingSession.current = request.previousSession;
       dispatch({ type: "restore" });
-      setStatus(request.previousStatus);
-      setCleaningFailures(request.previousCleaningFailures);
-      setCleaningDismissed(request.previousCleaningDismissed);
       if (error && error.code !== "cancelled") {
         setNotice(error);
       }
@@ -758,7 +666,10 @@ export function HomePage() {
         flush,
         () => {
           request.dispatched = true;
-          setStatus({ phase: "preparingRecording", stage: "preparing" });
+          dispatch({
+            payload: { phase: "preparing", sessionId: request.sessionId },
+            type: "recordingPhase",
+          });
           return commands.record(
             request.sessionId,
             t("recording.prefix"),
@@ -766,20 +677,17 @@ export function HomePage() {
           );
         },
         request.controller.signal,
-        Promise.all([recordingListeners.current, ready()])
+        ready()
       );
-      request.completed = true;
       if (result.status === "error" && !request.started) {
         restore(result.error);
         return;
       }
       await finishRecording(result, before);
     } catch (e) {
-      request.completed = true;
       const error = internalError(e);
       if (request.started) {
-        dispatch({ type: "outcome" });
-        setStatus({ error, phase: "failed" });
+        dispatch({ status: { error, phase: "failed" }, type: "outcome" });
       } else {
         restore(error);
       }
@@ -788,19 +696,7 @@ export function HomePage() {
       recordingInFlight.current = false;
       setCancelling(false);
     }
-  }, [
-    cleaningDismissed,
-    cleaningFailures,
-    dispatch,
-    finishRecording,
-    flush,
-    raccolta,
-    ready,
-    settings,
-    source,
-    status,
-    t,
-  ]);
+  }, [dispatch, finishRecording, flush, raccolta, ready, settings, source, t]);
 
   const cancelRecordingStart = useCallback(async () => {
     const request = pendingRecording.current;
@@ -819,11 +715,10 @@ export function HomePage() {
     }
   }, []);
 
-  const setPaused = useCallback((value: boolean) => {
-    setStatus((current) =>
-      current.phase === "recording" ? { ...current, paused: value } : current
-    );
-  }, []);
+  const setPaused = useCallback(
+    (value: boolean) => dispatch({ paused: value, type: "pause" }),
+    [dispatch]
+  );
 
   // Ritrascrivere un Tape ne sostituisce il testo, correzioni comprese: prima si conferma.
   const requestTranscription = useCallback(() => {
@@ -841,8 +736,9 @@ export function HomePage() {
   }, []);
 
   const failed = useCallback(
-    (error: AppError) => setStatus({ error, phase: "failed" }),
-    []
+    (error: AppError) =>
+      dispatch({ status: { error, phase: "failed" }, type: "status" }),
+    [dispatch]
   );
 
   const cancel = useCallback(async () => {
@@ -1077,12 +973,12 @@ export function HomePage() {
   const dismiss = useCallback(() => {
     setNotice(null);
     setMessage(null);
-    setCleaningDismissed(true);
+    dispatch({ type: "cleaningDismissed" });
     setDismissed(status);
     if (banner?.updateUrl) {
       setUpdate(null);
     }
-  }, [banner, status]);
+  }, [banner, dispatch, status]);
   // Gli esiti spariscono da soli dopo un po'; gli errori restano finché non si chiudono.
   useEffect(() => {
     if (statusBanner?.tone !== "info") {

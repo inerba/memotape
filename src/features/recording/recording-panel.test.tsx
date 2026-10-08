@@ -43,38 +43,35 @@ test("la barra offre solo i profili degli Ingressi reali, con default e descrizi
   }
 });
 
-test("il bypass è separato dalla scelta salvata e ignora guasti obsoleti", () => {
-  const render = (sessionId: string) =>
-    renderToStaticMarkup(
-      <SettingsProvider
-        initial={{
-          ...DEFAULT_SETTINGS,
-          audioMicrofono: { pulizia: true, sensibilita: "spento" },
-          recordingSource: "both",
-        }}
-        loadError={null}
-      >
-        <Tooltip.Provider>
-          <RecordingPanel
-            cleaningFailures={[
-              {
-                error: { code: "audioCleaningMissing" },
-                ingresso: "microfono",
-                sessionId,
-              },
-            ]}
-            onError={ignore}
-            onPausedChange={ignore}
-            paused
-            sessionId="current"
-          />
-        </Tooltip.Provider>
-      </SettingsProvider>
-    );
+test("il bypass è separato dalla scelta salvata", () => {
+  const html = renderToStaticMarkup(
+    <SettingsProvider
+      initial={{
+        ...DEFAULT_SETTINGS,
+        audioMicrofono: { pulizia: true, sensibilita: "spento" },
+        recordingSource: "both",
+      }}
+      loadError={null}
+    >
+      <Tooltip.Provider>
+        <RecordingPanel
+          cleaningFailures={[
+            {
+              error: { code: "audioCleaningMissing" },
+              ingresso: "microfono",
+              sessionId: "current",
+            },
+          ]}
+          onError={ignore}
+          onPausedChange={ignore}
+          paused
+          sessionId="current"
+        />
+      </Tooltip.Provider>
+    </SettingsProvider>
+  );
   // Le spunte di salvataggio sono regioni di stato sempre presenti: si conta il bypass.
   const bypass = /La sensibilità mantiene il valore scelto/g;
-  expect(render("old")).not.toMatch(bypass);
-  const html = render("current");
   expect(html.match(bypass)).toHaveLength(1);
   expect(html).toContain('checked=""');
   expect(html).toContain('data-state="checked" value="spento"');
