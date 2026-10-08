@@ -1,6 +1,6 @@
 # Gli eventi dell'Attività in un solo modulo del frontend
 
-**Status:** ready-for-agent
+**Status:** done
 
 Data: 2026-10-08. Nasce dalla revisione architetturale (candidato 1) e dal grilling dello stesso giorno. Decisioni: ADR-0016 (revisione dell'8 ottobre) e ADR-0028. Ticket: `issues/01-via-lo-strato-dei-parlanti-dal-vivo.md`, `issues/02-modulo-dell-attivita-nel-frontend.md`, `issues/03-status-timer-e-pulizia-nel-modulo.md`.
 
