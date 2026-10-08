@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Ingresso } from "@/bindings";
+import type { Ingresso, TapeInfo } from "@/bindings";
 import {
   type ActivityAction,
   type ActivityState,
@@ -35,8 +35,19 @@ const run = (actions: ActivityAction[], from = INITIAL_ACTIVITY) =>
 const texts = (state: ActivityState) =>
   visiblePhrases(state.conversation).map((p) => p.text);
 
+const info: TapeInfo = {
+  completa: true,
+  correttoAMano: false,
+  creato: "2026-10-08T10:00:00+02:00",
+  durataMs: 1000,
+  ingressiSeparati: false,
+  linguaParlato: "it",
+  modello: null,
+  origine: null,
+};
+
 const tape: ActivityAction = {
-  tape: { parlanti: {}, phrases: [phrase(0, 0, "Tape precedente.")] },
+  tape: { info, parlanti: {}, phrases: [phrase(0, 0, "Tape precedente.")] },
   type: "sourceOpened",
 };
 
@@ -146,9 +157,6 @@ test("una nuova Registrazione rifiuta il testo tardivo della precedente", () => 
 
 const start = (kind: "transcription" | "diarization"): ActivityAction => ({
   kind,
-  nomeMicrofono: null,
-  partials: false,
-  sessionId: null,
   type: "start",
 });
 
@@ -413,4 +421,33 @@ test("annullare la Preparazione riporta fase, avvisi di pulizia e sessione di pr
       restored
     )
   ).toBe(restored);
+});
+
+test("le informazioni della Sorgente cambiano solo senza Attività; partita la Registrazione non ce ne sono", () => {
+  const corrected: TapeInfo = { ...info, correttoAMano: true };
+  const replace: ActivityAction = {
+    info: () => corrected,
+    type: "sourceChanged",
+  };
+  expect(run([tape, replace]).info).toEqual(corrected);
+  // Durante la Preparazione la vista di prima resta, con le sue informazioni.
+  const preparing = run([tape, record("live"), { type: "recordingRequested" }]);
+  expect(preparing.status).toEqual({
+    phase: "preparingRecording",
+    stage: "preparing",
+  });
+  expect(run([replace], preparing).info).toEqual(info);
+  const started = run(
+    [
+      {
+        payload: { phase: "recording", sessionId: "live" },
+        type: "recordingPhase",
+      },
+      replace,
+    ],
+    preparing
+  );
+  expect(started.info).toBeNull();
+  // Nel fallback Ogg la Sorgente è l'Ogg: la correzione del Tape consultato non la tocca.
+  expect(run([stop, replace], started).info).toBeNull();
 });

@@ -144,7 +144,7 @@ fn update_document(
             .find(|(ingresso, _)| *ingresso == original.ingresso);
         let parts = if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
             found
-                .map(|(_, turns)| diarize::divide(phrase.clone(), turns, None))
+                .map(|(_, turns)| diarize::divide(phrase.clone(), turns))
                 .unwrap_or_else(|| vec![phrase.clone()])
         } else {
             vec![phrase.clone()]

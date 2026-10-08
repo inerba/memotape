@@ -123,7 +123,7 @@ pub fn assign_configured(
             .into_iter()
             .flat_map(|phrase| {
                 if phrase.ingresso == ingresso {
-                    divide(phrase, turns, None)
+                    divide(phrase, turns)
                 } else {
                     vec![phrase]
                 }
@@ -136,12 +136,8 @@ pub fn assign_configured(
 }
 
 /// Ogni parola o segmento resta indivisibile. Un intervallo ambiguo conserva il proprio testo.
-pub fn divide(mut phrase: Phrase, turns: &[Turn], horizon: Option<u32>) -> Vec<Phrase> {
-    phrase.parlante = if horizon.is_some_and(|h| phrase.fine_ms > h) {
-        None
-    } else {
-        assign_unambiguous(&[(phrase.inizio_ms, phrase.fine_ms)], turns)[0]
-    };
+pub fn divide(mut phrase: Phrase, turns: &[Turn]) -> Vec<Phrase> {
+    phrase.parlante = assign_unambiguous(&[(phrase.inizio_ms, phrase.fine_ms)], turns)[0];
     phrase.parlante_non_determinato = phrase.parlante.is_none();
     let mut cursor = 0;
     let mut end = phrase.inizio_ms;
@@ -167,16 +163,7 @@ pub fn divide(mut phrase: Phrase, turns: &[Turn], horizon: Option<u32>) -> Vec<P
         .iter()
         .map(|s| (s.inizio_ms, s.fine_ms))
         .collect();
-    let assignments = assign_unambiguous(&times, turns)
-        .into_iter()
-        .zip(times)
-        .map(|(speaker, (_, end))| {
-            if horizon.is_some_and(|h| end > h) {
-                None
-            } else {
-                speaker
-            }
-        });
+    let assignments = assign_unambiguous(&times, turns);
     let mut groups: Vec<(usize, usize, Option<u32>)> = Vec::new();
     for (at, speaker) in assignments.into_iter().enumerate() {
         if let Some((_, last, previous)) = groups.last_mut()

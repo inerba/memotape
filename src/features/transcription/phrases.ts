@@ -8,11 +8,9 @@ import type {
 } from "@/bindings";
 
 /**
- * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio, le parti del Parziale di
- * ogni Ingresso (`mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
- * `<ingresso>:<n>`, o `<ingresso>` per un Ingresso senza Parlanti (`parlanteKey`).
+ * Il Parziale ASR. Dal vivo non ha Parlante: i campi facoltativi servono a leggere Frasi e Parziali
+ * allo stesso modo nei turni.
  */
-/** Il Parziale ASR, con i metadati di attribuzione facoltativi delle Frasi. */
 export type ConversationPartial = TranscriptPartial &
   Partial<
     Pick<
@@ -21,6 +19,11 @@ export type ConversationPartial = TranscriptPartial &
     >
   >;
 
+/**
+ * Il testo di una Trascrizione mentre arriva: le Frasi in ordine di inizio, il Parziale di ogni
+ * Ingresso (`mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
+ * `<ingresso>:<n>`, o `<ingresso>` per un Ingresso senza Parlanti (`parlanteKey`).
+ */
 export interface Conversation {
   parlanti: Partial<Record<string, string>>;
   partials: ConversationPartial[];

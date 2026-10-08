@@ -8,6 +8,7 @@ import type {
   RecordingPhaseChanged,
   RecordingTick,
   SpeakersAssigned,
+  TapeInfo,
   TranscriptionProgress,
   TranscriptPartial,
   TranscriptPhrase,
@@ -47,7 +48,7 @@ export type Session =
       /** Trascrivi dal vivo all'avvio della Registrazione. */
       partials: boolean;
       /** Gli Ingressi che hanno già ricevuto lo snapshot finale. */
-      finali: Partial<Record<Ingresso, true>>;
+      finals: Partial<Record<Ingresso, true>>;
     };
 
 export interface ActivityState {
@@ -58,6 +59,8 @@ export interface ActivityState {
   conversation: Conversation;
   /** Il timer della Registrazione. */
   elapsedMs: number;
+  /** Le informazioni del Tape Sorgente; nessuna per un file o durante una Registrazione. */
+  info: TapeInfo | null;
   /** Lo stato prima dell'avvio, per il ripristino. */
   previous: Omit<ActivityState, "previous"> | null;
   session: Session;
@@ -70,19 +73,24 @@ export const INITIAL_ACTIVITY: ActivityState = {
   cleaningPreparing: [],
   conversation: EMPTY_CONVERSATION,
   elapsedMs: 0,
+  info: null,
   previous: null,
   session: { state: "none" },
   status: { phase: "idle", source: null },
 };
 
-export type ActivityAction =
+/** I comandi della finestra; gli eventi del backend sono `EventAction`. */
+type CommandAction =
   | {
       type: "start";
-      kind: ActivityKind;
-      sessionId: string | null;
+      kind: "recording";
+      sessionId: string;
       partials: boolean;
       nomeMicrofono: string | null;
     }
+  | { type: "start"; kind: "transcription" | "diarization" }
+  /** Salvate le impostazioni, la richiesta di Registrazione è partita. */
+  | { type: "recordingRequested" }
   /** Lo Status dell'esito, già calcolato dalle funzioni di esito. */
   | { type: "outcome"; status: Status }
   | { type: "restore" }
@@ -94,10 +102,16 @@ export type ActivityAction =
   | { type: "cleaningDismissed" }
   | {
       type: "sourceOpened";
-      /** Frasi e nomi del Tape aperto; senza, un file. */
-      tape?: Pick<Conversation, "parlanti" | "phrases">;
+      /** Frasi, nomi e informazioni del Tape aperto; senza, un file. */
+      tape?: Pick<Conversation, "parlanti" | "phrases"> & { info: TapeInfo };
     }
-  | { type: "sourceChanged"; change: (c: Conversation) => Conversation }
+  | {
+      type: "sourceChanged";
+      change?: (c: Conversation) => Conversation;
+      info?: (i: TapeInfo | null) => TapeInfo | null;
+    };
+
+type EventAction =
   | { type: "phrase"; payload: TranscriptPhrase }
   | { type: "partial"; payload: TranscriptPartial }
   | { type: "liveTranscript"; payload: LiveTranscriptUpdated }
@@ -110,30 +124,20 @@ export type ActivityAction =
   | { type: "cleaningPreparing"; payload: RecordingCleaningPreparing }
   | { type: "cleaningFailed"; payload: RecordingCleaningFailed };
 
+export type ActivityAction = CommandAction | EventAction;
+
 export function activity(
   state: ActivityState,
   action: ActivityAction
 ): ActivityState {
   switch (action.type) {
-    case "start": {
-      const { previous: _, ...before } = state;
-      const recording = action.kind === "recording";
+    case "start":
+      return started(state, action);
+    case "recordingRequested":
       return {
         ...state,
-        conversation: startText(state.conversation, action),
-        previous: before,
-        session: {
-          finali: {},
-          id: action.sessionId,
-          kind: action.kind,
-          partials: action.partials,
-          state: "open",
-        },
-        status: STARTED[action.kind],
-        // Ogni Registrazione parte da zero, senza preparazioni né guasti della pulizia.
-        ...(recording ? RECORDING_START : {}),
+        status: withRecordingPhase(state.status, "preparing"),
       };
-    }
     // Una Trascrizione finisce qui; una Registrazione aspetta ancora il suo snapshot finale.
     case "outcome":
       if (state.session.state !== "open") {
@@ -155,14 +159,19 @@ export function activity(
     case "sourceOpened":
       return {
         ...state,
-        conversation: { ...EMPTY_CONVERSATION, ...action.tape },
+        conversation: {
+          ...EMPTY_CONVERSATION,
+          parlanti: action.tape?.parlanti ?? {},
+          phrases: action.tape?.phrases ?? [],
+        },
+        info: action.tape?.info ?? null,
         previous: null,
         session:
           state.session.state === "none" ? state.session : { state: "closed" },
       };
-    // Correzioni e nomi valgono solo quando nessuna Attività scrive il testo.
+    // Correzioni, nomi e informazioni valgono solo quando nessuna Attività scrive il testo.
     case "sourceChanged":
-      return writing(state.session) ? state : text(state, action.change);
+      return writing(state.session) ? state : withSourceChange(state, action);
     case "pause":
       return state.status.phase === "recording"
         ? { ...state, status: { ...state.status, paused: action.paused } }
@@ -188,6 +197,28 @@ export function activity(
   }
 }
 
+type StartAction = Extract<CommandAction, { type: "start" }>;
+
+function started(state: ActivityState, action: StartAction): ActivityState {
+  const { previous: _, ...before } = state;
+  const recording = action.kind === "recording";
+  return {
+    ...state,
+    conversation: startText(state.conversation, action),
+    previous: before,
+    session: {
+      finals: {},
+      id: recording ? action.sessionId : null,
+      kind: action.kind,
+      partials: recording && action.partials,
+      state: "open",
+    },
+    status: STARTED[action.kind],
+    // Ogni Registrazione parte da zero, senza preparazioni né guasti della pulizia.
+    ...(recording ? RECORDING_START : {}),
+  };
+}
+
 const STARTED: Record<ActivityKind, Status> = {
   diarization: { phase: "diarizing" },
   recording: { phase: "preparingRecording", stage: "saving" },
@@ -201,24 +232,6 @@ const RECORDING_START = {
   elapsedMs: 0,
 } satisfies Partial<ActivityState>;
 
-type EventAction = Extract<
-  ActivityAction,
-  {
-    type:
-      | "phrase"
-      | "partial"
-      | "liveTranscript"
-      | "speakers"
-      | "liveFailed"
-      | "recordingPhase"
-      | "progress"
-      | "diarizationStarted"
-      | "tick"
-      | "cleaningPreparing"
-      | "cleaningFailed";
-  }
->;
-
 function withEvent(state: ActivityState, action: EventAction): ActivityState {
   const { session } = state;
   if (action.type === "liveTranscript") {
@@ -229,11 +242,11 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
   }
   switch (action.type) {
     case "phrase":
-      return session.finali[action.payload.ingresso]
+      return session.finals[action.payload.ingresso]
         ? state
         : text(state, (c) => withPhrase(c, action.payload));
     case "partial":
-      return session.partials && !session.finali[action.payload.ingresso]
+      return session.partials && !session.finals[action.payload.ingresso]
         ? text(state, (c) => withPartial(c, action.payload))
         : state;
     case "speakers":
@@ -244,11 +257,15 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
         ...text(state, withoutPartials),
         status: withLiveError(state.status, action.payload.error),
       };
-    case "recordingPhase":
+    // Partita la Registrazione, la sua vista prende il posto della Sorgente di prima.
+    case "recordingPhase": {
+      const status = withRecordingPhase(state.status, action.payload.phase);
       return {
         ...state,
-        status: withRecordingPhase(state.status, action.payload.phase),
+        info: status.phase === "recording" ? null : state.info,
+        status,
       };
+    }
     case "progress":
       return {
         ...state,
@@ -281,7 +298,7 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
         ],
       };
     default:
-      return state;
+      return action satisfies never;
   }
 }
 
@@ -295,13 +312,24 @@ function withFinal(
   if (
     !writing(session) ||
     session.id !== sessionId ||
-    session.finali[ingresso]
+    session.finals[ingresso]
   ) {
     return state;
   }
   return {
     ...text(state, (c) => withLiveTranscript(c, payload)),
-    session: { ...session, finali: { ...session.finali, [ingresso]: true } },
+    session: { ...session, finals: { ...session.finals, [ingresso]: true } },
+  };
+}
+
+function withSourceChange(
+  state: ActivityState,
+  { change, info }: Extract<CommandAction, { type: "sourceChanged" }>
+): ActivityState {
+  return {
+    ...state,
+    conversation: change ? change(state.conversation) : state.conversation,
+    info: info ? info(state.info) : state.info,
   };
 }
 
@@ -329,12 +357,12 @@ function text(
 /** Trascrivi riparte da zero; Riconosci i parlanti tiene il testo; la Registrazione ha il Microfono. */
 function startText(
   conversation: Conversation,
-  { kind, nomeMicrofono }: { kind: ActivityKind; nomeMicrofono: string | null }
+  action: StartAction
 ): Conversation {
-  if (kind === "diarization") {
+  if (action.kind === "diarization") {
     return conversation;
   }
-  return kind === "recording" && nomeMicrofono
-    ? withNome(EMPTY_CONVERSATION, "microfono", null, nomeMicrofono)
+  return action.kind === "recording" && action.nomeMicrofono
+    ? withNome(EMPTY_CONVERSATION, "microfono", null, action.nomeMicrofono)
     : EMPTY_CONVERSATION;
 }

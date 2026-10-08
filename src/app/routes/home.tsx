@@ -142,25 +142,6 @@ export function HomePage() {
     visibleSource.current = source;
   }, [source]);
   const { loadError, save, flush, settings } = useSettings();
-  // Lo Status, le Frasi della Sorgente (del Tape aperto o dell'Attività in corso), il timer e la
-  // pulizia. Impostazioni illeggibili all'avvio: la status bar lo dice finché non c'è altro.
-  const {
-    cleaningDismissed,
-    cleaningFailures,
-    cleaningPreparing,
-    conversation,
-    dispatch,
-    elapsedMs,
-    ready,
-    session,
-    status,
-  } = useActivity(
-    loadError
-      ? { error: loadError, phase: "failed" }
-      : { phase: "idle", source: null }
-  );
-  // Le informazioni del Tape aperto come Sorgente.
-  const [info, setInfo] = useState<TapeInfo | null>(null);
   const recordingInFlight = useRef<boolean>(false);
   const pendingRecording = useRef<{
     sessionId: string;
@@ -168,8 +149,33 @@ export function HomePage() {
     controller: AbortController;
     started: boolean;
   } | null>(null);
-  // L'errore di un'operazione su un Tape o sulla Libreria, o un avviso (il Markdown esportato): la
-  // status bar lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
+  const recordingStarted = useCallback((sessionId: string) => {
+    if (pendingRecording.current?.sessionId === sessionId) {
+      pendingRecording.current.started = true;
+    }
+  }, []);
+  // Lo Status, le Frasi e le informazioni della Sorgente (del Tape aperto o dell'Attività in
+  // corso), il timer e la pulizia. Impostazioni illeggibili all'avvio: l'avviso lo dice finché
+  // non c'è altro.
+  const {
+    cleaningDismissed,
+    cleaningFailures,
+    cleaningPreparing,
+    conversation,
+    dispatch,
+    elapsedMs,
+    info,
+    ready,
+    session,
+    status,
+  } = useActivity(
+    loadError
+      ? { error: loadError, phase: "failed" }
+      : { phase: "idle", source: null },
+    recordingStarted
+  );
+  // L'errore di un'operazione su un Tape o sulla Libreria, o un avviso (il Markdown esportato):
+  // l'avviso lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -216,12 +222,9 @@ export function HomePage() {
 
   // La Registrazione è partita: la sua vista prende il posto di quella di prima.
   useEffect(() => {
-    const request = pendingRecording.current;
-    if (status.phase !== "recording" || !request || request.started) {
+    if (status.phase !== "recording" || !pendingRecording.current) {
       return;
     }
-    request.started = true;
-    setInfo(null);
     setHighlight(null);
     setRenaming(null);
     setHomeOpen(false);
@@ -307,7 +310,6 @@ export function HomePage() {
       setHomeOpen(false);
       setSource(path);
       dispatch({ tape: result.data, type: "sourceOpened" });
-      setInfo(result.data.info);
       setHighlight(phrase ?? null);
       setRenaming(null);
       return null;
@@ -374,7 +376,6 @@ export function HomePage() {
       setHomeOpen(false);
       setSource(path);
       dispatch({ type: "sourceOpened" });
-      setInfo(null);
       setHighlight(null);
       dispatch({ status: { phase: "idle", source: path }, type: "status" });
     },
@@ -456,7 +457,6 @@ export function HomePage() {
         setSource(null);
         if (!busy) {
           dispatch({ type: "sourceOpened" });
-          setInfo(null);
           dispatch({ status: { phase: "idle", source: null }, type: "status" });
         }
       }
@@ -522,13 +522,7 @@ export function HomePage() {
     if (!source) {
       return;
     }
-    dispatch({
-      kind: "transcription",
-      nomeMicrofono: null,
-      partials: false,
-      sessionId: null,
-      type: "start",
-    });
+    dispatch({ kind: "transcription", type: "start" });
     setHighlight(null);
     setRenaming(null);
     setCancelling(false);
@@ -559,13 +553,7 @@ export function HomePage() {
     }
     diarizationInFlight.current = true;
     setConfirmDiarize(false);
-    dispatch({
-      kind: "diarization",
-      nomeMicrofono: null,
-      partials: false,
-      sessionId: null,
-      type: "start",
-    });
+    dispatch({ kind: "diarization", type: "start" });
     setRenaming(null);
     setCancelling(false);
     try {
@@ -666,10 +654,7 @@ export function HomePage() {
         flush,
         () => {
           request.dispatched = true;
-          dispatch({
-            payload: { phase: "preparing", sessionId: request.sessionId },
-            type: "recordingPhase",
-          });
+          dispatch({ type: "recordingRequested" });
           return commands.record(
             request.sessionId,
             t("recording.prefix"),
@@ -807,11 +792,14 @@ export function HomePage() {
           ? { ...current, info: { ...current.info, correttoAMano: true } }
           : current
       );
-      if (path === source) {
-        setInfo((current) => current && { ...current, correttoAMano: true });
+      if (visibleSource.current === path) {
+        dispatch({
+          info: (current) => current && { ...current, correttoAMano: true },
+          type: "sourceChanged",
+        });
       }
     },
-    [source]
+    [dispatch]
   );
 
   const applyOpenedTape = useCallback(
@@ -822,10 +810,10 @@ export function HomePage() {
         current?.path === path ? { ...current, info: updated } : current
       );
       if (visibleSource.current === path) {
-        setInfo(updated);
+        dispatch({ info: () => updated, type: "sourceChanged" });
       }
     },
-    [updateView]
+    [dispatch, updateView]
   );
 
   const merge = useCallback(
@@ -929,11 +917,14 @@ export function HomePage() {
           ? { ...current, info: { ...current.info, creato } }
           : current
       );
-      if (path === source) {
-        setInfo((current) => current && { ...current, creato });
+      if (visibleSource.current === path) {
+        dispatch({
+          info: (current) => current && { ...current, creato },
+          type: "sourceChanged",
+        });
       }
     },
-    [source]
+    [dispatch]
   );
 
   const copyActivity = useCallback(() => copy(null), [copy]);
