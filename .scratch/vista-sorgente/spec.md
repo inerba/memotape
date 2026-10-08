@@ -1,6 +1,6 @@
 # La vista della Sorgente fuori dalla finestra principale
 
-**Status:** ready-for-agent
+**Status:** done
 
 Data: 2026-10-08. Candidato 6 della revisione architetturale, prima parte; grilling dello stesso giorno. Segue ADR-0028 (riga sulle conseguenze). Ticket: `issues/01-sorgente-e-tape-consultato-in-un-solo-stato.md`, `issues/02-navigazione-come-intenti.md`.
 
