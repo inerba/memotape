@@ -3,6 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
+use crate::engine::vocabolario;
 use crate::error::AppError;
 use crate::managers::models;
 use crate::transcript::Ingresso;
@@ -515,7 +516,7 @@ impl SettingsStore {
     /// letto, non lo sovrascrive con i predefiniti: lo rilegge e applica sopra solo i campi che
     /// `settings` cambia rispetto alle correnti, o risponde con l'errore se ancora non si legge.
     pub fn set(&self, mut settings: Settings) -> Result<Settings, AppError> {
-        settings.vocabolario = vocabolario(settings.vocabolario)?;
+        settings.vocabolario = normalize_and_validate_vocabolario(settings.vocabolario)?;
         let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
         let mut load_error = self
             .load_error
@@ -533,20 +534,22 @@ impl SettingsStore {
     }
 }
 
-/// I Termini senza spazi in testa e in coda, senza vuoti né doppioni esatti, nel loro ordine.
-/// `invalidTermine` per un Termine con `<|` o `|>`: nel prompt di Whisper la Frase fallirebbe.
-fn vocabolario(termini: Vec<String>) -> Result<Vec<String>, AppError> {
-    let mut kept: Vec<String> = Vec::with_capacity(termini.len());
+/// I Termini senza spazi in testa e in coda, senza vuoti né doppioni (maiuscole e accenti non
+/// contano, come nel campo: resta il primo), nel loro ordine. `invalidTermine` per un Termine con
+/// `<|` o `|>`: nel prompt di Whisper la Frase fallirebbe.
+fn normalize_and_validate_vocabolario(termini: Vec<String>) -> Result<Vec<String>, AppError> {
+    let mut kept: Vec<(String, String)> = Vec::with_capacity(termini.len());
     for termine in termini {
         let termine = termine.trim();
-        if termine.contains("<|") || termine.contains("|>") {
+        if vocabolario::has_special_token(termine) {
             return Err(AppError::InvalidTermine(termine.to_owned()));
         }
-        if !termine.is_empty() && !kept.iter().any(|k| k == termine) {
-            kept.push(termine.to_owned());
+        let folded = vocabolario::folded(termine);
+        if !termine.is_empty() && !kept.iter().any(|(_, f)| *f == folded) {
+            kept.push((termine.to_owned(), folded));
         }
     }
-    Ok(kept)
+    Ok(kept.into_iter().map(|(termine, _)| termine).collect())
 }
 
 /// `onto` con i campi che `next` cambia rispetto a `base`.
@@ -1106,13 +1109,18 @@ mod tests {
                     String::new(),
                     "Niccolò".into(),
                     "ChargeBee".into(),
-                    // Solo i doppioni esatti: maiuscole e accenti li controlla il campo.
+                    // Come nel campo: maiuscole e accenti non contano, resta il primo.
                     "chargebee".into(),
+                    "NICCOLO".into(),
+                    // Spazi e simboli invece sì: sono Termini diversi.
+                    "Charge Bee".into(),
+                    "C++".into(),
+                    "C#".into(),
                 ],
                 ..Settings::default()
             })
             .unwrap();
-        let expected = vec!["ChargeBee", "Niccolò", "chargebee"];
+        let expected = vec!["ChargeBee", "Niccolò", "Charge Bee", "C++", "C#"];
         assert_eq!(store.get().vocabolario, expected);
         assert_eq!(Settings::load(&path).unwrap().vocabolario, expected);
     }

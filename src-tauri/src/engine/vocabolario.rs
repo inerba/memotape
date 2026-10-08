@@ -197,13 +197,23 @@ fn best_match<'a>(candidate: &str, keys: &'a [(&'a str, String)]) -> Option<Matc
     best
 }
 
-/// La chiave di confronto: lettere e cifre, minuscole, senza accenti.
-fn key(text: &str) -> String {
+/// Se il Termine contiene `<|` o `|>`: nel prompt di Whisper farebbero fallire la Frase.
+pub fn has_special_token(termine: &str) -> bool {
+    termine.contains("<|") || termine.contains("|>")
+}
+
+/// Il testo minuscolo e senza accenti: due Termini con lo stesso sono doppioni.
+pub fn folded(text: &str) -> String {
     use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
     text.nfd()
-        .filter(|&c| c.is_alphanumeric() && !is_combining_mark(c))
+        .filter(|&c| !is_combining_mark(c))
         .flat_map(char::to_lowercase)
         .collect()
+}
+
+/// La chiave di confronto: lettere e cifre, minuscole, senza accenti.
+fn key(text: &str) -> String {
+    folded(text).chars().filter(|c| c.is_alphanumeric()).collect()
 }
 
 /// Se la chiave ha solo lettere latine (senza accenti) e cifre ASCII.
