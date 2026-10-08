@@ -29,7 +29,7 @@ export const INITIAL_HOME: HomeState = {
 };
 
 /** Apertura, modifica e spostamento di un Tape passano dalla vista, che li applica anche qui. */
-type OwnedByView = "sourceOpened" | "sourceChanged" | "moved";
+type OwnedByView = "sourceLoaded" | "sourceChanged" | "moved";
 
 export type HomeAction =
   | Exclude<ActivityAction, { type: OwnedByView }>
@@ -41,12 +41,11 @@ export function home(state: HomeState, action: HomeAction): HomeState {
 }
 
 function step(state: HomeState, action: HomeAction): HomeState {
-  const view = (a: SourceViewAction) =>
-    sourceView(state.view, a, state.activity.status);
+  const view = (a: SourceViewAction) => sourceView(state.view, a);
   switch (action.type) {
     case "sourceOpened":
       return { activity: opened(state.activity, action), view: view(action) };
-    case "tapeBrowsed":
+    case "tapeConsulted":
     case "openRequested":
     case "activityShown":
     case "libraryShown":
@@ -92,7 +91,7 @@ function reacted(before: HomeState, after: HomeState): HomeState {
   if (was.phase !== "recording" && is.phase === "recording") {
     view = {
       ...view,
-      browsed: null,
+      consulted: null,
       highlight: null,
       homeOpen: false,
       libraryOpen: false,
@@ -102,19 +101,19 @@ function reacted(before: HomeState, after: HomeState): HomeState {
     view = { ...view, highlight: null };
   }
   if (isBusy(was) && !isBusy(is)) {
-    view = { ...view, browsed: null };
+    view = { ...view, consulted: null };
   }
   return view === after.view ? after : { ...after, view };
 }
 
-/** La vista al centro della finestra; `own`: il Tape è la Sorgente, che Trascrivi trascrive. */
+/** La vista al centro della finestra; `isSource`: il Tape è la Sorgente, che Trascrivi trascrive. */
 export type CenterView =
   | { kind: "library" | "home" | "live" }
   | {
       kind: "preparation";
       stage: Extract<Status, { phase: "preparingRecording" }>["stage"];
     }
-  | { kind: "tape"; tape: TapeView; own: boolean }
+  | { kind: "tape"; tape: TapeView; isSource: boolean }
   | { kind: "file"; path: string };
 
 export function centerView(state: HomeState): CenterView {
@@ -129,37 +128,39 @@ export function centerView(state: HomeState): CenterView {
   if (view.homeOpen) {
     return { kind: "home" };
   }
-  if (view.browsed) {
-    return { kind: "tape", own: false, tape: view.browsed };
+  if (view.consulted) {
+    return { isSource: false, kind: "tape", tape: view.consulted };
   }
   if (isLive(status)) {
     return { kind: "live" };
   }
   if (view.source && isTape(view.source)) {
     const tape = { conversation, info, path: view.source };
-    return { kind: "tape", own: true, tape };
+    return { isSource: true, kind: "tape", tape };
   }
   return view.source ? { kind: "file", path: view.source } : { kind: "home" };
 }
 
 /**
- * Cosa evidenzia la barra laterale: Home, la Libreria o il Tape mostrato al centro; nessun Tape
- * con la Libreria, la Home o la Registrazione.
+ * Cosa evidenzia la barra laterale: quello che mostra `centerView`, Home, la Libreria o il Tape (o
+ * il file); niente durante la preparazione e la Registrazione.
  */
-export function selection({ activity: { status }, view }: HomeState): {
+export function selection(state: HomeState): {
   home: boolean;
   library: boolean;
   tape: string | null;
 } {
-  const live = isLive(status);
-  const homeShown =
-    !view.libraryOpen &&
-    (view.homeOpen || !(view.browsed || view.source || live));
-  const shown = view.browsed?.path ?? (live ? null : view.source);
+  const center = centerView(state);
+  let tape: string | null = null;
+  if (center.kind === "tape") {
+    tape = center.tape.path;
+  } else if (center.kind === "file") {
+    tape = center.path;
+  }
   return {
-    home: homeShown,
-    library: view.libraryOpen,
-    tape: view.libraryOpen || homeShown ? null : shown,
+    home: center.kind === "home",
+    library: center.kind === "library",
+    tape,
   };
 }
 
@@ -177,9 +178,9 @@ function opened(
   { path, tape }: { path: string | null; tape?: OpenedTape }
 ): ActivityState {
   if (state.session.state === "open") {
-    return tape ? activity(state, { tape, type: "sourceOpened" }) : state;
+    return tape ? activity(state, { tape, type: "sourceLoaded" }) : state;
   }
-  return activity(activity(state, { tape, type: "sourceOpened" }), {
+  return activity(activity(state, { tape, type: "sourceLoaded" }), {
     status: { phase: "idle", source: path },
     type: "status",
   });
@@ -198,5 +199,5 @@ export function useHomeState(
     activity: { ...INITIAL_ACTIVITY, status },
   }));
   const ready = useActivityEvents(dispatch, onRecordingStarted);
-  return { ...state.activity, ...state.view, dispatch, ready, state };
+  return { dispatch, ready, state };
 }

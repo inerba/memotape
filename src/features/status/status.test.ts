@@ -5,9 +5,11 @@ import {
   afterDiarization,
   afterTranscription,
   bannerOf,
+  isBusy,
   needsSettings,
   type Status,
   statusText,
+  transcribesSource,
   withDiarizing,
   withLiveError,
   withMovedSource,
@@ -303,4 +305,29 @@ test("l'avviso dice errori ed esiti, non la fase di un'Attività in corso", () =
   );
   expect(live?.tone).toBe("error");
   expect(live?.settings).toBe(true);
+});
+
+test("un'Attività in corso dalla preparazione della Registrazione alla fine di Trascrivi", () => {
+  const busy: Status[] = [
+    { phase: "preparingRecording", stage: "devices" },
+    { paused: false, phase: "recording" },
+    { percent: null, phase: "completing" },
+    { percent: 10, phase: "transcribing" },
+    { phase: "diarizing" },
+  ];
+  const idle: Status[] = [
+    { phase: "idle", source: null },
+    { path: "a.tape", phase: "finished" },
+    { phase: "cancelled" },
+  ];
+  expect(busy.map(isBusy)).toEqual([true, true, true, true, true]);
+  expect(idle.map(isBusy)).toEqual([false, false, false]);
+});
+
+test("solo Trascrivi e Riconosci i parlanti lavorano sulla Sorgente, non la Registrazione", () => {
+  expect(transcribesSource({ percent: 10, phase: "transcribing" })).toBe(true);
+  expect(transcribesSource({ phase: "diarizing" })).toBe(true);
+  expect(transcribesSource({ paused: false, phase: "recording" })).toBe(false);
+  expect(transcribesSource({ percent: null, phase: "completing" })).toBe(false);
+  expect(transcribesSource({ phase: "idle", source: "a.tape" })).toBe(false);
 });

@@ -1,6 +1,10 @@
 import type { OpenedTape, TapeInfo } from "@/bindings";
 import { movedPath } from "@/features/source/file-name";
-import { isBusy, type Status } from "@/features/status/status";
+import {
+  isBusy,
+  type Status,
+  transcribesSource,
+} from "@/features/status/status";
 import {
   type Conversation,
   EMPTY_CONVERSATION,
@@ -19,7 +23,7 @@ export interface TapeView {
  * il Tape consultato durante un'Attività, con testo e informazioni propri, e cosa c'è al centro.
  */
 export interface SourceView {
-  browsed: TapeView | null;
+  consulted: TapeView | null;
   /** La Frase di un risultato della ricerca, evidenziata nel Tape aperto. */
   highlight: PhraseRef | null;
   homeOpen: boolean;
@@ -32,7 +36,7 @@ export interface SourceView {
 }
 
 export const INITIAL_VIEW: SourceView = {
-  browsed: null,
+  consulted: null,
   highlight: null,
   homeOpen: false,
   libraryOpen: false,
@@ -48,12 +52,13 @@ export interface TapeChange {
 }
 
 /**
- * Cosa fa aprire `path`: durante un'Attività si consulta (`browse`), tranne la Sorgente su cui
+ * Cosa fa aprire `path`: durante un'Attività si consulta (`consult`), tranne la Sorgente su cui
  * lavora Trascrivi o Riconosci, che riporta alla vista dell'Attività; senza, diventa la Sorgente
  * (`source`), e dalla Libreria (`fromLibrary`) la Sorgente già aperta riparte dall'inizio.
- * `browse` e `source` chiedono alla finestra di leggere il Tape e mandare il risultato.
+ * `consult` e `source` chiedono alla finestra di leggere il Tape e mandare il risultato.
+ * La finestra lo decide una volta e lo passa a `openRequested`.
  */
-export type Opening = "activity" | "browse" | "restart" | "source";
+export type Opening = "activity" | "consult" | "restart" | "source";
 
 export function opening(
   { source }: SourceView,
@@ -62,10 +67,10 @@ export function opening(
   fromLibrary: boolean
 ): Opening {
   if (isBusy(status)) {
-    // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Tape come gli altri.
-    const working =
-      status.phase === "transcribing" || status.phase === "diarizing";
-    return path === source && working ? "activity" : "browse";
+    // Durante una Registrazione la Sorgente è un Tape come gli altri.
+    return path === source && transcribesSource(status)
+      ? "activity"
+      : "consult";
   }
   return fromLibrary && path === source ? "restart" : "source";
 }
@@ -93,13 +98,18 @@ export type SourceViewAction =
       restart?: boolean;
       keepView?: boolean;
     }
-  | { type: "tapeBrowsed"; path: string; tape: OpenedTape; phrase?: PhraseRef }
+  | {
+      type: "tapeConsulted";
+      path: string;
+      tape: OpenedTape;
+      phrase?: PhraseRef;
+    }
   /** Un Tape della barra laterale, della Libreria o della ricerca, di Apri file, del doppio clic o rilasciato. */
   | {
       type: "openRequested";
       path: string;
       phrase?: PhraseRef;
-      fromLibrary?: boolean;
+      opening: Opening;
     }
   /** "Attività in corso" nella barra laterale. */
   | { type: "activityShown" }
@@ -112,10 +122,9 @@ export type SourceViewAction =
 
 export function sourceView(
   state: SourceView,
-  action: SourceViewAction,
-  status: Status
+  action: SourceViewAction
 ): SourceView {
-  const { browsed, source } = state;
+  const { consulted, source } = state;
   switch (action.type) {
     case "sourceOpened":
       if (action.keepView) {
@@ -128,11 +137,11 @@ export function sourceView(
         revision: state.revision + (action.restart ? 1 : 0),
         source: action.path,
       };
-    case "tapeBrowsed": {
+    case "tapeConsulted": {
       const { info, parlanti, phrases } = action.tape;
       return {
         ...state,
-        browsed: {
+        consulted: {
           conversation: { ...EMPTY_CONVERSATION, parlanti, phrases },
           info,
           path: action.path,
@@ -142,11 +151,11 @@ export function sourceView(
       };
     }
     case "openRequested":
-      return requested(state, action, status);
+      return requested(state, action);
     case "activityShown":
       return {
         ...state,
-        browsed: null,
+        consulted: null,
         // La Frase trovata era del Tape consultato.
         highlight: null,
         homeOpen: false,
@@ -159,16 +168,16 @@ export function sourceView(
     case "tapeRequested":
       return { ...state, pending: action.path };
     case "tapeChanged":
-      return browsed?.path === action.path
-        ? { ...state, browsed: changed(browsed, action) }
+      return consulted?.path === action.path
+        ? { ...state, consulted: changed(consulted, action) }
         : state;
     case "tapeMoved": {
       const { from, to } = action;
       return {
         ...state,
-        browsed: browsed && {
-          ...browsed,
-          path: movedPath(browsed.path, from, to),
+        consulted: consulted && {
+          ...consulted,
+          path: movedPath(consulted.path, from, to),
         },
         source: source && movedPath(source, from, to),
       };
@@ -176,7 +185,7 @@ export function sourceView(
     case "tapeTrashed":
       return {
         ...state,
-        browsed: browsed?.path === action.path ? null : browsed,
+        consulted: consulted?.path === action.path ? null : consulted,
         source: source === action.path ? null : source,
       };
     default:
@@ -187,11 +196,10 @@ export function sourceView(
 function requested(
   state: SourceView,
   {
-    fromLibrary = false,
+    opening: how,
     path,
     phrase,
-  }: { fromLibrary?: boolean; path: string; phrase?: PhraseRef },
-  status: Status
+  }: Extract<SourceViewAction, { type: "openRequested" }>
 ): SourceView {
   const next = { ...state, libraryOpen: false };
   // Il Tape del doppio clic resta in attesa finché non diventa la Sorgente.
@@ -199,11 +207,11 @@ function requested(
     ...next,
     pending: state.pending === path ? null : state.pending,
   };
-  switch (opening(state, status, path, fromLibrary)) {
+  switch (how) {
     case "activity":
       return {
         ...next,
-        browsed: null,
+        consulted: null,
         highlight: phrase ?? null,
         homeOpen: false,
       };

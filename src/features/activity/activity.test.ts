@@ -48,7 +48,7 @@ const info: TapeInfo = {
 
 const tape: ActivityAction = {
   tape: { info, parlanti: {}, phrases: [phrase(0, 0, "Tape precedente.")] },
-  type: "sourceOpened",
+  type: "sourceLoaded",
 };
 
 const record = (sessionId: string, partials = true): ActivityAction => ({

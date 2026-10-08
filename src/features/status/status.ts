@@ -189,6 +189,11 @@ export function isBusy({ phase }: Status): boolean {
   );
 }
 
+/** Trascrivi o Riconosci i parlanti lavora sulla Sorgente; una Registrazione no. */
+export function transcribesSource({ phase }: Status): boolean {
+  return phase === "transcribing" || phase === "diarizing";
+}
+
 /** Se accanto al messaggio serve il link alle Impostazioni, per scaricare o cambiare modello. */
 export function needsSettings(status: Status): boolean {
   return needsSettingsError(shownError(status));

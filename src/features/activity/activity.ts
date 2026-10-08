@@ -13,6 +13,7 @@ import type {
   TranscriptPartial,
   TranscriptPhrase,
 } from "@/bindings";
+import type { TapeChange } from "@/features/source/view";
 import {
   type Status,
   withDiarizing,
@@ -101,15 +102,11 @@ type CommandAction =
   | { type: "cleaningOff"; ingresso: Ingresso }
   | { type: "cleaningDismissed" }
   | {
-      type: "sourceOpened";
+      type: "sourceLoaded";
       /** Frasi, nomi e informazioni del Tape aperto; senza, un file. */
       tape?: Pick<Conversation, "parlanti" | "phrases"> & { info: TapeInfo };
     }
-  | {
-      type: "sourceChanged";
-      change?: (c: Conversation) => Conversation;
-      info?: (i: TapeInfo | null) => TapeInfo | null;
-    };
+  | ({ type: "sourceChanged" } & TapeChange);
 
 export type EventAction =
   | { type: "phrase"; payload: TranscriptPhrase }
@@ -156,7 +153,7 @@ export function activity(
     // La Registrazione annullata in Preparazione, o non partita: torna lo stato di prima.
     case "restore":
       return state.previous ? { ...state.previous, previous: null } : state;
-    case "sourceOpened":
+    case "sourceLoaded":
       return {
         ...state,
         conversation: {
@@ -324,7 +321,7 @@ function withFinal(
 
 function withSourceChange(
   state: ActivityState,
-  { change, info }: Extract<CommandAction, { type: "sourceChanged" }>
+  { change, info }: TapeChange
 ): ActivityState {
   return {
     ...state,

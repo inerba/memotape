@@ -80,6 +80,7 @@ import {
   isBusy,
   type Status,
   statusText,
+  transcribesSource,
 } from "@/features/status/status";
 import {
   diarizationNeedsConfirmation,
@@ -125,27 +126,23 @@ export function HomePage() {
   // Lo Status, le Frasi e le informazioni della Sorgente (del Tape aperto o dell'Attività in
   // corso), il timer, la pulizia e il Tape consultato. Impostazioni illeggibili all'avvio: l'avviso
   // lo dice finché non c'è altro.
-  const {
-    cleaningDismissed,
-    cleaningFailures,
-    cleaningPreparing,
-    conversation,
-    dispatch,
-    elapsedMs,
-    highlight,
-    info,
-    ready,
-    revision,
-    session,
-    source,
-    state,
-    status,
-  } = useHomeState(
+  const { dispatch, ready, state } = useHomeState(
     loadError
       ? { error: loadError, phase: "failed" }
       : { phase: "idle", source: null },
     recordingStarted
   );
+  const {
+    cleaningDismissed,
+    cleaningFailures,
+    cleaningPreparing,
+    conversation,
+    elapsedMs,
+    info,
+    session,
+    status,
+  } = state.activity;
+  const { highlight, revision, source } = state.view;
   // L'errore di un'operazione su un Tape o sulla Libreria, o un avviso (il Markdown esportato):
   // l'avviso lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
@@ -164,7 +161,6 @@ export function HomePage() {
   const [dragged, setDragged] = useState<string[] | null>(null);
   const { lastPath, remember, move: moveLastTape, forget } = useLastTape();
   const running = status.phase === "transcribing";
-  const diarizing = status.phase === "diarizing";
   const recording = status.phase === "recording";
   const paused = status.phase === "recording" && status.paused;
   const preparing = status.phase === "preparingRecording";
@@ -259,7 +255,7 @@ export function HomePage() {
   );
 
   // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla.
-  const browse = useCallback(
+  const consult = useCallback(
     async (path: string, phrase?: PhraseRef) => {
       const result = await commands.openTape(path);
       if (result.status === "error") {
@@ -267,7 +263,7 @@ export function HomePage() {
         return;
       }
       remember(path);
-      dispatch({ path, phrase, tape: result.data, type: "tapeBrowsed" });
+      dispatch({ path, phrase, tape: result.data, type: "tapeConsulted" });
     },
     [dispatch, remember]
   );
@@ -278,18 +274,18 @@ export function HomePage() {
   const requestOpen = useCallback(
     (path: string, phrase?: PhraseRef, fromLibrary = false) => {
       const how = opening(state.view, status, path, fromLibrary);
-      dispatch({ fromLibrary, path, phrase, type: "openRequested" });
+      dispatch({ opening: how, path, phrase, type: "openRequested" });
       if (how === "restart") {
         remember(path);
-      } else if (how === "browse") {
-        browse(path, phrase);
+      } else if (how === "consult") {
+        consult(path, phrase);
       } else if (how === "source" && isTape(path)) {
         openTape(path, phrase);
       } else if (how === "source") {
         dispatch({ path, type: "sourceOpened" });
       }
     },
-    [browse, dispatch, openTape, remember, state.view, status]
+    [consult, dispatch, openTape, remember, state.view, status]
   );
 
   const pickFile = useCallback(async () => {
@@ -828,14 +824,15 @@ export function HomePage() {
     return () => clearTimeout(timer);
   }, [status, statusBanner?.tone]);
 
-  // La vista di un Tape; `own`: è la Sorgente, che Trascrivi trascrive.
-  const tapePane = (view: TapeView, own: boolean) => (
+  // La vista di un Tape; `isSource`: è la Sorgente, che Trascrivi trascrive.
+  const tapePane = (view: TapeView, isSource: boolean) => (
     <TapePane
       busy={busy}
       copied={copied}
       // Non ci lavora l'Attività in corso.
-      editable={!(own && busy)}
+      editable={!(isSource && busy)}
       highlight={highlight}
+      isSource={isSource}
       key={`${view.path}:${revision}`}
       library={library}
       onCopy={copy}
@@ -852,8 +849,7 @@ export function HomePage() {
       onReveal={reveal}
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
-      own={own}
-      processing={own && (running || diarizing)}
+      processing={isSource && transcribesSource(status)}
       recording={recording}
       running={running}
       view={view}
@@ -923,7 +919,7 @@ export function HomePage() {
           />
         );
       case "tape":
-        return tapePane(center.tape, center.own);
+        return tapePane(center.tape, center.isSource);
       case "file":
         return (
           <FileView
@@ -1353,7 +1349,7 @@ function BannerView({
 /**
  * La vista di un Tape: la barra in alto con il percorso, Copia testo e "…"; il documento con
  * testata, schede Trascrizione e Parlanti e Segui l'audio; in fondo il player, nascosto
- * mentre lo si trascrive. `editable`: non ci lavora l'Attività in corso; `own`: è la Sorgente, che
+ * mentre lo si trascrive. `editable`: non ci lavora l'Attività in corso; `isSource`: è la Sorgente, che
  * Trascrivi trascrive; `recording`: il player è disabilitato.
  */
 function TapePane({
@@ -1376,7 +1372,7 @@ function TapePane({
   onReveal,
   onTranscribe,
   onTrash,
-  own,
+  isSource,
   processing,
   recording,
   running,
@@ -1406,7 +1402,7 @@ function TapePane({
   onReveal: (path: string) => void;
   onTranscribe: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
-  own: boolean;
+  isSource: boolean;
   processing: boolean;
   recording: boolean;
   running: boolean;
@@ -1420,7 +1416,7 @@ function TapePane({
     setRenaming(null);
   }
   const parlanti = editable ? parlantiOf(conversation, t) : [];
-  const transcribing = own && running;
+  const transcribing = isSource && running;
   const player = usePlayer(info?.durataMs ?? 0);
   // La Frase di un risultato della ricerca porta lì il player, senza avviarlo.
   const phrases = useRef(conversation.phrases);
@@ -1493,7 +1489,7 @@ function TapePane({
     <TapeEmpty
       busy={busy}
       onError={onError}
-      onTranscribe={own ? onTranscribe : undefined}
+      onTranscribe={isSource ? onTranscribe : undefined}
       transcribing={transcribing}
     />
   );
@@ -1515,12 +1511,14 @@ function TapePane({
               diarizingDisabled={busy || !hasText}
               disabled={!editable}
               library={library}
-              onDiarize={own ? onDiarize : undefined}
+              onDiarize={isSource ? onDiarize : undefined}
               onError={onError}
               onExported={onExported}
               onMove={onMove}
               onReveal={onReveal}
-              onTranscribe={own && !busy && hasText ? onTranscribe : undefined}
+              onTranscribe={
+                isSource && !busy && hasText ? onTranscribe : undefined
+              }
               onTrash={onTrash}
               path={path}
             />
