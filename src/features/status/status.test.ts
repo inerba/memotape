@@ -9,7 +9,6 @@ import {
   type Status,
   statusText,
   withDiarizing,
-  withLiveDiarizationError,
   withLiveError,
   withMovedSource,
   withProgress,
@@ -70,28 +69,6 @@ test("la Diarizzazione autonoma ha esiti propri e conserva il collegamento alle 
   );
   expect(bannerOf(missing, t)?.settings).toBe(true);
   expect(bannerOf(missing, t)?.tone).toBe("error");
-});
-
-test("il guasto dei Parlanti resta visibile dopo Stop e non maschera un guasto ASR", () => {
-  const lag = { code: "liveDiarizationLagging" } as const;
-  const stopped = withLiveDiarizationError(
-    { percent: 30, phase: "completing" },
-    lag
-  );
-  expect(statusText(stopped, t)).toContain(
-    "parlanti dal vivo non tiene il passo"
-  );
-  expect(statusText(withProgress(stopped, 70), t)).toContain(
-    "parlanti dal vivo non tiene il passo"
-  );
-  expect(statusText(withDiarizing(stopped), t)).toContain(
-    "parlanti dal vivo non tiene il passo"
-  );
-  const failedAsr = withLiveError(
-    { paused: false, phase: "recording" },
-    { code: "liveTranscriptionUnavailable", detail: "ASR" }
-  );
-  expect(withLiveDiarizationError(failedAsr, lag)).toBe(failedAsr);
 });
 
 test("il modello locale assente o incompatibile mostra un errore esplicito con il link alle Impostazioni", () => {
@@ -326,25 +303,4 @@ test("l'avviso dice errori ed esiti, non la fase di un'Attività in corso", () =
   );
   expect(live?.tone).toBe("error");
   expect(live?.settings).toBe(true);
-});
-
-test("gli avvisi dei due Ingressi restano distinti attraverso Stop e il guasto ASR ha priorità", () => {
-  const lag = { code: "liveDiarizationLagging" } as const;
-  let status: Status = { paused: false, phase: "recording" };
-  status = withLiveDiarizationError(status, lag, "sistema");
-  expect(statusText(status, t)).toContain("Audio di sistema:");
-  expect(statusText(status, t)).not.toContain("Microfono:");
-  status = withLiveDiarizationError(
-    status,
-    { code: "localDiarizerMissing" },
-    "microfono"
-  );
-  expect(statusText(status, t)).toContain("Microfono:");
-  expect(needsSettings(status)).toBe(true);
-  status = withDiarizing(withProgress(status, null));
-  expect(statusText(status, t)).toContain("Microfono:");
-  expect(statusText(status, t)).toContain("Audio di sistema:");
-  expect(bannerOf(status, t)?.settings).toBe(true);
-  status = withLiveError(status, { code: "internal", detail: "ASR in errore" });
-  expect(statusText(status, t)).toContain("ASR in errore");
 });

@@ -192,7 +192,6 @@ export const commands = {
 export const events = {
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
-	liveDiarizationFailed: makeEvent<LiveDiarizationFailed>("live-diarization-failed"),
 	liveTranscriptUpdated: makeEvent<LiveTranscriptUpdated_Deserialize>("live-transcript-updated"),
 	liveTranscriptionFailed: makeEvent<LiveTranscriptionFailed>("live-transcription-failed"),
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
@@ -209,7 +208,7 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "liveDiarizationLagging" } | { code: "liveDiarizationUnavailable"; detail: string } | { code: "localDiarizerMissing" } | { code: "localDiarizerIncompatible"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "localDiarizerMissing" } | { code: "localDiarizerIncompatible"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
 /**
  *  Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
  *  scaricato.
@@ -316,43 +315,30 @@ export type LibraryList = {
 	tapes: TapeEntry[],
 };
 
-/**  Il riconoscimento dei Parlanti non è disponibile; audio e ASR continuano. */
-export type LiveDiarizationFailed = {
-	sessionId: string,
-	ingresso: Ingresso,
-	error: AppError,
-};
-
 /**
- *  Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
- *  un risultato precedente non può far ricomparire un Parziale ormai concluso.
+ *  Lo snapshot finale di un Ingresso di una Registrazione, dopo l'analisi finale dei Parlanti:
+ *  sostituisce le sue Frasi. Si emette una volta per Ingresso con Frasi.
  */
 export type LiveTranscriptUpdated = LiveTranscriptUpdated_Serialize | LiveTranscriptUpdated_Deserialize;
 
 /**
- *  Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
- *  un risultato precedente non può far ricomparire un Parziale ormai concluso.
+ *  Lo snapshot finale di un Ingresso di una Registrazione, dopo l'analisi finale dei Parlanti:
+ *  sostituisce le sue Frasi. Si emette una volta per Ingresso con Frasi.
  */
 export type LiveTranscriptUpdated_Deserialize = {
 	sessionId: string,
 	ingresso: Ingresso,
-	revision: number,
-	finished: boolean,
 	phrases: TranscriptPhrase_Deserialize[],
-	partials: TranscriptPhrase_Deserialize[],
 };
 
 /**
- *  Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
- *  un risultato precedente non può far ricomparire un Parziale ormai concluso.
+ *  Lo snapshot finale di un Ingresso di una Registrazione, dopo l'analisi finale dei Parlanti:
+ *  sostituisce le sue Frasi. Si emette una volta per Ingresso con Frasi.
  */
 export type LiveTranscriptUpdated_Serialize = {
 	sessionId: string,
 	ingresso: Ingresso,
-	revision: number,
-	finished: boolean,
 	phrases: TranscriptPhrase_Serialize[],
-	partials: TranscriptPhrase_Serialize[],
 };
 
 /**  Com'è finita la Trascrizione dal vivo di una Registrazione salvata. */

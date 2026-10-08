@@ -12,7 +12,7 @@ import type {
  * ogni Ingresso (`mix`, senza Ingressi separati) e i nomi dati ai Parlanti, per chiave
  * `<ingresso>:<n>`, o `<ingresso>` per un Ingresso senza Parlanti (`parlanteKey`).
  */
-/** Il Parziale ASR, con i soli metadati di attribuzione disponibili dal diarizer dal vivo. */
+/** Il Parziale ASR, con i metadati di attribuzione facoltativi delle Frasi. */
 export type ConversationPartial = TranscriptPartial &
   Partial<
     Pick<
@@ -22,11 +22,11 @@ export type ConversationPartial = TranscriptPartial &
   >;
 
 export interface Conversation {
-  liveFinished?: Partial<Record<Ingresso, boolean>>;
+  /** Gli Ingressi che hanno già ricevuto lo snapshot finale della Registrazione. */
+  finali?: Partial<Record<Ingresso, true>>;
   parlanti: Partial<Record<string, string>>;
   partials: ConversationPartial[];
   phrases: TranscriptPhrase[];
-  revisions?: Partial<Record<Ingresso, number>>;
   sessionId?: string;
 }
 
@@ -36,7 +36,7 @@ export const EMPTY_CONVERSATION: Conversation = {
   phrases: [],
 };
 
-/** Lo snapshot del testo in vista, con Parziali e attribuzioni della medesima revisione. */
+/** Il testo in vista: Frasi e Parziali in ordine di inizio. */
 export function visiblePhrases(conversation: Conversation): TranscriptPhrase[] {
   return [...conversation.phrases, ...conversation.partials]
     .sort((a, b) => a.inizioMs - b.inizioMs)
@@ -75,7 +75,7 @@ export function withPhrase(
 ): Conversation {
   if (
     (phrase.sessionId ?? undefined) !== conversation.sessionId ||
-    conversation.revisions?.[phrase.ingresso] !== undefined
+    conversation.finali?.[phrase.ingresso]
   ) {
     return conversation;
   }
@@ -93,33 +93,29 @@ export function withPhrase(
   };
 }
 
-/** La revisione sostituisce un solo Ingresso; rettifiche vecchie non ripristinano testo o Parziali. */
+/**
+ * Lo snapshot finale di un Ingresso della Registrazione sostituisce le sue Frasi e toglie il suo
+ * Parziale; un secondo snapshot dello stesso Ingresso e gli eventi tardivi per lui si scartano.
+ */
 export function withLiveTranscript(
   conversation: Conversation,
-  snapshot: LiveTranscriptUpdated,
-  acceptPartials = true
+  snapshot: LiveTranscriptUpdated
 ): Conversation {
-  const { ingresso, revision, finished, phrases, partials } = snapshot;
+  const { ingresso, phrases } = snapshot;
   if (
     snapshot.sessionId !== conversation.sessionId ||
-    !(finished || acceptPartials) ||
-    conversation.liveFinished?.[ingresso] ||
-    revision <= (conversation.revisions?.[ingresso] ?? 0)
+    conversation.finali?.[ingresso]
   ) {
     return conversation;
   }
   return {
     ...conversation,
-    liveFinished: { ...conversation.liveFinished, [ingresso]: finished },
-    partials: [
-      ...conversation.partials.filter((p) => p.ingresso !== ingresso),
-      ...partials,
-    ],
+    finali: { ...conversation.finali, [ingresso]: true },
+    partials: conversation.partials.filter((p) => p.ingresso !== ingresso),
     phrases: [
       ...conversation.phrases.filter((p) => p.ingresso !== ingresso),
       ...phrases,
     ].sort((a, b) => a.inizioMs - b.inizioMs),
-    revisions: { ...conversation.revisions, [ingresso]: revision },
   };
 }
 
@@ -130,7 +126,7 @@ export function withPartial(
 ): Conversation {
   if (
     (partial.sessionId ?? undefined) !== conversation.sessionId ||
-    conversation.revisions?.[partial.ingresso] !== undefined
+    conversation.finali?.[partial.ingresso]
   ) {
     return conversation;
   }
@@ -160,7 +156,7 @@ export function withParlanti(
   return {
     ...conversation,
     phrases: conversation.phrases.map((phrase) => {
-      if (conversation.revisions?.[phrase.ingresso] !== undefined) {
+      if (conversation.finali?.[phrase.ingresso]) {
         return phrase;
       }
       const assigned = assignments.find(

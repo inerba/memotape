@@ -128,8 +128,6 @@
       "internal": "Error interno: {{detail}}",
       "localDiarizerMissing": "Elige el modelo local Nemotron Diarization en Ajustes → Transcripción",
       "localDiarizerIncompatible": "El modelo local no coincide con el GGUF Nemotron Diarization verificado o no se puede cargar: {{detail}}",
-      "liveDiarizationLagging": "El reconocimiento de hablantes en directo se ha retrasado y se ha detenido. El audio y la transcripción continúan; se reintentará después de Detener.",
-      "liveDiarizationUnavailable": "El reconocimiento de hablantes en directo se ha detenido. El audio y la transcripción continúan; se reintentará después de Detener.",
       "audioCleaningMissing": "Falta el modelo DeepFilterNet3 incluido con la aplicación. Reinstala Memotape.",
       "audioCleaningIncompatible": "El modelo DeepFilterNet3 incluido es incompatible: {{detail}}",
       "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo. Un Tape existente permanece intacto: {{detail}}",

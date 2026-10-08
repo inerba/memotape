@@ -3,7 +3,6 @@
 pub mod asr;
 pub mod diarize;
 pub mod live;
-pub mod live_diarization;
 pub mod local_diarizer;
 pub mod pipeline;
 pub mod transcribe_cpp;

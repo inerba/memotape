@@ -47,8 +47,6 @@ pub struct Transcript {
     pub speech_language: SpeechLanguage,
     /// In ordine di inizio.
     pub phrases: Vec<Phrase>,
-    /// Frasi ASR prima delle divisioni dal vivo, per riesaminare i confini dopo Stop.
-    pub live_asr: Vec<Phrase>,
     /// I nomi dati ai Parlanti, per chiave `<ingresso>:<n>` (`Ingresso::parlante_key`).
     pub parlanti: BTreeMap<String, String>,
     pub diarizzazione: Option<Diarizzazione>,
@@ -405,7 +403,6 @@ mod tests {
             model: "Nemotron".into(),
             speech_language: SpeechLanguage::from("it"),
             phrases,
-            live_asr: Vec::new(),
             parlanti: BTreeMap::new(),
             diarizzazione: None,
         }

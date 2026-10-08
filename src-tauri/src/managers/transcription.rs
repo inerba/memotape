@@ -22,7 +22,6 @@ use crate::audio_toolkit::ogg_opus::OggCopy;
 use crate::audio_toolkit::protection::ProtectionTimeline;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
-use crate::engine::live_diarization::{LiveDiarizer, LiveTranscript};
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
@@ -92,23 +91,19 @@ pub struct LiveTranscriptionFailed {
     pub error: AppError,
 }
 
-/// Sostituisce il testo dal vivo di un Ingresso. Revisioni includono sia ASR sia rettifiche;
-/// un risultato precedente non può far ricomparire un Parziale ormai concluso.
+/// Lo snapshot finale di un Ingresso di una Registrazione, dopo l'analisi finale dei Parlanti:
+/// sostituisce le sue Frasi. Si emette una volta per Ingresso con Frasi.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct LiveTranscriptUpdated {
     pub session_id: String,
     pub ingresso: Ingresso,
-    pub revision: u32,
-    pub finished: bool,
     pub phrases: Vec<TranscriptPhrase>,
-    pub partials: Vec<TranscriptPhrase>,
 }
 
 pub struct LiveSource {
     pub ingresso: Ingresso,
     pub frames: LiveFrames,
-    pub diarizer: Option<LiveDiarizer>,
 }
 
 fn transcript_phrase(id: u32, phrase: &Phrase, session_id: Option<&str>) -> TranscriptPhrase {
@@ -125,167 +120,6 @@ fn transcript_phrase(id: u32, phrase: &Phrase, session_id: Option<&str>) -> Tran
         testo_corretto: false,
         testo_turno: None,
     }
-}
-
-struct LiveSession<'a> {
-    session_id: &'a str,
-    app: &'a AppHandle,
-    ingresso: Ingresso,
-    transcript: &'a Mutex<Transcript>,
-    state: Mutex<LiveTranscript>,
-}
-
-impl LiveSession<'_> {
-    fn run(
-        &self,
-        engine: &mut TranscribeCpp,
-        silero: &Path,
-        cancel: &CancelToken,
-        speech_language: Option<&str>,
-        frames: &mut LiveFrames,
-        mut diarizer: LiveDiarizer,
-    ) -> Result<(), AppError> {
-        let app = self.app;
-        let transcript = self.transcript;
-        std::thread::scope(|scope| {
-            let worker_cancel = diarizer.cancel_token();
-            let worker_cancelled = worker_cancel.clone();
-            let session_ref = self;
-            let worker = scope.spawn(move || {
-                let analyzed = diarizer.run(cancel, &mut |turns| session_ref.turns(turns));
-                if let Err(error) = analyzed
-                    && ((!cancel.is_cancelled() && !worker_cancelled.is_cancelled())
-                        || matches!(error, AppError::LiveDiarizationLagging))
-                {
-                    let error = if matches!(error, AppError::LiveDiarizationLagging) {
-                        error
-                    } else {
-                        AppError::LiveDiarizationUnavailable(error.to_string())
-                    };
-                    if let Err(e) = (LiveDiarizationFailed {
-                        session_id: self.session_id.to_owned(),
-                        ingresso: self.ingresso,
-                        error,
-                    })
-                    .emit(app)
-                    {
-                        log::warn!("guasto dei Parlanti non emesso: {e}");
-                    }
-                }
-            });
-            engine.set_cancel_token(cancel);
-            let backlog = frames.backlog();
-            let result = Silero::new(silero).and_then(|mut detector| {
-                pipeline::transcribe(
-                    frames,
-                    engine,
-                    &mut detector,
-                    speech_language,
-                    cancel,
-                    &mut |event| {
-                        log::info!("ASR dal vivo: coda={} ms", backlog());
-                        self.asr(event);
-                    },
-                )
-            });
-            if result.is_err() {
-                worker_cancel.cancel();
-                let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-                state.clear_partial();
-                self.publish(&state);
-            }
-            if worker.join().is_err() {
-                let _ = (LiveDiarizationFailed {
-                    session_id: self.session_id.to_owned(),
-                    ingresso: self.ingresso,
-                    error: AppError::LiveDiarizationUnavailable("stream interrotto".into()),
-                })
-                .emit(app);
-            }
-            result.map(|duration| {
-                let mut document = transcript.lock().unwrap_or_else(PoisonError::into_inner);
-                document.durata_ms = document.durata_ms.max(Some(duration));
-            })
-        })
-    }
-
-    /// Chiamato sotto il lock della sessione, prima di pubblicare la revisione.
-    fn publish(&self, state: &LiveTranscript) {
-        let phrases: Vec<_> = state
-            .phrases
-            .iter()
-            .map(|(id, phrase)| transcript_phrase(*id, phrase, Some(self.session_id)))
-            .collect();
-        let partials: Vec<_> = state
-            .partials
-            .iter()
-            .map(|(id, phrase)| transcript_phrase(*id, phrase, Some(self.session_id)))
-            .collect();
-        let mut transcript = self
-            .transcript
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        transcript.phrases.retain(|p| p.ingresso != self.ingresso);
-        for (_, phrase) in &state.phrases {
-            transcript.insert(phrase.clone());
-        }
-        transcript.live_asr.retain(|p| p.ingresso != self.ingresso);
-        transcript.live_asr.extend(state.originals().cloned());
-        let mut visible = transcript.clone();
-        for (_, phrase) in &state.partials {
-            visible.insert(phrase.clone());
-        }
-        self.app.state::<LastTranscript>().set(visible);
-        if let Err(e) = (LiveTranscriptUpdated {
-            session_id: self.session_id.to_owned(),
-            ingresso: self.ingresso,
-            revision: state.revision,
-            finished: false,
-            phrases,
-            partials,
-        })
-        .emit(self.app)
-        {
-            log::warn!("rettifica dal vivo non emessa: {e}");
-        }
-    }
-
-    fn asr(&self, event: PipelineEvent) {
-        if let PipelineEvent::Progress(percent) = event {
-            if let Err(e) = (TranscriptionProgress {
-                session_id: Some(self.session_id.to_owned()),
-                percent,
-            })
-            .emit(self.app)
-            {
-                log::warn!("progresso dal vivo non emesso: {e}");
-            }
-            return;
-        }
-        if let PipelineEvent::Partial { fine_ms, .. } | PipelineEvent::Phrase { fine_ms, .. } =
-            &event
-        {
-            log::info!("ASR dal vivo: testo disponibile fino a {fine_ms} ms");
-        }
-        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        state.on_asr(self.ingresso, event);
-        self.publish(&state);
-    }
-
-    fn turns(&self, turns: Vec<diarize::Turn>) {
-        let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        state.on_turns(turns);
-        self.publish(&state);
-    }
-}
-
-/// Il riconoscimento dei Parlanti non è disponibile; audio e ASR continuano.
-#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
-#[serde(rename_all = "camelCase")]
-pub struct LiveDiarizationFailed {
-    pub session_id: String,
-    pub ingresso: Ingresso,
-    pub error: AppError,
 }
 
 /// Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti).
@@ -456,7 +290,6 @@ fn begin_transcript(app: &AppHandle, title: String, settings: &Settings) -> Tran
         model: SettingsStore::model_of(settings).name.clone(),
         speech_language: settings.speech_language.clone(),
         phrases: Vec::new(),
-        live_asr: Vec::new(),
         parlanti: BTreeMap::new(),
         diarizzazione: None,
     };
@@ -981,7 +814,7 @@ fn assignments(phrases: &[Phrase]) -> Vec<SpeakerAssignment> {
 /// Trascrizione è stata annullata o si è guastata, e com'è finita (il primo errore). Se il modello
 /// non si carica (`liveTranscriptionUnavailable`) o una pipeline si guasta emette subito
 /// `live-transcription-failed`: la Registrazione continua, e l'altro Ingresso anche. Con Riconosci
-/// i parlanti, `record` rilegge gli Ogg salvati dopo questa funzione: qui Nemotron affianca ASR con un modello e uno stream distinti per ogni Ingresso richiesto.
+/// i parlanti, `record` rilegge gli Ogg salvati dopo questa funzione.
 pub fn transcribe_live(
     app: &AppHandle,
     sources: Vec<LiveSource>,
@@ -1027,51 +860,32 @@ pub fn transcribe_live(
                         let LiveSource {
                             ingresso,
                             mut frames,
-                            diarizer,
                         } = source;
                         let (silero, transcript) = (&silero, &transcript);
                         let pipeline = scope.spawn(move || {
-                            let transcribed = if let Some(diarizer) = diarizer {
-                                let session = LiveSession {
-                                    session_id,
-                                    app,
+                            let transcribed = run_pipeline(
+                                app,
+                                engine,
+                                silero,
+                                cancel,
+                                EventSource {
                                     ingresso,
-                                    transcript,
-                                    state: Mutex::default(),
-                                };
-                                session.run(
-                                    engine,
-                                    silero,
-                                    cancel,
-                                    settings.speech_language.code(),
-                                    &mut frames,
-                                    diarizer,
-                                )
-                            } else {
-                                run_pipeline(
-                                    app,
-                                    engine,
-                                    silero,
-                                    cancel,
-                                    EventSource {
-                                        ingresso,
-                                        session_id: Some(session_id),
-                                    },
-                                    transcript,
-                                    |engine, detector, on_event| {
-                                        let protection = frames.protection();
-                                        pipeline::transcribe_protected(
-                                            &mut frames,
-                                            engine,
-                                            detector,
-                                            settings.speech_language.code(),
-                                            cancel,
-                                            on_event,
-                                            &protection,
-                                        )
-                                    },
-                                )
-                            };
+                                    session_id: Some(session_id),
+                                },
+                                transcript,
+                                |engine, detector, on_event| {
+                                    let protection = frames.protection();
+                                    pipeline::transcribe_protected(
+                                        &mut frames,
+                                        engine,
+                                        detector,
+                                        settings.speech_language.code(),
+                                        cancel,
+                                        on_event,
+                                        &protection,
+                                    )
+                                },
+                            );
                             if let Err(error) = &transcribed {
                                 live_failed(app, session_id, error, cancel);
                             }
@@ -1114,8 +928,8 @@ pub fn final_speakers(app: &AppHandle, transcript: &Transcript, session_id: Opti
             .eq(transcript.phrases.iter().map(identity))
     });
     last.set(transcript.clone());
-    // La revisione terminale porta anche il testo: resta completa se una rettifica dal vivo
-    // arriva fuori ordine, e nel fallback Ogg non c'è una riapertura del Tape a riparare la vista.
+    // Lo snapshot finale porta il testo con i Parlanti: nel fallback Ogg non c'è una riapertura del
+    // Tape a riparare la vista.
     for ingresso in [Ingresso::Mix, Ingresso::Microfono, Ingresso::Sistema] {
         let phrases: Vec<_> = transcript
             .phrases
@@ -1129,10 +943,7 @@ pub fn final_speakers(app: &AppHandle, transcript: &Transcript, session_id: Opti
             && let Err(error) = (LiveTranscriptUpdated {
                 session_id: session_id.to_owned(),
                 ingresso,
-                revision: u32::MAX,
-                finished: true,
                 phrases,
-                partials: Vec::new(),
             })
             .emit(app)
         {
@@ -1308,7 +1119,6 @@ fn tape_transcript(title: String, document: tape::Document) -> Transcript {
                 tempi: frase.tempi,
             })
             .collect(),
-        live_asr: Vec::new(),
         parlanti: document.parlanti,
         diarizzazione: document.diarizzazione,
     }
@@ -1789,7 +1599,6 @@ mod tests {
                     tempi: Vec::new(),
                 })
                 .collect(),
-            live_asr: Vec::new(),
             parlanti: BTreeMap::new(),
             diarizzazione: None,
         }
@@ -1997,7 +1806,6 @@ mod tests {
                 model: models::default_model().name.clone(),
                 speech_language: SpeechLanguage::from("it"),
                 phrases,
-                live_asr: Vec::new(),
                 parlanti: document.parlanti.clone(),
                 diarizzazione: document.diarizzazione.clone(),
             }

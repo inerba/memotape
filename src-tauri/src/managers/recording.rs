@@ -693,11 +693,7 @@ fn live_sources(
         .iter()
         .copied()
         .zip(frames)
-        .map(|(ingresso, frames)| transcription::LiveSource {
-            ingresso,
-            frames,
-            diarizer: None,
-        })
+        .map(|(ingresso, frames)| transcription::LiveSource { ingresso, frames })
         .collect();
     Ok((feeds, sources))
 }
@@ -1478,7 +1474,6 @@ mod tests {
                             .collect::<Vec<_>>(),
                         expected
                     );
-                    assert!(sources.iter().all(|source| source.diarizer.is_none()));
                     for (mut feed, source) in feeds.into_iter().zip(sources) {
                         feed.push(&[0.25; 480], false);
                         feed.push(&[], true);

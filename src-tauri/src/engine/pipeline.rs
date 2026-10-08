@@ -67,7 +67,9 @@ pub enum Feed {
 /// ordine. `language` è la Lingua del parlato (`None`: automatica). Con `cancel` premuto si ferma
 /// al prossimo frame letto o alla fine della Frase in corso, senza emettere quella Frase, e
 /// restituisce `AppError::Cancelled`. La fonte si legge solo quando servono frame, e un suo errore
-/// ferma la pipeline. Restituisce la durata dell'audio ricevuto, in ms.
+/// ferma la pipeline. Restituisce la durata dell'audio ricevuto, in ms. Fuori dai test si usa
+/// `transcribe_protected`, con la timeline di protezione del parlato.
+#[cfg(test)]
 pub fn transcribe(
     frames: &mut dyn Iterator<Item = Result<Feed, AppError>>,
     engine: &mut dyn TranscriptionEngine,

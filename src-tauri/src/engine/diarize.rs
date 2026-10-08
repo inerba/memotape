@@ -63,22 +63,12 @@ pub fn finalize_live_ingressi(
     use crate::transcript::{Diarizzazione, DiarizzazioneIngresso, EsitoDiarizzazione};
     let mut states = Vec::new();
     for (ingresso, result) in results {
-        let original: Vec<_> = transcript
-            .live_asr
+        let mut phrases: Vec<_> = transcript
+            .phrases
             .iter()
             .filter(|p| p.ingresso == ingresso)
             .cloned()
             .collect();
-        let mut phrases = if original.is_empty() {
-            transcript
-                .phrases
-                .iter()
-                .filter(|p| p.ingresso == ingresso)
-                .cloned()
-                .collect()
-        } else {
-            original
-        };
         let state = finalize(
             &mut phrases,
             modello,
@@ -97,7 +87,6 @@ pub fn finalize_live_ingressi(
             esito: state.esito,
         });
     }
-    transcript.live_asr.clear();
     transcript.diarizzazione = (!states.is_empty()).then(|| {
         let esito = if states
             .iter()

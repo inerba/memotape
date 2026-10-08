@@ -128,8 +128,6 @@
       "internal": "Interner Fehler: {{detail}}",
       "localDiarizerMissing": "Wählen Sie das lokale Nemotron-Diarization-Modell unter Einstellungen → Transkription",
       "localDiarizerIncompatible": "Das lokale Modell entspricht nicht der geprüften Nemotron-Diarization-GGUF-Datei oder kann nicht geladen werden: {{detail}}",
-      "liveDiarizationLagging": "Die Live-Sprechererkennung kommt nicht hinterher und wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut.",
-      "liveDiarizationUnavailable": "Die Live-Sprechererkennung wurde beendet. Aufnahme und Transkription laufen weiter; nach Stopp versuchen wir es erneut.",
       "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
       "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert. Ein vorhandenes Tape bleibt unverändert: {{detail}}",

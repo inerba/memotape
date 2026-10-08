@@ -72,7 +72,6 @@ import {
   type Status,
   statusText,
   withDiarizing,
-  withLiveDiarizationError,
   withLiveError,
   withMovedSource,
   withProgress,
@@ -292,10 +291,9 @@ export function HomePage() {
         setConversation((current) => withPartial(current, payload));
       }
     });
+    // Lo snapshot finale di un Ingresso, dopo l'analisi finale dei Parlanti.
     const liveText = events.liveTranscriptUpdated.listen(({ payload }) => {
-      setConversation((current) =>
-        withLiveTranscript(current, payload, acceptPartials.current)
-      );
+      setConversation((current) => withLiveTranscript(current, payload));
     });
     const progress = events.transcriptionProgress.listen(({ payload }) => {
       if (!inEventSession(payload, recordingSession.current)) {
@@ -312,23 +310,12 @@ export function HomePage() {
         setStatus(withDiarizing);
       }
     );
-    const diarizerFailed = events.liveDiarizationFailed.listen(
-      ({ payload }) => {
-        if (!inEventSession(payload, recordingSession.current)) {
-          return;
-        }
-        setStatus((current) =>
-          withLiveDiarizationError(current, payload.error, payload.ingresso)
-        );
-      }
-    );
     const assigned = events.speakersAssigned.listen(({ payload }) => {
       setConversation((current) =>
         withParlanti(current, payload.speakers, payload.sessionId)
       );
     });
-    // La Trascrizione dal vivo si è fermata (o Riconosci i parlanti non ha il modello): la
-    // Registrazione continua e la status bar lo dice.
+    // La Trascrizione dal vivo si è fermata: la Registrazione continua e la status bar lo dice.
     const liveFailed = events.liveTranscriptionFailed.listen(({ payload }) => {
       if (!inEventSession(payload, recordingSession.current)) {
         return;
@@ -381,7 +368,6 @@ export function HomePage() {
       progress.then((stop) => stop());
       liveFailed.then((stop) => stop());
       diarizationStarted.then((stop) => stop());
-      diarizerFailed.then((stop) => stop());
       assigned.then((stop) => stop());
       ticks.then((stop) => stop());
       cleaningFailed.then((stop) => stop());

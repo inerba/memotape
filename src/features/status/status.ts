@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import type { AppError, commands, Diarizzazione, Ingresso } from "@/bindings";
+import type { AppError, commands, Diarizzazione } from "@/bindings";
 import { movedPath } from "@/features/source/file-name";
 
 /** Cosa mostra la status bar: la fase dell'Attività, o l'errore. */
@@ -14,14 +14,12 @@ export type Status =
       phase: "recording";
       paused: boolean;
       liveError?: AppError;
-      diarizerErrors?: Partial<Record<Ingresso, AppError>>;
     }
   | {
       phase: "completing";
       percent: number | null;
       diarizing?: boolean;
       liveError?: AppError;
-      diarizerErrors?: Partial<Record<Ingresso, AppError>>;
     }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
@@ -48,10 +46,9 @@ export function statusText(status: Status, t: TFunction): string {
       if (status.liveError) {
         return errorText(status.liveError, t);
       }
-      return (
-        diarizerErrorText(status, t) ||
-        (status.paused ? t("status.recordingPaused") : t("status.recording"))
-      );
+      return status.paused
+        ? t("status.recordingPaused")
+        : t("status.recording");
     case "completing":
       return completingText(status, t);
     case "recorded":
@@ -97,10 +94,9 @@ function completingText(
       ? t("status.completing")
       : t("status.completingPercent", { percent: status.percent });
   const phase = status.diarizing ? t("status.finalDiarizing") : progress;
-  const error = status.liveError
-    ? errorText(status.liveError, t)
-    : diarizerErrorText(status, t);
-  return error ? `${phase} · ${error}` : phase;
+  return status.liveError
+    ? `${phase} · ${errorText(status.liveError, t)}`
+    : phase;
 }
 
 /** Il messaggio tradotto di un errore applicativo. */
@@ -123,9 +119,6 @@ export function withProgress(status: Status, percent: number | null): Status {
         percent,
         phase: "completing",
         ...(status.liveError ? { liveError: status.liveError } : {}),
-        ...(status.diarizerErrors
-          ? { diarizerErrors: status.diarizerErrors }
-          : {}),
       };
     case "completing":
       // Un avanzamento in ritardo non toglie "Riconoscimento dei parlanti…".
@@ -171,30 +164,6 @@ export function withRecordingPhase(
     : { ...status, stage: phase };
 }
 
-/** Il guasto del solo diarizer non nasconde l'errore della Trascrizione. */
-export function withLiveDiarizationError(
-  status: Status,
-  error: AppError,
-  ingresso?: Ingresso
-): Status {
-  if (
-    ingresso &&
-    (status.phase === "recording" || status.phase === "completing")
-  ) {
-    return {
-      ...status,
-      diarizerErrors: { ...status.diarizerErrors, [ingresso]: error },
-    };
-  }
-  if (
-    (status.phase === "recording" || status.phase === "completing") &&
-    status.liveError
-  ) {
-    return status;
-  }
-  return withLiveError(status, error);
-}
-
 /**
  * La status bar dopo che il Tape o la Raccolta `from`, forse con la Sorgente che mostra, è diventato
  * `to`.
@@ -211,13 +180,7 @@ export function withMovedSource(
 
 /** Se accanto al messaggio serve il link alle Impostazioni, per scaricare o cambiare modello. */
 export function needsSettings(status: Status): boolean {
-  const errors =
-    status.phase === "recording" || status.phase === "completing"
-      ? Object.values(status.diarizerErrors ?? {})
-      : [];
-  return [shownError(status), ...errors].some((error) =>
-    needsSettingsError(error)
-  );
+  return needsSettingsError(shownError(status));
 }
 
 function needsSettingsError(error?: AppError): boolean {
@@ -307,7 +270,7 @@ export function bannerOf(status: Status, t: TFunction): Banner | null {
         : null;
     case "recording":
     case "completing":
-      return status.liveError || diarizerErrorText(status, t)
+      return status.liveError
         ? {
             settings: needsSettings(status),
             text: statusText(status, t),
@@ -351,17 +314,4 @@ export function diarizationText(state: Diarizzazione, t: TFunction): string {
         )
         .join(" · ")
     : outcome(state.esito);
-}
-
-function diarizerErrorText(
-  status: Extract<Status, { phase: "recording" | "completing" }>,
-  t: TFunction
-): string {
-  return Object.entries(status.diarizerErrors ?? {})
-    .map(([ingresso, error]) =>
-      ingresso === "mix"
-        ? errorText(error, t)
-        : `${t(`settings.recording.inputs.${ingresso === "microfono" ? "mic" : "system"}`)}: ${errorText(error, t)}`
-    )
-    .join(" · ");
 }

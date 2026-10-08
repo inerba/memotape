@@ -202,53 +202,6 @@ pub struct OfflineDiarizer {
 }
 
 impl OfflineDiarizer {
-    /// Uno stream per Registrazione, anche attraverso Pausa/Riprendi. Solo la fine del canale
-    /// completa lo stream; silenzi e cache appartengono alla linea del tempo salvata.
-    pub fn diarize_live(
-        &mut self,
-        frames: &mut super::live_diarization::DiarizationFrames,
-        cancel: &CancelToken,
-        on_turns: &mut dyn FnMut(Vec<Turn>),
-    ) -> Result<(), AppError> {
-        frames.check(cancel)?;
-        self.session.set_cancel_token(&frames.cancel_token());
-        let options = StreamOptions {
-            family: Some(StreamExtension::Nemotron3Diar(Nemotron3DiarOptions {
-                preset: Some(Nemotron3DiarPreset::LowLatency),
-            })),
-            ..Default::default()
-        };
-        let run = RunOptions {
-            diarize: Diarize::On,
-            ..Default::default()
-        };
-        let mut stream = catch_native(|| self.session.stream(&run, &options))?;
-        let mut previous = Vec::new();
-        while let Some(frame) = frames.next_frame(cancel)? {
-            let fed = catch_native(|| stream.feed(&frame.samples));
-            frames.check_delay(frame.sent, cancel)?;
-            fed?;
-            let turns = speaker_turns(&stream.snapshot());
-            if turns != previous {
-                let horizon = turns.iter().map(|t| t.fine_ms).max().unwrap_or(0);
-                log::info!(
-                    "Parlanti dal vivo: audio={} ms, turni={} ms, ritardo={} ms, coda/calcolo={} ms",
-                    frame.fine_ms,
-                    horizon,
-                    u128::from(frame.fine_ms.saturating_sub(horizon))
-                        + frame.sent.elapsed().as_millis(),
-                    frame.sent.elapsed().as_millis()
-                );
-                previous = turns.clone();
-                on_turns(turns);
-            }
-        }
-        frames.check(cancel)?;
-        catch_native(|| stream.finalize())?;
-        frames.check(cancel)?;
-        on_turns(speaker_turns(&stream.snapshot()));
-        Ok(())
-    }
     /// Nemotron analizza il file a blocchi con il preset finale. Il PCM non viene accumulato:
     /// il runtime conserva le cache del preset e i turni, non l'intero audio della Registrazione.
     pub fn diarize_saved(
@@ -391,7 +344,3 @@ fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T
             e => EngineError::Internal(format!("transcribe-cpp: {e}")),
         })
 }
-
-#[cfg(all(test, target_os = "windows"))]
-#[path = "windows_benchmark.rs"]
-mod windows_benchmark;

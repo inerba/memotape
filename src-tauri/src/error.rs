@@ -9,10 +9,6 @@ pub enum AppError {
     AudioCleaningIncompatible(String),
     #[error("pulizia audio interrotta: {0}")]
     AudioCleaningFailed(String),
-    #[error("il riconoscimento dei Parlanti dal vivo non tiene il passo")]
-    LiveDiarizationLagging,
-    #[error("Parlanti dal vivo interrotti: {0}")]
-    LiveDiarizationUnavailable(String),
     #[error("modello Nemotron Diarization locale assente")]
     LocalDiarizerMissing,
     #[error("modello Nemotron Diarization locale incompatibile: {0}")]
