@@ -164,6 +164,20 @@
       "localModelMissing": "Nessun modello locale scelto",
       "chooseLocalModel": "Scegli modello locale…"
     },
+    "vocabolario": {
+      "title": "Vocabolario",
+      "description": "Nomi, marchi e parole tecniche che ogni Trascrizione deve scrivere esattamente così. Valgono dalla prossima Trascrizione e non cambiano i Tape già trascritti.",
+      "label": "Nuovo Termine",
+      "placeholder": "Un nome, un marchio, una parola tecnica",
+      "add": "Aggiungi",
+      "remove": "Rimuovi {{termine}}",
+      "doppione": "«{{termine}}» è già nel Vocabolario.",
+      "nonAmmesso": "«{{termine}}» contiene <| o |>, che il Vocabolario non ammette.",
+      "scartati_one": "{{count}} riga scartata: doppione o con <| o |>.",
+      "scartati_many": "{{count}} righe scartate: doppioni o con <| o |>.",
+      "scartati_other": "{{count}} righe scartate: doppioni o con <| o |>.",
+      "whisper": "Con Whisper i Termini entrano anche nel prompt iniziale: con un elenco lungo Whisper considera solo gli ultimi."
+    },
     "recording": {
       "title": "Registrazione e audio",
       "description": "Valgono dalla prossima Registrazione.",

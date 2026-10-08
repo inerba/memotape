@@ -164,6 +164,20 @@
       "localModelMissing": "Aucun modèle local choisi",
       "chooseLocalModel": "Choisir un modèle local…"
     },
+    "vocabolario": {
+      "title": "Vocabulaire",
+      "description": "Noms, marques et termes techniques que chaque Transcription doit écrire exactement ainsi. Ils s’appliquent à partir de la prochaine Transcription et ne modifient pas les Tapes déjà transcrits.",
+      "label": "Nouveau terme",
+      "placeholder": "Un nom, une marque, un terme technique",
+      "add": "Ajouter",
+      "remove": "Retirer {{termine}}",
+      "doppione": "« {{termine}} » est déjà dans le Vocabulaire.",
+      "nonAmmesso": "« {{termine}} » contient <| ou |>, que le Vocabulaire n’accepte pas.",
+      "scartati_one": "{{count}} ligne ignorée : doublon ou avec <| ou |>.",
+      "scartati_many": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
+      "scartati_other": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
+      "whisper": "Avec Whisper, les termes entrent aussi dans le prompt initial : avec une longue liste, Whisper ne prend en compte que les derniers."
+    },
     "recording": {
       "title": "Enregistrement et audio",
       "description": "S'appliquent à partir du prochain enregistrement.",
