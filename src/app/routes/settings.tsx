@@ -57,6 +57,7 @@ import {
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import type { SettingField } from "@/features/settings/settings-writer";
+import { VocabolarioList } from "@/features/settings/vocabolario-list";
 import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
@@ -435,6 +436,7 @@ export function SettingsPage() {
                     selected={settings.model}
                   />
                   <SettingFeedback label={t("models.choose")} name="model" />
+                  <VocabolarioList />
                   <div className="flex items-center gap-1 border-t pt-7">
                     <h3 className="font-medium text-sm">
                       {t("settings.transcription.diarization")}

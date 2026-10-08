@@ -164,6 +164,19 @@
       "localModelMissing": "No local model selected",
       "chooseLocalModel": "Choose local model…"
     },
+    "vocabolario": {
+      "title": "Vocabulary",
+      "description": "Names, brands and technical words that every Transcription should spell exactly like this. They apply from the next Transcription and don't change Tapes already transcribed.",
+      "label": "New term",
+      "placeholder": "A name, a brand, a technical word",
+      "add": "Add",
+      "remove": "Remove {{termine}}",
+      "doppione": "“{{termine}}” is already in the Vocabulary.",
+      "nonAmmesso": "“{{termine}}” contains <| or |>, which the Vocabulary doesn't allow.",
+      "scartati_one": "{{count}} line skipped: duplicate or containing <| or |>.",
+      "scartati_other": "{{count}} lines skipped: duplicates or containing <| or |>.",
+      "whisper": "With Whisper the terms also go into the initial prompt: with a long list Whisper only considers the last ones."
+    },
     "recording": {
       "title": "Recording and audio",
       "description": "Applied from the next recording.",
