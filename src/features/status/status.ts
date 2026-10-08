@@ -178,6 +178,17 @@ export function withMovedSource(
     : status;
 }
 
+/** Un'Attività in corso: intanto le altre e Apri file sono disabilitate. */
+export function isBusy({ phase }: Status): boolean {
+  return (
+    phase === "transcribing" ||
+    phase === "diarizing" ||
+    phase === "preparingRecording" ||
+    phase === "recording" ||
+    phase === "completing"
+  );
+}
+
 /** Se accanto al messaggio serve il link alle Impostazioni, per scaricare o cambiare modello. */
 export function needsSettings(status: Status): boolean {
   return needsSettingsError(shownError(status));

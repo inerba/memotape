@@ -1,10 +1,17 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { TFunction } from "i18next";
 import { Check, CircleAlert, Copy, X } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
-import { useHomeState } from "@/app/routes/home-state";
+import { centerView, selection, useHomeState } from "@/app/routes/home-state";
 import {
   type AppError,
   commands,
@@ -63,13 +70,14 @@ import { useSettings } from "@/features/settings/settings-context";
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
 import { fileName, isTape } from "@/features/source/file-name";
-import type { TapeView } from "@/features/source/view";
+import { opening, pendingTape, type TapeView } from "@/features/source/view";
 import {
   afterDiarization,
   afterTranscription,
   type Banner,
   bannerOf,
   errorText,
+  isBusy,
   type Status,
   statusText,
 } from "@/features/status/status";
@@ -94,36 +102,8 @@ const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
 const NOTICE_MS = 6000;
 
-/** Il Tape evidenziato nella barra laterale: quello mostrato nell'area principale. */
-function selectedTape(
-  listOpen: boolean,
-  browsed: TapeView | null,
-  recording: boolean,
-  source: string | null
-): string | null {
-  if (listOpen) {
-    return null;
-  }
-  return browsed?.path ?? (recording ? null : source);
-}
-
 function internalError(e: unknown): AppError {
   return { code: "internal", detail: String(e) };
-}
-
-function isHomeView(view: {
-  listOpen: boolean;
-  homeOpen: boolean;
-  browsed: TapeView | null;
-  source: string | null;
-  recording: boolean;
-  completing: boolean;
-}) {
-  return (
-    !view.listOpen &&
-    (view.homeOpen ||
-      !(view.browsed || view.source || view.recording || view.completing))
-  );
 }
 
 export function HomePage() {
@@ -146,17 +126,19 @@ export function HomePage() {
   // corso), il timer, la pulizia e il Tape consultato. Impostazioni illeggibili all'avvio: l'avviso
   // lo dice finché non c'è altro.
   const {
-    browsed,
     cleaningDismissed,
     cleaningFailures,
     cleaningPreparing,
     conversation,
     dispatch,
     elapsedMs,
+    highlight,
     info,
     ready,
+    revision,
     session,
     source,
+    state,
     status,
   } = useHomeState(
     loadError
@@ -178,56 +160,35 @@ export function HomePage() {
   const [confirmDiarize, setConfirmDiarize] = useState(false);
   const diarizationInFlight = useRef(false);
   const confirmationOpen = confirmTranscribe || confirmDiarize;
-  // La Frase di un risultato della ricerca, evidenziata nel Tape aperto.
-  const [highlight, setHighlight] = useState<PhraseRef | null>(null);
-  // Cambia per riaprire il Tape già aperto dall'inizio del testo.
-  const [revision, setRevision] = useState(0);
-  // Il Tape del doppio clic in Esplora file, finché non si può aprire.
-  const [pendingTape, setPendingTape] = useState<string | null>(null);
-  // I file trascinati da Esplora file sopra la finestra, e quelli appena rilasciati.
+  // I file trascinati da Esplora file sopra la finestra.
   const [dragged, setDragged] = useState<string[] | null>(null);
-  const [dropped, setDropped] = useState<string[] | null>(null);
-  // L'elenco completo dei Tape della Raccolta nell'area principale.
-  const [listOpen, setListOpen] = useState(false);
-  const [homeOpen, setHomeOpen] = useState(false);
   const { lastPath, remember, move: moveLastTape, forget } = useLastTape();
   const running = status.phase === "transcribing";
   const diarizing = status.phase === "diarizing";
   const recording = status.phase === "recording";
-  // Dopo Stop, finché la Trascrizione dal vivo smaltisce la coda: fa ancora parte della Registrazione.
-  const completing = status.phase === "completing";
   const paused = status.phase === "recording" && status.paused;
-  // Una Attività alla volta: durante l'una, l'altra e Apri file sono disabilitate.
   const preparing = status.phase === "preparingRecording";
-  const busy = running || diarizing || recording || completing || preparing;
+  // Una Attività alla volta: durante l'una, l'altra e Apri file sono disabilitate.
+  const busy = isBusy(status);
   // Impostazioni, aperta sopra questa finestra.
   const settingsPage = useOutlet();
   const navigate = useNavigate();
   const { list: library, loading: libraryLoading } = useLibrary(setNotice);
   const raccolta = chosenRaccolta(settings.raccolta, library.raccolte);
 
-  // La Registrazione è partita: la sua vista prende il posto di quella di prima.
-  useEffect(() => {
-    if (status.phase !== "recording" || !pendingRecording.current) {
-      return;
-    }
-    setHighlight(null);
-    setHomeOpen(false);
-    setListOpen(false);
-    dispatch({ type: "browsingClosed" });
-  }, [dispatch, status.phase]);
-
   // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
   // il listener, così uno arrivato nel frattempo non si perde.
   useEffect(() => {
     const takeTape = () =>
-      commands.takePendingTape().then((path) => path && setPendingTape(path));
+      commands
+        .takePendingTape()
+        .then((path) => path && dispatch({ path, type: "tapeRequested" }));
     const tapeRequested = events.tapeRequested.listen(takeTape);
     tapeRequested.then(takeTape);
     return () => {
       tapeRequested.then((stop) => stop());
     };
-  }, []);
+  }, [dispatch]);
 
   // Spenta la pulizia di un Ingresso, la sua preparazione non si mostra più.
   const microfonoPulito = settings.audioMicrofono?.pulizia;
@@ -240,24 +201,6 @@ export function HomePage() {
       dispatch({ ingresso: "sistema", type: "cleaningOff" });
     }
   }, [dispatch, microfonoPulito, sistemaPulito]);
-
-  // Il drop dei file passa da Tauri, che dà i percorsi già all'ingresso (ADR-0011).
-  useEffect(() => {
-    const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
-      // Un trascinamento senza file (testo da un'altra app) non ha percorsi: niente velo.
-      if (payload.type === "enter") {
-        setDragged(payload.paths.length > 0 ? payload.paths : null);
-      } else if (payload.type === "leave") {
-        setDragged(null);
-      } else if (payload.type === "drop") {
-        setDragged(null);
-        setDropped(payload.paths);
-      }
-    });
-    return () => {
-      unlisten.then((stop) => stop());
-    };
-  }, []);
 
   useEffect(() => {
     if (!copied) {
@@ -284,17 +227,22 @@ export function HomePage() {
   }, [notice, message]);
 
   // Il Tape diventa la Sorgente, con il suo testo, senza ritrascrivere; da un risultato della
-  // ricerca con la Frase trovata evidenziata. Restituisce l'errore, se non si apre.
+  // ricerca con la Frase trovata evidenziata; `restart`: la sua vista riparte dall'inizio.
+  // Restituisce l'errore, se non si apre.
   const loadTape = useCallback(
-    async (path: string, phrase?: PhraseRef) => {
+    async (path: string, phrase?: PhraseRef, restart = false) => {
       const result = await commands.openTape(path);
       if (result.status === "error") {
         return result.error;
       }
       remember(path);
-      setHomeOpen(false);
-      dispatch({ path, tape: result.data, type: "sourceOpened" });
-      setHighlight(phrase ?? null);
+      dispatch({
+        path,
+        phrase,
+        restart,
+        tape: result.data,
+        type: "sourceOpened",
+      });
       return null;
     },
     [dispatch, remember]
@@ -310,91 +258,64 @@ export function HomePage() {
     [dispatch, loadTape]
   );
 
-  // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla; quello su cui
-  // lavora l'Attività riporta alla sua vista.
+  // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla.
   const browse = useCallback(
     async (path: string, phrase?: PhraseRef) => {
-      setHighlight(phrase ?? null);
-      // Solo Trascrivi lavora sulla Sorgente; durante una Registrazione è un Tape come gli altri.
-      if (path === source && (running || diarizing)) {
-        setHomeOpen(false);
-        dispatch({ type: "browsingClosed" });
-        return;
-      }
       const result = await commands.openTape(path);
       if (result.status === "error") {
         setNotice(result.error);
         return;
       }
       remember(path);
-      setHomeOpen(false);
-      dispatch({ path, tape: result.data, type: "tapeBrowsed" });
+      dispatch({ path, phrase, tape: result.data, type: "tapeBrowsed" });
     },
-    [diarizing, dispatch, remember, running, source]
+    [dispatch, remember]
   );
 
-  // Finita l'Attività torna la sua vista, con il suo esito aperto (il Tape di una Registrazione).
-  useEffect(() => {
-    if (!busy) {
-      dispatch({ type: "browsingClosed" });
-    }
-  }, [busy, dispatch]);
-
-  // Una Sorgente scelta con Apri file o con il doppio clic su un Tape in Esplora file.
-  const openPath = useCallback(
-    (path: string, phrase?: PhraseRef) => {
-      if (isTape(path)) {
+  // Un Tape della barra laterale, della Libreria o della ricerca (`fromLibrary`, con la Frase
+  // trovata), o un percorso di Apri file, del doppio clic o rilasciato: la vista della Sorgente
+  // dice cosa leggere, qui lo si legge.
+  const requestOpen = useCallback(
+    (path: string, phrase?: PhraseRef, fromLibrary = false) => {
+      const how = opening(state.view, status, path, fromLibrary);
+      dispatch({ fromLibrary, path, phrase, type: "openRequested" });
+      if (how === "restart") {
+        remember(path);
+      } else if (how === "browse") {
+        browse(path, phrase);
+      } else if (how === "source" && isTape(path)) {
         openTape(path, phrase);
-        return;
+      } else if (how === "source") {
+        dispatch({ path, type: "sourceOpened" });
       }
-      setHomeOpen(false);
-      dispatch({ path, type: "sourceOpened" });
-      setHighlight(null);
     },
-    [dispatch, openTape]
+    [browse, dispatch, openTape, remember, state.view, status]
   );
 
   const pickFile = useCallback(async () => {
     const picked = await commands.pickSource(t("source.filter"));
     if (picked) {
-      setListOpen(false);
-      openPath(picked);
+      requestOpen(picked);
     }
-  }, [openPath, t]);
+  }, [requestOpen, t]);
 
-  // Un Tape della barra laterale, dell'elenco completo o della ricerca, con la Frase trovata.
   const openFromLibrary = useCallback(
-    (path: string, phrase?: PhraseRef) => {
-      setListOpen(false);
-      if (busy) {
-        browse(path, phrase);
-      } else if (path === source) {
-        setHomeOpen(false);
-        remember(path);
-        // Il Tape già aperto: torna alla Frase trovata, o all'inizio del testo.
-        setHighlight(phrase ?? null);
-        setRevision((n) => n + 1);
-      } else {
-        openPath(path, phrase);
-      }
-    },
-    [browse, busy, openPath, remember, source]
+    (path: string, phrase?: PhraseRef) => requestOpen(path, phrase, true),
+    [requestOpen]
   );
 
-  // "Attività in corso" riporta alla sua vista.
-  const showActivity = useCallback(() => {
-    setHomeOpen(false);
-    dispatch({ type: "browsingClosed" });
-    // La Frase trovata era del Tape consultato.
-    setHighlight(null);
-    setListOpen(false);
-  }, [dispatch]);
-
-  const showAll = useCallback(() => setListOpen(true), []);
-  const showHome = useCallback(() => {
-    setListOpen(false);
-    setHomeOpen(true);
-  }, []);
+  const showActivity = useCallback(
+    () => dispatch({ type: "activityShown" }),
+    [dispatch]
+  );
+  const showAll = useCallback(
+    () => dispatch({ type: "libraryShown" }),
+    [dispatch]
+  );
+  const showHome = useCallback(
+    () => dispatch({ type: "homeShown" }),
+    [dispatch]
+  );
 
   const chooseRaccolta = useCallback(
     async (value: string | null) => {
@@ -434,34 +355,41 @@ export function HomePage() {
   // Un Tape arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
   // intanto è disabilitata) e che si chiuda la conferma di Trascrivi. Si apre sulla finestra
   // principale, anche se c'era Impostazioni sopra.
+  const tapeToOpen = pendingTape(state.view, status, confirmationOpen);
   useEffect(() => {
-    if (pendingTape && !busy && !confirmationOpen) {
-      setPendingTape(null);
-      setListOpen(false);
+    if (tapeToOpen) {
       navigate("/");
-      openPath(pendingTape);
+      requestOpen(tapeToOpen);
     }
-  }, [busy, confirmationOpen, navigate, openPath, pendingTape]);
+  }, [navigate, requestOpen, tapeToOpen]);
 
   // Un file rilasciato si apre come con Apri file, anche da Impostazioni; durante un'Attività solo
   // un Tape, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
+  const dropped = useEffectEvent((paths: string[]) => {
+    const verdict = dropVerdict(paths, busy);
+    if (verdict.accepted && !confirmationOpen) {
+      navigate("/");
+      requestOpen(verdict.path);
+    }
+  });
+
+  // Il drop dei file passa da Tauri, che dà i percorsi già all'ingresso (ADR-0011).
   useEffect(() => {
-    if (!dropped) {
-      return;
-    }
-    setDropped(null);
-    const verdict = dropVerdict(dropped, busy);
-    if (!verdict.accepted || confirmationOpen) {
-      return;
-    }
-    navigate("/");
-    setListOpen(false);
-    if (busy) {
-      browse(verdict.path);
-    } else {
-      openPath(verdict.path);
-    }
-  }, [browse, busy, confirmationOpen, dropped, navigate, openPath]);
+    const unlisten = getCurrentWebview().onDragDropEvent(({ payload }) => {
+      // Un trascinamento senza file (testo da un'altra app) non ha percorsi: niente velo.
+      if (payload.type === "enter") {
+        setDragged(payload.paths.length > 0 ? payload.paths : null);
+      } else if (payload.type === "leave") {
+        setDragged(null);
+      } else if (payload.type === "drop") {
+        setDragged(null);
+        dropped(payload.paths);
+      }
+    });
+    return () => {
+      unlisten.then((stop) => stop());
+    };
+  }, []);
 
   const open = useCallback(async () => {
     if (!source) {
@@ -483,7 +411,6 @@ export function HomePage() {
       return;
     }
     dispatch({ kind: "transcription", type: "start" });
-    setHighlight(null);
     setCancelling(false);
     try {
       const result = await commands.transcribe(source, raccolta);
@@ -516,10 +443,9 @@ export function HomePage() {
     setCancelling(false);
     try {
       const result = await commands.diarize(source);
-      const error = result.status === "ok" ? await loadTape(source) : null;
-      if (result.status === "ok" && !error) {
-        setRevision((current) => current + 1);
-      }
+      // Riuscita, la vista del Tape riparte dall'inizio.
+      const error =
+        result.status === "ok" ? await loadTape(source, undefined, true) : null;
       dispatch({
         status: error
           ? { error, phase: "failed" }
@@ -855,9 +781,9 @@ export function HomePage() {
   const openRaccolta = useCallback(
     (value: string) => {
       chooseRaccolta(value);
-      setListOpen(true);
+      dispatch({ type: "libraryShown" });
     },
-    [chooseRaccolta]
+    [chooseRaccolta, dispatch]
   );
 
   // L'avviso in cima: l'errore di un'operazione, un messaggio o l'esito dell'Attività.
@@ -933,97 +859,87 @@ export function HomePage() {
     />
   );
 
-  const showingHome = isHomeView({
-    browsed,
-    completing,
-    homeOpen,
-    listOpen,
-    recording,
-    source,
-  });
+  const center = centerView(state);
+  const selected = selection(state);
   const renderMainView = () => {
-    let mainView: React.ReactNode;
-    if (status.phase === "preparingRecording") {
-      mainView = (
-        <>
-          <TopBar crumbs={<Crumb current>{t("recording.title")}</Crumb>} />
-          <div className="flex-1" />
-          <Dock>
-            <PreparationPanel
-              cancelling={cancelling}
-              onCancel={cancelRecordingStart}
-              stage={status.stage}
+    switch (center.kind) {
+      case "preparation":
+        return (
+          <>
+            <TopBar crumbs={<Crumb current>{t("recording.title")}</Crumb>} />
+            <div className="flex-1" />
+            <Dock>
+              <PreparationPanel
+                cancelling={cancelling}
+                onCancel={cancelRecordingStart}
+                stage={center.stage}
+              />
+            </Dock>
+          </>
+        );
+      case "library":
+        return (
+          <>
+            <TopBar crumbs={<Crumb current>{t("library.title")}</Crumb>} />
+            <AllTapes
+              list={library}
+              onError={setNotice}
+              onMove={moveTape}
+              onMoved={moved}
+              onOpen={openFromLibrary}
+              onRaccolta={chooseRaccolta}
+              onTrash={requestTrash}
+              raccolta={raccolta}
             />
-          </Dock>
-        </>
-      );
-    } else if (listOpen) {
-      mainView = (
-        <>
-          <TopBar crumbs={<Crumb current>{t("library.title")}</Crumb>} />
-          <AllTapes
-            list={library}
-            onError={setNotice}
-            onMove={moveTape}
-            onMoved={moved}
+          </>
+        );
+      case "home":
+        return (
+          <LibraryHome
+            busy={busy}
+            lastPath={lastPath}
+            loading={libraryLoading}
+            onImport={pickFile}
             onOpen={openFromLibrary}
-            onRaccolta={chooseRaccolta}
-            onTrash={requestTrash}
-            raccolta={raccolta}
+            onRecord={record}
+            onShowAll={showAll}
+            tapes={library.tapes}
           />
-        </>
-      );
-    } else if (showingHome) {
-      mainView = (
-        <LibraryHome
-          busy={busy}
-          lastPath={lastPath}
-          loading={libraryLoading}
-          onImport={pickFile}
-          onOpen={openFromLibrary}
-          onRecord={record}
-          onShowAll={showAll}
-          tapes={library.tapes}
-        />
-      );
-    } else if (browsed) {
-      mainView = tapePane(browsed, false);
-    } else if (recording || completing) {
-      mainView = (
-        <LiveView
-          cleaningFailures={cleaningFailures}
-          cleaningPreparing={cleaningPreparing}
-          conversation={conversation}
-          copied={copied}
-          onCopy={copyActivity}
-          onError={setNotice}
-          onPausedChange={setPaused}
-          paused={paused}
-          sessionId={"id" in session ? session.id : null}
-          status={status}
-        />
-      );
-    } else if (source && isTape(source)) {
-      mainView = tapePane({ conversation, info, path: source }, true);
-    } else if (source) {
-      mainView = (
-        <FileView
-          busy={busy}
-          conversation={conversation}
-          copied={copied}
-          onCopy={copyActivity}
-          onError={failed}
-          onOpen={open}
-          onTranscribe={requestTranscription}
-          running={running}
-          source={source}
-        />
-      );
-    } else {
-      mainView = null;
+        );
+      case "live":
+        return (
+          <LiveView
+            cleaningFailures={cleaningFailures}
+            cleaningPreparing={cleaningPreparing}
+            conversation={conversation}
+            copied={copied}
+            onCopy={copyActivity}
+            onError={setNotice}
+            onPausedChange={setPaused}
+            paused={paused}
+            sessionId={"id" in session ? session.id : null}
+            status={status}
+          />
+        );
+      case "tape":
+        return tapePane(center.tape, center.own);
+      case "file":
+        return (
+          <FileView
+            busy={busy}
+            conversation={conversation}
+            copied={copied}
+            onCopy={copyActivity}
+            onError={failed}
+            onOpen={open}
+            onTranscribe={requestTranscription}
+            running={running}
+            source={center.path}
+          />
+        );
+      default:
+        return center satisfies never;
     }
-
-    return mainView;
   };
 
   let recordingAnnouncement = "";
@@ -1053,14 +969,9 @@ export function HomePage() {
           record={
             <RecordMenu disabled={busy} onError={failed} onRecord={record} />
           }
-          selected={selectedTape(
-            listOpen || showingHome,
-            browsed,
-            recording || completing,
-            source
-          )}
-          showingAll={listOpen}
-          showingHome={showingHome}
+          selected={selected.tape}
+          showingAll={selected.library}
+          showingHome={selected.home}
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
           {renderMainView()}

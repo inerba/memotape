@@ -21,8 +21,13 @@ const opened = (text: string): OpenedTape => ({
   ],
 });
 
+const idle = { phase: "idle", source: null } as const;
+
 const run = (actions: SourceViewAction[]) =>
-  actions.reduce(sourceView, INITIAL_VIEW);
+  actions.reduce(
+    (state, action) => sourceView(state, action, idle),
+    INITIAL_VIEW
+  );
 
 test("un Tape spostato resta aperto con il percorso nuovo, come Sorgente e come Tape consultato", () => {
   const state = run([
@@ -43,7 +48,11 @@ test("un Tape nel Cestino si chiude se era aperto, come Sorgente o come Tape con
   ]);
   expect(consulted.source).toBe("a.tape");
   expect(consulted.browsed).toBeNull();
-  const own = sourceView(consulted, { path: "a.tape", type: "tapeTrashed" });
+  const own = sourceView(
+    consulted,
+    { path: "a.tape", type: "tapeTrashed" },
+    idle
+  );
   expect(own.source).toBeNull();
 });
 
@@ -59,6 +68,6 @@ test("una modifica vale per il Tape consultato con quel percorso e solo per quel
   ]);
   expect(state.browsed?.conversation.parlanti).toEqual({});
   expect(
-    sourceView(state, change("b.tape")).browsed?.conversation.parlanti
+    sourceView(state, change("b.tape"), idle).browsed?.conversation.parlanti
   ).toEqual({ "mix:1": "Anna" });
 });

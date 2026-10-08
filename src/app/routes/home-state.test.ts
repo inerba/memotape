@@ -1,11 +1,14 @@
 import { expect, test } from "bun:test";
 import {
+  centerView,
   type HomeAction,
   type HomeState,
   home,
   INITIAL_HOME,
+  selection,
 } from "@/app/routes/home-state";
 import type { OpenedTape, TapeInfo } from "@/bindings";
+import { opening, pendingTape } from "@/features/source/view";
 import { visiblePhrases, withTesto } from "@/features/transcription/phrases";
 
 const info: TapeInfo = {
@@ -98,25 +101,27 @@ test("il Tape scritto alla fine di Trascrivi prende il testo, lo Status lo dà l
 });
 
 test("una correzione vale per la Sorgente e per il Tape consultato con quel percorso", () => {
-  const corrected = (path: string) =>
-    run([
-      { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
-      { kind: "diarization", type: "start" },
-      { path: "b.tape", tape: tape("B."), type: "tapeBrowsed" },
+  const correction = (path: string): HomeAction => ({
+    change: (c) => withTesto(c, { ingresso: "mix", phraseId: 0 }, "Corretto."),
+    info: (i) => i && { ...i, correttoAMano: true },
+    path,
+    type: "tapeChanged",
+  });
+  const diarizing = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+    { kind: "diarization", type: "start" },
+    { path: "b.tape", tape: tape("B."), type: "tapeBrowsed" },
+  ]);
+  const source = run(
+    [
       { status: { path: "a.tape", phase: "diarized" }, type: "outcome" },
-      {
-        change: (c) =>
-          withTesto(c, { ingresso: "mix", phraseId: 0 }, "Corretto."),
-        info: (i) => i && { ...i, correttoAMano: true },
-        path,
-        type: "tapeChanged",
-      },
-    ]);
-  const source = corrected("a.tape");
+      correction("a.tape"),
+    ],
+    diarizing
+  );
   expect(texts(source)).toEqual(["Corretto."]);
   expect(source.activity.info?.correttoAMano).toBe(true);
-  expect(source.view.browsed?.conversation.phrases[0]?.text).toBe("B.");
-  const browsed = corrected("b.tape");
+  const browsed = home(diarizing, correction("b.tape"));
   expect(texts(browsed)).toEqual(["A."]);
   expect(browsed.view.browsed?.conversation.phrases[0]?.text).toBe("Corretto.");
   expect(browsed.view.browsed?.info?.correttoAMano).toBe(true);
@@ -171,4 +176,228 @@ test("durante una Registrazione la Sorgente nel Cestino si chiude ma la vista de
   expect(state.view.source).toBeNull();
   expect(texts(state)).toEqual(["Dal vivo."]);
   expect(state.activity.status.phase).toBe("recording");
+});
+
+const transcribing: HomeAction[] = [
+  { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+  { kind: "transcription", type: "start" },
+];
+
+const found = { ingresso: "mix" as const, phraseId: 0 };
+
+test("aprire un Tape dalla Libreria lo rende la Sorgente, evidenziato nella barra laterale", () => {
+  const state = run([
+    { type: "libraryShown" },
+    { fromLibrary: true, path: "a.tape", type: "openRequested" },
+    { path: "a.tape", phrase: found, tape: tape("A."), type: "sourceOpened" },
+  ]);
+  const center = centerView(state);
+  expect(center.kind === "tape" && center.own).toBe(true);
+  expect(center.kind === "tape" && center.tape.path).toBe("a.tape");
+  expect(selection(state)).toEqual({
+    home: false,
+    library: false,
+    tape: "a.tape",
+  });
+  expect(state.view.highlight).toEqual(found);
+});
+
+test("riaprire la Sorgente dalla Libreria riparte dall'inizio, o dalla Frase trovata", () => {
+  const open = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+    { type: "homeShown" },
+  ]);
+  expect(opening(open.view, open.activity.status, "a.tape", true)).toBe(
+    "restart"
+  );
+  const again = home(open, {
+    fromLibrary: true,
+    path: "a.tape",
+    phrase: found,
+    type: "openRequested",
+  });
+  expect(again.view.revision).toBe(open.view.revision + 1);
+  expect(again.view.highlight).toEqual(found);
+  expect(centerView(again).kind).toBe("tape");
+  // Apri file sullo stesso Tape lo rilegge, senza ripartire.
+  expect(opening(open.view, open.activity.status, "a.tape", false)).toBe(
+    "source"
+  );
+});
+
+test("durante un'Attività un Tape della Libreria si consulta senza cambiare la Sorgente", () => {
+  const busy = run(transcribing);
+  expect(opening(busy.view, busy.activity.status, "b.tape", true)).toBe(
+    "browse"
+  );
+  const state = run(
+    [
+      {
+        fromLibrary: true,
+        path: "b.tape",
+        phrase: found,
+        type: "openRequested",
+      },
+      { path: "b.tape", phrase: found, tape: tape("B."), type: "tapeBrowsed" },
+    ],
+    busy
+  );
+  const center = centerView(state);
+  expect(center.kind === "tape" && !center.own).toBe(true);
+  expect(center.kind === "tape" && center.tape.path).toBe("b.tape");
+  expect(state.view.source).toBe("a.tape");
+  expect(state.view.highlight).toEqual(found);
+  expect(selection(state).tape).toBe("b.tape");
+});
+
+test("durante Trascrivi aprire la Sorgente riporta alla vista dell'Attività", () => {
+  const busy = run([
+    ...transcribing,
+    { path: "b.tape", tape: tape("B."), type: "tapeBrowsed" },
+  ]);
+  expect(opening(busy.view, busy.activity.status, "a.tape", true)).toBe(
+    "activity"
+  );
+  const state = home(busy, {
+    fromLibrary: true,
+    path: "a.tape",
+    phrase: found,
+    type: "openRequested",
+  });
+  const center = centerView(state);
+  expect(center.kind === "tape" && center.own).toBe(true);
+  expect(state.view.browsed).toBeNull();
+  expect(state.view.highlight).toEqual(found);
+  // Durante una Registrazione la Sorgente è un Tape come gli altri.
+  const live = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+    ...recording,
+  ]);
+  expect(opening(live.view, live.activity.status, "a.tape", true)).toBe(
+    "browse"
+  );
+});
+
+test("Attività in corso riporta alla sua vista e toglie il Tape consultato", () => {
+  const state = run([
+    ...transcribing,
+    { path: "b.tape", phrase: found, tape: tape("B."), type: "tapeBrowsed" },
+    { type: "libraryShown" },
+    { type: "activityShown" },
+  ]);
+  expect(centerView(state).kind).toBe("tape");
+  expect(state.view.browsed).toBeNull();
+  expect(state.view.highlight).toBeNull();
+  expect(selection(state).tape).toBe("a.tape");
+});
+
+test("a fine Attività torna la Sorgente con il suo esito, senza il Tape consultato", () => {
+  const state = run([
+    ...transcribing,
+    { path: "b.tape", tape: tape("B."), type: "tapeBrowsed" },
+    { path: "a.tape", tape: tape("Trascritto."), type: "sourceOpened" },
+    { status: { path: "a.tape", phase: "finished" }, type: "outcome" },
+  ]);
+  const center = centerView(state);
+  expect(center.kind === "tape" && center.own).toBe(true);
+  expect(state.view.browsed).toBeNull();
+  expect(texts(state)).toEqual(["Trascritto."]);
+});
+
+test("all'avvio della Registrazione la sua vista prende il posto di Home, Libreria e Tape consultato", () => {
+  const preparing = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+    record,
+    { path: "b.tape", phrase: found, tape: tape("B."), type: "tapeBrowsed" },
+    { type: "libraryShown" },
+    { type: "homeShown" },
+  ]);
+  expect(centerView(preparing).kind).toBe("preparation");
+  const state = home(preparing, {
+    payload: { phase: "recording", sessionId: "live" },
+    type: "recordingPhase",
+  });
+  expect(centerView(state).kind).toBe("live");
+  expect(state.view.browsed).toBeNull();
+  expect(state.view.highlight).toBeNull();
+  expect(selection(state)).toEqual({ home: false, library: false, tape: null });
+});
+
+test("Home e Libreria si aprono e si chiudono senza perdere la Sorgente", () => {
+  const open = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+  ]);
+  const library = home(open, { type: "libraryShown" });
+  expect(centerView(library).kind).toBe("library");
+  expect(selection(library)).toEqual({
+    home: false,
+    library: true,
+    tape: null,
+  });
+  const shown = home(library, { type: "homeShown" });
+  expect(centerView(shown).kind).toBe("home");
+  expect(selection(shown)).toEqual({ home: true, library: false, tape: null });
+  const back = home(shown, {
+    fromLibrary: true,
+    path: "a.tape",
+    type: "openRequested",
+  });
+  expect(centerView(back).kind).toBe("tape");
+  expect(back.view.source).toBe("a.tape");
+});
+
+test("senza Sorgente si vede la Home; un file aperto ha la sua vista", () => {
+  expect(centerView(INITIAL_HOME).kind).toBe("home");
+  expect(selection(INITIAL_HOME).home).toBe(true);
+  const file = run([{ path: "a.mp3", type: "sourceOpened" }]);
+  expect(centerView(file)).toEqual({ kind: "file", path: "a.mp3" });
+  expect(selection(file).tape).toBe("a.mp3");
+});
+
+test("un Tape rilasciato durante un'Attività si consulta; senza Attività un file diventa la Sorgente", () => {
+  const busy = run(transcribing);
+  expect(opening(busy.view, busy.activity.status, "c.tape", false)).toBe(
+    "browse"
+  );
+  expect(
+    opening(INITIAL_HOME.view, INITIAL_HOME.activity.status, "c.mp3", false)
+  ).toBe("source");
+});
+
+test("il Tape del doppio clic aspetta la fine dell'Attività e della conferma, poi si apre una volta", () => {
+  const waiting = run([
+    ...transcribing,
+    { path: "c.tape", type: "tapeRequested" },
+  ]);
+  expect(pendingTape(waiting.view, waiting.activity.status, false)).toBeNull();
+  const done = home(waiting, {
+    status: { phase: "noSpeech" },
+    type: "outcome",
+  });
+  expect(pendingTape(done.view, done.activity.status, true)).toBeNull();
+  expect(pendingTape(done.view, done.activity.status, false)).toBe("c.tape");
+  const opened = home(done, { path: "c.tape", type: "openRequested" });
+  expect(pendingTape(opened.view, opened.activity.status, false)).toBeNull();
+});
+
+test("Trascrivi toglie la Frase evidenziata", () => {
+  const state = run([
+    { path: "a.tape", phrase: found, tape: tape("A."), type: "sourceOpened" },
+    { kind: "transcription", type: "start" },
+  ]);
+  expect(state.view.highlight).toBeNull();
+});
+
+test("aprire un altro Tape o registrare cambia la vista del Tape, e con lei la rinomina in corso", () => {
+  const open = run([
+    { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
+  ]);
+  const other = home(open, {
+    path: "b.tape",
+    tape: tape("B."),
+    type: "sourceOpened",
+  });
+  const center = centerView(other);
+  expect(center.kind === "tape" && center.tape.path).toBe("b.tape");
+  expect(centerView(run(recording, other)).kind).toBe("live");
 });
