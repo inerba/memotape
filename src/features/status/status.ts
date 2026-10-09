@@ -23,7 +23,7 @@ export type Status =
     }
   | { phase: "recorded"; path: string }
   | { phase: "transcribing"; percent: number | null; diarizing?: boolean }
-  | { phase: "diarizing" }
+  | { phase: "diarizing"; percent?: number }
   | { phase: "diarized"; path: string }
   | { phase: "diarizationCancelled" }
   | {
@@ -55,7 +55,7 @@ export function statusText(status: Status, t: TFunction): string {
       return t("status.recorded", { path: status.path });
     case "transcribing":
       if (status.diarizing) {
-        return t("status.diarizing");
+        return diarizingText(status.percent ?? undefined, t);
       }
       return status.percent === null
         ? t("status.transcribing")
@@ -69,7 +69,7 @@ export function statusText(status: Status, t: TFunction): string {
       }
       return t("status.finished", { path: status.path });
     case "diarizing":
-      return t("status.diarizing");
+      return diarizingText(status.percent, t);
     case "diarized":
       return t("diarization.saved", { path: status.path });
     case "diarizationCancelled":
@@ -93,10 +93,24 @@ function completingText(
     status.percent === null
       ? t("status.completing")
       : t("status.completingPercent", { percent: status.percent });
-  const phase = status.diarizing ? t("status.finalDiarizing") : progress;
+  const phase = status.diarizing
+    ? finalDiarizingText(status.percent, t)
+    : progress;
   return status.liveError
     ? `${phase} · ${errorText(status.liveError, t)}`
     : phase;
+}
+
+function diarizingText(percent: number | undefined, t: TFunction): string {
+  return percent === undefined
+    ? t("status.diarizing")
+    : t("status.diarizingPercent", { percent });
+}
+
+function finalDiarizingText(percent: number | null, t: TFunction): string {
+  return percent === null
+    ? t("status.finalDiarizing")
+    : t("status.finalDiarizingPercent", { percent });
 }
 
 /** Il messaggio tradotto di un errore applicativo. */
@@ -113,7 +127,8 @@ export function errorText(error: AppError, t: TFunction): string {
 export function withProgress(status: Status, percent: number | null): Status {
   switch (status.phase) {
     case "transcribing":
-      return { ...status, percent };
+      // Un avanzamento in ritardo non scrive sopra quello della Diarizzazione.
+      return status.diarizing ? status : { ...status, percent };
     case "recording":
       return {
         percent,
@@ -135,6 +150,23 @@ export function withProgress(status: Status, percent: number | null): Status {
 export function withDiarizing(status: Status): Status {
   return status.phase === "transcribing" || status.phase === "completing"
     ? { ...status, diarizing: true, percent: null }
+    : status;
+}
+
+/**
+ * Applica `diarization-progress`: la percentuale dell'audio salvato analizzato, solo con Nemotron 3.
+ * Arriva durante Riconosci i parlanti o l'analisi finale di una Registrazione.
+ */
+export function withDiarizationProgress(
+  status: Status,
+  percent: number
+): Status {
+  if (status.phase === "diarizing") {
+    return { ...status, percent };
+  }
+  return (status.phase === "transcribing" || status.phase === "completing") &&
+    status.diarizing
+    ? { ...status, percent }
     : status;
 }
 
@@ -307,10 +339,10 @@ export function bannerOf(status: Status, t: TFunction): Banner | null {
 
 /** La percentuale di una Trascrizione o del completamento dopo Stop; `null` se non è nota. */
 export function progressPercent(status: Status): number | null {
-  return (status.phase === "transcribing" || status.phase === "completing") &&
-    !status.diarizing
-    ? status.percent
-    : null;
+  if (status.phase === "transcribing" || status.phase === "completing") {
+    return status.percent;
+  }
+  return status.phase === "diarizing" ? (status.percent ?? null) : null;
 }
 
 /** Le identità e gli esiti restano locali all'Ingresso anche nella riapertura e nelle copie. */

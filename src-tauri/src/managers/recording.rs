@@ -530,10 +530,13 @@ pub async fn record(
                 let (mut transcript, cancel) = (transcript.clone(), final_cancel.clone());
                 let (audio, modello) = (recorded.oggs.clone(), settings.diarizer);
                 let diarized = diarized.clone();
+                let (app, session_id) = (app.clone(), session_id.clone());
                 move || {
+                    let total = diarized.len();
                     let analyzed = diarized
                         .into_iter()
-                        .map(|ingresso| {
+                        .enumerate()
+                        .map(|(index, ingresso)| {
                             let result = (|| {
                                 let lease = diarizer.as_ref().map_err(Clone::clone)?;
                                 if cancel.is_cancelled() {
@@ -546,7 +549,15 @@ pub async fn record(
                                     .ok_or_else(|| {
                                         AppError::Internal("audio dell'Ingresso assente".into())
                                     })?;
-                                lease.diarize_saved(path, &cancel)
+                                lease.diarize_saved(path, &cancel, &mut |percent| {
+                                    transcription::DiarizationProgress::emit_ingresso(
+                                        &app,
+                                        Some(&session_id),
+                                        index,
+                                        total,
+                                        percent,
+                                    );
+                                })
                             })();
                             // Fissa l'esito quando termina questo Ingresso: Annulla nell'altro
                             // non invalida un successo già ottenuto.
@@ -1645,13 +1656,21 @@ mod tests {
         let cancel = CancelToken::new();
         let model = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
         let mut diarizer = OfflineDiarizer::load_nemotron3(&model).unwrap();
+        let mut percents = Vec::new();
+        let turns = diarizer.diarize_saved(
+            Decoder::open_16k(&ogg, Ingresso::Mix).unwrap(),
+            &cancel,
+            &mut |percent| percents.push(percent),
+        );
+        assert!(
+            percents.is_sorted() && percents.last() >= Some(&99),
+            "{percents:?}"
+        );
         let state = finalize(
             &mut phrases,
             Diarizer::Nemotron3,
             &cancel,
-            diarizer
-                .diarize_saved(Decoder::open(&ogg).unwrap(), &cancel)
-                .map(|turns| vec![(Ingresso::Mix, turns)]),
+            turns.map(|turns| vec![(Ingresso::Mix, turns)]),
         )
         .unwrap();
         assert_eq!(state.esito, EsitoDiarizzazione::Completata);

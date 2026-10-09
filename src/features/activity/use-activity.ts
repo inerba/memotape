@@ -42,6 +42,9 @@ export function useActivityEvents(
       events.diarizationStarted.listen(({ payload }) =>
         dispatch({ payload, type: "diarizationStarted" })
       ),
+      events.diarizationProgress.listen(({ payload }) =>
+        dispatch({ payload, type: "diarizationProgress" })
+      ),
       events.recordingTick.listen(({ payload }) =>
         dispatch({ payload, type: "tick" })
       ),

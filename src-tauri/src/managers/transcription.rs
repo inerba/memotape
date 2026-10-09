@@ -124,6 +124,36 @@ pub struct DiarizationStarted {
     pub session_id: Option<String>,
 }
 
+/// Quanto audio salvato la Diarizzazione ha analizzato, su tutti gli Ingressi. Solo con Nemotron 3:
+/// Sortformer non dà avanzamento.
+#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct DiarizationProgress {
+    pub session_id: Option<String>,
+    pub percent: u8,
+}
+
+impl DiarizationProgress {
+    /// Gli Ingressi si analizzano uno dopo l'altro: `index` di `total` è a `percent`.
+    pub fn emit_ingresso(
+        app: &AppHandle,
+        session_id: Option<&str>,
+        index: usize,
+        total: usize,
+        percent: u8,
+    ) {
+        let total = total.max(1);
+        let overall = (index.min(total - 1) * 100 + usize::from(percent.min(100))) / total;
+        let event = Self {
+            session_id: session_id.map(str::to_owned),
+            percent: u8::try_from(overall).unwrap_or(100),
+        };
+        if let Err(e) = event.emit(app) {
+            log::warn!("diarization-progress non emesso: {e}");
+        }
+    }
+}
+
 /// I Parlanti delle Frasi dopo la Diarizzazione: `parlante` da 1 per ordine di comparsa, `null` se
 /// nessuno parlava durante la Frase.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]

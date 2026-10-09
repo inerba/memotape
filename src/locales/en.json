@@ -105,7 +105,9 @@
     "cancelled": "Transcription cancelled",
     "openModels": "Open Settings → Transcription",
     "diarizing": "Recognizing speakers…",
-    "finalDiarizing": "Final speaker analysis…"
+    "diarizingPercent": "Recognizing speakers… {{percent}}%",
+    "finalDiarizing": "Final speaker analysis…",
+    "finalDiarizingPercent": "Final speaker analysis… {{percent}}%"
   },
   "errors": {
     "label": "Error",

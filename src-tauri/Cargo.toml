@@ -113,3 +113,7 @@ opt-level = 3
 
 [profile.dev.package.num-complex]
 opt-level = 3
+
+# `local_diarizer::validate` fa lo SHA-256 dei 199 MB di Nemotron 3 a ogni caricamento: 5,7 s in debug, 0,1 con l'ottimizzazione.
+[profile.dev.package.sha2]
+opt-level = 3

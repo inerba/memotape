@@ -105,7 +105,9 @@
     "cancelled": "Transkrypcja anulowana",
     "openModels": "Otwórz Ustawienia → Transkrypcja",
     "diarizing": "Rozpoznawanie mówców…",
-    "finalDiarizing": "Końcowa analiza mówców…"
+    "diarizingPercent": "Rozpoznawanie mówców… {{percent}}%",
+    "finalDiarizing": "Końcowa analiza mówców…",
+    "finalDiarizingPercent": "Końcowa analiza mówców… {{percent}}%"
   },
   "errors": {
     "label": "Błąd",

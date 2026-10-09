@@ -105,7 +105,9 @@
     "cancelled": "Transcripción cancelada",
     "openModels": "Abrir Configuración → Transcripción",
     "diarizing": "Reconociendo hablantes…",
-    "finalDiarizing": "Análisis final de hablantes…"
+    "diarizingPercent": "Reconociendo hablantes… {{percent}}%",
+    "finalDiarizing": "Análisis final de hablantes…",
+    "finalDiarizingPercent": "Análisis final de hablantes… {{percent}}%"
   },
   "errors": {
     "label": "Error",

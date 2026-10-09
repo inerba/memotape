@@ -416,9 +416,14 @@ impl DiarizerLease {
         }
     }
 
-    pub fn diarize_saved(&self, path: &Path, cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
-        self.load()?
-            .diarize_saved(crate::audio_toolkit::decode::Decoder::open(path)?, cancel)
+    /// I turni dell'Ogg `path`; `on_progress` come in `OfflineDiarizer::diarize_saved`.
+    pub fn diarize_saved(
+        &self,
+        path: &Path,
+        cancel: &CancelToken,
+        on_progress: &mut dyn FnMut(u8),
+    ) -> Result<Vec<Turn>, AppError> {
+        self.diarize_ingresso(path, crate::transcript::Ingresso::Mix, cancel, on_progress)
     }
     /// Un'analisi indipendente sull'audio salvato dell'Ingresso, senza usare il mix degli altri.
     pub fn diarize_ingresso(
@@ -426,13 +431,15 @@ impl DiarizerLease {
         path: &Path,
         ingresso: crate::transcript::Ingresso,
         cancel: &CancelToken,
+        on_progress: &mut dyn FnMut(u8),
     ) -> Result<Vec<Turn>, AppError> {
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
         self.load()?.diarize_saved(
-            crate::audio_toolkit::decode::Decoder::open_ingresso(path, ingresso)?,
+            crate::audio_toolkit::decode::Decoder::open_16k(path, ingresso)?,
             cancel,
+            on_progress,
         )
     }
     /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio.

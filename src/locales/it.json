@@ -105,7 +105,9 @@
     "cancelled": "Trascrizione annullata",
     "openModels": "Apri Impostazioni → Trascrizione",
     "diarizing": "Riconoscimento dei parlanti…",
-    "finalDiarizing": "Analisi finale dei parlanti…"
+    "diarizingPercent": "Riconoscimento dei parlanti… {{percent}}%",
+    "finalDiarizing": "Analisi finale dei parlanti…",
+    "finalDiarizingPercent": "Analisi finale dei parlanti… {{percent}}%"
   },
   "errors": {
     "label": "Errore",

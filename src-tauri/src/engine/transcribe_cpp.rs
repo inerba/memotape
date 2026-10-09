@@ -234,10 +234,13 @@ pub struct OfflineDiarizer {
 impl OfflineDiarizer {
     /// Nemotron analizza il file a blocchi con il preset finale. Il PCM non viene accumulato:
     /// il runtime conserva le cache del preset e i turni, non l'intero audio della Registrazione.
+    /// `on_progress` riceve la percentuale dell'audio analizzato, solo con Nemotron: Sortformer è
+    /// una sola chiamata nativa, senza avanzamento.
     pub fn diarize_saved(
         &mut self,
         decoder: crate::audio_toolkit::decode::Decoder,
         cancel: &CancelToken,
+        on_progress: &mut dyn FnMut(u8),
     ) -> Result<Vec<Turn>, AppError> {
         use crate::engine::pipeline::{Feed, FileFrames};
         let frames = FileFrames::new(decoder, None);
@@ -266,14 +269,53 @@ impl OfflineDiarizer {
             ..Default::default()
         };
         let mut stream = catch_native(|| self.session.stream(&run, &options))?;
-        for feed in frames {
-            if cancel.is_cancelled() {
-                return Err(AppError::Cancelled);
+        // Ogni `feed` ricalcola il mel creando un thread per frame STFT: con frame da 30 ms
+        // erano circa 40 s di thread per ora di audio. A blocchi di 10 s sono 360 chiamate l'ora.
+        const FEED_SAMPLES: usize = 16_000 * 10;
+        // La decodifica gira in un thread mentre il modello calcola: in serie era un terzo del
+        // tempo (23 s su 68 per un Tape di 2 ore). Ogni blocco porta la percentuale decodificata.
+        let (blocks, received) = std::sync::mpsc::sync_channel(2);
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                let mut pcm = Vec::with_capacity(FEED_SAMPLES);
+                let mut percent = None;
+                for feed in frames {
+                    if cancel.is_cancelled() {
+                        return;
+                    }
+                    match feed {
+                        Ok(Feed::Frame(frame)) => pcm.extend(frame),
+                        Ok(Feed::Progress(p)) => percent = p,
+                        Ok(Feed::ClosePhrase) => {}
+                        Err(error) => {
+                            let _ = blocks.send(Err(error));
+                            return;
+                        }
+                    }
+                    if pcm.len() >= FEED_SAMPLES {
+                        let block = std::mem::replace(&mut pcm, Vec::with_capacity(FEED_SAMPLES));
+                        // Il destinatario non c'è più: un errore o Annulla l'ha già fermato.
+                        if blocks.send(Ok((block, percent))).is_err() {
+                            return;
+                        }
+                    }
+                }
+                if !pcm.is_empty() {
+                    let _ = blocks.send(Ok((pcm, percent)));
+                }
+            });
+            for block in received {
+                if cancel.is_cancelled() {
+                    return Err(AppError::Cancelled);
+                }
+                let (pcm, percent) = block?;
+                catch_native(|| stream.feed(&pcm))?;
+                if let Some(percent) = percent {
+                    on_progress(percent);
+                }
             }
-            if let Feed::Frame(frame) = feed? {
-                catch_native(|| stream.feed(&frame))?;
-            }
-        }
+            Ok(())
+        })?;
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }

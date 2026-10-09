@@ -81,6 +81,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::transcription::LiveTranscriptionFailed,
             managers::transcription::LiveTranscriptUpdated,
             managers::transcription::DiarizationStarted,
+            managers::transcription::DiarizationProgress,
             managers::transcription::SpeakersAssigned,
             managers::pending_tape::TapeRequested,
             managers::models::ModelDownloadProgress,

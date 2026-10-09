@@ -10,6 +10,7 @@ use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::models::Models;
 use crate::managers::settings::{Settings, SettingsStore};
+use crate::managers::transcription::DiarizationProgress;
 use crate::tape::{self, Document};
 use crate::transcript::{
     Diarizzazione, DiarizzazioneIngresso, EsitoDiarizzazione, Ingresso, Phrase,
@@ -26,6 +27,9 @@ pub async fn diarize(app: AppHandle, activity: &Activity, source: PathBuf) -> Re
         // Prenotazione e verifica del modello fuori dall'esecutore async, prima dell'analisi.
         check_cancel(&cancel)?;
         let mut diarizer = None;
+        let total =
+            selected_ingressi(tape::has_ingressi(&source)?, settings.parlanti_microfono).len();
+        let mut index = 0;
         diarize_tape(&source, &settings, &cancel, |ingresso| {
             // Il core rifiuta prima un Tape illeggibile o senza testo, senza caricare modelli.
             if diarizer.is_none() {
@@ -34,10 +38,14 @@ pub async fn diarize(app: AppHandle, activity: &Activity, source: PathBuf) -> Re
                         .reserve_configured_diarizer(&app, &settings)?,
                 );
             }
+            let current = index;
+            index += 1;
             diarizer
                 .as_ref()
                 .expect("modello prenotato")
-                .diarize_ingresso(&source, ingresso, &cancel)
+                .diarize_ingresso(&source, ingresso, &cancel, &mut |percent| {
+                    DiarizationProgress::emit_ingresso(&app, None, current, total, percent);
+                })
         })
     })
     .await
@@ -853,8 +861,11 @@ mod tests {
             tape::write(&path, &audio, &document, Some(&onda)).unwrap();
             let mix = entry(&path, "mix.ogg");
             diarize_tape(&path, &settings, &cancel, |ingresso| {
-                let found = OfflineDiarizer::load_nemotron3(&model)?
-                    .diarize_saved(Decoder::open_ingresso(&path, ingresso)?, &cancel)?;
+                let found = OfflineDiarizer::load_nemotron3(&model)?.diarize_saved(
+                    Decoder::open_16k(&path, ingresso)?,
+                    &cancel,
+                    &mut |_| {},
+                )?;
                 let speakers: std::collections::BTreeSet<_> =
                     found.iter().map(|turn| turn.parlante).collect();
                 assert_eq!(speakers.len(), 2, "{ingresso:?}: {found:?}");

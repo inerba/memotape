@@ -3,6 +3,7 @@
 use std::path::Path;
 use std::sync::LazyLock;
 
+use symphonia::core::codecs::audio::well_known::CODEC_ID_OPUS;
 use symphonia::core::codecs::audio::{AudioDecoder, AudioDecoderOptions};
 use symphonia::core::codecs::registry::CodecRegistry;
 use symphonia::core::errors::Error as SymphoniaError;
@@ -10,6 +11,7 @@ use symphonia::core::formats::probe::Hint;
 use symphonia::core::formats::{FormatOptions, FormatReader, TrackType};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::meta::MetadataOptions;
+use symphonia::core::units::Duration;
 
 use crate::audio_toolkit::forma_onda::Picchi;
 use crate::error::AppError;
@@ -30,6 +32,8 @@ pub struct Decoder {
     /// Frame dichiarati dal container (`n_frames`), se li conosce.
     total_frames: Option<u64>,
     decoded_frames: u64,
+    /// Con `open_16k`, la frequenza dichiarata dell'Opus: i tagli dei pacchetti sono in quella.
+    declared_rate: Option<u32>,
 }
 
 impl Decoder {
@@ -39,6 +43,17 @@ impl Decoder {
 
     /// Come `open`, ma di un Tape decodifica l'audio di `ingresso` invece del mix.
     pub fn open_ingresso(path: &Path, ingresso: Ingresso) -> Result<Self, AppError> {
+        Self::open_with(path, ingresso, false)
+    }
+
+    /// Come `open_ingresso`, ma l'Opus (Tape e Registrazioni) esce già a 16 kHz: libopus decodifica
+    /// alla frequenza chiesta in metà del tempo di 48 kHz, e il ricampionamento dopo non lavora.
+    /// Solo per chi usa l'audio a 16 kHz (la Diarizzazione); gli altri codec non cambiano.
+    pub fn open_16k(path: &Path, ingresso: Ingresso) -> Result<Self, AppError> {
+        Self::open_with(path, ingresso, true)
+    }
+
+    fn open_with(path: &Path, ingresso: Ingresso, opus_16k: bool) -> Result<Self, AppError> {
         let unreadable = |e: &dyn std::fmt::Display| {
             AppError::UnreadableFile(format!("{}: {e}", path.display()))
         };
@@ -71,17 +86,28 @@ impl Decoder {
             .as_ref()
             .and_then(|p| p.audio())
             .ok_or_else(|| AppError::UnsupportedCodec("parametri del codec assenti".into()))?;
+        let mut params = params.clone();
+        let mut total_frames = track.num_frames.filter(|&n| n > 0);
+        let mut declared_rate = None;
+        if opus_16k && params.codec == CODEC_ID_OPUS {
+            // La durata del contenitore è alla frequenza dichiarata (48 kHz per Opus).
+            if let Some(rate) = params.sample_rate.filter(|&r| r > 0) {
+                total_frames = total_frames.map(|n| n * 16_000 / u64::from(rate));
+                declared_rate = Some(rate);
+                params.sample_rate = Some(16_000);
+            }
+        }
         let decoder = CODECS
-            .make_audio_decoder(params, &AudioDecoderOptions::default())
+            .make_audio_decoder(&params, &AudioDecoderOptions::default())
             .map_err(|e| AppError::UnsupportedCodec(e.to_string()))?;
         let track_id = track.id;
-        let total_frames = track.num_frames.filter(|&n| n > 0);
         Ok(Self {
             format,
             decoder,
             track_id,
             total_frames,
             decoded_frames: 0,
+            declared_rate,
         })
     }
 
@@ -94,7 +120,7 @@ impl Decoder {
     /// Il prossimo blocco decodificato, con i suoi canali e la sua frequenza. `None` a fine file.
     pub fn next_block(&mut self) -> Result<Option<Block>, AppError> {
         loop {
-            let packet = match self.format.next_packet() {
+            let mut packet = match self.format.next_packet() {
                 Ok(Some(packet)) => packet,
                 // Le catene Ogg con flussi diversi non sono previste: finiscono qui.
                 Ok(None) | Err(SymphoniaError::ResetRequired) => return Ok(None),
@@ -112,6 +138,13 @@ impl Decoder {
             };
             if packet.track_id != self.track_id {
                 continue;
+            }
+            // L'adapter di libopus scala il pre-skip ma non i tagli del pacchetto: a 16 kHz quello
+            // finale (il padding dell'encoder) toglierebbe il triplo dei campioni.
+            if let Some(rate) = self.declared_rate {
+                let scale = |d: Duration| Duration::new(d.get() * 16_000 / u64::from(rate));
+                packet.trim_start = scale(packet.trim_start);
+                packet.trim_end = scale(packet.trim_end);
             }
             let decoded = match self.decoder.decode(&packet) {
                 Ok(decoded) => decoded,
@@ -179,6 +212,26 @@ impl MediaSource for tape::Mix {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn l_opus_a_48_khz_si_decodifica_a_16_khz_con_durata_e_avanzamento_esatti() {
+        use crate::audio_toolkit::ogg_opus::OggOpusWriter;
+        use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
+        let ogg = temp_dir("decodifica-16k").join("audio.ogg");
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(&ogg).unwrap(), 48_000, 1, 32).unwrap();
+        writer.write(&sine(48_000, 1, 3.0)).unwrap();
+        writer.finish().unwrap();
+        let mut decoder = Decoder::open_16k(&ogg, Ingresso::Mix).unwrap();
+        let mut samples = 0;
+        while let Some(block) = decoder.next_block().unwrap() {
+            assert_eq!((block.rate, block.channels), (16_000, 1));
+            samples += block.samples.len();
+        }
+        assert!(samples.abs_diff(48_000) <= 16, "{samples} campioni");
+        // Il contenitore conta anche il pre-skip: come a 48 kHz, la fine è al 99%.
+        assert_eq!(decoder.progress(), Some(99));
+    }
 
     #[test]
     fn la_forma_d_onda_ha_i_picchi_chiesti_e_segue_il_parlato() {

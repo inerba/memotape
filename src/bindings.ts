@@ -190,6 +190,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	diarizationProgress: makeEvent<DiarizationProgress>("diarization-progress"),
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	liveTranscriptUpdated: makeEvent<LiveTranscriptUpdated_Deserialize>("live-transcript-updated"),
@@ -262,6 +263,15 @@ export type Channels = "mono" | "stereo";
 export type CopiaCome = 
 /**  Testo semplice, senza sintassi Markdown. */
 "testo" | "markdown";
+
+/**
+ *  Quanto audio salvato la Diarizzazione ha analizzato, su tutti gli Ingressi. Solo con Nemotron 3:
+ *  Sortformer non dà avanzamento.
+ */
+export type DiarizationProgress = {
+	sessionId: string | null,
+	percent: number,
+};
 
 /**  Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti). */
 export type DiarizationStarted = {

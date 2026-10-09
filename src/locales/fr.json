@@ -105,7 +105,9 @@
     "cancelled": "Transcription annulée",
     "openModels": "Ouvrir Paramètres → Transcription",
     "diarizing": "Reconnaissance des intervenants…",
-    "finalDiarizing": "Analyse finale des locuteurs…"
+    "diarizingPercent": "Reconnaissance des intervenants… {{percent}}%",
+    "finalDiarizing": "Analyse finale des locuteurs…",
+    "finalDiarizingPercent": "Analyse finale des locuteurs… {{percent}}%"
   },
   "errors": {
     "label": "Erreur",

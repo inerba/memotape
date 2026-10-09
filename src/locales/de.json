@@ -105,7 +105,9 @@
     "cancelled": "Transkription abgebrochen",
     "openModels": "Einstellungen → Transkription öffnen",
     "diarizing": "Sprecher werden erkannt…",
-    "finalDiarizing": "Abschließende Sprecheranalyse…"
+    "diarizingPercent": "Sprecher werden erkannt… {{percent}}%",
+    "finalDiarizing": "Abschließende Sprecheranalyse…",
+    "finalDiarizingPercent": "Abschließende Sprecheranalyse… {{percent}}%"
   },
   "errors": {
     "label": "Fehler",
