@@ -75,8 +75,11 @@ function step(state: HomeState, action: HomeAction): HomeState {
             : state.activity,
         view: view(action),
       };
-    default:
-      return { ...state, activity: activity(state.activity, action) };
+    // Lo stesso stato se l'Attività non cambia (un evento scartato): React non rifà la finestra.
+    default: {
+      const next = activity(state.activity, action);
+      return next === state.activity ? state : { ...state, activity: next };
+    }
   }
 }
 

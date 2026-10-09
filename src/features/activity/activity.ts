@@ -270,8 +270,12 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
       };
     case "diarizationStarted":
       return { ...state, status: withDiarizing(state.status) };
-    case "tick":
-      return { ...state, elapsedMs: action.payload.elapsedMs };
+    // Il riepilogo mostra i secondi: lo stato cambia una volta al secondo, non a ogni tick (40 ms).
+    // L'indicatore e il timer della barra ascoltano i tick da sé.
+    case "tick": {
+      const elapsedMs = Math.floor(action.payload.elapsedMs / 1000) * 1000;
+      return elapsedMs === state.elapsedMs ? state : { ...state, elapsedMs };
+    }
     case "cleaningPreparing":
       return {
         ...state,

@@ -417,7 +417,8 @@ pub async fn transcribe(
                         cleaning_log.clone(),
                     ));
                 }
-                if importing {
+                // La protezione si cattura dove si decodifica: qui, se il Tape non è stato preparato.
+                if prepared.is_none_or(|p| !p.prepared()) {
                     let settings_app = app.clone();
                     audio_path.processor =
                         audio_path
@@ -426,7 +427,7 @@ pub async fn transcribe(
                                 settings_app
                                     .state::<SettingsStore>()
                                     .get()
-                                    .audio_file_misto
+                                    .profilo_audio(ingresso)
                                     .sensibilita
                             });
                 }
@@ -564,41 +565,48 @@ pub async fn transcribe(
         // Il Tape con le Frasi; anche senza parlato un Tape si riscrive.
         let saved = match tape {
             Some(old) => {
-                let prepared = TapeAudio::prepare(
-                    &source,
-                    &old,
-                    settings.bitrate_kbps,
-                    &cleaning_log,
-                    &cancel,
-                    |ingresso| {
-                        let settings_app = app.clone();
-                        let protection_app = app.clone();
-                        protections
-                            .iter()
-                            .find(|(i, _)| *i == ingresso)
-                            .expect("Ingresso della Sorgente")
-                            .1
-                            .capture(
-                                Box::new(
-                                    ConfiguredCleaning::new(
-                                        cleaning_path.clone(),
-                                        move || {
-                                            let settings =
-                                                settings_app.state::<SettingsStore>().get();
-                                            settings.profilo_audio(ingresso).pulizia
-                                        },
-                                        ingresso,
-                                        cleaning_log.clone(),
-                                    )
-                                    .reuse(old.pulizia_audio.clone()),
-                                ),
-                                move || {
-                                    let settings = protection_app.state::<SettingsStore>().get();
-                                    settings.profilo_audio(ingresso).sensibilita
-                                },
-                            )
-                    },
-                )?;
+                // Senza pulizia all'avvio nessun Ingresso cambia: l'ASR legge il Tape direttamente.
+                let cleaning = ingressi.iter().any(|i| settings.profilo_audio(*i).pulizia);
+                let prepared = if !cleaning {
+                    TapeAudio::unchanged(&source, &old)
+                } else {
+                    TapeAudio::prepare(
+                        &source,
+                        &old,
+                        settings.bitrate_kbps,
+                        &cleaning_log,
+                        &cancel,
+                        |ingresso| {
+                            let settings_app = app.clone();
+                            let protection_app = app.clone();
+                            protections
+                                .iter()
+                                .find(|(i, _)| *i == ingresso)
+                                .expect("Ingresso della Sorgente")
+                                .1
+                                .capture(
+                                    Box::new(
+                                        ConfiguredCleaning::new(
+                                            cleaning_path.clone(),
+                                            move || {
+                                                let settings =
+                                                    settings_app.state::<SettingsStore>().get();
+                                                settings.profilo_audio(ingresso).pulizia
+                                            },
+                                            ingresso,
+                                            cleaning_log.clone(),
+                                        )
+                                        .reuse(old.pulizia_audio.clone()),
+                                    ),
+                                    move || {
+                                        let settings =
+                                            protection_app.state::<SettingsStore>().get();
+                                        settings.profilo_audio(ingresso).sensibilita
+                                    },
+                                )
+                        },
+                    )?
+                };
                 let transcript = run(None, Some(&prepared))?;
                 let rewritten = tape::Document {
                     origine: old.origine,

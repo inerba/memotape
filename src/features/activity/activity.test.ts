@@ -329,8 +329,13 @@ test("il timer riparte da zero a ogni Registrazione e ignora i tick della preced
   const second = run(recordingIn("second"), first);
   expect(second.elapsedMs).toBe(0);
   expect(
-    run([tick("first", 29_000), tick("second", 100)], second).elapsedMs
-  ).toBe(100);
+    run([tick("first", 29_000), tick("second", 1100)], second).elapsedMs
+  ).toBe(1000);
+});
+
+test("un tick nello stesso secondo non cambia lo stato", () => {
+  const recording = run([...recordingIn("live"), tick("live", 1040)]);
+  expect(activity(recording, tick("live", 1080))).toBe(recording);
 });
 
 test("Pausa e Riprendi cambiano solo la fase della Registrazione", () => {

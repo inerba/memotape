@@ -364,3 +364,15 @@ test("finita la Registrazione con l'Ogg tenuto, la Home aperta intanto resta ape
   expect(state.view.source).toBe("r.ogg");
   expect(centerView(state).kind).toBe("home");
 });
+
+test("un evento di un'altra sessione lascia lo stesso stato della finestra", () => {
+  const tick: HomeAction = {
+    payload: {
+      elapsedMs: 5000,
+      levels: { microphone: 0, system: null },
+      sessionId: "nessuna",
+    },
+    type: "tick",
+  };
+  expect(home(INITIAL_HOME, tick)).toBe(INITIAL_HOME);
+});

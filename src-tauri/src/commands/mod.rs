@@ -133,14 +133,15 @@ pub fn open_update(app: AppHandle, url: String) -> Result<(), AppError> {
 /// informazioni. `unsupportedTape` se viene da una versione più nuova dell'app.
 #[tauri::command]
 #[specta::specta]
-pub fn open_tape(
+pub async fn open_tape(
     app: AppHandle,
     source: String,
 ) -> Result<managers::transcription::OpenedTape, AppError> {
     let path = tape_path(&source)?;
-    // Un Tape sparito o cambiato in Esplora file si vede anche nella barra laterale.
-    managers::library::sync(&app);
-    managers::transcription::open_tape(&path)
+    // Un Tape sparito o cambiato in Esplora file si vede anche nella barra laterale. In un thread:
+    // la lettura non dipende dall'indice e non aspetta un allineamento già in corso.
+    managers::library::sync_in_background(&app);
+    blocking(app, move |_| managers::transcription::open_tape(&path)).await
 }
 
 /// `path` se è un Tape: i comandi che leggono o scrivono un Tape non toccano altri file.

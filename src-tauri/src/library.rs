@@ -147,7 +147,8 @@ impl Library {
     }
 
     /// Allinea l'indice alla cartella: rilegge i Tape nuovi o con data di modifica o dimensione
-    /// cambiate e toglie quelli spariti. Restituisce quanti Tape ha riletto.
+    /// cambiate e toglie quelli spariti. Restituisce quanti Tape ha riletto o tolto: 0 se l'indice
+    /// non è cambiato.
     pub fn sync(&mut self) -> Result<usize, AppError> {
         let mut found = Vec::new();
         walk(&self.root, &mut found)?;
@@ -163,29 +164,47 @@ impl Library {
         };
         let present: std::collections::HashSet<&str> =
             found.iter().map(|f| f.relative.as_str()).collect();
-        for gone in indexed.keys().filter(|p| !present.contains(p.as_str())) {
+        let gone: Vec<&str> = indexed
+            .keys()
+            .map(String::as_str)
+            .filter(|p| !present.contains(p))
+            .collect();
+        for gone in &gone {
             tx.execute("DELETE FROM tapes WHERE percorso = ?1", [gone])
                 .map_err(internal)?;
-            tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [gone])
-                .map_err(internal)?;
         }
-        let mut reread = 0;
-        for file in &found {
-            if indexed.get(&file.relative) == Some(&(file.modified, file.size)) {
-                continue;
-            }
-            reread += 1;
+        let changed: Vec<_> = found
+            .iter()
+            .filter(|f| indexed.get(&f.relative) != Some(&(f.modified, f.size)))
+            .collect();
+        // ponytail: il DELETE su `percorso` scorre tutta la tabella FTS, quindi si fa una volta
+        // sola per tutti i Tape spariti o cambiati già nell'indice, e una ricostruzione non lo paga.
+        // Se diventa lento: una tabella delle Frasi con un indice su `percorso` e la FTS a
+        // contenuto esterno.
+        let stale: Vec<&str> = gone
+            .iter()
+            .copied()
+            .chain(
+                changed
+                    .iter()
+                    .map(|f| f.relative.as_str())
+                    .filter(|p| indexed.contains_key(*p)),
+            )
+            .collect();
+        if !stale.is_empty() {
+            let stale = serde_json::to_string(&stale)
+                .map_err(|e| AppError::Internal(format!("indice della Libreria: {e}")))?;
+            tx.execute(
+                "DELETE FROM ricerca WHERE percorso IN (SELECT value FROM json_each(?1))",
+                [stale],
+            )
+            .map_err(internal)?;
+        }
+        for file in &changed {
             let path = self.root.join(&file.relative);
             let document = tape::read(&path)
                 .inspect_err(|e| log::warn!("Tape illeggibile nella Libreria: {e}"))
                 .ok();
-            // ponytail: il DELETE su `percorso` scorre tutta la tabella FTS, quindi si fa solo per i
-            // Tape già nell'indice e una ricostruzione non lo paga. Se diventa lento: una tabella
-            // delle Frasi con un indice su `percorso` e la FTS a contenuto esterno.
-            if indexed.contains_key(&file.relative) {
-                tx.execute("DELETE FROM ricerca WHERE percorso = ?1", [&file.relative])
-                    .map_err(internal)?;
-            }
             let titolo = path
                 .file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
@@ -245,7 +264,7 @@ impl Library {
             .map_err(internal)?;
         }
         tx.commit().map_err(internal)?;
-        Ok(reread)
+        Ok(changed.len() + gone.len())
     }
 
     /// Le Raccolte (le cartelle di primo livello, escluse quelle che iniziano con `.`) e i Tape
@@ -1191,6 +1210,26 @@ pub(crate) mod tests {
                 )
             })
             .collect()
+    }
+
+    #[test]
+    fn un_allineamento_toglie_dalla_ricerca_i_tape_spariti_e_le_frasi_vecchie_dei_cambiati() {
+        let (root, mut library) = searchable("ricerca-allineamento");
+        std::fs::remove_file(root.join("Sciolto.tape")).unwrap();
+        let acme = root.join("Acme").join("Riunione Acme.tape");
+        let mut document = tape::read(&acme).unwrap();
+        document.frasi[0].testo = "Il budget di Acme è pronto.".into();
+        tape::rewrite(&acme, &document).unwrap();
+        assert_eq!(library.sync().unwrap(), 2);
+        assert_eq!(library.sync().unwrap(), 0);
+        assert_eq!(
+            found(&library, "preventivo", None),
+            [("Call di lunedì".to_string(), vec![1, 2])]
+        );
+        assert_eq!(
+            found(&library, "budget", None),
+            [("Riunione Acme".to_string(), vec![0])]
+        );
     }
 
     #[test]

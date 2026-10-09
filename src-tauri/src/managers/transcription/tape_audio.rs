@@ -39,7 +39,7 @@ struct Track {
 }
 
 pub(super) struct TapeAudio {
-    _work: WorkDir,
+    work: Option<WorkDir>,
     original: PathBuf,
     replacements: Vec<(Ingresso, PathBuf)>,
     forma_onda: Option<Vec<f32>>,
@@ -115,12 +115,29 @@ impl TapeAudio {
         fresh.sort_by_key(|i| tracks.iter().position(|t| t.ingresso == i.ingresso));
         all_intervals.extend(fresh);
         Ok(Self {
-            _work: work,
+            work: Some(work),
             original: source.to_path_buf(),
             replacements,
             forma_onda,
             intervals: all_intervals,
         })
+    }
+
+    /// Senza pulizia l'audio del Tape resta com'è: niente decodifica preliminare né PCM su disco,
+    /// l'ASR legge direttamente il Tape e il commit riscrive solo il documento.
+    pub(super) fn unchanged(source: &Path, old: &Document) -> Self {
+        Self {
+            work: None,
+            original: source.to_path_buf(),
+            replacements: Vec::new(),
+            forma_onda: None,
+            intervals: old.pulizia_audio.clone(),
+        }
+    }
+
+    /// Se l'audio è stato preparato qui: altrimenti la pipeline deve catturare la protezione.
+    pub(super) fn prepared(&self) -> bool {
+        self.work.is_some()
     }
 
     pub(super) fn source(&self, ingresso: Ingresso) -> &Path {
