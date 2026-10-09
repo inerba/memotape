@@ -2,6 +2,9 @@
 status: accepted
 ---
 
+> Superato in parte da ADR-0029 (9 ottobre 2026): Trascrivi su un Tape non pulisce più
+> l'audio. Restano valide la Forma d'onda calcolata in memoria e `Cache-Control: no-store`.
+
 # Ritrascrizione atomica del Tape e riuso dei tratti puliti
 
 Il ticket 04 della spec `.scratch/pulizia-audio/spec.md` estende il percorso

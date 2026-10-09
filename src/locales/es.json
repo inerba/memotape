@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Transcribir",
+    "choose": "Transcribir…",
+    "dialog": {
+      "fileTitle": "¿Transcribir {{name}}?",
+      "fileDescription": "El archivo se convierte en un Tape. Tus elecciones se mantienen para las próximas importaciones.",
+      "tapeTitle": "¿Transcribir el Tape?",
+      "tapeDescription": "El audio del Tape se transcribe tal cual: no se vuelve a limpiar ni cambia."
+    },
     "running": "Transcribiendo…",
     "text": "Texto transcrito",
     "copy": "Copiar texto",
@@ -26,10 +33,10 @@
     "cancelling": "Cancelando…",
     "replace": {
       "title": "¿Volver a transcribir el Tape?",
-      "description": "El texto del Tape se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes. El audio sin tratar se limpiará según los perfiles activos; se reutilizan los tramos ya limpiados. El audio y el texto se sustituirán juntos al terminar. Si se cancela o hay un error, el Tape existente permanece intacto.",
+      "description": "El texto del Tape se sustituirá por la nueva transcripción: se perderán tus correcciones y los nombres de los hablantes. El audio sigue siendo el del Tape, sin una nueva limpieza. Si se cancela o hay un error, el Tape existente permanece intacto.",
       "keep": "Conservar el texto",
       "confirm": "Reemplazar",
-      "manualDescription": "Este Tape contiene correcciones manuales. Una nueva transcripción sustituirá el texto, las atribuciones y los nombres de los hablantes, incluidas las correcciones manuales. El audio sin tratar se limpiará según los perfiles activos; se reutilizan los tramos ya limpiados. El audio y el texto se sustituirán juntos al terminar. Si se cancela o hay un error, el Tape existente permanece intacto."
+      "manualDescription": "Este Tape contiene correcciones manuales. Una nueva transcripción sustituirá el texto, las atribuciones y los nombres de los hablantes, incluidas las correcciones manuales. El audio sigue siendo el del Tape, sin una nueva limpieza. Si se cancela o hay un error, el Tape existente permanece intacto."
     },
     "parlanti": "Reconocer hablantes",
     "nemotron3Note": "Nemotron 3 experimental: admite hasta 8 hablantes por entrada, pero puede confundir o unir las voces.",
@@ -38,8 +45,6 @@
     "rename": "Haz clic para renombrar: Intro confirma, Esc cancela",
     "renameName": "Nuevo nombre para {{label}}",
     "renameTaken": "Otro hablante ya tiene este nombre",
-    "startWith": "Transcribir · {{language}}",
-    "options": "Opciones de transcripción",
     "edit": "Haz clic para corregir: Intro guarda, Esc cancela",
     "export": "Exportar Markdown…",
     "exported": "Exportado a {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "El modelo local no coincide con el GGUF Nemotron Diarization verificado o no se puede cargar: {{detail}}",
       "audioCleaningMissing": "Falta el modelo DeepFilterNet3 incluido con la aplicación. Reinstala Memotape.",
       "audioCleaningIncompatible": "El modelo DeepFilterNet3 incluido es incompatible: {{detail}}",
-      "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo. Un Tape existente permanece intacto: {{detail}}",
+      "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo: {{detail}}",
       "liveTranscriptionLagging": "La transcripción en vivo se ha retrasado demasiado y se ha detenido. El audio sigue grabándose; podrás transcribirlo después de Detener."
     },
     "app": {
@@ -207,7 +212,7 @@
       "deviceFor": "Dispositivo: {{input}}",
       "quality": "Calidad del archivo",
       "inactive": "Excluido de la Grabación",
-      "inactiveDescription": "Esta Entrada no se grabará. La limpieza y la sensibilidad siguen disponibles para Transcribir sus Tapes.",
+      "inactiveDescription": "Esta Entrada no se grabará. La limpieza y la sensibilidad se conservan para cuando vuelvas a grabarla.",
       "gainDescription": "Cambia el nivel grabado sin modificar el volumen de Windows. Baja la Ganancia cuando el indicador esté rojo. Durante la Grabación, los cambios afectan al audio siguiente; en pausa, desde la reanudación.",
       "bitrateDescription": "Un valor más alto conserva más detalle de audio y ocupa más espacio.",
       "channelsDescription": "Mono guarda un canal; Estéreo conserva los canales izquierdo y derecho.",
@@ -255,8 +260,8 @@
     "cleaning": {
       "profile": "Archivos y audio mixto",
       "enable": "Filtrar ruido",
-      "description": "DeepFilterNet3 reduce el ruido de archivos, vídeos y Tapes sin Entradas separadas. Los tramos ya limpios se reutilizan. El Tape conserva el audio procesado: desactivar la limpieza no recupera el original.",
-      "recordingDescription": "DeepFilterNet3 reduce el ruido grabado, incluso sin Transcripción en directo. Los cambios afectan al audio siguiente; en pausa, desde la reanudación. Los tramos limpios se reutilizan en los Tapes: desactivarla no recupera el original."
+      "description": "DeepFilterNet3 reduce el ruido de los archivos de audio y vídeo importados. El Tape conserva el audio procesado: desactivar la limpieza no recupera el original.",
+      "recordingDescription": "DeepFilterNet3 reduce el ruido grabado, incluso sin Transcripción en directo. Los cambios afectan al audio siguiente; en pausa, desde la reanudación. El Tape conserva el audio procesado: desactivarla no recupera el original."
     },
     "protection": {
       "label": "Sensibilidad",
@@ -266,7 +271,7 @@
         "bilanciato": "Equilibrada",
         "selettivo": "Más selectiva"
       },
-      "scope": "Filtra el habla para la Transcripción sin cambiar el audio ni la limpieza. También se aplica a archivos y Tapes. En directo, los cambios afectan al habla siguiente y conservan entera la Frase en curso.",
+      "scope": "Filtra el habla para la Transcripción sin cambiar el audio ni la limpieza. También se aplica a los archivos importados, no al transcribir un Tape. En directo, los cambios afectan al habla siguiente y conservan entera la Frase en curso.",
       "descriptions": {
         "spento": "Desactiva el filtro adicional; se mantiene la detección habitual del habla.",
         "sensibile": "Conserva más voces débiles y respuestas breves; puede incluir más ruido.",

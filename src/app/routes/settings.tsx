@@ -429,7 +429,6 @@ export function SettingsPage() {
               ) : null}
               {section.key === "trascrizione" ? (
                 <>
-                  <CleaningProfile name="audioFileMisto" onError={setError} />
                   <ModelList
                     kind="trascrizione"
                     onSelect={selectModel}

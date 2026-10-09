@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Transcribe",
+    "choose": "Transcribe…",
+    "dialog": {
+      "fileTitle": "Transcribe {{name}}?",
+      "fileDescription": "The file becomes a Tape. Your choices are kept for the next imports.",
+      "tapeTitle": "Transcribe the Tape?",
+      "tapeDescription": "The Tape’s audio is transcribed as it is: it is not cleaned again or changed."
+    },
     "running": "Transcribing…",
     "text": "Transcribed text",
     "copy": "Copy text",
@@ -26,10 +33,10 @@
     "cancelling": "Cancelling…",
     "replace": {
       "title": "Transcribe the Tape again?",
-      "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost. Untreated audio will be cleaned according to the active profiles; previously cleaned sections are reused. Audio and text will be replaced together when finished. Cancelling or an error leaves the existing Tape unchanged.",
+      "description": "The Tape's text will be replaced by the new transcription: your corrections and the speakers' names will be lost. The audio stays as it is in the Tape, without new cleaning. Cancelling or an error leaves the existing Tape unchanged.",
       "keep": "Keep the text",
       "confirm": "Replace",
-      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections. Untreated audio will be cleaned according to the active profiles; previously cleaned sections are reused. Audio and text will be replaced together when finished. Cancelling or an error leaves the existing Tape unchanged."
+      "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections. The audio stays as it is in the Tape, without new cleaning. Cancelling or an error leaves the existing Tape unchanged."
     },
     "parlanti": "Recognize speakers",
     "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
@@ -38,8 +45,6 @@
     "rename": "Click to rename: Enter confirms, Esc cancels",
     "renameName": "New name for {{label}}",
     "renameTaken": "Another speaker already has this name",
-    "startWith": "Transcribe · {{language}}",
-    "options": "Transcription options",
     "edit": "Click to correct: Enter saves, Esc cancels",
     "export": "Export Markdown…",
     "exported": "Exported to {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "The local model does not match the verified Nemotron Diarization GGUF or cannot be loaded: {{detail}}",
       "audioCleaningMissing": "The DeepFilterNet3 model bundled with the app is missing. Reinstall Memotape.",
       "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
-      "audioCleaningFailed": "Audio cleaning stopped; no new result was saved. An existing Tape remains unchanged: {{detail}}",
+      "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
       "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop."
     },
     "app": {
@@ -206,7 +211,7 @@
       "deviceFor": "Device: {{input}}",
       "quality": "File quality",
       "inactive": "Excluded from Recording",
-      "inactiveDescription": "This Input will not be recorded. Cleaning and Speech sensitivity remain available when Transcribing its Tapes.",
+      "inactiveDescription": "This Input will not be recorded. Cleaning and Speech sensitivity stay saved for when you record from it again.",
       "gainDescription": "Changes the recorded level without changing Windows volume. Lower the Gain when the meter turns red. During Recording, changes apply to subsequent audio; when paused, from resume.",
       "bitrateDescription": "Higher values retain more audio detail and use more storage.",
       "channelsDescription": "Mono saves one channel; Stereo preserves the left and right channels.",
@@ -254,8 +259,8 @@
     "cleaning": {
       "profile": "Files and mixed audio",
       "enable": "Filter noise",
-      "description": "DeepFilterNet3 reduces noise in files, videos and Tapes without separate Inputs. Previously cleaned sections are reused. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
-      "recordingDescription": "DeepFilterNet3 reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. Cleaned sections are reused in Tapes: turning it off cannot restore the original."
+      "description": "DeepFilterNet3 reduces noise in imported audio and video files. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
+      "recordingDescription": "DeepFilterNet3 reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. The Tape keeps the processed audio: turning it off cannot restore the original."
     },
     "protection": {
       "label": "Sensitivity",
@@ -265,7 +270,7 @@
         "bilanciato": "Balanced",
         "selettivo": "More selective"
       },
-      "scope": "Filters speech for Transcription without changing the audio or cleaning. Also applies to files and Tapes. During live Transcription, changes apply to subsequent speech, keeping the current Phrase intact.",
+      "scope": "Filters speech for Transcription without changing the audio or cleaning. Also applies to imported files, not when transcribing a Tape. During live Transcription, changes apply to subsequent speech, keeping the current Phrase intact.",
       "descriptions": {
         "spento": "Disables the additional filter; normal speech detection remains active.",
         "sensibile": "Keeps more quiet voices and short replies; may include more noise.",

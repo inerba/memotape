@@ -37,11 +37,6 @@ pub enum Boundary {
 /// Non si deve inferire che inviare zeri a un runtime equivalga a scaricarne la coda.
 pub trait AudioProcessor: Send {
     fn max_pending_frames(&self) -> usize;
-    /// Storia di sola lettura prima di un nuovo tratto: non produce audio né un trattamento
-    /// dei campioni precedenti. Un processore senza memoria può ignorarla.
-    fn context(&mut self, _block: PcmBlock<'_>) -> Result<(), AppError> {
-        Ok(())
-    }
     fn process(&mut self, block: PcmBlock<'_>, out: &mut Vec<f32>) -> Result<(), AppError>;
     fn flush(&mut self, boundary: Boundary, out: &mut Vec<f32>) -> Result<(), AppError>;
 }

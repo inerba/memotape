@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Transkribieren",
+    "choose": "Transkribieren…",
+    "dialog": {
+      "fileTitle": "{{name}} transkribieren?",
+      "fileDescription": "Die Datei wird zu einem Tape. Ihre Auswahl bleibt für die nächsten Importe erhalten.",
+      "tapeTitle": "Tape transkribieren?",
+      "tapeDescription": "Das Audio des Tape wird so transkribiert, wie es ist: Es wird weder erneut bereinigt noch verändert."
+    },
     "running": "Transkription läuft…",
     "text": "Transkribierter Text",
     "copy": "Text kopieren",
@@ -26,10 +33,10 @@
     "cancelling": "Wird abgebrochen…",
     "replace": {
       "title": "Tape erneut transkribieren?",
-      "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren. Unbearbeitetes Audio wird gemäß den aktiven Profilen bereinigt; bereits bereinigte Abschnitte werden wiederverwendet. Audio und Text werden am Ende gemeinsam ersetzt. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert.",
+      "description": "Der Text des Tape wird durch die neue Transkription ersetzt: Ihre Korrekturen und die Namen der Sprecher gehen verloren. Das Audio bleibt das des Tape, ohne erneute Bereinigung. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert.",
       "keep": "Text behalten",
       "confirm": "Ersetzen",
-      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen. Unbearbeitetes Audio wird gemäß den aktiven Profilen bereinigt; bereits bereinigte Abschnitte werden wiederverwendet. Audio und Text werden am Ende gemeinsam ersetzt. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert."
+      "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen. Das Audio bleibt das des Tape, ohne erneute Bereinigung. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert."
     },
     "parlanti": "Sprecher erkennen",
     "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
@@ -38,8 +45,6 @@
     "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
     "renameName": "Neuer Name für {{label}}",
     "renameTaken": "Ein anderer Sprecher hat diesen Namen schon",
-    "startWith": "Transkribieren · {{language}}",
-    "options": "Transkriptionsoptionen",
     "edit": "Zum Korrigieren klicken: Eingabe speichert, Esc bricht ab",
     "export": "Markdown exportieren…",
     "exported": "Exportiert nach {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "Das lokale Modell entspricht nicht der geprüften Nemotron-Diarization-GGUF-Datei oder kann nicht geladen werden: {{detail}}",
       "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
       "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
-      "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert. Ein vorhandenes Tape bleibt unverändert: {{detail}}",
+      "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
       "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren."
     },
     "app": {
@@ -206,7 +211,7 @@
       "deviceFor": "Gerät: {{input}}",
       "quality": "Dateiqualität",
       "inactive": "Von der Aufnahme ausgeschlossen",
-      "inactiveDescription": "Dieser Eingang wird nicht aufgenommen. Bereinigung und Sprachempfindlichkeit bleiben für die Transkription seiner Tapes verfügbar.",
+      "inactiveDescription": "Dieser Eingang wird nicht aufgenommen. Bereinigung und Sprachempfindlichkeit bleiben gespeichert, bis Sie wieder von ihm aufnehmen.",
       "gainDescription": "Ändert den Aufnahmepegel, ohne die Windows-Lautstärke zu ändern. Bei roter Anzeige die Verstärkung senken. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen.",
       "bitrateDescription": "Höhere Werte erhalten mehr Audiodetails und benötigen mehr Speicherplatz.",
       "channelsDescription": "Mono speichert einen Kanal; Stereo erhält den linken und rechten Kanal.",
@@ -254,8 +259,8 @@
     "cleaning": {
       "profile": "Dateien und gemischtes Audio",
       "enable": "Rauschen filtern",
-      "description": "DeepFilterNet3 reduziert Rauschen in Dateien, Videos und Tapes ohne getrennte Eingänge. Bereits bereinigte Abschnitte werden wiederverwendet. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
-      "recordingDescription": "DeepFilterNet3 reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Bereinigte Abschnitte werden in Tapes wiederverwendet: Ausschalten stellt das Original nicht wieder her."
+      "description": "DeepFilterNet3 reduziert Rauschen in importierten Audio- und Videodateien. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
+      "recordingDescription": "DeepFilterNet3 reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her."
     },
     "protection": {
       "label": "Empfindlichkeit",
@@ -265,7 +270,7 @@
         "bilanciato": "Ausgewogen",
         "selettivo": "Selektiver"
       },
-      "scope": "Filtert Sprache für die Transkription, ohne Audio oder Bereinigung zu ändern. Gilt auch für Dateien und Tapes. Live-Änderungen gelten für die folgende Sprache; die laufende Phrase bleibt vollständig.",
+      "scope": "Filtert Sprache für die Transkription, ohne Audio oder Bereinigung zu ändern. Gilt auch für importierte Dateien, nicht beim Transkribieren eines Tape. Live-Änderungen gelten für die folgende Sprache; die laufende Phrase bleibt vollständig.",
       "descriptions": {
         "spento": "Deaktiviert den zusätzlichen Filter; die normale Spracherkennung bleibt aktiv.",
         "sensibile": "Behält mehr leise Stimmen und kurze Antworten; kann mehr Geräusche einschließen.",

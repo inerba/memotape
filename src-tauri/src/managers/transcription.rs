@@ -19,7 +19,6 @@ use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
 use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::ogg_opus::OggCopy;
-use crate::audio_toolkit::protection::ProtectionTimeline;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
@@ -37,10 +36,6 @@ use crate::tape;
 use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
 
 const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
-
-#[path = "transcription/tape_audio.rs"]
-mod tape_audio;
-use tape_audio::TapeAudio;
 
 /// Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
 /// `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
@@ -366,11 +361,7 @@ pub async fn transcribe(
         .map_err(|error| AppError::Internal(error.to_string()))?;
     tauri::async_runtime::spawn_blocking(move || {
         // La Trascrizione di ogni Ingresso, con la Diarizzazione; `copy` riceve l'audio di un file.
-        let protections: Vec<_> = ingressi
-            .iter()
-            .map(|i| (*i, ProtectionTimeline::default()))
-            .collect();
-        let run = |copy: Option<OggCopy>, prepared: Option<&TapeAudio>| {
+        let run = |copy: Option<OggCopy>| {
             let models = app.state::<Models>();
             let mut engine = models.take(&app, || model.id.as_str())?;
             // Gli Ingressi separati si trascrivono in parallelo, il secondo con un'istanza in più
@@ -395,19 +386,14 @@ pub async fn transcribe(
                 let mut pcm = Vec::new();
                 let keep = diarized.contains(&ingresso);
                 let mut audio_path = pipeline::FileAudio::from(copy);
-                audio_path.protection = protections
-                    .iter()
-                    .find(|(i, _)| *i == ingresso)
-                    .expect("Ingresso della Sorgente")
-                    .1
-                    .clone();
-                // Il Tape ha già preparato l'audio: questa pipeline non lo tratta nuovamente.
+                // Solo un file importato si pulisce e si protegge. Un Tape si trascrive con l'audio
+                // salvato così com'è, senza pulizia né Sensibilità (ADR-0029).
                 if importing {
-                    let settings_app = app.clone();
-                    audio_path.processor = Box::new(ConfiguredCleaning::new(
+                    let (cleaning_app, protection_app) = (app.clone(), app.clone());
+                    let cleaning = Box::new(ConfiguredCleaning::new(
                         cleaning_path.clone(),
                         move || {
-                            settings_app
+                            cleaning_app
                                 .state::<SettingsStore>()
                                 .get()
                                 .audio_file_misto
@@ -416,20 +402,13 @@ pub async fn transcribe(
                         Ingresso::Mix,
                         cleaning_log.clone(),
                     ));
-                }
-                // La protezione si cattura dove si decodifica: qui, se il Tape non è stato preparato.
-                if prepared.is_none_or(|p| !p.prepared()) {
-                    let settings_app = app.clone();
-                    audio_path.processor =
-                        audio_path
-                            .protection
-                            .capture(audio_path.processor, move || {
-                                settings_app
-                                    .state::<SettingsStore>()
-                                    .get()
-                                    .profilo_audio(ingresso)
-                                    .sensibilita
-                            });
+                    audio_path.processor = audio_path.protection.capture(cleaning, move || {
+                        protection_app
+                            .state::<SettingsStore>()
+                            .get()
+                            .audio_file_misto
+                            .sensibilita
+                    });
                 }
                 let transcribed = run_pipeline(
                     &app,
@@ -444,10 +423,7 @@ pub async fn transcribe(
                     &transcript,
                     |engine, detector, on_event| {
                         transcribe_decoded(
-                            Decoder::open_ingresso(
-                                prepared.map_or(source.as_path(), |p| p.source(ingresso)),
-                                ingresso,
-                            )?,
+                            Decoder::open_ingresso(&source, ingresso)?,
                             engine,
                             detector,
                             settings.speech_language.code(),
@@ -565,59 +541,18 @@ pub async fn transcribe(
         // Il Tape con le Frasi; anche senza parlato un Tape si riscrive.
         let saved = match tape {
             Some(old) => {
-                // Senza pulizia all'avvio nessun Ingresso cambia: l'ASR legge il Tape direttamente.
-                let cleaning = ingressi.iter().any(|i| settings.profilo_audio(*i).pulizia);
-                let prepared = if !cleaning {
-                    TapeAudio::unchanged(&source, &old)
-                } else {
-                    TapeAudio::prepare(
-                        &source,
-                        &old,
-                        settings.bitrate_kbps,
-                        &cleaning_log,
-                        &cancel,
-                        |ingresso| {
-                            let settings_app = app.clone();
-                            let protection_app = app.clone();
-                            protections
-                                .iter()
-                                .find(|(i, _)| *i == ingresso)
-                                .expect("Ingresso della Sorgente")
-                                .1
-                                .capture(
-                                    Box::new(
-                                        ConfiguredCleaning::new(
-                                            cleaning_path.clone(),
-                                            move || {
-                                                let settings =
-                                                    settings_app.state::<SettingsStore>().get();
-                                                settings.profilo_audio(ingresso).pulizia
-                                            },
-                                            ingresso,
-                                            cleaning_log.clone(),
-                                        )
-                                        .reuse(old.pulizia_audio.clone()),
-                                    ),
-                                    move || {
-                                        let settings =
-                                            protection_app.state::<SettingsStore>().get();
-                                        settings.profilo_audio(ingresso).sensibilita
-                                    },
-                                )
-                        },
-                    )?
-                };
-                let transcript = run(None, Some(&prepared))?;
+                let transcript = run(None)?;
                 let rewritten = tape::Document {
                     origine: old.origine,
                     pulizia_audio: old.pulizia_audio,
                     ..document(old.creato, old.durata_ms, &transcript)
                 };
-                prepared.commit(&source, &rewritten, &cancel)?;
+                // Cambia solo il documento: audio, Forma d'onda e `pulizia_audio` restano quelli.
+                tape::replace_transcription(&source, &rewritten, &cancel)?;
                 (!transcript.phrases.is_empty()).then_some(source)
             }
             None => file_to_tape(&library, &destination, &source, &settings, |copy| {
-                let transcript = run(Some(copy), None)?;
+                let transcript = run(Some(copy))?;
                 Ok(tape::Document {
                     origine: source.file_name().map(|n| n.to_string_lossy().into_owned()),
                     pulizia_audio: cleaning_log.intervals(),
@@ -1305,10 +1240,6 @@ fn md_path(source: &Path, exists: impl Fn(&Path) -> bool) -> PathBuf {
 #[cfg(test)]
 #[path = "transcription/cleaning_tests.rs"]
 mod cleaning_tests;
-
-#[cfg(test)]
-#[path = "transcription/tape_cleaning_tests.rs"]
-mod tape_cleaning_tests;
 
 #[cfg(test)]
 mod tests {

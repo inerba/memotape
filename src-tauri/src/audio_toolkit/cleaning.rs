@@ -55,9 +55,6 @@ pub struct ConfiguredCleaning {
     failed: bool,
     prepared: Option<Box<dyn AudioProcessor>>,
     preparation_error: Option<AppError>,
-    reused: Vec<TrattoPulizia>,
-    contextual: bool,
-    history: VecDeque<f32>,
     deferred: Option<DeferredFactory>,
 }
 
@@ -92,22 +89,8 @@ impl ConfiguredCleaning {
             failed: false,
             prepared: None,
             preparation_error: None,
-            reused: Vec::new(),
-            contextual: false,
-            history: VecDeque::new(),
             deferred: None,
         }
-    }
-
-    /// Un mix può provenire da un solo dispositivo: conserva anche i suoi tratti etichettati
-    /// Microfono/Sistema. Con tracce distinte si considerano soltanto quelli dell'Ingresso.
-    pub(crate) fn reuse(mut self, intervals: Vec<TrattoPulizia>) -> Self {
-        self.contextual = true;
-        self.reused = intervals
-            .into_iter()
-            .filter(|interval| self.ingresso == Ingresso::Mix || interval.ingresso == self.ingresso)
-            .collect();
-        self
     }
 
     pub(crate) fn recovering(mut self, on_failure: impl FnMut(AppError) + Send + 'static) -> Self {
@@ -188,8 +171,7 @@ impl ConfiguredCleaning {
     fn drain(&mut self, boundary: Boundary, out: &mut Vec<f32>) -> Result<(), AppError> {
         if let Some(active) = &mut self.active {
             let mut tail = Vec::new();
-            let keep =
-                (self.on_failure.is_some() || self.contextual) && boundary != Boundary::Finish;
+            let keep = self.on_failure.is_some() && boundary != Boundary::Finish;
             let result = active.processor.flush(
                 if keep {
                     Boundary::Configuration
@@ -256,7 +238,7 @@ impl ConfiguredCleaning {
                 Some(processor) => Ok(processor),
                 None => (self.factory)(block.format),
             };
-            let mut processor = match processor {
+            let processor = match processor {
                 Ok(processor) => processor,
                 Err(error) => {
                     self.recover(error, out)?;
@@ -264,14 +246,6 @@ impl ConfiguredCleaning {
                     return Ok(());
                 }
             };
-            if self.contextual {
-                let history: Vec<_> = self.history.iter().copied().collect();
-                processor.context(PcmBlock {
-                    format: block.format,
-                    start_frame: block.start_frame - (history.len() / block.format.channels) as u64,
-                    samples: &history,
-                })?;
-            }
             self.active = Some(ActiveCleaning {
                 processor,
                 pending: VecDeque::new(),
@@ -317,53 +291,7 @@ impl AudioProcessor for ConfiguredCleaning {
             return Ok(());
         }
         let enabled = !self.failed && (self.enabled)();
-        let end = block.start_frame + (block.samples.len() / block.format.channels) as u64;
-        let mut ranges = Vec::new();
-        for interval in &self.reused {
-            if interval.frequenza == 0 || interval.fine_frame < interval.inizio_frame {
-                return Err(AppError::AudioCleaningFailed(
-                    "intervallo di pulizia non valido nel Tape".into(),
-                ));
-            }
-            // Protegge ogni frame che interseca un tratto già trattato: nessuna conversione
-            // tramite millisecondi, che perderebbe i confini non interi dopo ricampionamento.
-            let scale = |frame: u64| u128::from(frame) * u128::from(block.format.rate);
-            let rate = u128::from(interval.frequenza);
-            let start = u64::try_from(scale(interval.inizio_frame) / rate).unwrap_or(u64::MAX);
-            let stop = u64::try_from(scale(interval.fine_frame).div_ceil(rate)).unwrap_or(u64::MAX);
-            if stop > block.start_frame && start < end && stop > start {
-                ranges.push((start.max(block.start_frame), stop.min(end)));
-            }
-        }
-        let mut cuts = vec![block.start_frame, end];
-        for &(start, stop) in &ranges {
-            cuts.extend([start, stop]);
-        }
-        cuts.sort_unstable();
-        cuts.dedup();
-        for cut in cuts.windows(2) {
-            let (start, stop) = (cut[0], cut[1]);
-            let already_clean = ranges.iter().any(|&(a, b)| a <= start && start < b);
-            let offset = ((start - block.start_frame) as usize) * block.format.channels;
-            let len = ((stop - start) as usize) * block.format.channels;
-            self.segment(
-                PcmBlock {
-                    start_frame: start,
-                    samples: &block.samples[offset..offset + len],
-                    ..block
-                },
-                enabled && !already_clean,
-                out,
-            )?;
-            if self.contextual {
-                self.history.extend(&block.samples[offset..offset + len]);
-                let limit = (block.format.rate as usize / 2 + 8192) * block.format.channels;
-                if self.history.len() > limit {
-                    self.history.drain(..self.history.len() - limit);
-                }
-            }
-        }
-        Ok(())
+        self.segment(block, enabled, out)
     }
 
     fn flush(&mut self, boundary: Boundary, out: &mut Vec<f32>) -> Result<(), AppError> {
@@ -448,41 +376,6 @@ mod tests {
         assert!(log.intervals().is_empty());
     }
 
-    #[test]
-    fn tape_riusa_intervalli_del_singolo_dispositivo_senza_seconda_pulizia() {
-        use super::super::processing::{Format, PcmStream, tests::DelayedScale};
-        let log = CleaningLog::default();
-        let old = vec![TrattoPulizia {
-            ingresso: Ingresso::Microfono,
-            algoritmo: "precedente".into(),
-            versione: "v1".into(),
-            frequenza: 8000,
-            inizio_frame: 1,
-            fine_frame: 3,
-        }];
-        let processor = ConfiguredCleaning::with_factory(
-            Box::new(|| true),
-            Ingresso::Mix,
-            log.clone(),
-            Box::new(|_| Ok(Box::new(DelayedScale::new(2)))),
-        )
-        .reuse(old);
-        let mut stream = PcmStream::new(
-            Format {
-                rate: 16000,
-                channels: 1,
-            },
-            Box::new(processor),
-        )
-        .unwrap();
-        let mut result = stream.push(&[0.8; 8]).unwrap().samples;
-        result.extend(stream.boundary(Boundary::Finish).unwrap().samples);
-        assert_eq!(result, [0.4, 0.4, 0.8, 0.8, 0.8, 0.8, 0.4, 0.4]);
-        let intervals = log.intervals();
-        assert_eq!(intervals.len(), 2);
-        assert_eq!((intervals[0].inizio_frame, intervals[0].fine_frame), (0, 2));
-        assert_eq!((intervals[1].inizio_frame, intervals[1].fine_frame), (6, 8));
-    }
     use crate::audio_toolkit::processing::{PcmStream, tests::DelayedScale};
     use std::sync::atomic::{AtomicBool, Ordering};
 

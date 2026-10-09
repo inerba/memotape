@@ -1,5 +1,8 @@
 # ADR-0023 — Protezione prudente delle candidate Frasi nei file e Tape
 
+> Superato in parte da ADR-0029 (9 ottobre 2026): la Sensibilità non vale più in Trascrivi su
+> un Tape, che usa l'audio salvato così com'è. Per i file importati resta com'è descritta qui.
+
 Data: 6 ottobre 2026. Stato: adottata per l'implementazione locale del ticket 05;
 taratura su corpus sintetico, validazione umana/ascolto ancora parziale.
 

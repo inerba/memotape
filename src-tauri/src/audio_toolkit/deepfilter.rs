@@ -63,7 +63,6 @@ struct State {
     input_frames: usize,
     wet: VecDeque<f32>,
     emitted: usize,
-    context_frames: usize,
 }
 
 impl State {
@@ -103,7 +102,6 @@ impl State {
             input_frames: 0,
             wet: VecDeque::new(),
             emitted: 0,
-            context_frames: 0,
         })
     }
 
@@ -160,16 +158,11 @@ impl State {
         // Il doppio arrotondamento del ricampionamento può produrre un frame oltre
         // la durata originale. Si consegna soltanto l'intervallo realmente acquisito.
         let frames = (self.wet.len() / channels).min(self.input_frames - self.emitted);
-        for i in 0..frames {
-            for _ in 0..channels {
-                let value = self.wet.pop_front().unwrap();
-                if !value.is_finite() {
-                    return Err(failed("campioni non finiti"));
-                }
-                if self.emitted + i >= self.context_frames {
-                    out.push(value);
-                }
+        for value in self.wet.drain(..frames * channels) {
+            if !value.is_finite() {
+                return Err(failed("campioni non finiti"));
             }
+            out.push(value);
         }
         self.emitted += frames;
         if finish && self.emitted != self.input_frames {
@@ -183,36 +176,6 @@ impl State {
 }
 
 impl State {
-    fn context(&mut self, start_frame: u64, history: &[f32]) -> Result<(), AppError> {
-        // Allinea l'origine all'hop da 10 ms sulla griglia assoluta. Include la storia reale,
-        // senza consegnarla nuovamente; la catena di ricampionamento resta continua nel tratto.
-        let (mut a, mut b) = (self.format.rate as u64, 100_u64);
-        while b != 0 {
-            (a, b) = (b, a % b);
-        }
-        let period = self.format.rate as u64 / a;
-        let end = start_frame + (history.len() / self.format.channels) as u64;
-        let start = start_frame.div_ceil(period) * period;
-        let mut prefix = if start <= end {
-            history[((start - start_frame) as usize) * self.format.channels..].to_vec()
-        } else {
-            // All'inizio di un audio privo di storia usa solo il prefisso di fase precedente.
-            vec![0.0; ((end % period) as usize) * self.format.channels]
-        };
-        self.context_frames = prefix.len() / self.format.channels;
-        let mut discarded = Vec::new();
-        self.process(
-            PcmBlock {
-                format: self.format,
-                start_frame: 0,
-                samples: &prefix,
-            },
-            &mut discarded,
-        )?;
-        prefix.clear();
-        Ok(())
-    }
-
     fn process(&mut self, block: PcmBlock<'_>, out: &mut Vec<f32>) -> Result<(), AppError> {
         if block.format != self.format {
             return Err(failed("il formato PCM cambia"));
@@ -241,7 +204,6 @@ impl State {
 }
 
 enum Request {
-    Context(u64, Vec<f32>, mpsc::SyncSender<Result<Vec<f32>, AppError>>),
     Process(Vec<f32>, mpsc::SyncSender<Result<Vec<f32>, AppError>>),
     Flush(Boundary, mpsc::SyncSender<Result<Vec<f32>, AppError>>),
     Reset(mpsc::SyncSender<Result<Vec<f32>, AppError>>),
@@ -283,12 +245,6 @@ impl DeepFilter {
                 while let Ok(request) = receiver.recv() {
                     let mut out = Vec::new();
                     let result = match request {
-                        Request::Context(start, samples, response) => {
-                            let result = state.context(start, &samples).map(|()| Vec::new());
-                            let failed = result.is_err();
-                            let _ = response.send(result);
-                            failed
-                        }
                         Request::Process(samples, response) => {
                             let result = state
                                 .process(
@@ -359,13 +315,6 @@ impl DeepFilter {
 }
 
 impl AudioProcessor for DeepFilter {
-    fn context(&mut self, block: PcmBlock<'_>) -> Result<(), AppError> {
-        self.pristine = false;
-        self.exchange(
-            |response| Request::Context(block.start_frame, block.samples.to_vec(), response),
-            &mut Vec::new(),
-        )
-    }
     fn max_pending_frames(&self) -> usize {
         self.format.rate as usize / 2 + 8192
     }

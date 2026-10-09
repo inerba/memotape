@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Transcrire",
+    "choose": "Transcrire…",
+    "dialog": {
+      "fileTitle": "Transcrire {{name}} ?",
+      "fileDescription": "Le fichier devient un Tape. Vos choix sont conservés pour les prochaines importations.",
+      "tapeTitle": "Transcrire le Tape ?",
+      "tapeDescription": "L’audio du Tape est transcrit tel quel : il n’est ni nettoyé à nouveau ni modifié."
+    },
     "running": "Transcription en cours…",
     "text": "Texte transcrit",
     "copy": "Copier le texte",
@@ -26,10 +33,10 @@
     "cancelling": "Annulation…",
     "replace": {
       "title": "Retranscrire le Tape ?",
-      "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus. L’audio non traité sera nettoyé selon les profils actifs ; les passages déjà nettoyés sont réutilisés. L’audio et le texte seront remplacés ensemble à la fin. Une annulation ou une erreur laisse le Tape existant inchangé.",
+      "description": "Le texte du Tape sera remplacé par la nouvelle transcription : vos corrections et les noms des intervenants seront perdus. L’audio reste celui du Tape, sans nouveau nettoyage. Une annulation ou une erreur laisse le Tape existant inchangé.",
       "keep": "Garder le texte",
       "confirm": "Remplacer",
-      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles. L’audio non traité sera nettoyé selon les profils actifs ; les passages déjà nettoyés sont réutilisés. L’audio et le texte seront remplacés ensemble à la fin. Une annulation ou une erreur laisse le Tape existant inchangé."
+      "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles. L’audio reste celui du Tape, sans nouveau nettoyage. Une annulation ou une erreur laisse le Tape existant inchangé."
     },
     "parlanti": "Reconnaître les intervenants",
     "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
@@ -38,8 +45,6 @@
     "rename": "Cliquez pour renommer : Entrée valide, Échap annule",
     "renameName": "Nouveau nom pour {{label}}",
     "renameTaken": "Un autre intervenant porte déjà ce nom",
-    "startWith": "Transcrire · {{language}}",
-    "options": "Options de transcription",
     "edit": "Cliquez pour corriger : Entrée enregistre, Échap annule",
     "export": "Exporter en Markdown…",
     "exported": "Exporté dans {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "Le modèle local ne correspond pas au GGUF Nemotron Diarization vérifié ou ne peut pas être chargé : {{detail}}",
       "audioCleaningMissing": "Le modèle DeepFilterNet3 fourni avec l’application est absent. Réinstallez Memotape.",
       "audioCleaningIncompatible": "Le modèle DeepFilterNet3 fourni est incompatible : {{detail}}",
-      "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré. Un Tape existant reste inchangé : {{detail}}",
+      "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré : {{detail}}",
       "liveTranscriptionLagging": "La transcription en direct a pris trop de retard et a été arrêtée. L’audio continue d’être enregistré ; vous pourrez le transcrire après Arrêter."
     },
     "app": {
@@ -207,7 +212,7 @@
       "deviceFor": "Périphérique : {{input}}",
       "quality": "Qualité du fichier",
       "inactive": "Exclu de l’Enregistrement",
-      "inactiveDescription": "Cette Entrée ne sera pas enregistrée. Le nettoyage et la sensibilité restent disponibles pour Transcrire ses Tapes.",
+      "inactiveDescription": "Cette Entrée ne sera pas enregistrée. Le nettoyage et la sensibilité restent enregistrés pour quand vous l’enregistrerez à nouveau.",
       "gainDescription": "Modifie le niveau enregistré sans changer le volume de Windows. Baissez le Gain lorsque le niveau devient rouge. En cours d’Enregistrement, les changements valent pour l’audio suivant ; en pause, à la reprise.",
       "bitrateDescription": "Une valeur plus élevée conserve plus de détails audio et utilise plus d’espace.",
       "channelsDescription": "Mono enregistre un canal ; Stéréo conserve les canaux gauche et droit.",
@@ -255,8 +260,8 @@
     "cleaning": {
       "profile": "Fichiers et audio mixte",
       "enable": "Filtrer le bruit",
-      "description": "DeepFilterNet3 réduit le bruit des fichiers, vidéos et Tapes sans Entrées séparées. Les passages déjà nettoyés sont réutilisés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
-      "recordingDescription": "DeepFilterNet3 réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Les passages nettoyés sont réutilisés dans les Tapes : le désactiver ne restaure pas l’original."
+      "description": "DeepFilterNet3 réduit le bruit des fichiers audio et vidéo importés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
+      "recordingDescription": "DeepFilterNet3 réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Le Tape conserve l’audio traité : le désactiver ne restaure pas l’original."
     },
     "protection": {
       "label": "Sensibilité",
@@ -266,7 +271,7 @@
         "bilanciato": "Équilibrée",
         "selettivo": "Plus sélective"
       },
-      "scope": "Filtre la parole pour la Transcription, sans modifier l’audio ni le nettoyage. Vaut aussi pour les fichiers et les Tapes. En direct, les changements valent pour la parole suivante, en gardant la Phrase en cours entière.",
+      "scope": "Filtre la parole pour la Transcription, sans modifier l’audio ni le nettoyage. Vaut aussi pour les fichiers importés, pas pour la transcription d’un Tape. En direct, les changements valent pour la parole suivante, en gardant la Phrase en cours entière.",
       "descriptions": {
         "spento": "Désactive le filtre supplémentaire ; la détection habituelle de la parole reste active.",
         "sensibile": "Conserve davantage de voix faibles et de réponses brèves ; peut inclure plus de bruit.",

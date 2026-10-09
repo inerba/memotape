@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Transkrybuj",
+    "choose": "Transkrybuj…",
+    "dialog": {
+      "fileTitle": "Transkrybować {{name}}?",
+      "fileDescription": "Plik stanie się Tape’em. Wybrane opcje zostaną zachowane dla kolejnych importów.",
+      "tapeTitle": "Transkrybować Tape?",
+      "tapeDescription": "Dźwięk Tape’a jest transkrybowany bez zmian: nie jest ponownie czyszczony ani modyfikowany."
+    },
     "running": "Trwa transkrypcja…",
     "text": "Transkrybowany tekst",
     "copy": "Kopiuj tekst",
@@ -26,10 +33,10 @@
     "cancelling": "Anulowanie…",
     "replace": {
       "title": "Transkrybować plik Tape ponownie?",
-      "description": "Tekst pliku Tape zostanie zastąpiony nową transkrypcją: poprawki i nazwy mówców zostaną utracone. Nieprzetworzony dźwięk zostanie oczyszczony zgodnie z aktywnymi profilami; fragmenty już oczyszczone są używane ponownie. Dźwięk i tekst zostaną zastąpione razem po zakończeniu. Anulowanie lub błąd pozostawia istniejący Tape bez zmian.",
+      "description": "Tekst pliku Tape zostanie zastąpiony nową transkrypcją: poprawki i nazwy mówców zostaną utracone. Dźwięk pozostaje taki jak w Tape, bez ponownego czyszczenia. Anulowanie lub błąd pozostawia istniejący Tape bez zmian.",
       "keep": "Zachowaj tekst",
       "confirm": "Zastąp",
-      "manualDescription": "Ten Tape zawiera ręczne poprawki. Nowa transkrypcja zastąpi tekst, przypisania mówców i ich nazwy, w tym ręczne poprawki. Nieprzetworzony dźwięk zostanie oczyszczony zgodnie z aktywnymi profilami; fragmenty już oczyszczone są używane ponownie. Dźwięk i tekst zostaną zastąpione razem po zakończeniu. Anulowanie lub błąd pozostawia istniejący Tape bez zmian."
+      "manualDescription": "Ten Tape zawiera ręczne poprawki. Nowa transkrypcja zastąpi tekst, przypisania mówców i ich nazwy, w tym ręczne poprawki. Dźwięk pozostaje taki jak w Tape, bez ponownego czyszczenia. Anulowanie lub błąd pozostawia istniejący Tape bez zmian."
     },
     "parlanti": "Rozpoznaj mówców",
     "nemotron3Note": "Eksperymentalny Nemotron 3: obsługuje do 8 mówców na wejście, ale może mylić lub łączyć głosy.",
@@ -38,8 +45,6 @@
     "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
     "renameName": "Nowa nazwa dla {{label}}",
     "renameTaken": "Inny mówca ma już tę nazwę",
-    "startWith": "Transkrybuj · {{language}}",
-    "options": "Opcje transkrypcji",
     "edit": "Kliknij, aby poprawić: Enter zapisuje, Esc anuluje",
     "export": "Eksportuj Markdown…",
     "exported": "Wyeksportowano do {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "Model lokalny nie odpowiada zweryfikowanemu plikowi GGUF Nemotron Diarization lub nie można go załadować: {{detail}}",
       "audioCleaningMissing": "Brakuje modelu DeepFilterNet3 dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
       "audioCleaningIncompatible": "Dołączony model DeepFilterNet3 jest niezgodny: {{detail}}",
-      "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku. Istniejący Tape pozostaje bez zmian: {{detail}}",
+      "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
       "liveTranscriptionLagging": "Transkrypcja na żywo ma zbyt duże opóźnienie i została zatrzymana. Dźwięk jest nadal nagrywany; możesz go transkrybować po zatrzymaniu."
     },
     "app": {
@@ -208,7 +213,7 @@
       "deviceFor": "Urządzenie: {{input}}",
       "quality": "Jakość pliku",
       "inactive": "Wyłączone z Nagrania",
-      "inactiveDescription": "To Wejście nie będzie nagrywane. Czyszczenie i czułość pozostają dostępne podczas Transkrypcji jego Tape’ów.",
+      "inactiveDescription": "To Wejście nie będzie nagrywane. Czyszczenie i czułość pozostaną zapisane na czas, gdy znów zaczniesz z niego nagrywać.",
       "gainDescription": "Zmienia nagrywany poziom bez zmiany głośności Windows. Zmniejsz Wzmocnienie, gdy wskaźnik jest czerwony. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu.",
       "bitrateDescription": "Wyższa wartość zachowuje więcej szczegółów dźwięku i zajmuje więcej miejsca.",
       "channelsDescription": "Mono zapisuje jeden kanał; Stereo zachowuje lewy i prawy kanał.",
@@ -256,8 +261,8 @@
     "cleaning": {
       "profile": "Pliki i dźwięk mieszany",
       "enable": "Filtruj szum",
-      "description": "DeepFilterNet3 redukuje szum w plikach, filmach i Tape’ach bez oddzielnych Wejść. Oczyszczone fragmenty są używane ponownie. Tape zachowuje przetworzony dźwięk: wyłączenie czyszczenia nie przywraca oryginału.",
-      "recordingDescription": "DeepFilterNet3 redukuje nagrywany szum, także bez Transkrypcji na żywo. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu. Oczyszczone fragmenty są ponownie używane w Tape’ach: wyłączenie nie przywraca oryginału."
+      "description": "DeepFilterNet3 redukuje szum w importowanych plikach audio i wideo. Tape zachowuje przetworzony dźwięk: wyłączenie czyszczenia nie przywraca oryginału.",
+      "recordingDescription": "DeepFilterNet3 redukuje nagrywany szum, także bez Transkrypcji na żywo. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu. Tape zachowuje przetworzony dźwięk: wyłączenie nie przywraca oryginału."
     },
     "protection": {
       "label": "Czułość",
@@ -267,7 +272,7 @@
         "bilanciato": "Zrównoważona",
         "selettivo": "Bardziej selektywna"
       },
-      "scope": "Filtruje mowę do Transkrypcji bez zmiany dźwięku ani czyszczenia. Dotyczy też plików i Tape’ów. Na żywo zmiany dotyczą kolejnej wypowiedzi i zachowują całą trwającą Frazę.",
+      "scope": "Filtruje mowę do Transkrypcji bez zmiany dźwięku ani czyszczenia. Dotyczy też importowanych plików, ale nie transkrypcji Tape’a. Na żywo zmiany dotyczą kolejnej wypowiedzi i zachowują całą trwającą Frazę.",
       "descriptions": {
         "spento": "Wyłącza dodatkowy filtr; zwykłe wykrywanie mowy pozostaje aktywne.",
         "sensibile": "Zachowuje więcej cichych głosów i krótkich odpowiedzi; może przepuszczać więcej hałasu.",

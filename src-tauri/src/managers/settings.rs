@@ -321,15 +321,6 @@ impl Default for Settings {
 }
 
 impl Settings {
-    /// L'Ingresso effettivo del Tape; senza tracce distinte il profilo resta File e audio misto.
-    pub fn profilo_audio(&self, ingresso: Ingresso) -> &ProfiloAudio {
-        match ingresso {
-            Ingresso::Microfono => &self.audio_microfono,
-            Ingresso::Sistema => &self.audio_sistema,
-            Ingresso::Mix => &self.audio_file_misto,
-        }
-    }
-
     /// Gli audio da diarizzare dopo Stop: quelli trascritti dal vivo (il mix, o da Entrambi ogni
     /// Ingresso) con la loro casella attiva. Senza Trascrizione dal vivo nessuno: non ci sono Frasi
     /// da attribuire.

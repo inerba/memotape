@@ -111,8 +111,8 @@ Revisione approvata il 6 ottobre 2026, mockup in `.impeccable/mocks/home-riprend
 
 ### Trascrizione
 
-La pulizia di un file audio o video si attiva in Impostazioni → Trascrizione →
-File e audio misto ed è inizialmente spenta. Usa DeepFilterNet3 standard sul PC,
+La pulizia di un file audio o video si sceglie nel dialog di Trascrivi, insieme a
+Sensibilità, modello, Lingua del parlato e Riconosci i parlanti, ed è inizialmente spenta. Usa DeepFilterNet3 standard sul PC,
 senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
 reintrodurre una miscela dell'audio originale. La pulizia può attenuare anche
 voce molto debole; la Sensibilità del parlato è un controllo indipendente e non
@@ -126,7 +126,7 @@ prima della coda ASR, conservando durata e canali del percorso audio. Il Tape v1
 registra gli intervalli effettivamente elaborati e resta compatibile con i Tape
 precedenti. Un modello assente, incompatibile o un guasto interrompe
 l'importazione con un errore esplicito; Annulla, guasto e assenza di parlato non
-lasciano un Tape parziale. La protezione aggiuntiva del parlato è disponibile nella Trascrizione di file e Tape e nella Trascrizione dal vivo.
+lasciano un Tape parziale. La protezione aggiuntiva del parlato è disponibile nella Trascrizione dei file importati e nella Trascrizione dal vivo, non in Trascrivi su un Tape.
 
 I tre profili conservano separatamente la Sensibilità del parlato: Spento,
 Più sensibile, Bilanciato (anche per impostazioni precedenti), Più selettivo.
@@ -174,28 +174,19 @@ sensibile, su tre ASR e con pulizia accesa/spenta. Non attesta respiri o voce
 umana: soffio sintetico e TTS attenuata restano distinti da questi casi.
 Ascolto e collaudo Tauri sono ancora aperti; nessuna promessa di zero allucinazioni.
 
-Trascrivi su un Tape senza tracce distinte usa File e audio misto; con Ingressi
-separati usa i profili di Microfono e Audio di sistema. Riusa gli intervalli
-già puliti, anche quando un solo dispositivo è conservato nel mix, e applica
-DeepFilterNet3 soltanto ai tratti non trattati quando il profilo è attivo.
-L'assenza di metadati nei Tape precedenti non prova che l'audio esterno non
-sia mai stato filtrato. Un cambio vale dai blocchi decodificati successivi.
-
-Il nuovo audio si prepara in temporanei, conservando canali, durata e contesto
-ai confini; con Ingressi separati il mix viene ricostruito dalle tracce senza
-una seconda pulizia. Trascrizione e analisi dei Parlanti leggono l'audio che
-verrà salvato. Solo dopo il loro successo, audio, Forma d'onda, testo e
-metadati vengono sostituiti atomicamente. Annulla o errore conserva il Tape
-precedente e rimuove i temporanei. La nuova Trascrizione sostituisce anche
-correzioni e nomi dei Parlanti, come indicato nella conferma già presente.
-Non si conserva una seconda copia originale. Se non cambia l'audio, gli Ogg
-restano byte per byte quelli precedenti, anche a pulizia spenta.
+Trascrivi su un Tape, la prima volta o di nuovo, usa l'audio salvato così com'è
+(ADR-0029): non applica pulizia né Sensibilità, qualunque sia l'impostazione,
+perché l'audio di una Registrazione o di un file importato è già quello scelto
+quando il Tape è nato e ripulirlo lo degraderebbe. Cambia solo il testo: Ogg,
+Forma d'onda e intervalli di pulizia restano byte per byte quelli precedenti.
+Il documento si sostituisce atomicamente solo dopo il successo, conservando i
+dati che l'app non conosce; Annulla o errore conserva il Tape precedente. La
+nuova Trascrizione sostituisce anche correzioni e nomi dei Parlanti, come
+indicato nella conferma.
 
 Aprire, riprodurre o cambiare Impostazioni non riscrive né pulisce un Tape.
-La Forma d'onda mancante nei Tape vecchi viene calcolata in memoria; una nuova
-pulizia la sostituisce insieme all'audio. Player, riapertura, copia e ricerca
-leggono il risultato salvato. Il collaudo manuale nella finestra Tauri e la
-prova con disco effettivamente pieno restano distinti dalle verifiche del core.
+La Forma d'onda mancante nei Tape vecchi viene calcolata in memoria. Player,
+riapertura, copia e ricerca leggono il risultato salvato.
 
 La licenza del codice è inclusa in Informazioni. La redistribuzione dei pesi
 resta da chiarire con gli autori; la verifica locale non autorizza un rilascio.
@@ -556,6 +547,14 @@ con parlato reale resta distinto dalle prove automatiche.
 - L'avvio effettivo, il primo audio conservato, il ritardo del testo e il costo
   in memoria devono essere misurati separatamente. Nessuna latenza garantita
   prima delle prove sul percorso reale. La Diarizzazione resta dopo Stop.
+
+## Scelte di Trascrivi e ritrascrizione dei Tape — requisiti concordati il 9 ottobre 2026
+
+- Trascrivi apre sempre un dialog con le scelte in vista prima di partire; il pulsante dice "Trascrivi…" e il menu della freccia non c'è più. Le scelte si salvano subito e restano per la volta successiva.
+- Per un file audio o video (Importa un file, Apri file, trascinamento): modello, Lingua del parlato, Filtra rumore, Sensibilità e Riconosci i parlanti. Impostazioni → Trascrizione non ha più il blocco "File e audio misto".
+- Per un Tape: modello, Lingua del parlato e Riconosci i parlanti. Con testo già presente il dialog è anche la conferma "Ritrascrivere il Tape?" con l'avviso su correzioni e nomi (e sulle correzioni a mano, se ci sono); senza testo non avvisa. Trascrivi di nuovo, nel menu "…" del Tape, apre lo stesso dialog.
+- Trascrivi su un Tape non pulisce né filtra l'audio: usa quello salvato (ADR-0029). Vocabolario e nome predefinito del Microfono valgono come prima.
+- Pulizia e Sensibilità di un Ingresso escluso da "Registra da" restano visibili in Impostazioni → Registrazione e valgono quando si torna a registrarlo.
 
 ## Fuori dal perimetro
 

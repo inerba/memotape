@@ -96,7 +96,11 @@ import {
   visiblePhrases,
   withNome,
 } from "@/features/transcription/phrases";
-import { TranscribeMenu } from "@/features/transcription/transcribe-menu";
+import {
+  TranscribeButton,
+  TranscribeDialog,
+  type TranscribeTarget,
+} from "@/features/transcription/transcribe-menu";
 import { TranscriptView } from "@/features/transcription/transcript-view";
 
 const COPIED_MS = 2000;
@@ -152,7 +156,7 @@ export function HomePage() {
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
   const [dismissed, setDismissed] = useState<Status | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  // Trascrivi su un Tape aspetta la conferma: il testo e le correzioni si sostituiscono.
+  // Trascrivi passa sempre dal dialog delle scelte; su un Tape con testo avvisa che si sostituisce.
   const [confirmTranscribe, setConfirmTranscribe] = useState(false);
   const [confirmDiarize, setConfirmDiarize] = useState(false);
   const diarizationInFlight = useRef(false);
@@ -406,6 +410,12 @@ export function HomePage() {
     if (!source) {
       return;
     }
+    // Le scelte appena fatte nel dialog devono essere salvate prima che il backend le legga.
+    const unsaved = await flush();
+    if (unsaved) {
+      setNotice(unsaved);
+      return;
+    }
     dispatch({ kind: "transcription", type: "start" });
     setCancelling(false);
     try {
@@ -426,7 +436,7 @@ export function HomePage() {
         type: "outcome",
       });
     }
-  }, [dispatch, loadTape, raccolta, source]);
+  }, [dispatch, flush, loadTape, raccolta, source]);
 
   // La nuova Diarizzazione lascia in vista il risultato precedente fino al salvataggio riuscito.
   const diarize = useCallback(async () => {
@@ -586,14 +596,19 @@ export function HomePage() {
     [dispatch]
   );
 
-  // Ritrascrivere un Tape ne sostituisce il testo, correzioni comprese: prima si conferma.
-  const requestTranscription = useCallback(() => {
-    if (source && isTape(source)) {
-      setConfirmTranscribe(true);
-    } else {
-      transcribe();
-    }
-  }, [source, transcribe]);
+  const requestTranscription = useCallback(
+    () => setConfirmTranscribe(true),
+    []
+  );
+  let transcribeTarget: TranscribeTarget = { kind: "tape" };
+  if (source && !isTape(source)) {
+    transcribeTarget = { kind: "file", name: fileName(source) };
+  } else if (conversation.phrases.length > 0) {
+    transcribeTarget = {
+      kind: "replace",
+      manual: info?.correttoAMano ?? false,
+    };
+  }
 
   const closeConfirm = useCallback((opened: boolean) => {
     if (!opened) {
@@ -927,7 +942,6 @@ export function HomePage() {
             conversation={conversation}
             copied={copied}
             onCopy={copyActivity}
-            onError={failed}
             onOpen={open}
             onTranscribe={requestTranscription}
             running={running}
@@ -980,30 +994,13 @@ export function HomePage() {
           ) : null}
         </main>
       </div>
-      <AlertDialog onOpenChange={closeConfirm} open={confirmTranscribe}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {t("transcription.replace.title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {t(
-                info?.correttoAMano
-                  ? "transcription.replace.manualDescription"
-                  : "transcription.replace.description"
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>
-              {t("transcription.replace.keep")}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={transcribe}>
-              {t("transcription.replace.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <TranscribeDialog
+        onError={failed}
+        onOpenChange={closeConfirm}
+        onTranscribe={transcribe}
+        open={confirmTranscribe}
+        target={transcribeTarget}
+      />
       <AlertDialog onOpenChange={closeDiarizationConfirm} open={confirmDiarize}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1146,7 +1143,6 @@ function FileView({
   conversation,
   copied,
   onCopy,
-  onError,
   onOpen,
   onTranscribe,
   running,
@@ -1156,7 +1152,6 @@ function FileView({
   conversation: Conversation;
   copied: boolean;
   onCopy: () => void;
-  onError: (error: AppError) => void;
   onOpen: () => void;
   onTranscribe: () => void;
   running: boolean;
@@ -1187,12 +1182,7 @@ function FileView({
             />
             {running ? null : (
               <div className="pb-8">
-                <TranscribeMenu
-                  busy={busy}
-                  canTranscribe={!busy}
-                  onError={onError}
-                  onTranscribe={onTranscribe}
-                />
+                <TranscribeButton disabled={busy} onClick={onTranscribe} />
               </div>
             )}
           </>
@@ -1488,7 +1478,6 @@ function TapePane({
   const empty = (
     <TapeEmpty
       busy={busy}
-      onError={onError}
       onTranscribe={isSource ? onTranscribe : undefined}
       transcribing={transcribing}
     />
@@ -1607,12 +1596,10 @@ function TapePlayer({
 /** Il documento di un Tape senza Frasi: in Trascrizione, o da trascrivere (se `onTranscribe`). */
 function TapeEmpty({
   busy,
-  onError,
   onTranscribe,
   transcribing,
 }: {
   busy: boolean;
-  onError: (error: AppError) => void;
   onTranscribe?: () => void;
   transcribing: boolean;
 }) {
@@ -1631,12 +1618,7 @@ function TapeEmpty({
         </p>
       </div>
       {onTranscribe ? (
-        <TranscribeMenu
-          busy={busy}
-          canTranscribe={!busy}
-          onError={onError}
-          onTranscribe={onTranscribe}
-        />
+        <TranscribeButton disabled={busy} onClick={onTranscribe} />
       ) : null}
     </div>
   );

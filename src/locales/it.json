@@ -17,6 +17,13 @@
   },
   "transcription": {
     "start": "Trascrivi",
+    "choose": "Trascrivi…",
+    "dialog": {
+      "fileTitle": "Trascrivere {{name}}?",
+      "fileDescription": "Il file diventa un Tape. Le scelte restano per le prossime importazioni.",
+      "tapeTitle": "Trascrivere il Tape?",
+      "tapeDescription": "L’audio del Tape si trascrive così com’è: non si ripulisce né cambia."
+    },
     "running": "Trascrizione in corso…",
     "text": "Testo trascritto",
     "copy": "Copia testo",
@@ -26,10 +33,10 @@
     "cancelling": "Annullamento…",
     "replace": {
       "title": "Ritrascrivere il Tape?",
-      "description": "Il testo del Tape sarà sostituito dalla nuova Trascrizione: le correzioni e i nomi dei Parlanti andranno persi. L’audio non ancora trattato verrà pulito secondo i profili attivi; i tratti già puliti vengono riusati. Audio e testo saranno sostituiti insieme al termine. Con Annulla o errore il Tape precedente resta invariato.",
+      "description": "Il testo del Tape sarà sostituito dalla nuova Trascrizione: le correzioni e i nomi dei Parlanti andranno persi. L’audio resta quello del Tape, senza nuova pulizia. Con Annulla o errore il Tape precedente resta invariato.",
       "keep": "Mantieni il testo",
       "confirm": "Sostituisci",
-      "manualDescription": "Questo Tape contiene correzioni manuali. Una nuova Trascrizione sostituirà il testo, le attribuzioni e i nomi dei Parlanti, comprese le correzioni fatte a mano. L’audio non ancora trattato verrà pulito secondo i profili attivi; i tratti già puliti vengono riusati. Audio e testo saranno sostituiti insieme al termine. Con Annulla o errore il Tape precedente resta invariato."
+      "manualDescription": "Questo Tape contiene correzioni manuali. Una nuova Trascrizione sostituirà il testo, le attribuzioni e i nomi dei Parlanti, comprese le correzioni fatte a mano. L’audio resta quello del Tape, senza nuova pulizia. Con Annulla o errore il Tape precedente resta invariato."
     },
     "parlanti": "Riconosci i parlanti",
     "nemotron3Note": "Nemotron 3 sperimentale: supporta fino a 8 Parlanti per Ingresso, ma può confondere o unire le voci.",
@@ -38,8 +45,6 @@
     "rename": "Clic per rinominare: Invio conferma, Esc annulla",
     "renameName": "Nuovo nome per {{label}}",
     "renameTaken": "Un altro Parlante ha già questo nome",
-    "startWith": "Trascrivi · {{language}}",
-    "options": "Opzioni di Trascrizione",
     "edit": "Clic per correggere: Invio salva, Esc annulla",
     "export": "Esporta Markdown…",
     "exported": "Esportato in {{path}}",
@@ -131,7 +136,7 @@
       "localDiarizerIncompatible": "Il modello locale non coincide con il GGUF Nemotron Diarization verificato o non si può caricare: {{detail}}",
       "audioCleaningMissing": "Il modello DeepFilterNet3 distribuito con l’app è assente. Reinstalla Memotape.",
       "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
-      "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato. Un Tape precedente resta invariato: {{detail}}",
+      "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
       "liveTranscriptionLagging": "La Trascrizione dal vivo è troppo indietro ed è stata interrotta. L’audio continua a essere registrato; potrai trascriverlo dopo Stop."
     },
     "app": {
@@ -207,7 +212,7 @@
       "deviceFor": "Dispositivo: {{input}}",
       "quality": "Qualità del file",
       "inactive": "Escluso dalla Registrazione",
-      "inactiveDescription": "Questo Ingresso non verrà registrato. Pulizia e Sensibilità restano disponibili per Trascrivere i suoi Tape.",
+      "inactiveDescription": "Questo Ingresso non verrà registrato. Pulizia e Sensibilità restano salvate per quando tornerai a registrarlo.",
       "gainDescription": "Aumenta o riduce il livello registrato, senza cambiare il volume di Windows. Il rosso indica di abbassare il Guadagno. Durante la Registrazione vale dall’audio successivo; in Pausa, dalla ripresa.",
       "bitrateDescription": "Un valore più alto conserva più dettaglio audio e occupa più spazio.",
       "channelsDescription": "Mono salva un solo canale; Stereo conserva i canali sinistro e destro.",
@@ -255,8 +260,8 @@
     "cleaning": {
       "profile": "File e audio misto",
       "enable": "Filtra rumore",
-      "description": "DeepFilterNet3 riduce il rumore di file, video e Tape senza Ingressi separati. I tratti già puliti vengono riusati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
-      "recordingDescription": "DeepFilterNet3 riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. I tratti già puliti vengono riusati nei Tape: spegnerla non recupera l’originale."
+      "description": "DeepFilterNet3 riduce il rumore dei file audio e video importati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
+      "recordingDescription": "DeepFilterNet3 riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. Il Tape conserva l’audio elaborato: spegnerla non recupera l’originale."
     },
     "protection": {
       "label": "Sensibilità",
@@ -266,7 +271,7 @@
         "bilanciato": "Bilanciato",
         "selettivo": "Più selettivo"
       },
-      "scope": "Filtra il parlato per la Trascrizione, senza cambiare l’audio o la pulizia. Vale anche nei file e nei Tape. Dal vivo i cambi valgono per il parlato successivo, mantenendo intera la Frase in corso.",
+      "scope": "Filtra il parlato per la Trascrizione, senza cambiare l’audio o la pulizia. Vale anche per i file importati, non quando si trascrive un Tape. Dal vivo i cambi valgono per il parlato successivo, mantenendo intera la Frase in corso.",
       "descriptions": {
         "spento": "Disattiva il filtro aggiuntivo; resta il normale rilevamento del parlato.",
         "sensibile": "Conserva più voci deboli e risposte brevi; può includere più rumori.",

@@ -13,7 +13,6 @@ import { type AppError, commands, type LibraryList } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
 import { raccoltaLabel } from "@/features/library/library";
 import { entryOf, titleOf } from "@/features/library/tape-header";
-import { TranscribeOptions } from "@/features/transcription/transcribe-menu";
 
 function closeMenu() {
   document.getElementById("menu-more")?.hidePopover();
@@ -24,8 +23,8 @@ export const MENU_ITEM =
 
 /**
  * "…" del Tape aperto, con le azioni meno frequenti: Esporta Markdown…, Mostra in Esplora file,
- * Sposta in… (o Aggiungi alla Libreria… per un Tape da fuori), Trascrivi di nuovo con le sue scelte
- * (se `onTranscribe`) ed Elimina.
+ * Sposta in… (o Aggiungi alla Libreria… per un Tape da fuori), Trascrivi di nuovo (se `onTranscribe`,
+ * apre il dialog delle scelte) ed Elimina.
  */
 export function TapeMenu({
   disabled,
@@ -131,7 +130,6 @@ export function TapeMenu({
       {onTranscribe ? (
         <>
           <hr className="my-1" />
-          <TranscribeOptions onError={onError} />
           <MenuItem icon={<RefreshCcw />} onClick={transcribe}>
             {t("transcription.again")}
           </MenuItem>

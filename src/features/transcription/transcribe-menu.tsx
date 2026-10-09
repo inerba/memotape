@@ -1,11 +1,21 @@
-import { Captions, ChevronDown } from "lucide-react";
+import { Captions } from "lucide-react";
 import { type ChangeEvent, useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppError } from "@/bindings";
 import { NativeSelect } from "@/components/native-select";
-import { PopoverMenu } from "@/components/popover-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useModels } from "@/features/models/use-models";
+import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { SettingSwitch } from "@/features/settings/setting-switch";
 import {
   speechLanguageChoice,
@@ -14,8 +24,7 @@ import {
 import { useSettings } from "@/features/settings/settings-context";
 
 /**
- * La Lingua del parlato scelta, come si mostra: "Automatica" o il nome della lingua, e `nameOf` per
- * i nomi delle altre. `ignoredBy` è il nome del modello scelto se non usa la lingua (Parakeet).
+ * La Lingua del parlato scelta e `nameOf` per i nomi delle lingue ("Automatica" o il nome). `ignoredBy` è il nome del modello scelto se non usa la lingua (Parakeet).
  */
 function useSpeechLanguage() {
   const { i18n, t } = useTranslation();
@@ -35,7 +44,7 @@ function useSpeechLanguage() {
     model && !model.acceptsLanguage && choice.value !== "auto"
       ? model.name
       : null;
-  return { ...choice, ignoredBy, name: nameOf(choice.value), nameOf };
+  return { ...choice, ignoredBy, nameOf };
 }
 
 /** Le scelte della prossima Trascrizione: modello, Lingua del parlato e Riconosci i parlanti. */
@@ -84,7 +93,7 @@ export function TranscribeOptions({
   );
 
   return (
-    <div className="flex flex-col gap-3 px-2 py-2">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <label className="text-muted-foreground text-xs" htmlFor={modelId}>
           {t("models.choose")}
@@ -142,43 +151,101 @@ export function TranscribeOptions({
   );
 }
 
-/**
- * Trascrivi ▾ per una Sorgente ancora senza testo: il pulsante dice la Lingua del parlato scelta, il
- * menu sceglie modello, Lingua del parlato e Riconosci i parlanti.
- */
-export function TranscribeMenu({
-  busy,
-  canTranscribe,
-  onError,
-  onTranscribe,
+/** Trascrivi… per una Sorgente ancora senza testo: apre `TranscribeDialog`. */
+export function TranscribeButton({
+  disabled,
+  onClick,
 }: {
-  busy: boolean;
-  canTranscribe: boolean;
-  onError: (error: AppError) => void;
-  onTranscribe: () => void;
+  disabled: boolean;
+  onClick: () => void;
 }) {
   const { t } = useTranslation();
-  const { name } = useSpeechLanguage();
   return (
-    <div className="flex">
-      <Button
-        className="h-10 rounded-r-none px-4"
-        disabled={!canTranscribe}
-        onClick={onTranscribe}
-      >
-        <Captions />
-        {t("transcription.startWith", { language: name })}
-      </Button>
-      <PopoverMenu
-        className="h-10 w-9 rounded-l-none border-primary-foreground/15 border-l"
-        disabled={busy}
-        icon={<ChevronDown />}
-        id="transcribe"
-        label={t("transcription.options")}
-        variant="default"
-      >
-        <TranscribeOptions onError={onError} />
-      </PopoverMenu>
-    </div>
+    <Button className="h-10 px-4" disabled={disabled} onClick={onClick}>
+      <Captions />
+      {t("transcription.choose")}
+    </Button>
+  );
+}
+
+/**
+ * Cosa si trascrive: un file da importare, un Tape senza testo, o un Tape il cui testo si sostituisce
+ * (`manual`: con correzioni a mano).
+ */
+export type TranscribeTarget =
+  | { kind: "file"; name: string }
+  | { kind: "tape" }
+  | { kind: "replace"; manual: boolean };
+
+/**
+ * Le scelte prima di ogni Trascrizione, sempre in vista. Un file importato si può pulire e
+ * filtrare (Filtra rumore e Sensibilità); un Tape si trascrive con l'audio salvato così com'è
+ * (ADR-0029), quindi offre solo modello, Lingua del parlato e Riconosci i parlanti.
+ */
+export function TranscribeDialog({
+  onError,
+  onOpenChange,
+  onTranscribe,
+  open,
+  target,
+}: {
+  onError: (error: AppError) => void;
+  onOpenChange: (open: boolean) => void;
+  onTranscribe: () => void;
+  open: boolean;
+  target: TranscribeTarget;
+}) {
+  const { t } = useTranslation();
+  const replace = target.kind === "replace";
+  let title = t("transcription.dialog.tapeTitle");
+  let description = t("transcription.dialog.tapeDescription");
+  if (target.kind === "file") {
+    title = t("transcription.dialog.fileTitle", { name: target.name });
+    description = t("transcription.dialog.fileDescription");
+  } else if (replace) {
+    title = t("transcription.replace.title");
+    description = t(
+      target.manual
+        ? "transcription.replace.manualDescription"
+        : "transcription.replace.description"
+    );
+  }
+  const showError = useCallback(
+    (error: AppError | null) => {
+      if (error) {
+        onError(error);
+      }
+    },
+    [onError]
+  );
+  return (
+    <AlertDialog onOpenChange={onOpenChange} open={open}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-5">
+          <TranscribeOptions onError={onError} />
+          {target.kind === "file" ? (
+            <CleaningProfile
+              hideLegend
+              name="audioFileMisto"
+              onError={showError}
+            />
+          ) : null}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            {t(replace ? "transcription.replace.keep" : "transcription.cancel")}
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={onTranscribe}>
+            {t(
+              replace ? "transcription.replace.confirm" : "transcription.start"
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

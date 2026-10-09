@@ -416,13 +416,11 @@ pub fn rewrite_cancellable(
     )
 }
 
-/// Trascrivi su Tape: sostituisce in una sola transazione documento, audio e Forma d'onda.
-/// Le voci non sostituite restano byte-identiche, inclusi gli Ogg già trattati e dati aggiuntivi.
-pub fn rewrite_audio_cancellable(
+/// Trascrivi su Tape (ADR-0029): sostituisce il documento conservando i campi JSON sconosciuti.
+/// Le altre voci (audio, Forma d'onda, dati aggiuntivi) restano byte-identiche.
+pub fn replace_transcription(
     path: &Path,
     document: &Document,
-    audio: &[(Ingresso, &Path)],
-    forma_onda: Option<&[f32]>,
     cancel: &transcribe_cpp::CancelToken,
 ) -> Result<(), AppError> {
     let _writing = writing();
@@ -472,36 +470,10 @@ pub fn rewrite_audio_cancellable(
         for i in 0..old.len() {
             check()?;
             let entry = old.by_index_raw(i).map_err(|e| unreadable(path, &e))?;
-            let replaced = entry.name() == DOCUMENT
-                || (forma_onda.is_some() && entry.name() == FORMA_ONDA)
-                || audio
-                    .iter()
-                    .any(|(ingresso, _)| entry.name() == audio_entry(*ingresso));
-            if !replaced {
+            if entry.name() != DOCUMENT {
                 zip.raw_copy_file(entry)
                     .map_err(|e| unwritable(&temp, &e))?;
             }
-        }
-        for &(ingresso, ogg) in audio {
-            let mut input = File::open(ogg).map_err(|e| unreadable(ogg, &e))?;
-            zip.start_file(
-                audio_entry(ingresso),
-                SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
-            )
-            .map_err(|e| unwritable(&temp, &e))?;
-            let mut bytes = [0_u8; 65536];
-            loop {
-                check()?;
-                let count = input.read(&mut bytes).map_err(|e| unreadable(ogg, &e))?;
-                if count == 0 {
-                    break;
-                }
-                std::io::Write::write_all(&mut zip, &bytes[..count])
-                    .map_err(|e| unwritable(&temp, &e))?;
-            }
-        }
-        if let Some(wave) = forma_onda {
-            write_forma_onda(&mut zip, &temp, wave)?;
         }
         zip.start_file(
             DOCUMENT,
@@ -1628,6 +1600,75 @@ mod tests {
         );
         assert_eq!(std::fs::read(&path).unwrap(), bytes);
         assert!(!path.with_extension("tape.tmp").exists());
+    }
+
+    /// Le voci del Tape decompresse, per nome.
+    fn entries(path: &Path) -> BTreeMap<String, Vec<u8>> {
+        let mut zip = open(path).unwrap();
+        (0..zip.len())
+            .map(|i| {
+                let mut entry = zip.by_index(i).unwrap();
+                let mut bytes = Vec::new();
+                entry.read_to_end(&mut bytes).unwrap();
+                (entry.name().to_string(), bytes)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn ritrascrivere_cambia_solo_il_documento_e_conserva_audio_e_dati_aggiuntivi() {
+        let dir = temp_dir("tape-ritrascrizione");
+        let path = dir.join("Call.tape");
+        let mut before = document(&["Il testo precedente."]);
+        before.pulizia_audio = vec![crate::audio_toolkit::cleaning::TrattoPulizia {
+            ingresso: Ingresso::Microfono,
+            algoritmo: "deepfilternet3".into(),
+            versione: "v1".into(),
+            frequenza: 16_000,
+            inizio_frame: 0,
+            fine_frame: 16_000,
+        }];
+        let audio = ogg(&dir);
+        write(
+            &path,
+            &[(Ingresso::Mix, &audio), (Ingresso::Microfono, &audio)],
+            &before,
+            Some(&[0.3]),
+        )
+        .unwrap();
+        // Un campo e una voce di una versione futura.
+        let mut json: serde_json::Value =
+            serde_json::from_reader(open(&path).unwrap().by_name(DOCUMENT).unwrap()).unwrap();
+        json["dati_futuri"] = serde_json::json!("da conservare");
+        replace(&path, DOCUMENT, |zip, temp| {
+            zip.start_file("allegato.txt", SimpleFileOptions::default())
+                .map_err(|e| unwritable(temp, &e))?;
+            std::io::Write::write_all(zip, b"dato aggiuntivo").map_err(|e| unwritable(temp, &e))?;
+            zip.start_file(DOCUMENT, SimpleFileOptions::default())
+                .map_err(|e| unwritable(temp, &e))?;
+            serde_json::to_writer(zip, &json).map_err(|e| unwritable(temp, &e))
+        })
+        .unwrap();
+        let old = entries(&path);
+        let mut new = document(&["Il risultato nuovo."]);
+        new.pulizia_audio.clone_from(&before.pulizia_audio);
+        let cancel = transcribe_cpp::CancelToken::new();
+        cancel.cancel();
+        assert_eq!(
+            replace_transcription(&path, &new, &cancel),
+            Err(AppError::Cancelled)
+        );
+        assert_eq!(entries(&path), old);
+        replace_transcription(&path, &new, &transcribe_cpp::CancelToken::new()).unwrap();
+        let mut after = entries(&path);
+        let json: serde_json::Value = serde_json::from_slice(&after[DOCUMENT]).unwrap();
+        assert_eq!(json["dati_futuri"], "da conservare");
+        assert_eq!(read(&path).unwrap().frasi, new.frasi);
+        assert_eq!(read(&path).unwrap().pulizia_audio, before.pulizia_audio);
+        after.remove(DOCUMENT);
+        let mut old = old;
+        old.remove(DOCUMENT);
+        assert_eq!(after, old);
     }
 
     #[test]

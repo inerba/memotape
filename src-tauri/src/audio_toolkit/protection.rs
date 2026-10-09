@@ -63,9 +63,6 @@ impl AudioProcessor for CaptureProtection {
     fn max_pending_frames(&self) -> usize {
         self.processor.max_pending_frames()
     }
-    fn context(&mut self, block: PcmBlock<'_>) -> Result<(), AppError> {
-        self.processor.context(block)
-    }
     fn process(&mut self, block: PcmBlock<'_>, out: &mut Vec<f32>) -> Result<(), AppError> {
         self.timeline.record(
             block.start_frame * 16_000 / u64::from(block.format.rate),
