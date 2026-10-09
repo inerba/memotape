@@ -1,6 +1,6 @@
 [package]
 name = "memotape"
-version = "0.2.1"
+version = "0.3.0"
 description = "Trascrizione locale di audio e video"
 edition = "2024"
 

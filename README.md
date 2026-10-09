@@ -1,6 +1,6 @@
-# Memotape
+![Memotape: a transcript open in the dark theme, in front of the same window in the light theme](docs/brand/png/memotape-copertina-github.png)
 
-![Memotape cassette symbol](src-tauri/icons/128x128.png)
+# Memotape
 
 Record, transcribe, and revisit conversations on your Windows PC.
 
@@ -12,7 +12,7 @@ Use it for meetings, interviews, lectures, and recorded conversations on Windows
 
 ## Project status
 
-Memotape is under active development at version `0.1.0`. Public distribution, the installer publisher, and the application license have yet to be decided. The installer is unsigned. See [Build from source](#build-from-source) to run the app or build a local installer.
+Memotape is under active development. Public distribution, the installer publisher, and the application license have yet to be decided. The installer is unsigned. See [Build from source](#build-from-source) to run the app or build a local installer.
 
 ## What you can do
 
@@ -185,6 +185,21 @@ bun tauri build
 ```
 
 The NSIS installer is written to `src-tauri/target/release/bundle/nsis/Memotape_<version>_x64-setup.exe`. It bundles the native runtime libraries and installs for the current user. Models are downloaded separately through Settings. See the [installer notes](AGENTS.md#installer) for packaging details and verification steps.
+
+### Release a new version
+
+[`scripts/release.ps1`](scripts/release.ps1) bumps the version and builds the installer for a release. Stop `bun tauri dev` first, then run it from the repository root in PowerShell:
+
+```powershell
+.\scripts\release.ps1 -Version X.Y.Z
+```
+
+It sets the version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`, runs the six checks, and builds `Memotape_<version>_x64-setup.exe`. It accepts only stable `X.Y.Z` versions, refuses downgrades and existing tags, and stops at the first error without reverting the version changes.
+
+- `-WhatIf` shows the planned version change without editing files or building.
+- `-SkipChecks` skips the six checks when you have already run them on the same revision.
+
+The script does not commit, tag, or publish. Review `git diff`, test the installer, and commit the version change. Then run the commands it prints: they create the annotated tag `vX.Y.Z`, push the commit and the tag, and publish a GitHub Release with the installer (requires an authenticated GitHub CLI). Memotape's update check reads the latest published GitHub Release. See [`scripts/RELEASE.md`](scripts/RELEASE.md) for details.
 
 ## Troubleshooting
 

@@ -2729,7 +2729,7 @@ dependencies = [
 
 [[package]]
 name = "memotape"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "audioadapter-buffers",
  "chrono",
