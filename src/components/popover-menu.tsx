@@ -110,9 +110,11 @@ export function PopoverMenu({
       >
         {icon}
       </Button>
+      {/* `pointer-events-auto`: aperto si clicca anche dentro una barretta `pointer-events-none`
+          (Unisci), che altrimenti il pannello eredita appena il turno perde hover e focus. */}
       <div
         className={cn(
-          "inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex",
+          "pointer-events-auto inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex",
           panelClassName
         )}
         id={menuId(id)}
