@@ -470,6 +470,8 @@
     "search": "In der Bibliothek suchen",
     "activity": "Aktivität",
     "recents": "Zuletzt",
+    "allTapes_one": "Alle {{count}} Tapes in der Bibliothek",
+    "allTapes_other": "Alle {{count}} Tapes in der Bibliothek",
     "results": "Ergebnisse",
     "noRecents": "Deine Aufnahmen und transkribierten Dateien erscheinen hier.",
     "localOnly": "Nur auf deinem PC",

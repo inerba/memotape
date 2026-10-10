@@ -1,9 +1,9 @@
-import { ArrowRight, ChevronRight, FileUp, Mic } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock, FileUp, Mic } from "lucide-react";
 import { type MouseEvent, type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TapeEntry } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import { clockText, dayText } from "@/features/library/library";
+import { clockText, dayText, durationWords } from "@/features/library/library";
 import { homeTapes, recentTitle } from "@/features/library/recent-tapes";
 import { elapsedText } from "@/features/recording/recording";
 
@@ -164,10 +164,15 @@ export function LibraryHome({
                             </span>
                             <span className="sr-only">{tape.titolo}</span>
                           </span>
-                          <span className="shrink-0 text-muted-foreground text-sm tabular-nums">
-                            {tape.durataMs === null
-                              ? t("home.unreadable")
-                              : elapsedText(tape.durataMs)}
+                          <span className="inline-flex shrink-0 items-center gap-1.5 text-muted-foreground text-sm tabular-nums">
+                            {tape.durataMs === null ? (
+                              t("home.unreadable")
+                            ) : (
+                              <>
+                                <Clock aria-hidden className="size-3.5" />
+                                {durationWords(tape.durataMs, i18n.language)}
+                              </>
+                            )}
                           </span>
                           <ChevronRight
                             aria-hidden

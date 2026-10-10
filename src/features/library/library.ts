@@ -36,11 +36,21 @@ function groupKey(date: Date, today: Date): string {
   return `${date.getFullYear()}-${two(date.getMonth() + 1)}`;
 }
 
-/** I Tape dal più recente, raggruppati in Oggi, Ieri, Questa settimana e poi per mese. */
-export function groupByDate(tapes: TapeEntry[], today: Date): DateGroup[] {
+/** Quanti Tape mostrano i Recenti della barra laterale. */
+export const RECENTI_MAX = 10;
+
+/**
+ * I Tape dal più recente, al più `limit`, raggruppati in Oggi, Ieri, Questa settimana e poi per
+ * mese.
+ */
+export function groupByDate(
+  tapes: TapeEntry[],
+  today: Date,
+  limit = Number.POSITIVE_INFINITY
+): DateGroup[] {
   const groups: DateGroup[] = [];
   let last: DateGroup | undefined;
-  for (const tape of sortTapes(tapes, DEFAULT_ORDER)) {
+  for (const tape of sortTapes(tapes, DEFAULT_ORDER).slice(0, limit)) {
     const key = groupKey(new Date(tape.creato), today);
     if (last?.key === key) {
       last.tapes.push(tape);
@@ -56,6 +66,50 @@ export function groupByDate(tapes: TapeEntry[], today: Date): DateGroup[] {
 export function clockText(creato: string): string {
   const date = new Date(creato);
   return `${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+
+/**
+ * Quando, in un Recente del gruppo `group` (vedi `DateGroup`): l'ora in Oggi e Ieri, poi il giorno
+ * abbreviato («gio 8, 17:32») nella settimana e con il mese («31 lug, 11:10») nei gruppi mensili.
+ */
+export function recentWhen(
+  creato: string,
+  group: string,
+  locale: string
+): string {
+  if (group === "today" || group === "yesterday") {
+    return clockText(creato);
+  }
+  const day = new Intl.DateTimeFormat(
+    locale,
+    group === "week"
+      ? { day: "numeric", weekday: "short" }
+      : { day: "numeric", month: "short" }
+  ).format(new Date(creato));
+  return `${day}, ${clockText(creato)}`;
+}
+
+/**
+ * La durata a parole dei Recenti, con le unità brevi di `Intl` nella lingua `locale`: «24 s» sotto
+ * il minuto, «59 min» sotto l'ora, poi «2 h 05 min». Arrotondata, non si confonde con un'ora.
+ */
+export function durationWords(ms: number, locale: string): string {
+  const unit = (n: number, u: string, digits = 1) =>
+    new Intl.NumberFormat(locale, {
+      minimumIntegerDigits: digits,
+      style: "unit",
+      unit: u,
+      unitDisplay: "short",
+    }).format(n);
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) {
+    return unit(seconds, "second");
+  }
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) {
+    return unit(minutes, "minute");
+  }
+  return `${unit(Math.floor(minutes / 60), "hour")} ${unit(minutes % 60, "minute", 2)}`;
 }
 
 /** `creato` per `<input type="datetime-local">`: `AAAA-MM-GGTHH:mm` nell'ora locale. */

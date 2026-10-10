@@ -470,6 +470,8 @@
     "search": "Search the Library",
     "activity": "Activity",
     "recents": "Recent",
+    "allTapes_one": "All {{count}} Tape in the Library",
+    "allTapes_other": "All {{count}} Tapes in the Library",
     "results": "Results",
     "noRecents": "Your recordings and transcribed files will appear here.",
     "localOnly": "Only on your PC",

@@ -8,10 +8,12 @@ import {
   DEFAULT_ORDER,
   dateTimeInput,
   dayText,
+  durationWords,
   groupByDate,
   nameProblem,
   nextOrder,
   orderOf,
+  recentWhen,
   sortTapes,
   type TapeColumn,
   tapesOf,
@@ -94,6 +96,21 @@ describe("raggruppamento per data", () => {
       ["2026-09", ["domenica"]],
       ["2026-08", ["agosto"]],
       ["2025-12", ["dicembre"]],
+    ]);
+  });
+
+  test("con un limite restano i Tape più recenti", () => {
+    const today = new Date(2026, 9, 8, 18, 0);
+    const days = [8, 2, 7, 1];
+    expect(
+      groupByDate(
+        days.map((d) => tape(String(d), [2026, 10, d])),
+        today,
+        2
+      ).map((g) => [g.key, g.tapes.map((b) => b.titolo)])
+    ).toEqual([
+      ["today", ["8"]],
+      ["yesterday", ["7"]],
     ]);
   });
 });
@@ -226,4 +243,25 @@ test("il giorno del titolo dice Oggi e Ieri, e l'anno solo se non è quello in c
   expect(dayText(at(2026, 9, 3), today, t, "it")).toBe("Ieri, 3 ottobre");
   expect(dayText(at(2026, 8, 28), today, t, "it")).toBe("28 settembre");
   expect(dayText(at(2025, 11, 31), today, t, "it")).toBe("31 dicembre 2025");
+});
+
+test("la durata a parole: secondi sotto il minuto, minuti sotto l'ora, poi ore e minuti", () => {
+  expect(durationWords(24_000, "it")).toBe("24 s");
+  expect(durationWords(61_000, "it")).toBe("1 min");
+  expect(durationWords((59 * 60 + 26) * 1000, "it")).toBe("59 min");
+  expect(durationWords(((2 * 60 + 4) * 60 + 41) * 1000, "it")).toBe(
+    "2 h 05 min"
+  );
+  // Arrotondati, 59,6 s e 59 min 40 s passano all'unità successiva.
+  expect(durationWords(59_600, "it")).toBe("1 min");
+  expect(durationWords((59 * 60 + 40) * 1000, "it")).toBe("1 h 00 min");
+});
+
+test("nei Recenti Oggi e Ieri hanno l'ora, la settimana il giorno abbreviato, i mesi anche il mese", () => {
+  const at = (m: number, d: number, h: number, mi: number) =>
+    new Date(2026, m, d, h, mi).toISOString();
+  expect(recentWhen(at(9, 8, 17, 32), "today", "it")).toBe("17:32");
+  expect(recentWhen(at(9, 7, 9, 5), "yesterday", "it")).toBe("09:05");
+  expect(recentWhen(at(9, 8, 17, 32), "week", "it")).toBe("gio 8, 17:32");
+  expect(recentWhen(at(6, 31, 11, 10), "2026-07", "it")).toBe("31 lug, 11:10");
 });

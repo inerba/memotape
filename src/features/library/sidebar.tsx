@@ -1,4 +1,11 @@
-import { FileUp, Library, Search, Settings } from "lucide-react";
+import {
+  ArrowRight,
+  Clock,
+  FileUp,
+  Library,
+  Search,
+  Settings,
+} from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -13,10 +20,14 @@ import { Link } from "react-router";
 import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
-import { clockText, groupByDate } from "@/features/library/library";
+import {
+  durationWords,
+  groupByDate,
+  RECENTI_MAX,
+  recentWhen,
+} from "@/features/library/library";
 import { recentTitle } from "@/features/library/recent-tapes";
 import { SearchResults } from "@/features/library/search-results";
-import { elapsedText } from "@/features/recording/recording";
 import type { PhraseRef } from "@/features/transcription/phrases";
 
 /** L'Attività in corso in breve: il testo, l'avanzamento se c'è e se è una Registrazione. */
@@ -114,7 +125,7 @@ export function Sidebar({
     const [year, month] = key.split("-").map(Number);
     return monthFormat.format(new Date(year ?? 0, (month ?? 1) - 1, 1));
   };
-  const groups = groupByDate(list.tapes, new Date());
+  const groups = groupByDate(list.tapes, new Date(), RECENTI_MAX);
 
   return (
     <aside
@@ -202,6 +213,7 @@ export function Sidebar({
                     {group.tapes.map((tape) => (
                       <li key={tape.path}>
                         <TapeItem
+                          group={group.key}
                           onOpen={onOpen}
                           selected={tape.path === selected}
                           tape={tape}
@@ -212,6 +224,18 @@ export function Sidebar({
                   </ul>
                 </section>
               ))}
+              {list.tapes.length > RECENTI_MAX ? (
+                <button
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-muted-foreground text-sm transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+                  onClick={onShowAll}
+                  type="button"
+                >
+                  <span className="flex-1">
+                    {t("sidebar.allTapes", { count: list.tapes.length })}
+                  </span>
+                  <ArrowRight aria-hidden className="size-3.5 shrink-0" />
+                </button>
+              ) : null}
             </>
           )}
         </div>
@@ -350,16 +374,20 @@ function ActivityCard({
 }
 
 function TapeItem({
+  group,
   tape,
   onOpen,
   selected,
   title,
 }: {
+  /** Il gruppo per data, che decide quanto dire del giorno. */
+  group: string;
   tape: TapeEntry;
   onOpen: (path: string) => void;
   selected: boolean;
   title: string;
 }) {
+  const { i18n } = useTranslation();
   const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
   return (
     <button
@@ -376,9 +404,14 @@ function TapeItem({
         {title === tape.titolo ? null : (
           <span className="sr-only">{tape.titolo}</span>
         )}
-        <span className="text-muted-foreground text-xs tabular-nums">
-          {clockText(tape.creato)}
-          {tape.durataMs === null ? "" : ` · ${elapsedText(tape.durataMs)}`}
+        <span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+          {recentWhen(tape.creato, group, i18n.language)}
+          {tape.durataMs === null ? null : (
+            <span className="inline-flex items-center gap-1">
+              <Clock aria-hidden className="size-[11px]" />
+              {durationWords(tape.durataMs, i18n.language)}
+            </span>
+          )}
         </span>
       </span>
     </button>
