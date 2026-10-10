@@ -1,11 +1,20 @@
 import { expect, test } from "bun:test";
+import "@/lib/i18n";
+import i18n from "i18next";
 import {
   type Azione,
+  ariaTasti,
   type Campo,
+  conTasti,
+  nomeTasti,
+  nomeTasto,
+  righe,
   type Stato,
   scorciatoia,
   tastoDellaTabella,
 } from "@/features/shortcuts/shortcuts";
+
+const t = i18n.getFixedT("it");
 
 const LIBERO: Stato = { attivita: false, coperta: false, registrazione: false };
 
@@ -151,4 +160,34 @@ test("Ctrl+B, Ctrl+K e Ctrl+, sono nella mappa", () => {
   expect(scorciatoia(ctrl("b"), null, LIBERO)?.azione).toBe("barraLaterale");
   expect(scorciatoia(ctrl("K"), null, LIBERO)?.azione).toBe("cerca");
   expect(scorciatoia(ctrl(","), null, LIBERO)?.azione).toBe("impostazioni");
+});
+
+test("i tasti nella lingua dell'interfaccia: modificatori tradotti, frecce come simboli", () => {
+  expect(nomeTasti(t, "copiaTesto")).toBe("Ctrl+Maiusc+C");
+  expect(nomeTasti(t, "cestinaTape")).toBe("Canc");
+  expect(nomeTasto("ArrowLeft", t)).toBe("←");
+  expect(nomeTasto("F2", t)).toBe("F2");
+});
+
+test("il tooltip aggiunge i tasti tra parentesi, più azioni separate da uno spazio", () => {
+  expect(conTasti(t, "Copia testo", "copiaTesto")).toBe(
+    "Copia testo (Ctrl+Maiusc+C)"
+  );
+  expect(conTasti(t, "Velocità", "piuLento", "piuVeloce")).toBe(
+    "Velocità ([ ])"
+  );
+});
+
+test("aria-keyshortcuts usa i nomi della specifica: Control, non Ctrl", () => {
+  expect(ariaTasti("copiaTesto")).toBe("Control+Shift+C");
+  expect(ariaTasti("riproduci")).toBe("Space");
+});
+
+test("nel pannello indietro e avanti, e le due velocità, stanno su una riga", () => {
+  expect(righe("ascolto")).toEqual([
+    { riga: "riproduci", tasti: ["Space"] },
+    { riga: "indietroAvanti", tasti: ["ArrowLeft", "ArrowRight"] },
+    { riga: "velocita", tasti: ["[", "]"] },
+    { riga: "tornaAlPunto", tasti: ["Ctrl", "J"] },
+  ]);
 });

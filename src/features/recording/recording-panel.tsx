@@ -33,11 +33,8 @@ import {
 import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { useSettings } from "@/features/settings/settings-context";
-import {
-  ariaTasti,
-  conTasti,
-  useScorciatoia,
-} from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import { cn } from "@/lib/utils";
 
 const AUDIO_INPUTS = {

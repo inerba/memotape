@@ -1,4 +1,3 @@
-import type { TFunction } from "i18next";
 import { X } from "lucide-react";
 import {
   createContext,
@@ -17,9 +16,9 @@ import {
   type Azione,
   type Campo,
   type Gruppo,
-  SCORCIATOIE,
+  nomeTasto,
+  righe,
   scorciatoia,
-  tastiDi,
 } from "@/features/shortcuts/shortcuts";
 
 interface Contesto {
@@ -157,41 +156,6 @@ function noop() {
   // Fuori dalla finestra principale non c'è pannello.
 }
 
-const FRECCE: Record<string, string> = { ArrowLeft: "←", ArrowRight: "→" };
-
-/** Il nome di un tasto nella lingua dell'interfaccia. */
-const TRADOTTI = new Set(["Ctrl", "Shift", "Space", "Enter", "Delete"]);
-
-function nomeTasto(tasto: string, t: TFunction): string {
-  if (TRADOTTI.has(tasto)) {
-    return t(`shortcuts.keys.${tasto}`);
-  }
-  return FRECCE[tasto] ?? tasto;
-}
-
-/** I tasti di `azione` nella lingua dell'interfaccia: «Ctrl+Maiusc+C», «Canc». */
-export function nomeTasti(t: TFunction, azione: Azione): string {
-  return tastiDi(azione)
-    .map((tasto) => nomeTasto(tasto, t))
-    .join("+");
-}
-
-/**
- * Il tooltip di un pulsante con le sue scorciatoie: «Copia testo (Ctrl+Maiusc+C)»; più azioni si
- * separano con uno spazio («Velocità ([ ])»).
- */
-export function conTasti(t: TFunction, testo: string, ...azioni: Azione[]) {
-  const tasti = azioni.map((azione) => nomeTasti(t, azione)).join(" ");
-  return `${testo} (${tasti})`;
-}
-
-/** Il valore di `aria-keyshortcuts` di `azione`. */
-export function ariaTasti(azione: Azione): string {
-  return tastiDi(azione)
-    .map((tasto) => (tasto === "Ctrl" ? "Control" : tasto))
-    .join("+");
-}
-
 const GRUPPI: Gruppo[] = [
   "generale",
   "ascolto",
@@ -271,16 +235,4 @@ function Pannello({ ref }: { ref: React.Ref<HTMLDialogElement> }) {
       </div>
     </dialog>
   );
-}
-
-/** Le righe del pannello di `gruppo`: indietro e avanti, e le due velocità, in una sola. */
-function righe(gruppo: Gruppo): { riga: string; tasti: string[] }[] {
-  const lista = new Map<string, string[]>();
-  for (const s of SCORCIATOIE) {
-    if (s.gruppo !== gruppo) {
-      continue;
-    }
-    lista.set(s.riga, [...(lista.get(s.riga) ?? []), ...s.tasti]);
-  }
-  return [...lista].map(([riga, tasti]) => ({ riga, tasti }));
 }

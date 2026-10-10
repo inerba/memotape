@@ -368,17 +368,6 @@ export function pausesOf(turns: Turn[]): (number | null)[] {
   });
 }
 
-/** La durata di una pausa al secondo: `9 s`, `1 min 20 s`, `1 min`. */
-export function pauseDuration(ms: number): string {
-  const seconds = Math.round(ms / 1000);
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m === 0) {
-    return `${s} s`;
-  }
-  return s === 0 ? `${m} min` : `${m} min ${s} s`;
-}
-
 /**
  * La conversazione a turni, in ordine di inizio con i Parziali al loro posto: un turno nuovo a ogni
  * cambio di etichetta (Ingresso o Parlante) o, senza etichette, dopo una pausa: come nel Markdown.

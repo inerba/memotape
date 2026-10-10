@@ -794,7 +794,7 @@ export type UpdateInfo = {
 export type VistaTrascrizione = 
 /**  Il nome in una colonna, il testo accanto, il tempo a destra. */
 "copione" | 
-/**  Il nome apre il paragrafo, il tempo nel margine. */
+/**  Il nome apre il Turno, il tempo nel margine. */
 "intervista" | 
 /**  Una linea con un nodo per turno, il tempo a sinistra. */
 "nastro";

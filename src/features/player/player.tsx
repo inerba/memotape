@@ -28,11 +28,8 @@ import {
   nextFollow,
 } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
-import {
-  ariaTasti,
-  conTasti,
-  useScorciatoia,
-} from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 
 const RATES = [1, 1.25, 1.5, 2];
 const SKIP_MS = 10_000;

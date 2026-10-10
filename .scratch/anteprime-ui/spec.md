@@ -99,3 +99,11 @@ Sette passi, implementati uno alla volta nell'ordine dei ticket, ciascuno su un 
 - Logica pura con test accanto (`*.test.ts`): formato della durata a parole, giorno abbreviato dei Recenti, limite dei Recenti, separatori delle pause, mappa delle scorciatoie (abilitata o no per stato), navigazione della tabella.
 - Rust: default e lettura di `vista_trascrizione` da un `settings.json` senza il campo; `i_bindings_committati_sono_aggiornati`.
 - Ogni passo si prova anche nell'app (vedi «Pilotare l'app» in AGENTS.md), nei due temi e a 880 px.
+
+## Comments
+
+### 2026-10-10 — code review
+
+Corretti: logica pura delle scorciatoie (`nomeTasto`, `nomeTasti`, `conTasti`, `ariaTasti`, `righe`) in `shortcuts.ts` con i test; `trattenutaDa` nella mappa al posto dei casi speciali; Ctrl+J vale solo mentre compare «Torna al punto in ascolto» (`fix:` a parte); commento di `VistaTrascrizione` con «Turno» e voce «Vista della trascrizione» in `CONTEXT.md`; alone del nodo del Nastro come `outline`, non ombra; `useTapeRow` comune a Libreria e Recenti; una funzione sola per le voci del menu del Tape; `durationWords` e `pauseDuration` in `lib/duration.ts` con le unità di `Intl` (le pause ora si leggono nella lingua dell'interfaccia); `menuId`/`closeMenu` in `popover-menu.tsx`; `VOICE_CLASSES` unico; mappa `RESE` per vista; `GroupKey`; `TapeOperations` con il `TapeEntry` per tutte le azioni; `tapeDellAttivita`; `tape-details.ts` con il suo test.
+
+Lasciati: niente. `RecentRow` della review è `TapeItem` in `sidebar.tsx`. La riga `${number}-${number}` del mese richiede un cast in `groupKey`, perché il mese ha lo zero davanti.

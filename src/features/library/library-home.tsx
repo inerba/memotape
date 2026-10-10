@@ -3,10 +3,11 @@ import { type MouseEvent, type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TapeEntry } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import { clockText, dayText, durationWords } from "@/features/library/library";
+import { clockText, dayText } from "@/features/library/library";
 import { homeTapes, recentTitle } from "@/features/library/recent-tapes";
 import { SIDEBAR_TOGGLE_PADDING } from "@/features/library/sidebar";
 import { elapsedText } from "@/features/recording/recording";
+import { durationWords } from "@/lib/duration";
 
 /** La Home: ripresa esplicita del Tape, oppure primo avvio con le due azioni. */
 export function LibraryHome({

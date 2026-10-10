@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 /**
  * Le scorciatoie da tastiera della finestra principale: azione, tasti, gruppo del pannello e
  * quando valgono. Pura: il listener globale (`ScorciatoieProvider`) le applica agli eventi.
@@ -56,8 +58,6 @@ export interface Tasto {
 
 export interface Scorciatoia {
   azione: Azione;
-  /** Solo fuori dai campi, come Spazio. */
-  fuoriDaiCampi?: true;
   gruppo: Gruppo;
   /** Agisce sul Tape con il focus nella tabella della Libreria, non sulla finestra. */
   nellaTabella?: true;
@@ -71,8 +71,14 @@ export interface Scorciatoia {
    * o il carattere). Il pannello e i tooltip li traducono.
    */
   tasti: readonly string[];
+  /**
+   * I campi che con il focus tengono il tasto per sé: il testo per chi scrive, il pulsante per
+   * Spazio, il cursore per le frecce.
+   */
+  trattenutaDa?: readonly NonNullable<Campo>[];
 }
 
+const NEL_TESTO = ["testo"] as const;
 const LIBERA = (s: Stato) => !s.attivita;
 const ASCOLTO = (s: Stato) => !s.registrazione;
 
@@ -106,45 +112,45 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
   },
   {
     azione: "riproduci",
-    fuoriDaiCampi: true,
     gruppo: "ascolto",
     quando: ASCOLTO,
     riga: "riproduci",
     tasti: ["Space"],
+    trattenutaDa: ["testo", "pulsante"],
   },
   {
     azione: "indietro",
-    fuoriDaiCampi: true,
     gruppo: "ascolto",
     quando: ASCOLTO,
     riga: "indietroAvanti",
     ripeti: true,
     tasti: ["ArrowLeft"],
+    trattenutaDa: ["testo", "cursore"],
   },
   {
     azione: "avanti",
-    fuoriDaiCampi: true,
     gruppo: "ascolto",
     quando: ASCOLTO,
     riga: "indietroAvanti",
     ripeti: true,
     tasti: ["ArrowRight"],
+    trattenutaDa: ["testo", "cursore"],
   },
   {
     azione: "piuLento",
-    fuoriDaiCampi: true,
     gruppo: "ascolto",
     quando: ASCOLTO,
     riga: "velocita",
     tasti: ["["],
+    trattenutaDa: NEL_TESTO,
   },
   {
     azione: "piuVeloce",
-    fuoriDaiCampi: true,
     gruppo: "ascolto",
     quando: ASCOLTO,
     riga: "velocita",
     tasti: ["]"],
+    trattenutaDa: NEL_TESTO,
   },
   {
     azione: "tornaAlPunto",
@@ -216,18 +222,9 @@ function corrisponde(s: Scorciatoia, t: Tasto): boolean {
   return !LETTERA.test(key) || t.shiftKey === s.tasti.includes("Shift");
 }
 
-/** Il campo che tiene il tasto per sé, se c'è. */
+/** Il campo con il focus tiene il tasto per sé. */
 function trattenuto(s: Scorciatoia, campo: Campo): boolean {
-  if (!s.fuoriDaiCampi || campo === null) {
-    return false;
-  }
-  if (campo === "testo") {
-    return true;
-  }
-  if (s.azione === "riproduci") {
-    return campo === "pulsante";
-  }
-  return campo === "cursore" && s.riga === "indietroAvanti";
+  return campo !== null && (s.trattenutaDa?.includes(campo) ?? false);
 }
 
 /**
@@ -268,4 +265,52 @@ export function tastoDellaTabella(tasto: Tasto): Azione | null {
 /** I tasti di `azione`, in forma canonica. */
 export function tastiDi(azione: Azione): readonly string[] {
   return SCORCIATOIE.find((s) => s.azione === azione)?.tasti ?? [];
+}
+
+const FRECCE: Record<string, string> = { ArrowLeft: "←", ArrowRight: "→" };
+
+/** I tasti che hanno un nome nella lingua dell'interfaccia. */
+const TRADOTTI = new Set(["Ctrl", "Shift", "Space", "Enter", "Delete"]);
+
+/** Il nome di un tasto in forma canonica nella lingua dell'interfaccia: «Maiusc», «←», «F2». */
+export function nomeTasto(tasto: string, t: TFunction): string {
+  if (TRADOTTI.has(tasto)) {
+    return t(`shortcuts.keys.${tasto}`);
+  }
+  return FRECCE[tasto] ?? tasto;
+}
+
+/** I tasti di `azione` nella lingua dell'interfaccia: «Ctrl+Maiusc+C», «Canc». */
+export function nomeTasti(t: TFunction, azione: Azione): string {
+  return tastiDi(azione)
+    .map((tasto) => nomeTasto(tasto, t))
+    .join("+");
+}
+
+/**
+ * Il tooltip di un pulsante con le sue scorciatoie: «Copia testo (Ctrl+Maiusc+C)»; più azioni si
+ * separano con uno spazio («Velocità ([ ])»).
+ */
+export function conTasti(t: TFunction, testo: string, ...azioni: Azione[]) {
+  const tasti = azioni.map((azione) => nomeTasti(t, azione)).join(" ");
+  return `${testo} (${tasti})`;
+}
+
+/** Il valore di `aria-keyshortcuts` di `azione`. */
+export function ariaTasti(azione: Azione): string {
+  return tastiDi(azione)
+    .map((tasto) => (tasto === "Ctrl" ? "Control" : tasto))
+    .join("+");
+}
+
+/** Le righe del pannello di `gruppo`: indietro e avanti, e le due velocità, in una sola. */
+export function righe(gruppo: Gruppo): { riga: string; tasti: string[] }[] {
+  const lista = new Map<string, string[]>();
+  for (const s of SCORCIATOIE) {
+    if (s.gruppo !== gruppo) {
+      continue;
+    }
+    lista.set(s.riga, [...(lista.get(s.riga) ?? []), ...s.tasti]);
+  }
+  return [...lista].map(([riga, tasti]) => ({ riga, tasti }));
 }

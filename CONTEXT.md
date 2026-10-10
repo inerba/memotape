@@ -128,6 +128,10 @@ La Diarizzazione eseguita dopo Stop sull’audio salvato, quando la Trascrizione
 Frasi consecutive (e Parziali) con lo stesso Ingresso e lo stesso Parlante; senza Parlanti né Ingressi separati, le Frasi fino a una pausa lunga. È l'unità in cui si legge il testo.
 _Avoid_: spezzone, blocco, intervento, chat, paragrafo
 
+**Vista della trascrizione**:
+Come si impagina il testo, scelto dall'utente in Impostazioni: Copione (il nome in una colonna accanto al testo), Intervista (il nome apre il Turno) o Nastro (una linea con un nodo per Turno). Cambia solo la resa: Turni, Frasi, copie ed esportazioni restano gli stessi. «Nastro» è il nome di questa vista, scelto dall'utente, non un sinonimo di Tape.
+_Avoid_: layout, modalità di lettura, nastro (per il Tape)
+
 **Correzione manuale**:
 Una modifica dell'utente al testo della Trascrizione, all'attribuzione di un Turno o al nome di un Parlante. È distinta dall'attribuzione automatica della Diarizzazione e dalle modifiche al titolo o alla data del Tape.
 _Avoid_: modifica del Tape, revisione automatica

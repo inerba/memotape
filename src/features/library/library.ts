@@ -1,13 +1,14 @@
 import type { TFunction } from "i18next";
-import type { TapeEntry, TapeInfo } from "@/bindings";
-import { speechLanguageName } from "@/features/settings/settings";
+import type { TapeEntry } from "@/bindings";
 
 /**
- * Un gruppo della barra laterale: `today`, `yesterday`, `week` (il resto della settimana, da
- * lunedì) o un mese, `AAAA-MM`.
+ * La chiave di un gruppo della barra laterale: `today`, `yesterday`, `week` (il resto della
+ * settimana, da lunedì) o un mese, `AAAA-MM`.
  */
+export type GroupKey = "today" | "yesterday" | "week" | `${number}-${number}`;
+
 export interface DateGroup {
-  key: string;
+  key: GroupKey;
   tapes: TapeEntry[];
 }
 
@@ -22,7 +23,7 @@ function daysBefore(date: Date, days: number): Date {
 }
 
 /** Il gruppo di `date` rispetto a `today`. Una data futura (orologio spostato) è Oggi. */
-function groupKey(date: Date, today: Date): string {
+function groupKey(date: Date, today: Date): GroupKey {
   const midnight = startOfDay(today);
   if (date >= midnight) {
     return "today";
@@ -34,7 +35,7 @@ function groupKey(date: Date, today: Date): string {
   if (date >= daysBefore(midnight, (midnight.getDay() + 6) % 7)) {
     return "week";
   }
-  return `${date.getFullYear()}-${two(date.getMonth() + 1)}`;
+  return `${date.getFullYear()}-${two(date.getMonth() + 1)}` as GroupKey;
 }
 
 /** Quanti Tape mostrano i Recenti della barra laterale. */
@@ -75,7 +76,7 @@ export function clockText(creato: string): string {
  */
 export function recentWhen(
   creato: string,
-  group: string,
+  group: GroupKey,
   locale: string
 ): string {
   if (group === "today" || group === "yesterday") {
@@ -88,29 +89,6 @@ export function recentWhen(
       : { day: "numeric", month: "short" }
   ).format(new Date(creato));
   return `${day}, ${clockText(creato)}`;
-}
-
-/**
- * La durata a parole dei Recenti, con le unità brevi di `Intl` nella lingua `locale`: «24 s» sotto
- * il minuto, «59 min» sotto l'ora, poi «2 h 05 min». Arrotondata, non si confonde con un'ora.
- */
-export function durationWords(ms: number, locale: string): string {
-  const unit = (n: number, u: string, digits = 1) =>
-    new Intl.NumberFormat(locale, {
-      minimumIntegerDigits: digits,
-      style: "unit",
-      unit: u,
-      unitDisplay: "short",
-    }).format(n);
-  const seconds = Math.round(ms / 1000);
-  if (seconds < 60) {
-    return unit(seconds, "second");
-  }
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) {
-    return unit(minutes, "minute");
-  }
-  return `${unit(Math.floor(minutes / 60), "hour")} ${unit(minutes % 60, "minute", 2)}`;
 }
 
 /** `creato` per `<input type="datetime-local">`: `AAAA-MM-GGTHH:mm` nell'ora locale. */
@@ -168,18 +146,18 @@ export function nextOrder(current: TapeOrder, column: TapeColumn): TapeOrder {
 
 /**
  * Il menu di un Tape della Libreria: dove si può spostare (Senza raccolta, `""`, e le Raccolte,
- * tranne quella in cui sta) e se si può rinominare, spostare o mettere nel Cestino, cioè se non ci
- * lavora l'Attività in corso (`lavorato`, il Tape di Trascrivi su un Tape).
+ * tranne quella in cui sta) e se si può rinominare, spostare o mettere nel Cestino, cioè se non è
+ * `tapeDellAttivita`, il Tape su cui lavora l'Attività in corso (Trascrivi su un Tape).
  */
 export function azioniDelTape(
   tape: TapeEntry,
   raccolte: string[],
-  lavorato: string | null
+  tapeDellAttivita: string | null
 ): { destinazioni: string[]; modificabile: boolean } {
   const qui = tape.raccolta ?? "";
   return {
     destinazioni: ["", ...raccolte].filter((r) => r !== qui),
-    modificabile: tape.path.toLowerCase() !== lavorato?.toLowerCase(),
+    modificabile: tape.path.toLowerCase() !== tapeDellAttivita?.toLowerCase(),
   };
 }
 
@@ -308,38 +286,4 @@ export function dayText(
   return key === "today" || key === "yesterday"
     ? `${t(`library.groups.${key}`)}, ${day}`
     : day;
-}
-
-/**
- * Le righe del popover Dettagli di un Tape: da dove viene, modello e Lingua del parlato (solo se
- * ha testo) e Ingressi. Il resto (Parlanti, correzioni, avvisi) resta visibile sotto il titolo.
- */
-export function tapeDetails(
-  info: TapeInfo,
-  t: TFunction,
-  locale: string
-): { label: string; value: string }[] {
-  const rows = [
-    {
-      label: t("tape.details.origine"),
-      value: info.origine ?? t("tape.recording"),
-    },
-  ];
-  if (info.modello) {
-    rows.push(
-      { label: t("tape.details.modello"), value: info.modello },
-      {
-        label: t("speechLanguage.label"),
-        value:
-          info.linguaParlato === "auto"
-            ? t("speechLanguage.auto")
-            : speechLanguageName(info.linguaParlato, locale),
-      }
-    );
-  }
-  rows.push({
-    label: t("tape.details.ingressi"),
-    value: info.ingressiSeparati ? t("tape.ingressi") : t("tape.details.mix"),
-  });
-  return rows;
 }

@@ -60,11 +60,8 @@ import {
 import { useSettings } from "@/features/settings/settings-context";
 import type { SettingField } from "@/features/settings/settings-writer";
 import { VocabolarioList } from "@/features/settings/vocabolario-list";
-import {
-  ariaTasti,
-  conTasti,
-  useApriPannello,
-} from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { useApriPannello } from "@/features/shortcuts/shortcuts-provider";
 import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];

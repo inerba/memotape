@@ -22,7 +22,6 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import {
-  azioniDelTape,
   nextOrder,
   orderOf,
   raccoltaLabel,
@@ -40,7 +39,7 @@ import {
   TapeContextMenu,
   type TapeOperations,
   tapeKeys,
-  useFocusBack,
+  useTapeRow,
 } from "@/features/library/tape-context-menu";
 import { DocumentHeader, siblingTitles } from "@/features/library/tape-header";
 import { elapsedText } from "@/features/recording/recording";
@@ -398,26 +397,17 @@ function TapeRow({
   title: string;
 }) {
   const { t } = useTranslation();
-  const [renaming, setRenaming] = useState(false);
-  const row = useFocusBack<HTMLTableRowElement>(renaming);
-  const { modificabile } = azioniDelTape(
-    tape,
-    library.raccolte,
-    operations.lavorato
-  );
-  const { onOpen, onRename, onTrash } = operations;
+  const {
+    cancelRename,
+    modificabile,
+    open,
+    ref,
+    renaming,
+    startRename,
+    submitRename,
+    trash,
+  } = useTapeRow<HTMLTableRowElement>(tape, library.raccolte, operations);
   const menu = `tape-${index}`;
-  const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
-  const startRename = useCallback(() => setRenaming(true), []);
-  const cancelRename = useCallback(() => setRenaming(false), []);
-  const submitRename = useCallback(
-    (titolo: string) => {
-      setRenaming(false);
-      onRename(tape.path, titolo);
-    },
-    [onRename, tape.path]
-  );
-  const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
   const focused = useCallback(() => onFocus(index), [index, onFocus]);
   // Le frecce, Inizio, Fine e Pagina su e giù passano il focus a un'altra riga.
   const keyDown = useCallback(
@@ -447,7 +437,7 @@ function TapeRow({
       onContextMenu={contextMenu(menu)}
       onFocus={focused}
       onKeyDown={keyDown}
-      ref={row}
+      ref={ref}
       tabIndex={inTab ? 0 : -1}
     >
       <td className="py-2.5 pr-2 pl-2">

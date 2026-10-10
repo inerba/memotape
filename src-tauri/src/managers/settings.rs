@@ -159,7 +159,7 @@ pub enum VistaTrascrizione {
     /// Il nome in una colonna, il testo accanto, il tempo a destra.
     #[default]
     Copione,
-    /// Il nome apre il paragrafo, il tempo nel margine.
+    /// Il nome apre il Turno, il tempo nel margine.
     Intervista,
     /// Una linea con un nodo per turno, il tempo a sinistra.
     Nastro,

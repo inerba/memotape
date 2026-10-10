@@ -11,12 +11,22 @@ import { cn } from "@/lib/utils";
 /** L'ancora invisibile nel punto del clic destro, comune a tutti i menu. */
 const PUNTO = "menu-punto";
 
+/** L'id del pannello del menu `id`, per `popoverTarget` di una voce che lo chiude. */
+export function menuId(id: string): string {
+  return `menu-${id}`;
+}
+
+/** Chiude il menu `id`, se è aperto. */
+export function closeMenu(id: string) {
+  document.getElementById(menuId(id))?.hidePopover();
+}
+
 /**
  * Apre il menu `id` nel punto (`x`, `y`) della finestra, come un menu contestuale: il pannello si
  * ancora a un punto invisibile lì e, chiuso, torna sotto il suo pulsante.
  */
 export function openMenuAt(id: string, x: number, y: number) {
-  const panel = document.getElementById(`menu-${id}`);
+  const panel = document.getElementById(menuId(id));
   if (!panel) {
     return;
   }
@@ -91,7 +101,7 @@ export function PopoverMenu({
         aria-label={label}
         className={className}
         disabled={disabled}
-        popoverTarget={`menu-${id}`}
+        popoverTarget={menuId(id)}
         size={size}
         style={{ anchorName: anchor }}
         tabIndex={tabIndex}
@@ -105,7 +115,7 @@ export function PopoverMenu({
           "inset-auto m-0 mt-1.5 hidden min-w-60 flex-col gap-0.5 rounded-xl border bg-popover p-1.5 text-popover-foreground text-sm shadow-float [position-area:bottom_span-left] [position-try-fallbacks:flip-block,flip-inline] open:flex",
           panelClassName
         )}
-        id={`menu-${id}`}
+        id={menuId(id)}
         onToggle={toggle}
         popover="auto"
         style={{ positionAnchor: anchor }}

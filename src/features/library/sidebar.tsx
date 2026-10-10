@@ -28,8 +28,7 @@ import {
   riapertura,
 } from "@/features/library/barra-laterale";
 import {
-  azioniDelTape,
-  durationWords,
+  type GroupKey,
   groupByDate,
   RECENTI_MAX,
   recentWhen,
@@ -42,15 +41,13 @@ import {
   TapeContextMenu,
   type TapeOperations,
   tapeKeys,
-  useFocusBack,
+  useTapeRow,
 } from "@/features/library/tape-context-menu";
 import { siblingTitles } from "@/features/library/tape-header";
-import {
-  ariaTasti,
-  conTasti,
-  useScorciatoia,
-} from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import type { PhraseRef } from "@/features/transcription/phrases";
+import { durationWords } from "@/lib/duration";
 
 /**
  * L'Attività in corso in breve: il testo, l'avanzamento se c'è, se è una Registrazione e se è
@@ -219,7 +216,7 @@ export function Sidebar({
     month: "long",
     year: "numeric",
   });
-  const groupLabel = (key: string) => {
+  const groupLabel = (key: GroupKey) => {
     if (key === "today" || key === "yesterday" || key === "week") {
       return t(`library.groups.${key}`);
     }
@@ -652,7 +649,7 @@ function TapeItem({
   title,
 }: {
   /** Il gruppo per data, che decide quanto dire del giorno. */
-  group: string;
+  group: GroupKey;
   library: LibraryList;
   /** L'id del menu, unico nella pagina. */
   menu: string;
@@ -662,25 +659,16 @@ function TapeItem({
   title: string;
 }) {
   const { i18n, t } = useTranslation();
-  const [renaming, setRenaming] = useState(false);
-  const item = useFocusBack<HTMLButtonElement>(renaming);
-  const { onOpen, onRename, onTrash } = operations;
-  const { modificabile } = azioniDelTape(
-    tape,
-    library.raccolte,
-    operations.lavorato
-  );
-  const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
-  const startRename = useCallback(() => setRenaming(true), []);
-  const cancelRename = useCallback(() => setRenaming(false), []);
-  const submitRename = useCallback(
-    (titolo: string) => {
-      setRenaming(false);
-      onRename(tape.path, titolo);
-    },
-    [onRename, tape.path]
-  );
-  const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
+  const {
+    cancelRename,
+    modificabile,
+    open,
+    ref,
+    renaming,
+    startRename,
+    submitRename,
+    trash,
+  } = useTapeRow<HTMLButtonElement>(tape, library.raccolte, operations);
   if (renaming) {
     return (
       <li className="px-1 py-1.5">
@@ -705,7 +693,7 @@ function TapeItem({
         onKeyDown={tapeKeys(
           modificabile ? { cestinaTape: trash, rinominaTape: startRename } : {}
         )}
-        ref={item}
+        ref={ref}
         title={tape.path}
         type="button"
       >

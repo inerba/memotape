@@ -10,12 +10,9 @@ import {
 import { useTranslation } from "react-i18next";
 import type { LibraryList, TapeInfo } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
-import {
-  dateTimeInput,
-  dayText,
-  tapeDetails,
-} from "@/features/library/library";
+import { dateTimeInput, dayText } from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
+import { tapeDetails } from "@/features/library/tape-details";
 import { elapsedText } from "@/features/recording/recording";
 import { fileName, folderOf } from "@/features/source/file-name";
 import {

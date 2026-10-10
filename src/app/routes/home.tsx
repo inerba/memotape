@@ -23,6 +23,7 @@ import {
   type OpenedTape,
   type RecordingCleaningFailed,
   type RecordingCleaningPreparing,
+  type TapeEntry,
   type UpdateInfo,
 } from "@/bindings";
 import {
@@ -44,6 +45,7 @@ import { AllTapes } from "@/features/library/all-tapes";
 import { useBarraLaterale } from "@/features/library/barra-laterale";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
+import { recentTitle } from "@/features/library/recent-tapes";
 import {
   SIDEBAR_TOGGLE_PADDING,
   Sidebar,
@@ -71,9 +73,8 @@ import { RecordingPanel } from "@/features/recording/recording-panel";
 import { recordAfterSettings } from "@/features/recording/start";
 import { nomeMicrofonoRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import {
-  ariaTasti,
-  conTasti,
   ScorciatoieProvider,
   useScorciatoia,
 } from "@/features/shortcuts/shortcuts-provider";
@@ -674,44 +675,45 @@ export function HomePage() {
     },
     [conversation, tapeText]
   );
-  // Copia testo dal menu di un Tape della Libreria o dei Recenti: lo dice l'avviso.
+  // Copia testo dal menu di un Tape della Libreria o dei Recenti: l'avviso dice il titolo mostrato.
   const copyTape = useCallback(
-    async (path: string, titolo: string) => {
+    async (tape: TapeEntry) => {
       try {
-        const text = await tapeText(path);
+        const text = await tapeText(tape.path);
         if (text !== null) {
           await navigator.clipboard.writeText(text);
+          const titolo = recentTitle(tape, library.tapes, t);
           setMessage(t("library.textCopied", { titolo }));
         }
       } catch (e) {
         setNotice(internalError(e));
       }
     },
-    [t, tapeText]
+    [library.tapes, t, tapeText]
   );
 
   // Il menu e i tasti dei Tape della Libreria e dei Recenti. Il Tape di Trascrivi su un Tape non
   // si rinomina, sposta né cestina (il backend risponderebbe `activityInProgress`).
-  const lavorato =
+  const tapeDellAttivita =
     transcribesSource(status) && source && isTape(source) ? source : null;
   const tapeOperations = useMemo<TapeOperations>(
     () => ({
-      lavorato,
       onCopy: copyTape,
-      onMove: moveTape,
-      onOpen: openFromLibrary,
-      onRename: renameTape,
-      onReveal: reveal,
+      onMove: (tape, destinazione) => moveTape(tape.path, destinazione),
+      onOpen: (tape) => openFromLibrary(tape.path),
+      onRename: (tape, titolo) => renameTape(tape.path, titolo),
+      onReveal: (tape) => reveal(tape.path),
       onTrash: requestTrash,
+      tapeDellAttivita,
     }),
     [
       copyTape,
-      lavorato,
       moveTape,
       openFromLibrary,
       renameTape,
       requestTrash,
       reveal,
+      tapeDellAttivita,
     ]
   );
 

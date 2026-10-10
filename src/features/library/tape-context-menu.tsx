@@ -14,25 +14,32 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { TapeEntry } from "@/bindings";
-import { openMenuAt, PopoverMenu } from "@/components/popover-menu";
+import { closeMenu, openMenuAt, PopoverMenu } from "@/components/popover-menu";
 import { azioniDelTape, raccoltaLabel } from "@/features/library/library";
 import { MENU_ITEM, MenuItem } from "@/features/library/tape-actions";
-import { type Azione, tastoDellaTabella } from "@/features/shortcuts/shortcuts";
-import { nomeTasti } from "@/features/shortcuts/shortcuts-provider";
+import {
+  type Azione,
+  nomeTasti,
+  tastoDellaTabella,
+} from "@/features/shortcuts/shortcuts";
 
-/** Le operazioni su un Tape di un elenco (Libreria, Recenti), comuni a menu e tasti. */
+/**
+ * Le operazioni su un Tape di un elenco (Libreria, Recenti), comuni a menu e tasti: ognuna riceve
+ * il Tape, e Sposta in e Rinomina anche la Raccolta o il titolo nuovo.
+ */
 export interface TapeOperations {
-  /** Il Tape di Trascrivi su un Tape: niente Rinomina, Sposta in né Cestino. */
-  lavorato: string | null;
-  onCopy: (path: string, titolo: string) => void;
-  onMove: (path: string, raccolta: string) => void;
-  onOpen: (path: string) => void;
-  onRename: (path: string, titolo: string) => void;
-  onReveal: (path: string) => void;
-  onTrash: (tape: { path: string; titolo: string }) => void;
+  onCopy: (tape: TapeEntry) => void;
+  onMove: (tape: TapeEntry, raccolta: string) => void;
+  onOpen: (tape: TapeEntry) => void;
+  onRename: (tape: TapeEntry, titolo: string) => void;
+  onReveal: (tape: TapeEntry) => void;
+  onTrash: (tape: TapeEntry) => void;
+  /** Il Tape su cui lavora l'Attività in corso (Trascrivi su un Tape): niente Rinomina, Sposta in né Cestino. */
+  tapeDellAttivita: string | null;
 }
 
 /** Il clic destro, il tasto Menu o Maiusc+F10 aprono il menu `id` lì dove sono. */
@@ -66,10 +73,17 @@ export function tapeKeys(azioni: Partial<Record<Azione, () => void>>) {
 }
 
 /**
- * Riporta il focus su `ref` quando la rinomina finisce con Invio o Esc (il campo sparisce e il
- * focus resterebbe sul documento); se si è usciti con un clic altrove, il focus resta lì.
+ * Lo stato e le azioni di una riga di un elenco di Tape (Libreria, Recenti): la rinomina sul posto,
+ * Apri e Cestino, e se il Tape si può modificare. `ref` va sull'elemento con il focus, che lo
+ * riprende quando la rinomina finisce con Invio o Esc (il campo sparisce e il focus resterebbe sul
+ * documento); se si è usciti con un clic altrove, il focus resta lì.
  */
-export function useFocusBack<T extends HTMLElement>(renaming: boolean) {
+export function useTapeRow<T extends HTMLElement>(
+  tape: TapeEntry,
+  raccolte: string[],
+  operations: TapeOperations
+) {
+  const [renaming, setRenaming] = useState(false);
   const ref = useRef<T>(null);
   const was = useRef(renaming);
   useEffect(() => {
@@ -83,7 +97,33 @@ export function useFocusBack<T extends HTMLElement>(renaming: boolean) {
     }
     was.current = renaming;
   }, [renaming]);
-  return ref;
+  const { modificabile } = azioniDelTape(
+    tape,
+    raccolte,
+    operations.tapeDellAttivita
+  );
+  const { onOpen, onRename, onTrash } = operations;
+  const open = useCallback(() => onOpen(tape), [tape, onOpen]);
+  const startRename = useCallback(() => setRenaming(true), []);
+  const cancelRename = useCallback(() => setRenaming(false), []);
+  const submitRename = useCallback(
+    (titolo: string) => {
+      setRenaming(false);
+      onRename(tape, titolo);
+    },
+    [onRename, tape]
+  );
+  const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
+  return {
+    cancelRename,
+    modificabile,
+    open,
+    ref,
+    renaming,
+    startRename,
+    submitRename,
+    trash,
+  };
 }
 
 /**
@@ -113,41 +153,21 @@ export function TapeContextMenu({
   const { destinazioni, modificabile } = azioniDelTape(
     tape,
     raccolte,
-    operations.lavorato
+    operations.tapeDellAttivita
   );
-  const { onCopy, onMove, onOpen, onReveal, onTrash } = operations;
-  const { path } = tape;
-  const chiudi = useCallback(
-    () => document.getElementById(`menu-${id}`)?.hidePopover(),
-    [id]
-  );
-  const open = useCallback(() => {
-    chiudi();
-    onOpen(path);
-  }, [chiudi, onOpen, path]);
-  const rename = useCallback(() => {
-    chiudi();
-    onRename();
-  }, [chiudi, onRename]);
+  // Ogni voce chiude il menu, poi agisce sul Tape. Il contenuto è montato solo da aperto (`lazy`).
+  const voce = (azione: (tape: TapeEntry) => void) => () => {
+    closeMenu(id);
+    azione(tape);
+  };
+  const { onMove } = operations;
   const move = useCallback(
     (raccolta: string) => {
-      chiudi();
-      onMove(path, raccolta);
+      closeMenu(id);
+      onMove(tape, raccolta);
     },
-    [chiudi, onMove, path]
+    [id, onMove, tape]
   );
-  const reveal = useCallback(() => {
-    chiudi();
-    onReveal(path);
-  }, [chiudi, onReveal, path]);
-  const copy = useCallback(() => {
-    chiudi();
-    onCopy(path, title);
-  }, [chiudi, onCopy, path, title]);
-  const trash = useCallback(() => {
-    chiudi();
-    onTrash(tape);
-  }, [chiudi, onTrash, tape]);
 
   return (
     <PopoverMenu
@@ -163,7 +183,7 @@ export function TapeContextMenu({
       <MenuItem
         icon={<FolderOpen />}
         kbd={nomeTasti(t, "apriTape")}
-        onClick={open}
+        onClick={voce(operations.onOpen)}
       >
         {t("library.open")}
       </MenuItem>
@@ -171,7 +191,7 @@ export function TapeContextMenu({
         disabled={!modificabile}
         icon={<Pencil />}
         kbd={nomeTasti(t, "rinominaTape")}
-        onClick={rename}
+        onClick={voce(onRename)}
       >
         {t("library.renameTape")}
       </MenuItem>
@@ -196,10 +216,10 @@ export function TapeContextMenu({
           <MoveItem key={raccolta} onMove={move} raccolta={raccolta} />
         ))}
       </PopoverMenu>
-      <MenuItem icon={<FolderSearch />} onClick={reveal}>
+      <MenuItem icon={<FolderSearch />} onClick={voce(operations.onReveal)}>
         {t("library.reveal")}
       </MenuItem>
-      <MenuItem icon={<Copy />} onClick={copy}>
+      <MenuItem icon={<Copy />} onClick={voce(operations.onCopy)}>
         {t("transcription.copy")}
       </MenuItem>
       <hr className="my-1" />
@@ -208,7 +228,7 @@ export function TapeContextMenu({
         disabled={!modificabile}
         icon={<Trash2 />}
         kbd={nomeTasti(t, "cestinaTape")}
-        onClick={trash}
+        onClick={voce(operations.onTrash)}
       >
         {t("library.deleteConfirm")}
       </MenuItem>

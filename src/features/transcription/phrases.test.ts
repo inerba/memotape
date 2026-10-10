@@ -8,7 +8,6 @@ import {
   nomeTaken,
   parlanteStats,
   parlantiOf,
-  pauseDuration,
   pausesOf,
   type Turn,
   turnBody,
@@ -656,12 +655,4 @@ test("con gli Ingressi separati la pausa parte dalla fine più tarda, non dal tu
   ].reduce(withPhrase, EMPTY_CONVERSATION);
   // Dalla fine del Microfono (20 s), non da quella dell'Audio di sistema (2,9 s).
   expect(pausesOf(turnsOf(c, t))).toEqual([null, null, 11_000]);
-});
-
-test("la durata della pausa: secondi sotto il minuto, poi minuti e secondi", () => {
-  expect(pauseDuration(5000)).toBe("5 s");
-  expect(pauseDuration(9400)).toBe("9 s");
-  expect(pauseDuration(59_600)).toBe("1 min");
-  expect(pauseDuration(80_000)).toBe("1 min 20 s");
-  expect(pauseDuration(3_725_000)).toBe("62 min 5 s");
 });

@@ -30,22 +30,21 @@ import type {
   TranscriptPhrase,
   VistaTrascrizione,
 } from "@/bindings";
-import { PopoverMenu } from "@/components/popover-menu";
+import { menuId, PopoverMenu } from "@/components/popover-menu";
 import { keepFocus, type PlayerState } from "@/features/player/player";
 import { autoScroll, playingAt } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
 import { useSettings } from "@/features/settings/settings-context";
-import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import {
   ParlanteNameInput,
-  VOICE_DOTS,
+  VOICE_CLASSES,
 } from "@/features/transcription/parlante-name";
 import {
   type Conversation,
   mergeDestination,
   type Parlante,
   type PhraseRef,
-  pauseDuration,
   pausesOf,
   phraseKey,
   type Turn,
@@ -55,6 +54,7 @@ import {
   turnText,
   voiceColors,
 } from "@/features/transcription/phrases";
+import { pauseDuration } from "@/lib/duration";
 import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
@@ -65,24 +65,6 @@ const NOT_PLAYING: string[] = [];
 /** La colonna dei nomi del Copione; con gli Ingressi separati c'è anche l'icona. */
 const NAME_COLUMN = "88px";
 const NAME_COLUMN_SEPARATE = "140px";
-
-/** Il nodo del Nastro e la sottolineatura dell'Intervista, per colore della voce (da `voiceColors`). */
-const VOICE_RINGS = [
-  "ring-voice-1",
-  "ring-voice-2",
-  "ring-voice-3",
-  "ring-voice-4",
-  "ring-voice-5",
-  "ring-voice-6",
-];
-const VOICE_UNDERLINES = [
-  "decoration-voice-1",
-  "decoration-voice-2",
-  "decoration-voice-3",
-  "decoration-voice-4",
-  "decoration-voice-5",
-  "decoration-voice-6",
-];
 
 /** Un pulsante a icona della barretta del turno. */
 const ICON_BUTTON =
@@ -263,17 +245,18 @@ export function TranscriptView({
       <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
         {header}
         {turns.length === 0 ? empty : null}
-        <div className={`flex flex-col ${vista === "nastro" ? "" : "gap-0.5"}`}>
+        <div className={`flex flex-col ${RESE[vista].gap}`}>
           {turns.map((turn, index) => {
             const { above, below, voce } = neighbours[index] ?? {};
             const heard = turn.items.some((item) =>
               playing.includes(phraseKey(item))
             );
-            const pause = vista === "intervista" ? null : pauses[index];
+            const { Pausa } = RESE[vista];
+            const pause = Pausa ? pauses[index] : null;
             return (
               <Fragment key={turn.key}>
-                {pause ? (
-                  <PauseMark ms={pause} nameWidth={nameWidth} vista={vista} />
+                {Pausa && pause ? (
+                  <Pausa ms={pause} nameWidth={nameWidth} />
                 ) : null}
                 <TurnBlock
                   above={above ?? null}
@@ -340,31 +323,15 @@ export function TranscriptView({
   );
 }
 
-/** Il separatore di una pausa lunga tra due turni, in Copione e Nastro. */
-function PauseMark({
-  ms,
-  nameWidth,
-  vista,
-}: {
+interface PauseProps {
   ms: number;
+  /** La colonna dei nomi del Copione; `null` se nessun turno ha un'etichetta. */
   nameWidth: string | null;
-  vista: VistaTrascrizione;
-}) {
-  const { t } = useTranslation();
-  const text = t("transcription.pause", { durata: pauseDuration(ms) });
-  if (vista === "nastro") {
-    return (
-      <div className="grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3">
-        <span />
-        <span aria-hidden className="relative">
-          <span className="absolute inset-y-0 left-1/2 w-[1.5px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,color-mix(in_oklch,var(--foreground)_25%,transparent)_0_3px,transparent_3px_7px)]" />
-        </span>
-        <span className="pt-0.5 pb-3 text-muted-foreground text-xs">
-          {text}
-        </span>
-      </div>
-    );
-  }
+}
+
+/** Il separatore di una pausa lunga tra due turni nel Copione: il testo e un filo tratteggiato. */
+function CopionePause({ ms, nameWidth }: PauseProps) {
+  const { t, i18n } = useTranslation();
   return (
     <div
       className="flex items-center gap-3 py-2 text-muted-foreground text-xs after:flex-1 after:border-input after:border-t after:border-dashed after:content-['']"
@@ -372,7 +339,25 @@ function PauseMark({
         paddingLeft: nameWidth ? `calc(${nameWidth} + 1rem)` : undefined,
       }}
     >
-      {text}
+      {t("transcription.pause", { durata: pauseDuration(ms, i18n.language) })}
+    </div>
+  );
+}
+
+/** Il separatore di una pausa lunga tra due turni nel Nastro: un tratto tratteggiato della linea. */
+function NastroPause({ ms }: PauseProps) {
+  const { t, i18n } = useTranslation();
+  return (
+    <div className="grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3">
+      <span />
+      <span aria-hidden className="relative">
+        <span className="absolute inset-y-0 left-1/2 w-[1.5px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,color-mix(in_oklch,var(--foreground)_25%,transparent)_0_3px,transparent_3px_7px)]" />
+      </span>
+      <span className="pt-0.5 pb-3 text-muted-foreground text-xs">
+        {t("transcription.pause", {
+          durata: pauseDuration(ms, i18n.language),
+        })}
+      </span>
     </div>
   );
 }
@@ -518,7 +503,7 @@ const TurnBlock = memo(function TurnBlockView({
     text: (
       <TurnText
         highlight={highlight}
-        indented={vista === "intervista"}
+        indented={RESE[vista].rientro}
         onCommit={registerCommit}
         onEdit={live ? undefined : onEdit}
         onJump={onJump}
@@ -542,14 +527,8 @@ const TurnBlock = memo(function TurnBlockView({
         }
       : null,
   };
-  if (vista === "copione") {
-    return <CopioneRow {...row} nameWidth={nameWidth} />;
-  }
-  return vista === "intervista" ? (
-    <IntervistaRow {...row} />
-  ) : (
-    <NastroRow {...row} />
-  );
+  const { Riga } = RESE[vista];
+  return <Riga {...row} nameWidth={nameWidth} />;
 });
 
 type VoiceProps = Omit<
@@ -610,7 +589,7 @@ function CopioneRow({
             className={`size-[7px] shrink-0 rounded-full ${
               color === undefined
                 ? "ring-[1.5px] ring-muted-foreground ring-inset"
-                : VOICE_DOTS[color]
+                : VOICE_CLASSES[color]?.dot
             }`}
           />
           <IngressoIcon className="size-3.5" ingresso={turn.ingresso} />
@@ -688,7 +667,7 @@ function IntervistaRow({
                   className={
                     color === undefined
                       ? undefined
-                      : `underline decoration-[3px] underline-offset-[5px] [text-decoration-skip-ink:none] ${VOICE_UNDERLINES[color]}`
+                      : `underline decoration-[3px] underline-offset-[5px] [text-decoration-skip-ink:none] ${VOICE_CLASSES[color]?.underline}`
                   }
                 >
                   {name}
@@ -715,12 +694,13 @@ function NastroRow({
   uncertain,
   voice,
 }: RowProps) {
+  // L'alone carta che interrompe la linea è un contorno, non un'ombra (The One Shadow Rule).
   let node = (
     <span
-      className={`relative mt-2 size-2.5 rounded-full shadow-[0_0_0_4px_var(--background)] ring-[1.5px] ${
+      className={`relative mt-2 size-2.5 rounded-full outline-[2.5px] outline-background outline-offset-[1.5px] ring-[1.5px] ${
         color === undefined
           ? "bg-background ring-muted-foreground"
-          : `${VOICE_DOTS[color]} ${VOICE_RINGS[color]}`
+          : `${VOICE_CLASSES[color]?.dot} ${VOICE_CLASSES[color]?.ring}`
       }`}
     />
   );
@@ -767,6 +747,34 @@ function NastroRow({
     </article>
   );
 }
+
+/**
+ * Quello che cambia da una vista all'altra: lo spazio tra i turni, il separatore delle pause (non
+ * nell'Intervista), il rientro della prima riga del testo e la resa del turno.
+ */
+const RESE: Record<
+  VistaTrascrizione,
+  {
+    gap: string;
+    Pausa: ((props: PauseProps) => ReactNode) | null;
+    rientro: boolean;
+    Riga: (props: RowProps & { nameWidth: string | null }) => ReactNode;
+  }
+> = {
+  copione: {
+    gap: "gap-0.5",
+    Pausa: CopionePause,
+    Riga: CopioneRow,
+    rientro: false,
+  },
+  intervista: {
+    gap: "gap-0.5",
+    Pausa: null,
+    Riga: IntervistaRow,
+    rientro: true,
+  },
+  nastro: { gap: "", Pausa: NastroPause, Riga: NastroRow, rientro: false },
+};
 
 /**
  * La barretta del turno, in alto a destra, che compare in hover o con il focus: ▶ (ascolta il
@@ -949,7 +957,7 @@ function MergeTurn({
         className={itemClass}
         disabled={!above || pending}
         onClick={mergeAbove}
-        popoverTarget={`menu-${id}`}
+        popoverTarget={menuId(id)}
         popoverTargetAction="hide"
         type="button"
       >
@@ -960,7 +968,7 @@ function MergeTurn({
         className={itemClass}
         disabled={!below || pending}
         onClick={mergeBelow}
-        popoverTarget={`menu-${id}`}
+        popoverTarget={menuId(id)}
         popoverTargetAction="hide"
         type="button"
       >
@@ -970,7 +978,7 @@ function MergeTurn({
       <hr className="my-1 border-border" />
       <button
         className={`${itemClass} text-muted-foreground`}
-        popoverTarget={`menu-${id}`}
+        popoverTarget={menuId(id)}
         popoverTargetAction="hide"
         type="button"
       >

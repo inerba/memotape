@@ -18,7 +18,7 @@ import {
   withInput,
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
-import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 
 /** Microfono e Audio di sistema: icona, profilo audio e scelta del dispositivo. */
 const INPUTS = {

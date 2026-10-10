@@ -9,15 +9,18 @@ import {
 import { useTranslation } from "react-i18next";
 import { nomeTaken, type Parlante } from "@/features/transcription/phrases";
 
-/** Le classi del pallino di una voce, per il colore da `voiceColors`. */
-export const VOICE_DOTS = [
-  "bg-voice-1",
-  "bg-voice-2",
-  "bg-voice-3",
-  "bg-voice-4",
-  "bg-voice-5",
-  "bg-voice-6",
-];
+/**
+ * Le classi di ogni colore di voce (l'indice di `voiceColors`), scritte per intero perché Tailwind
+ * le trovi: il pallino, l'anello del nodo del Nastro e la sottolineatura del nome nell'Intervista.
+ */
+export const VOICE_CLASSES = [
+  { dot: "bg-voice-1", ring: "ring-voice-1", underline: "decoration-voice-1" },
+  { dot: "bg-voice-2", ring: "ring-voice-2", underline: "decoration-voice-2" },
+  { dot: "bg-voice-3", ring: "ring-voice-3", underline: "decoration-voice-3" },
+  { dot: "bg-voice-4", ring: "ring-voice-4", underline: "decoration-voice-4" },
+  { dot: "bg-voice-5", ring: "ring-voice-5", underline: "decoration-voice-5" },
+  { dot: "bg-voice-6", ring: "ring-voice-6", underline: "decoration-voice-6" },
+] as const;
 
 /** Il pallino del colore di una voce; senza colore (il mix, il Parlante non determinato) un cerchio vuoto. */
 export function VoiceDot({ color }: { color: number | undefined }) {
@@ -27,7 +30,7 @@ export function VoiceDot({ color }: { color: number | undefined }) {
       className={`size-2.5 shrink-0 rounded-full ${
         color === undefined
           ? "border border-muted-foreground/50"
-          : VOICE_DOTS[color]
+          : VOICE_CLASSES[color]?.dot
       }`}
     />
   );
