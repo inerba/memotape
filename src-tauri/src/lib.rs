@@ -1,4 +1,5 @@
 mod audio_toolkit;
+mod cartelle;
 mod commands;
 #[cfg(any(debug_assertions, test))]
 mod dev_bindings;
@@ -96,13 +97,20 @@ fn specta_builder() -> Builder<tauri::Wry> {
 
 pub fn run() {
     let builder = specta_builder();
-
-    tauri::Builder::default()
+    let prova = cartelle::prova();
+    let mut tauri_builder = tauri::Builder::default();
+    // Il mutex dell'istanza unica ha il nome dell'identifier: con la cartella dati di prova l'app
+    // di debug parte accanto a quella dell'utente invece di passarle gli argomenti.
+    if prova.is_none() {
         // Per primo, come chiede il plugin: un secondo avvio esce prima di inizializzare il resto.
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            focus_main(app);
-            managers::pending_tape::request(app, args, std::path::Path::new(&cwd));
-        }))
+        tauri_builder =
+            tauri_builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+                focus_main(app);
+                managers::pending_tape::request(app, args, std::path::Path::new(&cwd));
+            }));
+    }
+
+    tauri_builder
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(APP_LOG_LEVEL)
@@ -139,8 +147,20 @@ pub fn run() {
             .expect("export di src/bindings.ts fallito");
             builder.mount_events(app);
             let data = app.path().app_data_dir()?;
-            let settings = managers::settings::SettingsStore::load(data.join("settings.json"));
+            let cartelle = cartelle::Cartelle::risolvi(
+                prova,
+                &data,
+                &app.path().app_local_data_dir()?,
+                app.path().document_dir().ok().as_deref(),
+            );
+            if let Some(dir) = &cartelle.prova {
+                log::info!("cartella dati di prova attiva: {}", dir.display());
+                cartelle.crea_prova()?;
+            }
+            let settings = managers::settings::SettingsStore::load(cartelle.settings.clone());
             app.manage(settings);
+            app.manage(cartelle);
+            // I modelli restano quelli veri anche con la cartella dati di prova.
             app.manage(managers::models::Models::new(data.join("models"))?);
             // Tema e lingua sono già disponibili quando la WebView legge il documento iniziale.
             startup::create_main(app)?;
