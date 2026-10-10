@@ -28,6 +28,7 @@ import {
   commands,
   type Settings,
   type Tema,
+  type VistaTrascrizione,
 } from "@/bindings";
 import { FieldHelp } from "@/components/field-help";
 import { NativeSelect } from "@/components/native-select";
@@ -62,6 +63,7 @@ import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
 const TEMI: Tema[] = ["sistema", "chiaro", "scuro"];
+const VISTE: VistaTrascrizione[] = ["copione", "intervista", "nastro"];
 
 /** Le sezioni, una per volta: `?sezione=` le sceglie (l'avviso dei modelli apre Trascrizione). */
 const SECTIONS = [
@@ -169,6 +171,14 @@ export function SettingsPage() {
           COPY_FORMATS.find((f) => f === e.target.value) ?? settings.copiaCome,
       }),
     [choose, settings.copiaCome]
+  );
+  const chooseVista = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) =>
+      choose({
+        vistaTrascrizione:
+          VISTE.find((v) => v === e.target.value) ?? settings.vistaTrascrizione,
+      }),
+    [choose, settings.vistaTrascrizione]
   );
   const chooseNomeMicrofono = useCallback(
     (nome: string) => choose({ nomeMicrofono: nome.trim() || null }),
@@ -525,6 +535,26 @@ export function SettingsPage() {
                     label={t("settings.general.theme")}
                     name="tema"
                   />
+                  <Field
+                    description={t("settings.general.vistaDescription")}
+                    id="vista-trascrizione"
+                    label={t("settings.general.vista")}
+                    name="vistaTrascrizione"
+                  >
+                    <NativeSelect
+                      aria-describedby="vista-trascrizione-description"
+                      className="h-9"
+                      id="vista-trascrizione"
+                      onChange={chooseVista}
+                      value={settings.vistaTrascrizione ?? "copione"}
+                    >
+                      {VISTE.map((value) => (
+                        <option key={value} value={value}>
+                          {t(`settings.general.viste.${value}`)}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </Field>
                   <Field
                     description={t("settings.general.languageRestart")}
                     id="interface-language"

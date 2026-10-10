@@ -29,6 +29,7 @@
     "copy": "Copia testo",
     "copied": "Copiato",
     "copyTurn": "Copia turno",
+    "pause": "Pausa di {{durata}}",
     "cancel": "Annulla",
     "cancelling": "Annullamento…",
     "replace": {
@@ -235,6 +236,13 @@
         "sistema": "Come Windows",
         "chiaro": "Chiaro",
         "scuro": "Scuro"
+      },
+      "vista": "Vista della trascrizione",
+      "vistaDescription": "Come si impagina il testo: chi parla, quando e le pause. Copia testo ed Esporta Markdown non cambiano.",
+      "viste": {
+        "copione": "Copione",
+        "intervista": "Intervista",
+        "nastro": "Nastro"
       },
       "languageRestart": "La nuova lingua si applica al prossimo avvio di Memotape.",
       "copyAs": "Copia testo come",

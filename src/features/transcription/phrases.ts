@@ -347,6 +347,38 @@ function silenceMs(
   return gap === 0 ? 0 : gap + HANGOVER_PREFILL_MS;
 }
 
+/** Da questo silenzio stimato in su, Copione e Nastro mostrano il separatore della pausa. */
+const SHOWN_PAUSE_MS = 5000;
+
+/**
+ * Il silenzio stimato prima di ogni turno, se merita il separatore (almeno 5 s), altrimenti `null`.
+ * Si misura dalla fine più tarda delle Frasi precedenti: con gli Ingressi separati una voce può
+ * parlare sopra il turno di prima.
+ */
+export function pausesOf(turns: Turn[]): (number | null)[] {
+  let fineMs: number | null = null;
+  return turns.map(({ items }) => {
+    const [first] = items;
+    const silence =
+      fineMs === null || !first ? 0 : silenceMs({ fineMs }, first);
+    for (const item of items) {
+      fineMs = Math.max(fineMs ?? 0, item.fineMs);
+    }
+    return silence >= SHOWN_PAUSE_MS ? silence : null;
+  });
+}
+
+/** La durata di una pausa al secondo: `9 s`, `1 min 20 s`, `1 min`. */
+export function pauseDuration(ms: number): string {
+  const seconds = Math.round(ms / 1000);
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m === 0) {
+    return `${s} s`;
+  }
+  return s === 0 ? `${m} min` : `${m} min ${s} s`;
+}
+
 /**
  * La conversazione a turni, in ordine di inizio con i Parziali al loro posto: un turno nuovo a ogni
  * cambio di etichetta (Ingresso o Parlante) o, senza etichette, dopo una pausa: come nel Markdown.

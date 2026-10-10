@@ -29,6 +29,7 @@
     "copy": "Copier le texte",
     "copied": "Copié",
     "copyTurn": "Copier l'intervention",
+    "pause": "Pause de {{durata}}",
     "cancel": "Annuler",
     "cancelling": "Annulation…",
     "replace": {
@@ -235,6 +236,13 @@
         "sistema": "Comme Windows",
         "chiaro": "Clair",
         "scuro": "Sombre"
+      },
+      "vista": "Vue de la transcription",
+      "vistaDescription": "La mise en page du texte : qui parle, quand, et les pauses. Copier le texte et l'export Markdown ne changent pas.",
+      "viste": {
+        "copione": "Script",
+        "intervista": "Entretien",
+        "nastro": "Frise"
       },
       "languageRestart": "La nouvelle langue s'applique au prochain démarrage de Memotape.",
       "copyAs": "Copier le texte en",

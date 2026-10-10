@@ -188,7 +188,7 @@ export function TurnEditor({
         aria-label={t("transcription.editTurn", {
           name: turn.label ?? t("transcription.text"),
         })}
-        className={`transcript-editor field-sizing-content relative block min-h-[1lh] w-full select-text resize-none overflow-hidden rounded-sm bg-transparent p-0 text-inherit leading-[inherit] outline-none hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 ${searchHit ? "ring-1 ring-play/60" : ""}`}
+        className={`transcript-editor field-sizing-content relative block min-h-[1lh] w-full select-text resize-none overflow-hidden rounded-sm bg-transparent p-0 text-inherit leading-[inherit] outline-none [text-indent:inherit] hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 ${searchHit ? "ring-1 ring-play/60" : ""}`}
         defaultValue={text}
         onBlur={blur}
         onFocus={focus}
@@ -201,7 +201,7 @@ export function TurnEditor({
         spellCheck
       />
       {saveFailed ? (
-        <p className="mt-2 text-destructive text-sm" role="alert">
+        <p className="mt-2 indent-0 text-destructive text-sm" role="alert">
           {t("transcription.turnSaveFailed")}
         </p>
       ) : null}

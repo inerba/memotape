@@ -77,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   speechLanguage: "auto",
   tema: "sistema",
   trascrizioneDalVivo: false,
+  vistaTrascrizione: "copione",
   vocabolario: [],
 };
 
@@ -146,6 +147,8 @@ export const settingsSchema = z.object({
   tema: z.enum(["sistema", "chiaro", "scuro"]).optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   trascrizioneDalVivo: z.boolean().optional(),
+  // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
+  vistaTrascrizione: z.enum(["copione", "intervista", "nastro"]).optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   vocabolario: z.array(z.string()).optional(),
 }) satisfies z.ZodType<Settings>;

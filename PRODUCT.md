@@ -471,7 +471,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
   - Niente status bar: fase, avanzamento e Annulla stanno solo in Attività nella barra laterale; errori ed esiti compaiono in un avviso sopra il pannello centrale, con il link alle Impostazioni quando serve. Gli esiti spariscono da soli dopo qualche secondo, gli errori restano finché non si chiudono.
   - Le Raccolte stanno nella Libreria: Tutta la Libreria, Senza raccolta, le Raccolte e Nuova Raccolta, con Rinomina ed Elimina di quella scelta. La Raccolta scelta è anche quella in cui vanno le Registrazioni e i file importati, e la Libreria lo dice. In alto il percorso "Raccolta / titolo" porta alla Libreria su quella Raccolta.
   - Un Tape si legge come un documento: titolo grande (un clic lo rinomina), giorno, ora e durata, etichette (file d'origine o Registrazione, Parlanti, modello e Lingua del parlato, incompleto, fuori dalla Libreria). In alto Copia testo e "…" con Esporta Markdown…, Mostra in Esplora file, Sposta in…, Trascrivi di nuovo con le sue scelte ed Elimina.
-  - Schede Trascrizione e Parlanti. Ogni turno ha il pallino del colore della voce e, con un Ingresso separato, l'icona del microfono o dell'altoparlante al posto del nome dell'Ingresso, poi il nome del Parlante quando disponibile (un clic lo rinomina sul posto), il tempo (porta lì il player) e ▶ (lo avvia da lì). Il tempo di ogni altra Frase compare sopra di lei passando il mouse. La scheda Parlanti elenca ogni Parlante con il colore, il tempo di parola, i turni e ▶ sul primo intervento.
+  - Schede Trascrizione e Parlanti. Ogni turno ha il colore della voce e, con un Ingresso separato, l'icona del microfono o dell'altoparlante al posto del nome dell'Ingresso, poi il nome del Parlante quando disponibile (un clic lo rinomina sul posto), il tempo (porta lì il player) e ▶ (lo avvia da lì). Il tempo di ogni altra Frase compare sopra di lei passando il mouse. L'impaginazione dei turni dipende dalla Vista della trascrizione (sotto, «Vista della trascrizione»). La scheda Parlanti elenca ogni Parlante con il colore, il tempo di parola, i turni e ▶ sul primo intervento.
   - Il player sta in fondo: ±10 s, Play/Pausa, tempo, forma d'onda del mix che fa da barra di avanzamento (la parte ascoltata in salvia), durata, velocità e volume (ricordato su questo PC). Il turno in ascolto ha il fondo salvia, le barre che si muovono e Riascolta; la Frase in ascolto è evidenziata. "Segui l'audio" è un interruttore sopra il testo; scorrendo a mano si spegne e compare "Torna al punto in ascolto", con la freccia verso la Frase.
   - Senza Sorgente il pannello centrale invita a registrare o importare un file. Un Tape senza testo dice che va trascritto e offre Trascrivi ▾. Durante la Registrazione il documento "Nuova registrazione" cresce con il testo dal vivo e in fondo c'è la barra con timer, livelli, Pausa e Stop.
 - **V13, data della registrazione, ordinamento e trascinamento nella Libreria**:
@@ -490,7 +490,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
   - Legge l'indice che l'app tiene allineato: un Tape spostato a mano con l'app chiusa non si trova finché l'app non si riapre.
   - Ogni richiesta lascia una riga nel log di Memotape.
 - **V16, Copia turno**:
-  - Ogni Turno ha in fondo alla sua riga, dalla parte opposta al nome, il pulsantino "Copia turno". Si vede passando il mouse sul Turno o con il focus da tastiera al suo interno; sul Turno in ascolto Riascolta gli sta a sinistra.
+  - Ogni Turno ha il pulsantino "Copia turno", nella barretta in alto a destra del Turno (dal 10 ottobre 2026, con la Vista della trascrizione). Si vede passando il mouse sul Turno o con il focus da tastiera al suo interno; sul Turno in ascolto Riascolta gli sta a sinistra.
   - Copia sempre in testo semplice, qualunque sia "Copia testo come": solo le Frasi del Turno, una dopo l'altra, con correzioni e a capo, senza Ingresso né nome del Parlante davanti (7 ottobre 2026; prima c'era `Microfono · Mario: …`). Copia testo, Markdown e Assistenti mantengono le etichette. Il Parziale in corso si copia com'è al momento del clic: anche un Turno fatto solo di un Parziale ha il pulsante.
   - Per circa 1,5 s l'icona diventa una spunta e il tooltip dice "Copiato"; nessun avviso.
   - C'è ovunque si vede il testo a turni: Registrazione dal vivo, Tape aperto (anche consultato durante un'Attività), file trascritto o annullato.
@@ -555,6 +555,17 @@ con parlato reale resta distinto dalle prove automatiche.
 - Per un Tape: modello, Lingua del parlato e Riconosci i parlanti. Con testo già presente il dialog è anche la conferma "Ritrascrivere il Tape?" con l'avviso su correzioni e nomi (e sulle correzioni a mano, se ci sono); senza testo non avvisa. Trascrivi di nuovo, nel menu "…" del Tape, apre lo stesso dialog.
 - Trascrivi su un Tape non pulisce né filtra l'audio: usa quello salvato (ADR-0029). Vocabolario e nome predefinito del Microfono valgono come prima.
 - Pulizia e Sensibilità di un Ingresso escluso da "Registra da" restano visibili in Impostazioni → Registrazione e valgono quando si torna a registrarlo.
+
+## Vista della trascrizione — requisiti concordati il 10 ottobre 2026
+
+Spec `.scratch/anteprime-ui/spec.md` («1 · Vista della trascrizione»), ticket `anteprime-ui/01`.
+
+- Impostazioni → Generale ha la scelta "Vista della trascrizione": Copione (predefinita), Intervista, Nastro. Vale ovunque si vede il testo a turni: Tape aperto, Registrazione dal vivo con i Parziali, Frasi arrivate dopo Annulla su un file. La vista a testate di prima non c'è più.
+- Le Frasi non cambiano posto né turno: ordine dei tempi e turni come prima. Copia testo, Copia turno ed Esporta Markdown… non dipendono dalla vista.
+- Copione: il nome in maiuscolo in una colonna (più larga con gli Ingressi separati, con l'icona Microfono o Audio di sistema; un nome troppo lungo si taglia e il tooltip lo mostra intero), il testo accanto, il tempo a destra, tenue e pieno in hover e sul turno in ascolto. Intervista: il nome in grassetto, sottolineato nel colore del Parlante, apre il paragrafo; il tempo sta nel margine. Nastro: una linea con un nodo per turno nel colore del Parlante, il tempo a sinistra, il nome sopra il testo; il turno in ascolto ha le tre barre al posto del nodo.
+- La battuta del Parlante non determinato è tenue, con «?» al posto del nome (Copione, Intervista) o il nodo vuoto (Nastro); il lettore di schermo legge «Parlante non determinato».
+- In Copione e Nastro un silenzio stimato di almeno 5 s tra due turni (la stima dei paragrafi del Markdown) diventa il separatore «Pausa di 9 s», «Pausa di 1 min 20 s» oltre il minuto. Le pause dentro un turno non si segnano.
+- Il tempo porta lì il player; ▶, Riascolta, Unisci e Copia turno compaiono in hover o con il focus in una barretta in alto a destra del turno; il clic sul nome rinomina il Parlante. Editor del Turno, Segui l'audio e «Torna al punto in ascolto» come prima.
 
 ## Fuori dal perimetro
 

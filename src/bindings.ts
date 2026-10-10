@@ -593,6 +593,11 @@ export type Settings = {
 	/**  Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows. */
 	tema?: Tema,
 	/**
+	 *  Come si impagina la trascrizione. Manca nei file salvati prima che esistesse: allora è
+	 *  il Copione.
+	 */
+	vistaTrascrizione?: VistaTrascrizione,
+	/**
 	 *  Consenti agli Assistenti di leggere la Libreria con il server MCP (ADR-0012). Manca nei file
 	 *  salvati prima che esistesse: allora è spenta.
 	 */
@@ -784,6 +789,15 @@ export type UpdateInfo = {
 	/**  La pagina della release. */
 	url: string,
 };
+
+/**  La resa della trascrizione: cambia solo come si legge chi parla e quando, non i turni. */
+export type VistaTrascrizione = 
+/**  Il nome in una colonna, il testo accanto, il tempo a destra. */
+"copione" | 
+/**  Il nome apre il paragrafo, il tempo nel margine. */
+"intervista" | 
+/**  Una linea con un nodo per turno, il tempo a sinistra. */
+"nastro";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

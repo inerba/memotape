@@ -29,6 +29,7 @@
     "copy": "Copy text",
     "copied": "Copied",
     "copyTurn": "Copy turn",
+    "pause": "Pause of {{durata}}",
     "cancel": "Cancel",
     "cancelling": "Cancelling…",
     "replace": {
@@ -234,6 +235,13 @@
         "sistema": "Same as Windows",
         "chiaro": "Light",
         "scuro": "Dark"
+      },
+      "vista": "Transcript view",
+      "vistaDescription": "How the text is laid out: who speaks, when, and the pauses. Copy text and Export Markdown don't change.",
+      "viste": {
+        "copione": "Script",
+        "intervista": "Interview",
+        "nastro": "Timeline"
       },
       "languageRestart": "The new language takes effect the next time Memotape starts.",
       "copyAs": "Copy text as",

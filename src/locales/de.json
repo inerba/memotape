@@ -29,6 +29,7 @@
     "copy": "Text kopieren",
     "copied": "Kopiert",
     "copyTurn": "Redebeitrag kopieren",
+    "pause": "Pause von {{durata}}",
     "cancel": "Abbrechen",
     "cancelling": "Wird abgebrochen…",
     "replace": {
@@ -234,6 +235,13 @@
         "sistema": "Wie Windows",
         "chiaro": "Hell",
         "scuro": "Dunkel"
+      },
+      "vista": "Ansicht der Transkription",
+      "vistaDescription": "Wie der Text gesetzt wird: wer spricht, wann, und die Pausen. Text kopieren und Markdown exportieren ändern sich nicht.",
+      "viste": {
+        "copione": "Drehbuch",
+        "intervista": "Interview",
+        "nastro": "Zeitleiste"
       },
       "languageRestart": "Die neue Sprache gilt ab dem nächsten Start von Memotape.",
       "copyAs": "Text kopieren als",

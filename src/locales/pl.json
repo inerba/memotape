@@ -29,6 +29,7 @@
     "copy": "Kopiuj tekst",
     "copied": "Skopiowano",
     "copyTurn": "Kopiuj wypowiedź",
+    "pause": "Pauza: {{durata}}",
     "cancel": "Anuluj",
     "cancelling": "Anulowanie…",
     "replace": {
@@ -236,6 +237,13 @@
         "sistema": "Jak w systemie Windows",
         "chiaro": "Jasny",
         "scuro": "Ciemny"
+      },
+      "vista": "Widok transkrypcji",
+      "vistaDescription": "Układ tekstu: kto mówi, kiedy i pauzy. Kopiowanie tekstu i eksport do Markdown się nie zmieniają.",
+      "viste": {
+        "copione": "Scenariusz",
+        "intervista": "Wywiad",
+        "nastro": "Oś czasu"
       },
       "languageRestart": "Nowy język zostanie zastosowany przy następnym uruchomieniu aplikacji Memotape.",
       "copyAs": "Kopiuj tekst jako",

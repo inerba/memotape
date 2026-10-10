@@ -82,6 +82,10 @@ pub struct Settings {
     /// Il tema dell'interfaccia. Manca nei file salvati prima che esistesse: allora segue Windows.
     #[serde(default)]
     pub tema: Tema,
+    /// Come si impagina la trascrizione. Manca nei file salvati prima che esistesse: allora è
+    /// il Copione.
+    #[serde(default)]
+    pub vista_trascrizione: VistaTrascrizione,
     /// Consenti agli Assistenti di leggere la Libreria con il server MCP (ADR-0012). Manca nei file
     /// salvati prima che esistesse: allora è spenta.
     #[serde(default)]
@@ -144,6 +148,21 @@ impl Tema {
             log::warn!("tema non applicato: {e}");
         }
     }
+}
+
+/// La resa della trascrizione: cambia solo come si legge chi parla e quando, non i turni.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
+#[serde(rename_all = "camelCase")]
+pub enum VistaTrascrizione {
+    /// Il nome in una colonna, il testo accanto, il tempo a destra.
+    #[default]
+    Copione,
+    /// Il nome apre il paragrafo, il tempo nel margine.
+    Intervista,
+    /// Una linea con un nodo per turno, il tempo a sinistra.
+    Nastro,
 }
 
 #[derive(
@@ -311,6 +330,7 @@ impl Default for Settings {
             parlanti_sistema: false,
             raccolta: None,
             tema: Tema::Sistema,
+            vista_trascrizione: VistaTrascrizione::Copione,
             assistenti: false,
             guadagno_microfono: 0,
             guadagno_sistema: 0,
@@ -688,6 +708,7 @@ mod tests {
         );
         assert_eq!(settings.raccolta, None);
         assert_eq!(settings.tema, Tema::Sistema);
+        assert_eq!(settings.vista_trascrizione, VistaTrascrizione::Copione);
         assert!(!settings.assistenti);
     }
 
@@ -790,10 +811,12 @@ mod tests {
         object.remove("parlantiMicrofono");
         object.remove("parlantiSistema");
         object.remove("tema");
+        object.remove("vistaTrascrizione");
         object.remove("assistenti");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
+        assert_eq!(settings.vista_trascrizione, VistaTrascrizione::Copione);
         assert!(!settings.trascrizione_dal_vivo);
         assert_eq!(settings.copia_come, CopiaCome::Testo);
         assert!(!settings.parlanti_file);
@@ -900,6 +923,7 @@ mod tests {
             parlanti_sistema: true,
             raccolta: Some("Ferrara Quarzi".into()),
             tema: Tema::Scuro,
+            vista_trascrizione: VistaTrascrizione::Nastro,
             assistenti: true,
             guadagno_microfono: 6,
             guadagno_sistema: -3,

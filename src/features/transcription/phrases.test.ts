@@ -8,6 +8,8 @@ import {
   nomeTaken,
   parlanteStats,
   parlantiOf,
+  pauseDuration,
+  pausesOf,
   type Turn,
   turnBody,
   turnsOf,
@@ -625,4 +627,41 @@ test("Copia turno dà solo le Frasi del turno, senza la voce, con il Parziale co
   expect(turnsOf(mix, t).map(turnText)).toEqual([
     "Buongiorno. Oggi parliamo. Di cas",
   ]);
+});
+
+test("una pausa stimata di almeno 5 s separa due turni, misurata dalla fine dell'ultima Frase", () => {
+  // Fine a +900 ms; il silenzio stimato è il buco più hangover e prefill (1 s).
+  const c = withParlanti(
+    [
+      phrase(0, 0, "Uno."),
+      phrase(1, 1000, "Due."),
+      phrase(2, 5000, "Tre."),
+      phrase(3, 9900, "Quattro."),
+    ].reduce(withPhrase, EMPTY_CONVERSATION),
+    [0, 1, 2, 3].map((phraseId) => ({
+      ingresso: "mix" as const,
+      parlante: (phraseId % 2) + 1,
+      phraseId,
+    }))
+  );
+  // Due → Tre: 3,1 s di buco, 4,1 s stimati. Tre → Quattro: 4 s di buco, 5 s stimati.
+  expect(pausesOf(turnsOf(c, t))).toEqual([null, null, null, 5000]);
+});
+
+test("con gli Ingressi separati la pausa parte dalla fine più tarda, non dal turno di prima", () => {
+  const c = [
+    { ...phrase(0, 0, "Parlo a lungo.", "microfono"), fineMs: 20_000 },
+    phrase(0, 2000, "Sì.", "sistema"),
+    phrase(1, 30_000, "Allora?", "microfono"),
+  ].reduce(withPhrase, EMPTY_CONVERSATION);
+  // Dalla fine del Microfono (20 s), non da quella dell'Audio di sistema (2,9 s).
+  expect(pausesOf(turnsOf(c, t))).toEqual([null, null, 11_000]);
+});
+
+test("la durata della pausa: secondi sotto il minuto, poi minuti e secondi", () => {
+  expect(pauseDuration(5000)).toBe("5 s");
+  expect(pauseDuration(9400)).toBe("9 s");
+  expect(pauseDuration(59_600)).toBe("1 min");
+  expect(pauseDuration(80_000)).toBe("1 min 20 s");
+  expect(pauseDuration(3_725_000)).toBe("62 min 5 s");
 });
