@@ -8,7 +8,6 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -24,7 +23,6 @@ import {
   type OpenedTape,
   type RecordingCleaningFailed,
   type RecordingCleaningPreparing,
-  type TapeInfo,
   type UpdateInfo,
 } from "@/bindings";
 import {
@@ -38,7 +36,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   WINDOW_CONTROLS_PADDING,
   WindowControls,
@@ -57,12 +54,7 @@ import {
 import { useLastTape } from "@/features/library/use-last-tape";
 import { useLibrary } from "@/features/library/use-library";
 import { useTapeOperations } from "@/features/library/use-tape-operations";
-import {
-  keepFocus,
-  Player,
-  type PlayerState,
-  usePlayer,
-} from "@/features/player/player";
+import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
 import { RecordMenu } from "@/features/recording/record-menu";
 import {
@@ -71,7 +63,6 @@ import {
 } from "@/features/recording/recording";
 import { RecordingPanel } from "@/features/recording/recording-panel";
 import { recordAfterSettings } from "@/features/recording/start";
-import { SWITCH_CLASS } from "@/features/settings/setting-switch";
 import { nomeMicrofonoRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { dropVerdict } from "@/features/source/drop";
@@ -1375,7 +1366,7 @@ function BannerView({
 
 /**
  * La vista di un Tape: la barra in alto con il percorso, Copia testo e "…"; il documento con
- * testata, schede Trascrizione e Parlanti e Segui l'audio; in fondo il player, nascosto
+ * testata e schede Trascrizione e Parlanti; in fondo il player con Segui l'audio, nascosto
  * mentre lo si trascrive. `editable`: non ci lavora l'Attività in corso; `isSource`: è la Sorgente, che
  * Trascrivi trascrive; `recording`: il player è disabilitato.
  */
@@ -1507,12 +1498,7 @@ function TapePane({
         path={path}
       />
       {hasText ? (
-        <DocumentToolbar
-          follow={listening}
-          onTab={setTab}
-          parlanti={parlanti.length}
-          tab={tab}
-        />
+        <DocumentToolbar onTab={setTab} parlanti={parlanti.length} tab={tab} />
       ) : null}
     </>
   );
@@ -1596,7 +1582,6 @@ function TapePane({
       )}
       <TapePlayer
         disabled={recording}
-        info={info}
         path={path}
         player={player}
         processing={processing}
@@ -1607,30 +1592,18 @@ function TapePane({
 
 function TapePlayer({
   disabled,
-  info,
   path,
   player,
   processing,
 }: {
   disabled: boolean;
-  info: TapeInfo | null;
   path: string;
   player: PlayerState;
   processing: boolean;
 }) {
-  const { t } = useTranslation();
   return processing ? null : (
     <Dock>
-      <Player
-        disabled={disabled}
-        label={
-          info?.origine
-            ? t("player.file", { name: info.origine })
-            : t("player.recording")
-        }
-        path={path}
-        player={player}
-      />
+      <Player disabled={disabled} path={path} player={player} />
     </Dock>
   );
 }
@@ -1666,14 +1639,12 @@ function TapeEmpty({
   );
 }
 
-/** Le schede Trascrizione e Parlanti e, con il player, l'interruttore Segui l'audio. */
+/** Le schede Trascrizione e Parlanti. */
 function DocumentToolbar({
-  follow,
   onTab,
   parlanti,
   tab,
 }: {
-  follow?: PlayerState;
   onTab: (tab: "transcript" | "parlanti") => void;
   parlanti: number;
   tab: "transcript" | "parlanti";
@@ -1681,13 +1652,6 @@ function DocumentToolbar({
   const { t } = useTranslation();
   const toTranscript = useCallback(() => onTab("transcript"), [onTab]);
   const toParlanti = useCallback(() => onTab("parlanti"), [onTab]);
-  const following = follow?.follow === "following";
-  const onFollow = follow?.onFollow;
-  const followId = useId();
-  const toggleFollow = useCallback(
-    () => onFollow?.(following ? "scroll" : "follow"),
-    [following, onFollow]
-  );
   return (
     <div className="sticky top-0 z-10 mb-3 flex items-center gap-6 border-b bg-background">
       <div aria-label={t("tabs.label")} className="flex gap-6" role="tablist">
@@ -1703,22 +1667,6 @@ function DocumentToolbar({
           ) : null}
         </TabButton>
       </div>
-      <span className="flex-1" />
-      {follow && tab === "transcript" ? (
-        <label
-          className="flex cursor-pointer items-center gap-2.5 py-1 text-sm"
-          htmlFor={followId}
-        >
-          <Switch
-            checked={following}
-            className={SWITCH_CLASS}
-            id={followId}
-            onCheckedChange={toggleFollow}
-            onPointerDown={keepFocus}
-          />
-          {t("player.follow")}
-        </label>
-      ) : null}
     </div>
   );
 }

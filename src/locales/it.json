@@ -86,8 +86,7 @@
     "volume": "Volume",
     "mute": "Silenzia",
     "unmute": "Riattiva l'audio",
-    "recording": "Audio della registrazione · mix",
-    "file": "Audio di {{name}}"
+    "followShort": "Segui"
   },
   "status": {
     "updateAvailable": "Memotape {{version}} è disponibile.",
@@ -492,7 +491,6 @@
   },
   "tape": {
     "recording": "Registrazione",
-    "file": "File {{name}}",
     "parlanti_one": "{{count}} parlante",
     "parlanti_many": "{{count}} parlanti",
     "parlanti_other": "{{count}} parlanti",
@@ -501,7 +499,14 @@
     "ingressi": "Microfono + audio di sistema",
     "changeDate": "Clic per cambiare data e ora: Invio conferma, Esc annulla",
     "dateLabel": "Data e ora della registrazione",
-    "manuallyCorrected": "Corretto a mano"
+    "manuallyCorrected": "Corretto a mano",
+    "details": {
+      "label": "Dettagli",
+      "origine": "Origine",
+      "modello": "Modello",
+      "ingressi": "Ingressi",
+      "mix": "Mix"
+    }
   },
   "tabs": {
     "label": "Viste del Tape",

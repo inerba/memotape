@@ -16,6 +16,7 @@ export function PopoverMenu({
   label,
   onOpen,
   panelClassName,
+  size = "icon",
   variant = "outline",
 }: {
   children: ReactNode;
@@ -27,6 +28,8 @@ export function PopoverMenu({
   label: string;
   onOpen?: () => void;
   panelClassName?: string;
+  /** `icon` per un pulsante con la sola icona; un'altra misura per un pulsante con il testo. */
+  size?: ComponentProps<typeof Button>["size"];
   variant?: ComponentProps<typeof Button>["variant"];
 }) {
   const anchor = `--menu-${id}`;
@@ -37,7 +40,7 @@ export function PopoverMenu({
         className={className}
         disabled={disabled}
         popoverTarget={`menu-${id}`}
-        size="icon"
+        size={size}
         style={{ anchorName: anchor }}
         title={label}
         variant={variant}

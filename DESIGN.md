@@ -36,6 +36,13 @@ typography:
     lineHeight: 1.1
     letterSpacing: "-0.015em"
     fontFeature: "font-variation-settings: 'FLAR' 100, 'VOLM' 50"
+  display-tape:
+    fontFamily: "Commissioner Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "2rem"
+    fontWeight: 500
+    lineHeight: 1.1
+    letterSpacing: "-0.015em"
+    fontFeature: "font-variation-settings: 'FLAR' 100, 'VOLM' 50"
   wordmark:
     fontFamily: "Commissioner Variable, ui-sans-serif, system-ui, sans-serif"
     fontSize: "1.375rem"
@@ -121,7 +128,7 @@ components:
     backgroundColor: "{colors.ink-button}"
     textColor: "{colors.ink-button-foreground}"
     rounded: "{rounded.full}"
-    size: "44px"
+    size: "40px"
   input-search:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
@@ -206,7 +213,7 @@ Il rischio dichiarato del mondo è il generico "carta calda + serif": lo si tien
 Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–128) e una piccola famiglia di pastelli per le voci; i valori OKLCH di `src/app/global.css` sono la fonte normativa, con i gemelli scuri sotto `:root[data-theme="dark"]`. `Sistema` aggiorna l'attributo quando cambia la preferenza di Windows.
 
 ### Primary
-- **Salvia d'ascolto** (`play`): l'unico accento. Interruttore Segui l'audio acceso, parte già ascoltata della forma d'onda, riempimento delle barre di avanzamento, barre animate del turno in ascolto, spunte di conferma (Copia testo, avviso riuscito), freccia di "Torna al punto in ascolto", selezione del testo (con testo `play-foreground`), cursore del testo nei campi e cursore del volume (`accent-color`). Nel tema scuro si schiarisce per restare leggibile sull'inchiostro. Nelle Frasi in correzione il cursore usa `foreground`, per distinguersi dal fondo e dalla selezione in entrambi i temi.
+- **Salvia d'ascolto** (`play`): l'unico accento. Pillola Segui l'audio accesa (`play-soft`), parte già ascoltata della forma d'onda, riempimento delle barre di avanzamento, barre animate del turno in ascolto, spunte di conferma (Copia testo, avviso riuscito), freccia di "Torna al punto in ascolto", selezione del testo (con testo `play-foreground`), cursore del testo nei campi e cursore del volume (`accent-color`). Nel tema scuro si schiarisce per restare leggibile sull'inchiostro. Nelle Frasi in correzione il cursore usa `foreground`, per distinguersi dal fondo e dalla selezione in entrambi i temi.
 - **Salvia tenue** (`play-soft`): il fondo del turno in ascolto (al 55%), la traccia delle barre di avanzamento e l'evidenziazione dei risultati di ricerca. La Frase in ascolto prende invece `play` al 18%.
 - **Anello salvia** (`ring-sage`): l'anello di focus da 3 px, quasi sempre al 40% (al 25–30% sui campi).
 
@@ -229,7 +236,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 - **Filo** (`rule`) e **Filo dei campi** (`rule-input`): bordi da 1 px, divisori, traccia dell'interruttore spento e pollice delle barre di scorrimento.
 
 ### Named Rules
-**The One Accent Rule.** La salvia significa "audio": ciò che suona, è stato ascoltato o è andato a buon fine, e ogni interruttore acceso (7 ottobre 2026: "Segui l'audio", le impostazioni che si salvano subito). Non colora pulsanti primari, link, schede scelte o titoli; il pulsante pieno resta inchiostro.
+**The One Accent Rule.** La salvia significa "audio": ciò che suona, è stato ascoltato o è andato a buon fine, e ogni interruttore acceso (7 ottobre 2026: "Segui l'audio", dal 10 ottobre una pillola nel player, e le impostazioni che si salvano subito). Non colora pulsanti primari, link, schede scelte o titoli; il pulsante pieno resta inchiostro.
 
 **The Dot-Only Voices Rule.** I colori dei Parlanti compaiono solo nel pallino o nel nodo, e nell'Intervista nella sottolineatura del nome: mai sul testo, sui fondi dei turni o sui bordi.
 
@@ -244,13 +251,14 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 **Character:** Un sans glifico, con le aste svasate, per il nome delle cose (titolo del Tape, benvenuto, marchio) e un sans neutro e molto leggibile per tutto ciò che si legge a lungo o si usa; l'accoppiamento dà al documento un'aria editoriale senza rendere l'interfaccia decorativa.
 
 ### Hierarchy
-- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del Tape nel `DocumentHeader` e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista. Il campo di rinomina del titolo usa lo stesso font a 2.5rem.
+- **Display** (500, 2.75rem, 1.1, −0.015em): il titolo del `DocumentHeader` (Libreria, Registrazione dal vivo, file da trascrivere) e il titolo del benvenuto, al massimo 20ch con `text-wrap: balance`. Un solo display per vista.
+- **Display del Tape** (500, 2rem, 1.1, −0.015em, 10 ottobre 2026): il titolo del Tape aperto e il suo campo di rinomina, con `text-wrap: pretty`, così va a capo meno spesso e mai con una parola sola in fondo; il testo sale di una riga.
 - **Wordmark** (500, 1.375rem, −0.01em): "memotape" in minuscolo nella barra laterale accanto al simbolo; in Informazioni a 1.75rem. Nel resto dell'interfaccia e nei testi il nome resta "Memotape"; Impostazioni usa lo stesso font a 2rem per il titolo della pagina, con un sottotitolo in `ink-muted`.
 - **Reading** (400, 1.0625rem, 1.7): il testo dei turni, nella colonna da 46rem (circa 70 caratteri a riga dopo il rientro).
 - **Meta** (400, 1.0625rem, cifre tabulari, `ink-muted`): la riga data · ora · durata sotto il titolo e il sottotitolo del benvenuto (con interlinea rilassata).
 - **Body** (400, 0.875rem): l'interfaccia: voci di menu, breadcrumb, ricerca, chip, tempi dei turni, testi d'aiuto.
 - **Label** (500, 0.875rem): pulsanti, schede, nomi dei Parlanti.
-- **Caption** (400, 0.75rem): nome del file nel player, giorno nei Recenti, titoletti nei menu, il tempo di una Frase in hover.
+- **Caption** (400, 0.75rem): Segui l'audio nel player, giorno nei Recenti, titoletti nei menu, il tempo di una Frase in hover.
 - **Group label** (500, 0.6875rem, +0.07em, maiuscolo): solo i titoli dei gruppi della barra laterale (ATTIVITÀ, RECENTI, RISULTATI).
 
 ### Named Rules
@@ -264,7 +272,7 @@ Due colonne a tutta altezza: la barra laterale fissa a sinistra (288 px, `w-72`)
 
 - **Riga del titolo** (48 px in ogni vista, trascinabile, bordo inferiore da 1 px): breadcrumb a sinistra (32 px di margine), azioni del documento a destra, subito prima dei pulsanti di Windows (46×36 px), fissi nell'angolo in alto a destra.
 - **Colonna del documento**: centrata, al massimo 46rem, con 40 px di margine laterale e 48 px sopra il titolo. Tutte le registrazioni usa una colonna più larga (60rem); il player e il dock di Registrazione 52rem; gli avvisi 46rem, come il documento.
-- **Barra delle schede**: appiccicata in cima allo scorrimento, sul fondo carta, con il filo inferiore; le schede distano 24 px e l'interruttore Segui l'audio è spinto a destra.
+- **Barra delle schede**: appiccicata in cima allo scorrimento, sul fondo carta, con il filo inferiore; le schede distano 24 px. Solo le schede: Segui l'audio sta nel player (10 ottobre 2026).
 - **Ritmo**: nel Copione e nell'Intervista i turni hanno 5–6 px sopra e sotto e 12 px di sfondamento laterale (lo sfondo del turno attivo sporge oltre la colonna del testo); nel Nastro i turni si toccano lungo la linea, con 14 px sotto il testo. Gruppi della barra laterale a 20 px l'uno dall'altro.
 - **Player e dock**: ancorati in basso al pannello centrale, sospesi sopra il testo, mai a tutta larghezza.
 - Le barre di scorrimento sono sottili (12 px con 4 px di bordo trasparente, quindi 4 px visibili), color filo, senza frecce; il pannello riserva lo spazio (`scrollbar-gutter: stable`).
@@ -296,7 +304,8 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Focus:** anello salvia da 3 px al 40%, senza outline del browser.
 
 ### Chips
-- **Style:** testo `ink-muted` a 14 px con l'icona da 14 px, senza fondo né bordo, a 16 px l'una dall'altra: Sorgente, Parlanti, modello e lingua sotto il titolo. Nelle finestre alte meno di 700 px la testata si stringe (titolo a 2.25rem, 24 px sopra).
+- **Style:** testo `ink-muted` a 14 px con l'icona da 14 px, senza fondo né bordo, a 16 px l'una dall'altra: Parlanti e Corretto a mano sotto il titolo. Nelle finestre alte meno di 700 px la testata si stringe (24 px sopra; il display della Libreria a 2.25rem).
+- **Dettagli:** l'unica chip-pulsante, pillola outline da 28 px con ⓘ e chevron, apre un popover (il menu nativo di `popover-menu.tsx`, 320 px) con origine, modello, Lingua del parlato e Ingressi in due colonne: etichette `ink-muted`, valori inchiostro a 13,5 px.
 - **Warning:** senza fondo, bordo e testo mattone.
 
 ### Cards / Containers
@@ -304,7 +313,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Background:** foglio (`sheet`); nella barra laterale la scheda Attività è carta al 70%.
 - **Shadow Strategy:** `shadow-float` solo per ciò che è sospeso (vedi Elevation & Depth).
 - **Border:** sempre il filo da 1 px.
-- **Internal Padding:** player 16 px ai lati, 10 sopra e 12 sotto; dock 20×14 px; avvisi 16×12 px; menu 6 px.
+- **Internal Padding:** player 14×10 px; dock 20×14 px; avvisi 16×12 px; menu 6 px.
 
 ### Inputs / Fields
 - **Ricerca:** 36 px, 10 px di angolo, carta al 70% sulla barra laterale, lente a sinistra e il tasto "Ctrl K" (11 px, filo) a destra.
@@ -335,7 +344,7 @@ Tre rese degli stessi turni, scelte in Impostazioni → Generale (`vista_trascri
 La battuta del Parlante non determinato è in `ink-muted`, con «?» al posto del nome (Copione, Intervista) o il nodo vuoto senza nome (Nastro); il lettore di schermo legge «Parlante non determinato». In Copione e Nastro un silenzio stimato di almeno 5 s tra due turni diventa un separatore «Pausa di 9 s» a 12 px `ink-muted` (nel Copione con un filo tratteggiato fino al margine, nel Nastro come tratto tratteggiato della linea). Il turno in ascolto prende il fondo `play-soft` al 55% su 10 px di angolo (nel Nastro solo dietro il testo); la Frase in ascolto ha un fondo `play` al 18% con 5 px di angolo che segue le righe. Il tempo d'inizio porta lì il player e il clic sul nome rinomina il Parlante. ▶, Riascolta (sul turno in ascolto), Unisci e Copia turno stanno in una barretta foglio con `shadow-float`, sospesa in alto a destra del turno, che compare in hover o con il focus; Copia turno per 1,5 s diventa una spunta salvia. Al passaggio su una Frase il suo tempo compare sopra, come una piccola etichetta sospesa. I Parziali sono in corsivo `ink-muted`. Il testo è un campo che si corregge sul posto senza mai toccare il player.
 
 ### Player (componente firma)
-Una striscia sospesa, foglio, 16 px di angolo, `shadow-float`. In alto il nome dell'audio (12 px tenue), la velocità e il volume; sotto i salti di ±10 s, il Play rotondo da 44 px in inchiostro (si ingrandisce del 4% in hover), il tempo corrente, la forma d'onda (barre salvia per la parte ascoltata, inchiostro al 22% per il resto, testina verticale in inchiostro con pomello da 10 px) e la durata. Durante la Registrazione la stessa striscia diventa la barra di Registrazione con livelli, timer, Pausa e Stop. Durante Trascrizione, completamento e analisi finale dei Parlanti il dock scompare: fase, avanzamento e Annulla stanno solo in Attività nella barra laterale.
+Una striscia sospesa su una riga sola, foglio, 16 px di angolo, `shadow-float`, senza il nome dell'audio: i salti di ±10 s, il Play rotondo da 40 px in inchiostro (si ingrandisce del 4% in hover), il tempo corrente, la forma d'onda (barre salvia per la parte ascoltata, inchiostro al 22% per il resto, testina verticale in inchiostro con pomello da 10 px), la durata tenue, la velocità, il volume (un'icona che apre il cursore e Silenzia a comparsa) e Segui l'audio come pillola da 28 px a 12 px: `play-soft` con l'inchiostro da accesa, filo e `ink-muted` da spenta. Durante la Registrazione la stessa striscia diventa la barra di Registrazione con livelli, timer, Pausa e Stop. Durante Trascrizione, completamento e analisi finale dei Parlanti il dock scompare: fase, avanzamento e Annulla stanno solo in Attività nella barra laterale.
 
 ### Avviso
 Sospeso in alto al centro del pannello, foglio, 14 px di angolo, icona di stato (mattone per l'errore, spunta salvia per l'esito), testo a 14 px, link sottolineato alle Impostazioni quando serve e una X per chiuderlo. Entra con una dissolvenza e uno scivolamento dall'alto, solo se il movimento è consentito.

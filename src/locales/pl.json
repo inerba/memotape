@@ -86,8 +86,7 @@
     "volume": "Głośność",
     "mute": "Wycisz",
     "unmute": "Włącz dźwięk",
-    "recording": "Dźwięk nagrania · miks",
-    "file": "Dźwięk z {{name}}"
+    "followShort": "Śledź"
   },
   "status": {
     "updateAvailable": "Dostępna jest wersja {{version}} aplikacji Memotape.",
@@ -494,7 +493,6 @@
   },
   "tape": {
     "recording": "Nagranie",
-    "file": "Plik {{name}}",
     "parlanti_one": "{{count}} mówca",
     "parlanti_few": "{{count}} mówców",
     "parlanti_many": "{{count}} mówców",
@@ -504,7 +502,14 @@
     "ingressi": "Mikrofon + dźwięk systemowy",
     "changeDate": "Kliknij, aby zmienić datę i godzinę: Enter zatwierdza, Esc anuluje",
     "dateLabel": "Data i godzina nagrania",
-    "manuallyCorrected": "Poprawiono ręcznie"
+    "manuallyCorrected": "Poprawiono ręcznie",
+    "details": {
+      "label": "Szczegóły",
+      "origine": "Źródło",
+      "modello": "Model",
+      "ingressi": "Wejścia",
+      "mix": "Miks"
+    }
   },
   "tabs": {
     "label": "Widoki pliku Tape",

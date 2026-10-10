@@ -1,14 +1,7 @@
-import type { TFunction } from "i18next";
-import {
-  AlertTriangle,
-  AudioLines,
-  FileAudio,
-  Languages,
-  Pencil,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, Info, Pencil, Users } from "lucide-react";
 import {
   type FocusEvent,
+  Fragment,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
@@ -16,10 +9,14 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryList, TapeInfo } from "@/bindings";
-import { dateTimeInput, dayText } from "@/features/library/library";
+import { PopoverMenu } from "@/components/popover-menu";
+import {
+  dateTimeInput,
+  dayText,
+  tapeDetails,
+} from "@/features/library/library";
 import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
-import { speechLanguageName } from "@/features/settings/settings";
 import { fileName, folderOf } from "@/features/source/file-name";
 import {
   diarizationCompleted,
@@ -119,7 +116,7 @@ export function TapeHeader({
       title={
         renaming ? (
           <NameInput
-            className="h-auto py-1 font-display text-[2.5rem] leading-tight md:text-[2.5rem]"
+            className="h-auto py-1 font-display text-[2rem] leading-tight md:text-[2rem]"
             initial={titolo}
             label={t("library.renameName")}
             onCancel={cancel}
@@ -128,7 +125,7 @@ export function TapeHeader({
           />
         ) : (
           <button
-            className="block max-w-full cursor-text text-balance rounded-md text-left decoration-2 decoration-muted-foreground/30 underline-offset-8 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
+            className="block max-w-full cursor-text text-pretty rounded-md text-left text-[2rem] decoration-2 decoration-muted-foreground/30 underline-offset-8 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
             disabled={disabled}
             onClick={start}
             title={t("library.rename")}
@@ -207,17 +204,9 @@ function CreatoMeta({
 }
 
 /**
- * Da dove viene il Tape: il file d'origine, o per una Registrazione con gli Ingressi separati
- * microfono e audio di sistema. Del mix di una Registrazione gli ingressi non si sanno.
+ * Le informazioni di un Tape sotto il titolo: Parlanti, correzioni e avvisi restano visibili, i
+ * dettagli tecnici (origine, modello, Lingua del parlato, Ingressi) stanno nel popover Dettagli.
  */
-function sourceText(info: TapeInfo, t: TFunction): string {
-  if (info.origine) {
-    return t("tape.file", { name: info.origine });
-  }
-  return info.ingressiSeparati ? t("tape.ingressi") : t("tape.recording");
-}
-
-/** Le informazioni essenziali di un Tape come etichette. */
 function InfoChips({
   inLibrary,
   info,
@@ -228,28 +217,38 @@ function InfoChips({
   parlanti: number;
 }) {
   const { i18n, t } = useTranslation();
-  const language =
-    info.linguaParlato === "auto"
-      ? t("speechLanguage.auto")
-      : speechLanguageName(info.linguaParlato, i18n.language);
   return (
     <>
-      <Chip
-        icon={info.origine ? <FileAudio /> : <AudioLines />}
-        title={info.origine ?? undefined}
-      >
-        {sourceText(info, t)}
-      </Chip>
       {parlanti > 0 ? (
         <Chip icon={<Users />}>{t("tape.parlanti", { count: parlanti })}</Chip>
       ) : null}
       {info.correttoAMano ? (
         <Chip icon={<Pencil />}>{t("tape.manuallyCorrected")}</Chip>
       ) : null}
-      {/* Senza modello il Tape non ha testo: niente modello, lingua né "incompleto". */}
-      {info.modello ? (
-        <Chip icon={<Languages />}>{`${info.modello} · ${language}`}</Chip>
-      ) : null}
+      <PopoverMenu
+        className="h-7 gap-1 rounded-full px-2.5 font-normal has-[>svg]:px-2.5 [&_svg]:size-3.5"
+        icon={
+          <>
+            <Info />
+            {t("tape.details.label")}
+            <ChevronDown />
+          </>
+        }
+        id="details"
+        label={t("tape.details.label")}
+        panelClassName="w-80"
+        size="sm"
+      >
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-2.5 py-2 text-[0.84rem]">
+          {tapeDetails(info, t, i18n.language).map(({ label, value }) => (
+            <Fragment key={label}>
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="min-w-0 [overflow-wrap:anywhere]">{value}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      </PopoverMenu>
+      {/* Senza modello il Tape non ha testo: niente "incompleto". */}
       {info.modello && !info.completa ? (
         <Chip icon={<AlertTriangle />} tone="warning">
           {t("library.info.incomplete")}

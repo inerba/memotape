@@ -86,8 +86,7 @@
     "volume": "Lautstärke",
     "mute": "Stumm",
     "unmute": "Ton an",
-    "recording": "Audio der Aufnahme · Mix",
-    "file": "Audio aus {{name}}"
+    "followShort": "Folgen"
   },
   "status": {
     "updateAvailable": "Memotape {{version}} ist verfügbar.",
@@ -490,7 +489,6 @@
   },
   "tape": {
     "recording": "Aufnahme",
-    "file": "Datei {{name}}",
     "parlanti_one": "{{count}} Sprecher",
     "parlanti_other": "{{count}} Sprecher",
     "noText": "Dieses Tape hat noch keinen Text",
@@ -498,7 +496,14 @@
     "ingressi": "Mikrofon + Systemaudio",
     "changeDate": "Klicken, um Datum und Uhrzeit zu ändern: Eingabe bestätigt, Esc bricht ab",
     "dateLabel": "Datum und Uhrzeit der Aufnahme",
-    "manuallyCorrected": "Manuell korrigiert"
+    "manuallyCorrected": "Manuell korrigiert",
+    "details": {
+      "label": "Details",
+      "origine": "Herkunft",
+      "modello": "Modell",
+      "ingressi": "Eingänge",
+      "mix": "Mix"
+    }
   },
   "tabs": {
     "label": "Ansichten des Tape",

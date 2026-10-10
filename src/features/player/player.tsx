@@ -1,5 +1,6 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import {
+  ListEnd,
   Pause,
   Play,
   RotateCcw,
@@ -20,6 +21,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
+import { PopoverMenu } from "@/components/popover-menu";
 import {
   type Follow,
   type FollowEvent,
@@ -125,18 +127,17 @@ const ICON_BUTTON =
   "flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50 [&_svg]:size-4";
 
 /**
- * Il player del mix di un Tape: indietro e avanti di 10 s, Play/Pausa (anche con Spazio), posizione,
- * forma d'onda che fa da barra di avanzamento, durata, velocità e volume. `label` dice che audio è.
- * `disabled` durante una Registrazione, che registrerebbe l'audio riascoltato.
+ * Il player del mix di un Tape, su una riga: indietro e avanti di 10 s, Play/Pausa (anche con
+ * Spazio), posizione, forma d'onda che fa da barra di avanzamento, durata, velocità, volume a
+ * comparsa e Segui l'audio. `disabled` durante una Registrazione, che registrerebbe l'audio
+ * riascoltato.
  */
 export function Player({
   disabled,
-  label,
   path,
   player,
 }: {
   disabled: boolean;
-  label: string;
   path: string;
   player: PlayerState;
 }) {
@@ -147,13 +148,20 @@ export function Player({
   const {
     audio,
     durationMs,
+    follow,
     move,
+    onFollow,
     playing,
     positionMs,
     setDurationMs,
     setPlaying,
     setPositionMs,
   } = player;
+  const following = follow === "following";
+  const toggleFollow = useCallback(
+    () => onFollow(following ? "scroll" : "follow"),
+    [following, onFollow]
+  );
 
   const toggle = useCallback(() => {
     const el = audio.current;
@@ -253,7 +261,7 @@ export function Player({
   return (
     <section
       aria-label={t("player.label")}
-      className="mx-auto flex w-full max-w-[52rem] flex-col gap-1 rounded-2xl border bg-card px-4 pt-2.5 pb-3 shadow-float"
+      className="mx-auto flex w-full max-w-[52rem] items-center gap-1.5 rounded-2xl border bg-card px-3.5 py-2.5 shadow-float"
     >
       {/* biome-ignore lint/a11y/useMediaCaption: il testo della Trascrizione è accanto */}
       <audio
@@ -265,30 +273,80 @@ export function Player({
         ref={audio}
         src={convertFileSrc(path, "tape")}
       />
-      <div className="flex items-center gap-2 text-muted-foreground text-xs">
-        <span className="min-w-0 flex-1 truncate pl-1" title={label}>
-          {label}
-        </span>
-        <select
-          aria-label={t("player.rate")}
-          className="h-7 cursor-pointer appearance-none rounded-md bg-transparent px-2 text-center text-foreground text-sm tabular-nums transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50"
-          disabled={disabled}
-          onChange={chooseRate}
-          title={t("player.rate")}
-          value={rate}
-        >
-          {RATES.map((r) => (
-            <option key={r} value={r}>
-              {`${rateText.format(r)}×`}
-            </option>
-          ))}
-        </select>
+      <button
+        aria-label={t("player.back")}
+        className={ICON_BUTTON}
+        disabled={disabled}
+        onClick={back}
+        onPointerDown={keepFocus}
+        title={t("player.back")}
+        type="button"
+      >
+        <SkipIcon icon={<RotateCcw />} />
+      </button>
+      <button
+        aria-label={playing ? t("player.pause") : t("player.play")}
+        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-150 ease-out hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-95 disabled:opacity-50 [&_svg]:size-[1.125rem] [&_svg]:fill-current"
+        disabled={disabled}
+        onClick={toggle}
+        onPointerDown={keepFocus}
+        title={playing ? t("player.pause") : t("player.play")}
+        type="button"
+      >
+        {playing ? <Pause /> : <Play className="translate-x-px" />}
+      </button>
+      <button
+        aria-label={t("player.forward")}
+        className={ICON_BUTTON}
+        disabled={disabled}
+        onClick={forward}
+        onPointerDown={keepFocus}
+        title={t("player.forward")}
+        type="button"
+      >
+        <SkipIcon icon={<RotateCw />} />
+      </button>
+      <span className="w-14 shrink-0 pr-2 text-right text-sm tabular-nums">
+        {elapsedText(positionMs)}
+      </span>
+      <Waveform
+        disabled={disabled}
+        durationMs={durationMs}
+        label={t("player.position")}
+        onSeek={seek}
+        path={path}
+        positionMs={positionMs}
+      />
+      <span className="w-14 shrink-0 pl-2 text-muted-foreground text-sm tabular-nums">
+        {elapsedText(durationMs)}
+      </span>
+      <select
+        aria-label={t("player.rate")}
+        className="h-8 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-2 text-center font-medium text-sm tabular-nums transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50"
+        disabled={disabled}
+        onChange={chooseRate}
+        title={t("player.rate")}
+        value={rate}
+      >
+        {RATES.map((r) => (
+          <option key={r} value={r}>
+            {`${rateText.format(r)}×`}
+          </option>
+        ))}
+      </select>
+      <PopoverMenu
+        className={ICON_BUTTON}
+        disabled={disabled}
+        icon={silent ? <VolumeX /> : <Volume2 />}
+        id="volume"
+        label={t("player.volume")}
+        panelClassName="min-w-0 flex-row items-center gap-2 px-2"
+        variant="ghost"
+      >
         <button
           aria-label={silent ? t("player.unmute") : t("player.mute")}
           className={ICON_BUTTON}
-          disabled={disabled}
           onClick={toggleMute}
-          onPointerDown={keepFocus}
           title={silent ? t("player.unmute") : t("player.mute")}
           type="button"
         >
@@ -296,8 +354,7 @@ export function Player({
         </button>
         <input
           aria-label={t("player.volume")}
-          className="h-1 w-20 cursor-pointer accent-play disabled:cursor-default"
-          disabled={disabled}
+          className="h-1 w-28 cursor-pointer accent-play"
           max={1}
           min={0}
           onChange={chooseVolume}
@@ -305,56 +362,20 @@ export function Player({
           type="range"
           value={muted ? 0 : volume}
         />
-      </div>
-      <div className="flex items-center gap-1.5">
-        <button
-          aria-label={t("player.back")}
-          className={ICON_BUTTON}
-          disabled={disabled}
-          onClick={back}
-          onPointerDown={keepFocus}
-          title={t("player.back")}
-          type="button"
-        >
-          <SkipIcon icon={<RotateCcw />} />
-        </button>
-        <button
-          aria-label={playing ? t("player.pause") : t("player.play")}
-          className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-150 ease-out hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-95 disabled:opacity-50 [&_svg]:size-[1.125rem] [&_svg]:fill-current"
-          disabled={disabled}
-          onClick={toggle}
-          onPointerDown={keepFocus}
-          title={playing ? t("player.pause") : t("player.play")}
-          type="button"
-        >
-          {playing ? <Pause /> : <Play className="translate-x-px" />}
-        </button>
-        <button
-          aria-label={t("player.forward")}
-          className={ICON_BUTTON}
-          disabled={disabled}
-          onClick={forward}
-          onPointerDown={keepFocus}
-          title={t("player.forward")}
-          type="button"
-        >
-          <SkipIcon icon={<RotateCw />} />
-        </button>
-        <span className="w-14 shrink-0 pr-2 text-right text-sm tabular-nums">
-          {elapsedText(positionMs)}
-        </span>
-        <Waveform
-          disabled={disabled}
-          durationMs={durationMs}
-          label={t("player.position")}
-          onSeek={seek}
-          path={path}
-          positionMs={positionMs}
-        />
-        <span className="w-14 shrink-0 pl-2 text-muted-foreground text-sm tabular-nums">
-          {elapsedText(durationMs)}
-        </span>
-      </div>
+      </PopoverMenu>
+      <button
+        aria-label={t("player.follow")}
+        aria-pressed={following}
+        className="ml-1 flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-transparent px-2.5 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50 aria-pressed:bg-play-soft aria-pressed:text-foreground aria-[pressed=false]:border-border [&_svg]:size-3.5"
+        disabled={disabled}
+        onClick={toggleFollow}
+        onPointerDown={keepFocus}
+        title={t("player.follow")}
+        type="button"
+      >
+        <ListEnd />
+        {t("player.followShort")}
+      </button>
     </section>
   );
 }
