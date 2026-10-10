@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "app:prova": "bun scripts/app-prova.ts",
     "build": "tsc && vite build",
     "check": "ultracite check",
     "dev": "vite",

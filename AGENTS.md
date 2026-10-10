@@ -19,6 +19,7 @@ App desktop Tauri 2 + React, solo Windows x64, che trascrive in locale audio, vi
 | `bun run format:backend` | `cargo fmt --check` (per correggere: `cargo fmt` in `src-tauri`) |
 | `bun run lint:backend` | `cargo clippy --all-targets -- -D warnings` |
 | `cargo test` (in `src-tauri`) | test Rust |
+| `bun run app:prova` | app di debug isolata (dati di prova, porta CDP libera); `stop <porta>` la chiude |
 | `bun tauri build` | installer NSIS in `src-tauri/target/release/bundle/nsis/` (vedi `docs/sviluppo/installer.md`) |
 
 Ogni ticket si chiude con i sei controlli verdi (da `typecheck` a `cargo test`; `bun tauri build` non è un controllo). Lancia una sola build Rust alla volta: condividono `src-tauri/target`.

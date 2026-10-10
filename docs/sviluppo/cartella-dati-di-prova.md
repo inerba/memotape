@@ -21,19 +21,16 @@ Con `MEMOTAPE_DATA_DIR=<dir>` (relativa alla cwd se non assoluta):
 - **Dati della WebView** (`localStorage`): in `%LOCALAPPDATA%\it.memotape.desktop` se non imposti `WEBVIEW2_USER_DATA_FOLDER`.
 - **Istanza unica**: con l'override il plugin non si carica, quindi l'app di prova parte anche con quella dell'utente aperta (e non riceve i Tape aperti da Esplora file).
 
-## Avvio
+## Avvio e pulizia
 
-Da PowerShell, nel repo, con Vite (`bun run dev`, porta 1420) già avviato e `target\debug\memotape.exe` compilato (`cargo build --manifest-path src-tauri/Cargo.toml`). Scegli una porta CDP libera: `Get-NetTCPConnection -State Listen -LocalPort 9231` non deve trovare nulla.
+Con `target\debug\memotape.exe` compilato (`cargo build --manifest-path src-tauri/Cargo.toml`):
 
-```powershell
-$env:MEMOTAPE_DATA_DIR = "$env:TEMP\memotape-prova"
-$env:WEBVIEW2_USER_DATA_FOLDER = "$env:TEMP\memotape-prova-webview"
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9231"
-Start-Process src-tauri\target\debug\memotape.exe -WorkingDirectory src-tauri -PassThru
+```
+bun run app:prova
 ```
 
-Poi pilota l'app via CDP sulla 9231 (vedi "Pilotare l'app" in `AGENTS.md`). Non usare `bun tauri dev`: il suo watcher ricompila e riavvia a ogni modifica sotto `src-tauri/`.
+Lo script (`scripts/app-prova.ts`) sceglie una porta CDP libera tra 9300 e 9399, crea `%TEMP%\memotape-prova-<porta>` con `dati` (`MEMOTAPE_DATA_DIR`) e `webview` (`WEBVIEW2_USER_DATA_FOLDER`), avvia Vite se la 1420 è libera, lancia l'exe e aspetta che il frontend sia montato (un Vite appena avviato può metterci un minuto). Si ferma, chiudendo l'app, se l'exe non usa la cartella di prova (exe compilato prima di `MEMOTAPE_DATA_DIR`). Stampa porta, pid e cartella. Se Vite era già attivo lo usa e avvisa: può servire il frontend di un altro checkout.
 
-## Pulizia
+Pilota l'app con `bun scripts/cdp.ts <porta> eval "<js>"` o `shot <file.png> [w h] [dark|light]`; da un altro script importa `valuta` e `fotografa` da `scripts/cdp.ts`, invece di passare il JavaScript a un processo figlio. Non usare `bun tauri dev`: il suo watcher ricompila e riavvia a ogni modifica sotto `src-tauri/`.
 
-Chiudi l'app di prova (per pid, non per nome: `memotape.exe` può essere anche quella dell'utente) e il Vite sulla 1420, poi cancella `<dir>` e la cartella della WebView. Per verificare che i dati veri non cambino, confronta `Get-FileHash "$env:APPDATA\it.memotape.desktop\settings.json"` prima e dopo.
+Alla fine `bun run app:prova stop <porta>` chiude app, WebView2 e il Vite che ha avviato, e cancella la cartella. Per verificare che i dati veri non cambino, confronta `Get-FileHash "$env:APPDATA\it.memotape.desktop\settings.json"` prima e dopo.
