@@ -36,6 +36,7 @@ import { autoScroll, playingAt } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
 import { useSettings } from "@/features/settings/settings-context";
 import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import {
   ParlanteNameInput,
   VOICE_CLASSES,
@@ -235,6 +236,9 @@ export function TranscriptView({
   const move = player?.move;
   const jump = useCallback((ms: number) => move?.(ms, "jump"), [move]);
   const backToAudio = useCallback(() => onFollow?.("follow"), [onFollow]);
+  // Ctrl+J vale solo finché si vede il pulsante.
+  const backShown = free && followed !== undefined;
+  useScorciatoia("tornaAlPunto", backShown ? backToAudio : null);
 
   return (
     <section
@@ -298,7 +302,7 @@ export function TranscriptView({
           })}
         </div>
       </div>
-      {free && followed ? (
+      {backShown ? (
         <div className="pointer-events-none sticky bottom-4 flex justify-center">
           <button
             aria-keyshortcuts={ariaTasti("tornaAlPunto")}

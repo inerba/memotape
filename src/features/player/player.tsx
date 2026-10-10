@@ -236,8 +236,7 @@ export function Player({
   const toggleMute = useCallback(() => setMuted((m) => !m), []);
   const step = (delta: number) => () =>
     setRate((r) => RATES[RATES.indexOf(r) + delta] ?? r);
-  const backToAudio = useCallback(() => onFollow("follow"), [onFollow]);
-  // Spazio, frecce, [ ] e Ctrl+J, finché il player è attivo.
+  // Spazio, frecce e [ ], finché il player è attivo. Ctrl+J sta con «Torna al punto in ascolto».
   const keys = (handler: () => void) => (disabled ? null : handler);
   useScorciatoia("riproduci", keys(toggle));
   useScorciatoia(
@@ -250,7 +249,6 @@ export function Player({
   );
   useScorciatoia("piuLento", keys(step(-1)));
   useScorciatoia("piuVeloce", keys(step(1)));
-  useScorciatoia("tornaAlPunto", keys(backToAudio));
   const rateText = new Intl.NumberFormat(i18n.language);
   const silent = muted || volume === 0;
 
