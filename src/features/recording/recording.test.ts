@@ -28,7 +28,7 @@ test("Annulla o guasto dei Parlanti conserva il Tape e non nasconde gli errori d
     expect(after.source).toBe(path);
     expect(after.status.phase).toBe("finished");
     expect(statusText(after.status, t)).toContain(
-      "Diarizzazione non completata"
+      "Riconoscimento dei parlanti non completato"
     );
     const capture = afterRecording({
       data: {
@@ -240,10 +240,10 @@ test("l'esito finale conserva e mostra il successo di un Ingresso e il guasto de
     status: "ok",
   });
   expect(statusText(after.status, t)).toContain(
-    "Microfono: Diarizzazione non completata"
+    "Microfono: Riconoscimento dei parlanti non completato"
   );
   expect(statusText(after.status, t)).toContain(
-    "Audio di sistema: Diarizzazione completata"
+    "Audio di sistema: Riconoscimento dei parlanti completato"
   );
 });
 

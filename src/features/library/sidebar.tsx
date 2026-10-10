@@ -47,6 +47,7 @@ export function Sidebar({
   selected,
   showingAll,
   showingHome,
+  update,
 }: {
   /** L'Attività in corso, se c'è. */
   activity: ActivitySummary | null;
@@ -68,6 +69,8 @@ export function Sidebar({
   /** La Libreria completa è aperta. */
   showingAll: boolean;
   showingHome: boolean;
+  /** Un aggiornamento disponibile, sopra Libreria e Impostazioni. */
+  update?: ReactNode;
 }) {
   const { i18n, t } = useTranslation();
   const [query, setQuery] = useState("");
@@ -226,6 +229,7 @@ export function Sidebar({
           />
         </section>
       ) : null}
+      {update}
       <div className="flex flex-col gap-0.5 border-sidebar-border border-t px-3 py-2.5">
         <Button
           aria-current={showingAll ? "page" : undefined}

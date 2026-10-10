@@ -76,15 +76,25 @@ export interface TapeOrder {
 /** Dal più recente. */
 export const DEFAULT_ORDER: TapeOrder = { column: "date", descending: true };
 
-const COMPARE: Record<TapeColumn, (a: TapeEntry, b: TapeEntry) => number> = {
+const COMPARE: Record<
+  Exclude<TapeColumn, "title">,
+  (a: TapeEntry, b: TapeEntry) => number
+> = {
   date: (a, b) => Date.parse(a.creato) - Date.parse(b.creato),
   // Senza durata (Tape illeggibile) è il più corto.
   duration: (a, b) => (a.durataMs ?? -1) - (b.durataMs ?? -1),
-  title: (a, b) => a.titolo.localeCompare(b.titolo),
 };
 
-export function sortTapes(tapes: TapeEntry[], order: TapeOrder): TapeEntry[] {
-  const compare = COMPARE[order.column];
+/** `title` è il titolo mostrato, per cui si ordina la colonna Titolo. */
+export function sortTapes(
+  tapes: TapeEntry[],
+  order: TapeOrder,
+  title: (tape: TapeEntry) => string = (tape) => tape.titolo
+): TapeEntry[] {
+  const compare =
+    order.column === "title"
+      ? (a: TapeEntry, b: TapeEntry) => title(a).localeCompare(title(b))
+      : COMPARE[order.column];
   return [...tapes].sort((a, b) =>
     order.descending ? compare(b, a) : compare(a, b)
   );

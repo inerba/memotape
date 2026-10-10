@@ -929,7 +929,7 @@ mod tests {
             crate::managers::settings::CopiaCome::Markdown,
         )
         .unwrap();
-        assert!(text.contains("Diarizzazione non completata"));
+        assert!(text.contains("Riconoscimento dei parlanti non completato"));
         assert!(text.contains("provvisorio"));
         assert!(text.contains("Testo già finito."));
         assert_eq!(std::fs::read(&audio).unwrap(), {

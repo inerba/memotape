@@ -579,6 +579,23 @@ test("ogni voce ha il suo colore per ordine di comparsa, anche rinominata", () =
   ).toBe(0);
 });
 
+test("il Parlante non determinato non ha un colore e non lo toglie ai Parlanti", () => {
+  const conversation = withPhrase(diarized(), {
+    fineMs: 500,
+    ingresso: "sistema",
+    inizioMs: 0,
+    parlante: null,
+    parlanteNonDeterminato: true,
+    phraseId: 9,
+    text: "Due voci.",
+  });
+  expect([...voiceColors(turnsOf(conversation, t))]).toEqual([
+    ["Microfono · Parlante 1", 0],
+    ["Audio di sistema · Parlante 1", 1],
+    ["Audio di sistema · Parlante 2", 2],
+  ]);
+});
+
 test("di un Parlante si contano turni, tempo di parola e prima comparsa", () => {
   const c = diarized();
   const turns = turnsOf(c, t);

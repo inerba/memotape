@@ -7,7 +7,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
@@ -27,6 +27,7 @@ import {
 } from "@/features/library/library";
 import { MoveSelect } from "@/features/library/move-select";
 import { NameInput } from "@/features/library/name-input";
+import { recentTitle } from "@/features/library/recent-tapes";
 import { DocumentHeader } from "@/features/library/tape-header";
 import { elapsedText } from "@/features/recording/recording";
 import { folderOf } from "@/features/source/file-name";
@@ -73,6 +74,13 @@ export function AllTapes({
 }) {
   const { i18n, t } = useTranslation();
   const [order, setOrder] = useState(savedOrder);
+  // `recentTitle` scorre tutta la Libreria: una volta per Tape, non a ogni confronto dell'ordinamento.
+  const shown = useMemo(() => {
+    const titles = new Map(
+      list.tapes.map((tape) => [tape.path, recentTitle(tape, list.tapes, t)])
+    );
+    return (tape: TapeEntry) => titles.get(tape.path) ?? tape.titolo;
+  }, [list.tapes, t]);
   // La Raccolta che si sta creando (`""`) o rinominando.
   const [naming, setNaming] = useState<string | null>(null);
   const sort = useCallback((column: TapeColumn) => {
@@ -241,7 +249,7 @@ export function AllTapes({
           <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
         ) : (
           <ul className="flex flex-col divide-y">
-            {sortTapes(tapes, order).map((tape) => (
+            {sortTapes(tapes, order, shown).map((tape) => (
               <TapeRow
                 dateFormat={dateFormat}
                 key={tape.path}
@@ -251,6 +259,7 @@ export function AllTapes({
                 raccolte={list.raccolte}
                 showRaccolta={raccolta === null}
                 tape={tape}
+                title={shown(tape)}
               />
             ))}
           </ul>
@@ -314,7 +323,7 @@ function SortHeader({
           : label
       }
       aria-pressed={active}
-      className={`flex shrink-0 items-center gap-1 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:text-foreground [&_svg]:size-3.5 ${className}`}
+      className={`-my-0.5 flex min-h-6 shrink-0 items-center gap-1 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:text-foreground [&_svg]:size-3.5 ${className}`}
       onClick={sort}
       type="button"
     >
@@ -332,6 +341,7 @@ function TapeRow({
   onTrash,
   raccolte,
   showRaccolta,
+  title,
 }: {
   tape: TapeEntry;
   dateFormat: Intl.DateTimeFormat;
@@ -340,6 +350,8 @@ function TapeRow({
   onTrash: (tape: { path: string; titolo: string }) => void;
   raccolte: string[];
   showRaccolta: boolean;
+  /** Il titolo mostrato: compatto per le Registrazioni con il nome automatico. */
+  title: string;
 }) {
   const { t } = useTranslation();
   const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
@@ -361,7 +373,7 @@ function TapeRow({
           className="size-4 shrink-0 text-muted-foreground"
         />
         <span className="truncate decoration-muted-foreground/50 underline-offset-4 group-hover:underline">
-          {tape.titolo}
+          {title}
         </span>
       </button>
       {showRaccolta ? (

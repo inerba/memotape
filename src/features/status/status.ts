@@ -291,8 +291,6 @@ export interface Banner {
   settings: boolean;
   text: string;
   tone: "error" | "info";
-  /** La pagina della release da aprire: l'avviso è un aggiornamento disponibile. */
-  updateUrl?: string;
 }
 
 /**
@@ -343,6 +341,13 @@ export function progressPercent(status: Status): number | null {
     return status.percent;
   }
   return status.phase === "diarizing" ? (status.percent ?? null) : null;
+}
+
+/** Se la Diarizzazione è completata in ogni Ingresso: allora la chip del Tape non serve. */
+export function diarizationCompleted(state: Diarizzazione): boolean {
+  return state.ingressi?.length
+    ? state.ingressi.every((s) => s.esito === "completata")
+    : state.esito === "completata";
 }
 
 /** Le identità e gli esiti restano locali all'Ingresso anche nella riapertura e nelle copie. */

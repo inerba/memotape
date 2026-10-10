@@ -2,10 +2,14 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { TFunction } from "i18next";
 import { Check, CircleAlert, Copy, X } from "lucide-react";
 import {
+  createContext,
+  type ReactNode,
+  use,
   useCallback,
   useEffect,
   useEffectEvent,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -818,7 +822,7 @@ export function HomePage() {
             .join(" "),
           tone: "error",
         }
-      : (statusBanner ?? updateBanner(update, t)),
+      : statusBanner,
     t
   );
   const dismiss = useCallback(() => {
@@ -826,10 +830,8 @@ export function HomePage() {
     setMessage(null);
     dispatch({ type: "cleaningDismissed" });
     setDismissed(status);
-    if (banner?.updateUrl) {
-      setUpdate(null);
-    }
-  }, [banner, dispatch, status]);
+  }, [dispatch, status]);
+  const dismissUpdate = useCallback(() => setUpdate(null), []);
   // Gli esiti spariscono da soli dopo un po'; gli errori restano finché non si chiudono.
   useEffect(() => {
     if (statusBanner?.tone !== "info") {
@@ -871,6 +873,10 @@ export function HomePage() {
     />
   );
 
+  const bannerView = banner ? (
+    <BannerView banner={banner} key={banner.text} onDismiss={dismiss} />
+  ) : null;
+
   const center = centerView(state);
   const selected = selection(state);
   const renderMainView = () => {
@@ -908,6 +914,7 @@ export function HomePage() {
       case "home":
         return (
           <LibraryHome
+            banner={bannerView}
             busy={busy}
             lastPath={lastPath}
             loading={libraryLoading}
@@ -983,15 +990,17 @@ export function HomePage() {
           selected={selected.tape}
           showingAll={selected.library}
           showingHome={selected.home}
+          update={
+            update ? (
+              <UpdateNotice onDismiss={dismissUpdate} update={update} />
+            ) : null
+          }
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
-          {renderMainView()}
+          <BannerSlot value={bannerView}>{renderMainView()}</BannerSlot>
           <p aria-atomic="true" className="sr-only" role="status">
             {recordingAnnouncement}
           </p>
-          {banner ? (
-            <BannerView banner={banner} key={banner.text} onDismiss={dismiss} />
-          ) : null}
         </main>
       </div>
       <TranscribeDialog
@@ -1029,17 +1038,6 @@ export function HomePage() {
       ) : null}
     </>
   );
-}
-
-function updateBanner(update: UpdateInfo | null, t: TFunction): Banner | null {
-  return update
-    ? {
-        settings: false,
-        text: t("status.updateAvailable", { version: update.version }),
-        tone: "info",
-        updateUrl: update.url,
-      }
-    : null;
 }
 
 /** L'avviso da mostrare: l'errore di un'operazione, poi un messaggio, poi quello della fase. */
@@ -1115,7 +1113,7 @@ function LiveView({
             title={t("live.title")}
           />
         }
-        parlanti={[]}
+        parlanti={NO_PARLANTI}
       />
       {recording ? (
         <Dock>
@@ -1187,7 +1185,7 @@ function FileView({
             )}
           </>
         }
-        parlanti={[]}
+        parlanti={NO_PARLANTI}
       />
     </>
   );
@@ -1205,24 +1203,75 @@ function TopBar({
   crumbs?: React.ReactNode;
 }) {
   const { t } = useTranslation();
+  const banner = use(BannerSlot);
   return (
-    <header
-      className="flex h-20 shrink-0 items-end gap-4 border-b px-8 pb-3"
-      data-tauri-drag-region
-    >
-      <nav
-        aria-label={t("app.whereAmI")}
-        className="flex min-w-0 flex-1 items-center gap-2 pb-1.5 text-muted-foreground text-sm"
+    <>
+      <header
+        className="flex h-20 shrink-0 items-end gap-4 border-b px-8 pb-3"
         data-tauri-drag-region
       >
-        {crumbs}
-      </nav>
-      {actions ? (
-        <div className="flex items-center gap-1.5">{actions}</div>
-      ) : null}
-    </header>
+        <nav
+          aria-label={t("app.whereAmI")}
+          className="flex min-w-0 flex-1 items-center gap-2 pb-1.5 text-muted-foreground text-sm"
+          data-tauri-drag-region
+        >
+          {crumbs}
+        </nav>
+        {actions ? (
+          <div className="flex items-center gap-1.5">{actions}</div>
+        ) : null}
+      </header>
+      {banner}
+    </>
   );
 }
+
+/**
+ * Un aggiornamento disponibile, in fondo alla barra laterale: resta finché non si chiude, ma non
+ * riguarda la vista e non le sta sopra.
+ */
+function UpdateNotice({
+  onDismiss,
+  update,
+}: {
+  onDismiss: () => void;
+  update: UpdateInfo;
+}) {
+  const { t } = useTranslation();
+  const download = useCallback(
+    () => commands.openUpdate(update.url),
+    [update.url]
+  );
+  return (
+    <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-sidebar-border bg-background/60 py-2 pr-2 pl-3 text-sm">
+      <p className="min-w-0 flex-1 leading-relaxed" role="status">
+        {t("status.updateAvailable", { version: update.version })}{" "}
+        <button
+          className="-my-0.5 inline-flex min-h-6 items-center whitespace-nowrap rounded-sm font-medium underline underline-offset-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          onClick={download}
+          type="button"
+        >
+          {t("status.updateDownload")}
+        </button>
+      </p>
+      <button
+        aria-label={t("app.dismiss")}
+        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        onClick={onDismiss}
+        title={t("app.dismiss")}
+        type="button"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Senza Parlanti da rinominare: sempre lo stesso array, così i turni memoizzati non cambiano. */
+const NO_PARLANTI: Parlante[] = [];
+
+/** L'avviso della finestra, che ogni vista mette sotto la sua barra in alto. */
+const BannerSlot = createContext<ReactNode>(null);
 
 /** Un passo del percorso nella barra in alto: il corrente, o un link (`onClick`). */
 function Crumb({
@@ -1269,7 +1318,10 @@ function Dock({ children }: { children: React.ReactNode }) {
   return <div className="shrink-0 px-8 pt-1 pb-5">{children}</div>;
 }
 
-/** L'avviso sospeso sotto la barra in alto, con il link alle Impostazioni quando serve. */
+/**
+ * L'avviso sotto la barra in alto, nel flusso: spinge giù il contenuto invece di coprirlo. Ha il link
+ * alle Impostazioni quando serve.
+ */
 function BannerView({
   banner,
   onDismiss,
@@ -1279,15 +1331,9 @@ function BannerView({
 }) {
   const { t } = useTranslation();
   const error = banner.tone === "error";
-  const { updateUrl } = banner;
-  const openUpdate = useCallback(() => {
-    if (updateUrl) {
-      commands.openUpdate(updateUrl);
-    }
-  }, [updateUrl]);
   return (
     <div
-      className={`motion-safe:fade-in motion-safe:slide-in-from-top-2 absolute top-24 left-1/2 z-20 flex w-[min(40rem,calc(100%-4rem))] -translate-x-1/2 items-start gap-3 rounded-xl border bg-card px-4 py-3 text-sm shadow-float motion-safe:animate-in ${
+      className={`motion-safe:fade-in mx-auto mt-4 flex w-[min(46rem,calc(100%-4rem))] shrink-0 items-start gap-3 rounded-xl border bg-card px-4 py-3 text-sm motion-safe:animate-in ${
         error ? "border-destructive/35" : ""
       }`}
       role={error ? "alert" : "status"}
@@ -1308,18 +1354,6 @@ function BannerView({
             >
               {t("status.openModels")}
             </Link>
-          </>
-        ) : null}
-        {banner.updateUrl ? (
-          <>
-            {" "}
-            <button
-              className="whitespace-nowrap font-medium underline underline-offset-4"
-              onClick={openUpdate}
-              type="button"
-            >
-              {t("status.updateDownload")}
-            </button>
           </>
         ) : null}
       </span>
@@ -1405,7 +1439,12 @@ function TapePane({
   if (renaming && !editable) {
     setRenaming(null);
   }
-  const parlanti = editable ? parlantiOf(conversation, t) : [];
+  // TapePane si ridisegna a ogni aggiornamento del player: i Parlanti restano gli stessi oggetti.
+  const allParlanti = useMemo(
+    () => parlantiOf(conversation, t),
+    [conversation, t]
+  );
+  const parlanti = editable ? allParlanti : NO_PARLANTI;
   const transcribing = isSource && running;
   const player = usePlayer(info?.durataMs ?? 0);
   // La Frase di un risultato della ricerca porta lì il player, senza avviarlo.
@@ -1461,7 +1500,7 @@ function TapePane({
         library={library}
         onCreato={onCreato}
         onRename={onRenameTitle}
-        parlanti={parlantiOf(conversation, t).length}
+        parlanti={allParlanti.length}
         path={path}
       />
       {hasText ? (

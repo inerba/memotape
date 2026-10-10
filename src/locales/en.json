@@ -393,9 +393,9 @@
     "parlante": "Speaker {{n}}",
     "unknownSpeaker": "Speaker undetermined",
     "provisionalSpeaker": "{{name}} (provisional)",
-    "diarization": "Diarization",
-    "diarizationCompleted": "Diarization completed",
-    "diarizationIncomplete": "Diarization incomplete"
+    "diarization": "Speaker recognition",
+    "diarizationCompleted": "Speaker recognition completed",
+    "diarizationIncomplete": "Speaker recognition incomplete"
   },
   "library": {
     "title": "Library",

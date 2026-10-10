@@ -104,7 +104,8 @@ _Avoid_: canali, flussi, modalità chat
 
 **Diarizzazione**:
 L'attribuzione di ogni Frase a un Parlante. In una Registrazione avviene solo dopo Stop, con l'analisi finale: durante la Registrazione il testo non ha Parlanti.
-_Avoid_: speaker detection, riconoscimento dei parlanti
+Nei testi per l'utente l'azione è "Riconosci i parlanti" e la fase o l'esito "Riconoscimento dei parlanti".
+_Avoid_ (in codice, documenti e commit): speaker detection, riconoscimento dei parlanti
 
 **Parlante**:
 Una voce distinta individuata dalla Diarizzazione, numerata per ordine di comparsa. Con gli Ingressi separati appartiene sempre a un solo Ingresso e si numera per Ingresso: la stessa voce non è mai un Parlante del Microfono e dell'Audio di sistema insieme.

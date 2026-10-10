@@ -120,6 +120,18 @@ test("l'elenco completo si ordina per data, titolo o durata, nei due versi", () 
   expect(titoli("duration", false)).toEqual(["Alfa", "beta", "gamma"]);
 });
 
+test("per titolo si ordina il titolo mostrato, non il nome del file", () => {
+  const tapes = [
+    tape("Registrazione 2026-10-08 17-32-36", [2026, 10, 8]),
+    tape("Bilancio", [2026, 10, 7]),
+  ];
+  const shown = (b: TapeEntry) =>
+    b.titolo === "Bilancio" ? "Bilancio" : "Alle 17:32";
+  expect(
+    sortTapes(tapes, { column: "title", descending: false }, shown).map(shown)
+  ).toEqual(["Alle 17:32", "Bilancio"]);
+});
+
 test("il clic su una colonna la sceglie con il suo verso, il secondo lo inverte", () => {
   expect(nextOrder(DEFAULT_ORDER, "date")).toEqual({
     column: "date",

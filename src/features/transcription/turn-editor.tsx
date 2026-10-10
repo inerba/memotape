@@ -3,7 +3,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -24,11 +23,6 @@ export type EditTurn = (
 ) => Promise<boolean>;
 
 export type CommitTurn = () => Promise<string | null>;
-
-function fit(el: HTMLTextAreaElement) {
-  el.style.height = "auto";
-  el.style.height = `${el.scrollHeight}px`;
-}
 
 /** Campo nativo non controllato: riproduzione e rerender non cambiano cursore, selezione o undo. */
 export function TurnEditor({
@@ -68,23 +62,7 @@ export function TurnEditor({
     if (document.activeElement !== el && !failedDraft.current) {
       el.value = text;
     }
-    fit(el);
   }, [text]);
-  useEffect(() => {
-    const el = input.current;
-    if (!el) {
-      return;
-    }
-    let width = el.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (el.clientWidth !== width) {
-        width = el.clientWidth;
-        fit(el);
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   const save = useCallback<CommitTurn>(() => {
     if (saving.current) {
@@ -143,7 +121,6 @@ export function TurnEditor({
       cancelled.current = true;
       e.currentTarget.value = session.current?.draft ?? text;
       setDirty(e.currentTarget.value !== text);
-      fit(e.currentTarget);
       e.currentTarget.blur();
     },
     [text]
@@ -159,7 +136,6 @@ export function TurnEditor({
   const inputChanged = useCallback(
     (e: FormEvent<HTMLTextAreaElement>) => {
       setDirty(e.currentTarget.value !== text);
-      fit(e.currentTarget);
     },
     [text]
   );
@@ -212,7 +188,7 @@ export function TurnEditor({
         aria-label={t("transcription.editTurn", {
           name: turn.label ?? t("transcription.text"),
         })}
-        className={`transcript-editor relative block min-h-[1lh] w-full select-text resize-none overflow-hidden rounded-sm bg-transparent p-0 text-inherit leading-[inherit] outline-none hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 ${searchHit ? "ring-1 ring-play/60" : ""}`}
+        className={`transcript-editor field-sizing-content relative block min-h-[1lh] w-full select-text resize-none overflow-hidden rounded-sm bg-transparent p-0 text-inherit leading-[inherit] outline-none hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/40 ${searchHit ? "ring-1 ring-play/60" : ""}`}
         defaultValue={text}
         onBlur={blur}
         onFocus={focus}

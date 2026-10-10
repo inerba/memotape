@@ -21,7 +21,10 @@ import { NameInput } from "@/features/library/name-input";
 import { elapsedText } from "@/features/recording/recording";
 import { speechLanguageName } from "@/features/settings/settings";
 import { fileName, folderOf } from "@/features/source/file-name";
-import { diarizationText } from "@/features/status/status";
+import {
+  diarizationCompleted,
+  diarizationText,
+} from "@/features/status/status";
 
 const EXTENSION = /\.tape$/i;
 
@@ -252,13 +255,9 @@ function InfoChips({
           {t("library.info.incomplete")}
         </Chip>
       ) : null}
-      {info.diarizzazione ? (
-        <Chip
-          icon={<Users />}
-          tone={
-            info.diarizzazione.esito === "completata" ? undefined : "warning"
-          }
-        >
+      {/* Completata si legge già dai Parlanti: la chip segnala solo ciò che non è andato. */}
+      {info.diarizzazione && !diarizationCompleted(info.diarizzazione) ? (
+        <Chip icon={<Users />} tone="warning">
           {diarizationText(info.diarizzazione, t)}
         </Chip>
       ) : null}

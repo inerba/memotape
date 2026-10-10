@@ -220,7 +220,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 ### Neutral
 - **Carta** (`paper`): fondo del pannello centrale.
-- **Foglio** (`sheet`, il `card` e `popover` di shadcn): superfici sospese e piccole superfici sopra la carta: player, dock, avvisi, menu, chip, pulsanti outline, select.
+- **Foglio** (`sheet`, il `card` e `popover` di shadcn): superfici sospese e piccole superfici sopra la carta: player, dock, avvisi, menu, chip, pulsanti outline, select. Gli avvisi stanno nel flusso sotto la barra in alto, senza ombra: non coprono mai il testo.
 - **Carta della barra laterale** (`sidebar-paper`): un tono più scura e calda della carta; nel tema scuro più scura del pannello.
 - **Selezione della barra laterale** (`sidebar-selected`): il Tape aperto nei Recenti, una carta appena olivastra.
 - **Inchiostro** (`ink`) e **Inchiostro dei pulsanti** (`ink-button`): testo e pulsante pieno; nel tema scuro i ruoli si invertono (pulsante carta chiara su fondo scuro).
@@ -263,7 +263,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 Due colonne a tutta altezza: la barra laterale fissa a sinistra (288 px, `w-72`) e il pannello centrale fluido. Nessun breakpoint: la finestra va da 1200×800 al minimo di 880×600 e solo il pannello centrale si stringe; le chip vanno a capo, i titoli lunghi si troncano nel breadcrumb.
 
 - **Riga del titolo** (80 px, trascinabile, bordo inferiore da 1 px): breadcrumb in basso a sinistra (32 px di margine), azioni del documento a destra; i pulsanti di Windows (46×36 px) stanno fissi nell'angolo in alto a destra, sopra la riga.
-- **Colonna del documento**: centrata, al massimo 46rem, con 40 px di margine laterale e 48 px sopra il titolo. Tutte le registrazioni usa una colonna più larga (60rem); il player e il dock di Registrazione 52rem; gli avvisi 40rem.
+- **Colonna del documento**: centrata, al massimo 46rem, con 40 px di margine laterale e 48 px sopra il titolo. Tutte le registrazioni usa una colonna più larga (60rem); il player e il dock di Registrazione 52rem; gli avvisi 46rem, come il documento.
 - **Barra delle schede**: appiccicata in cima allo scorrimento, sul fondo carta, con il filo inferiore; le schede distano 24 px e l'interruttore Segui l'audio è spinto a destra.
 - **Ritmo**: turni con 12 px sopra e sotto e 16 px di sfondamento laterale (lo sfondo del turno attivo sporge oltre la colonna del testo); il testo del turno rientra di 22 px per allinearsi al nome dopo il pallino. Gruppi della barra laterale a 20 px l'uno dall'altro.
 - **Player e dock**: ancorati in basso al pannello centrale, sospesi sopra il testo, mai a tutta larghezza.
@@ -274,7 +274,7 @@ Due colonne a tutta altezza: la barra laterale fissa a sinistra (288 px, `w-72`)
 Sistema piatto su carta, con un solo livello sospeso. La profondità di base viene dal tono (barra laterale più scura, foglio più chiaro della carta) e dai fili da 1 px; l'ombra è riservata a ciò che galleggia sopra il testo.
 
 ### Shadow Vocabulary
-- **Float** (`box-shadow: 0 12px 32px -14px var(--float-shadow), 0 2px 6px -2px var(--float-shadow)`; `--float-shadow` è `oklch(0.3 0.03 60 / 0.22)` di giorno e `oklch(0.05 0.01 60 / 0.6)` di sera): player, dock di avanzamento e di Registrazione, avvisi, menu a comparsa, la pillola "Torna al punto in ascolto" e l'etichetta del tempo di una Frase in hover.
+- **Float** (`box-shadow: 0 12px 32px -14px var(--float-shadow), 0 2px 6px -2px var(--float-shadow)`; `--float-shadow` è `oklch(0.3 0.03 60 / 0.22)` di giorno e `oklch(0.05 0.01 60 / 0.6)` di sera): player, dock di avanzamento e di Registrazione, menu a comparsa, la pillola "Torna al punto in ascolto" e l'etichetta del tempo di una Frase in hover.
 - Il pollice dell'interruttore porta lo `shadow-sm` di Tailwind; i pulsanti outline di shadcn il loro `shadow-xs`. Non sono ruoli del sistema.
 
 ### Named Rules
@@ -351,7 +351,7 @@ Transizioni di colore da 150–200 ms con `ease-out`; avanzamento indeterminato 
 - **Do** usare solo i token di `global.css`; ogni nuovo colore nasce lì, con il suo gemello scuro. Il logo è l'unica eccezione.
 - **Do** riservare la salvia (`play`, `play-soft`) all'audio e alle conferme, e tenere l'inchiostro per il pulsante pieno.
 - **Do** mettere ogni nuovo testo lungo nella colonna da 46rem, in Inter 1.0625rem con interlinea 1.7.
-- **Do** usare `shadow-float` e il foglio per ogni nuovo strato sospeso (menu, avvisi, pillole), con 14–16 px di angolo.
+- **Do** usare `shadow-float` e il foglio per ogni nuovo strato sospeso (menu, pillole), con 14–16 px di angolo. Un avviso non è sospeso: sta nel flusso e non copre il testo.
 - **Do** usare cifre tabulari per ogni tempo e conteggio.
 - **Do** dare a ogni controllo interattivo l'anello salvia da 3 px al 40% su `focus-visible`.
 - **Do** proteggere ogni animazione con `motion-safe` (niente movimento con `prefers-reduced-motion`).

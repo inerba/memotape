@@ -395,9 +395,9 @@
     "parlante": "Mówca {{n}}",
     "unknownSpeaker": "Mówca nieustalony",
     "provisionalSpeaker": "{{name}} (tymczasowy)",
-    "diarization": "Diaryzacja",
-    "diarizationCompleted": "Diaryzacja ukończona",
-    "diarizationIncomplete": "Diaryzacja nieukończona"
+    "diarization": "Rozpoznawanie mówców",
+    "diarizationCompleted": "Rozpoznawanie mówców ukończone",
+    "diarizationIncomplete": "Rozpoznawanie mówców nieukończone"
   },
   "library": {
     "title": "Biblioteka",

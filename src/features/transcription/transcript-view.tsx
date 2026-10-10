@@ -13,10 +13,12 @@ import {
   X,
 } from "lucide-react";
 import {
+  memo,
   type ReactNode,
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -46,6 +48,9 @@ import {
 import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+/** Ai turni senza Frasi in ascolto: sempre lo stesso array, così `memo` non li ridisegna. */
+const NOT_PLAYING: string[] = [];
 
 /** Lo scorrimento automatico: morbido, a meno che Windows chieda meno animazioni. */
 function scrollBehavior(): ScrollBehavior {
@@ -113,8 +118,21 @@ export function TranscriptView({
   const [followed] = playing;
   const scrolls = player ? autoScroll(player.follow, editing) : false;
   const free = player?.follow === "free";
-  const turns = turnsOf(conversation, t);
-  const colors = voiceColors(turns);
+  // Turni e vicini dipendono dal testo, non dalla posizione del player: con un Tape lungo
+  // ricalcolarli e ridisegnarli a ogni aggiornamento bloccava l'interfaccia durante l'ascolto.
+  const turns = useMemo(() => turnsOf(conversation, t), [conversation, t]);
+  const colors = useMemo(() => voiceColors(turns), [turns]);
+  const neighbours = useMemo(
+    () =>
+      turns.map((turn, index) => ({
+        above: mergeDestination(turn, turns[index - 1], conversation.partials),
+        below: mergeDestination(turn, turns[index + 1], conversation.partials),
+        voce: parlanti.find(
+          (p) => p.ingresso === turn.ingresso && p.parlante === turn.parlante
+        ),
+      })),
+    [conversation.partials, parlanti, turns]
+  );
 
   useEffect(() => {
     const el =
@@ -199,17 +217,13 @@ export function TranscriptView({
         {turns.length === 0 ? empty : null}
         <div className="flex flex-col gap-1">
           {turns.map((turn, index) => {
-            const voce = parlanti.find(
-              (p) =>
-                p.ingresso === turn.ingresso && p.parlante === turn.parlante
+            const { above, below, voce } = neighbours[index] ?? {};
+            const heard = turn.items.some((item) =>
+              playing.includes(phraseKey(item))
             );
             return (
               <TurnBlock
-                above={mergeDestination(
-                  turn,
-                  turns[index - 1],
-                  conversation.partials
-                )}
+                above={above ?? null}
                 active={
                   followed !== undefined &&
                   turn.items.some(
@@ -219,13 +233,9 @@ export function TranscriptView({
                       ) && phraseKey(item) === followed
                   )
                 }
-                below={mergeDestination(
-                  turn,
-                  turns[index + 1],
-                  conversation.partials
-                )}
+                below={below ?? null}
                 color={turn.label ? colors.get(turn.label) : undefined}
-                followed={followed}
+                followed={heard ? followed : undefined}
                 highlight={highlight}
                 key={turn.key}
                 list={parlanti}
@@ -236,7 +246,7 @@ export function TranscriptView({
                 onRename={onRename}
                 onRenaming={onRenaming ? renameAt : undefined}
                 partials={conversation.partials}
-                playing={playing}
+                playing={heard ? playing : NOT_PLAYING}
                 renaming={
                   renamingTurn === turn.key &&
                   voce !== undefined &&
@@ -277,7 +287,7 @@ export function TranscriptView({
  * Un turno: la riga della voce e il testo. Il turno in ascolto ha il fondo salvia, l'onda al posto
  * del pallino e Riascolta, che riparte dall'inizio della Frase in ascolto.
  */
-function TurnBlock({
+const TurnBlock = memo(function TurnBlockView({
   above,
   below,
   active,
@@ -374,7 +384,7 @@ function TurnBlock({
         ) : null}
         {onJump ? (
           <button
-            className="rounded-sm text-muted-foreground text-sm tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+            className="min-h-6 rounded-sm text-muted-foreground text-sm tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
             onClick={jump}
             onPointerDown={keepFocus}
             title={t("player.jump")}
@@ -461,7 +471,7 @@ function TurnBlock({
       </div>
     </article>
   );
-}
+});
 
 /** Il menu di questo Turno ha un'ancora propria, anche quando la stessa voce compare più volte. */
 function MergeTurn({

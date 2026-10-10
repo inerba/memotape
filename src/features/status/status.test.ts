@@ -5,6 +5,7 @@ import {
   afterDiarization,
   afterTranscription,
   bannerOf,
+  diarizationCompleted,
   isBusy,
   needsSettings,
   progressPercent,
@@ -351,4 +352,20 @@ test("solo Trascrivi e Riconosci i parlanti lavorano sulla Sorgente, non la Regi
   expect(transcribesSource({ paused: false, phase: "recording" })).toBe(false);
   expect(transcribesSource({ percent: null, phase: "completing" })).toBe(false);
   expect(transcribesSource({ phase: "idle", source: "a.tape" })).toBe(false);
+});
+
+test("la Diarizzazione è completata solo se lo è in ogni Ingresso", () => {
+  const modello = "sortformer" as const;
+  expect(diarizationCompleted({ esito: "completata", modello })).toBe(true);
+  expect(diarizationCompleted({ esito: "fallita", modello })).toBe(false);
+  expect(
+    diarizationCompleted({
+      esito: "completata",
+      ingressi: [
+        { esito: "completata", ingresso: "microfono" },
+        { esito: "annullata", ingresso: "sistema" },
+      ],
+      modello,
+    })
+  ).toBe(false);
 });

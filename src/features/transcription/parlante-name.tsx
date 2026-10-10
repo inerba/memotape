@@ -19,7 +19,7 @@ export const VOICE_DOTS = [
   "bg-voice-6",
 ];
 
-/** Il pallino del colore di una voce; senza colore (il mix) un cerchio vuoto. */
+/** Il pallino del colore di una voce; senza colore (il mix, il Parlante non determinato) un cerchio vuoto. */
 export function VoiceDot({ color }: { color: number | undefined }) {
   return (
     <span

@@ -5,7 +5,7 @@ import {
   FileUp,
   Mic,
 } from "lucide-react";
-import { type MouseEvent, useCallback } from "react";
+import { type MouseEvent, type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TapeEntry } from "@/bindings";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { elapsedText } from "@/features/recording/recording";
 
 /** La Home: ripresa esplicita del Tape, oppure primo avvio con le due azioni. */
 export function LibraryHome({
+  banner,
   busy,
   lastPath,
   loading,
@@ -24,6 +25,8 @@ export function LibraryHome({
   onShowAll,
   tapes,
 }: {
+  /** L'avviso della finestra, sotto la barra in alto. */
+  banner?: ReactNode;
   busy: boolean;
   lastPath: string | null;
   loading: boolean;
@@ -58,6 +61,7 @@ export function LibraryHome({
       >
         <span className="pointer-events-none">{t("home.title")}</span>
       </header>
+      {banner}
       <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-8 py-10 min-[1200px]:px-14 min-[1200px]:py-12">
           {loading ? (
