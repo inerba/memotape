@@ -66,7 +66,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 ## Evidence on Hand
 
 - Audio di prova in `src-tauri/tests/fixtures/` (sintesi vocale, non materiale pubblicabile).
-- Le misure di velocità in `AGENTS.md` sono di una sola macchina di sviluppo: non sono benchmark da mostrare.
+- Le misure di velocità in `AGENTS.md` e in `docs/sviluppo/` sono di una sola macchina di sviluppo: non sono benchmark da mostrare.
 - Non esistono testimonianze, clienti, numeri d'uso o recensioni: non vanno inventati.
 
 ## Product Principles
@@ -338,7 +338,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
 
 69. Come sviluppatore, voglio che `typecheck`, `test`, `check`, `format:backend`, `lint:backend` e `cargo test` passino a ogni milestone, così il progetto resta sano.
 70. Come sviluppatore, voglio che i comandi e gli eventi Tauri siano tipizzati da un `bindings.ts` generato da Rust, così frontend e backend non divergono.
-71. Come sviluppatore, voglio che `AGENTS.md` documenti comandi, prerequisiti di build, architettura e insidie, così un agente o un collega riparte senza chiedere.
+71. Come sviluppatore, voglio che `AGENTS.md` documenti comandi e regole e rimandi a `docs/sviluppo/` per prerequisiti di build, architettura e insidie, così un agente o un collega riparte senza chiedere.
 72. Come utente finale, voglio un installer NSIS che includa tutto il necessario (DLL di runtime, modello Silero, testi delle licenze), così installo e uso l'app su qualsiasi PC Windows x64 recente.
 
 ## Stato

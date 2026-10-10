@@ -235,7 +235,7 @@ For substantial changes, discuss the intended behavior before implementing it. [
 | [`src-tauri/tests/fixtures/`](src-tauri/tests/fixtures/) | Audio/video fixtures for automated verification |
 | [`PRODUCT.md`](PRODUCT.md) | Product requirements and implemented milestones |
 | [`CONTEXT.md`](CONTEXT.md) | Domain glossary |
-| [`AGENTS.md`](AGENTS.md) | Detailed development instructions, architecture, and known pitfalls |
+| [`AGENTS.md`](AGENTS.md) | Commands, code rules, and pointers to `docs/sviluppo/` (architecture, build prerequisites, known pitfalls) |
 | [`docs/adr/`](docs/adr/) | Architectural decisions |
 | [`docs/research/`](docs/research/) | Technical research and supporting evidence |
 | [`docs/brand/`](docs/brand/) | Brand assets and usage guidelines |
