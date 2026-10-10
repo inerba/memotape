@@ -11,12 +11,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useCallback,
-  useEffect,
   useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,11 @@ import {
 } from "@/features/library/library";
 import { recentTitle } from "@/features/library/recent-tapes";
 import { SearchResults } from "@/features/library/search-results";
+import {
+  ariaTasti,
+  conTasti,
+  useScorciatoia,
+} from "@/features/shortcuts/shortcuts-provider";
 import type { PhraseRef } from "@/features/transcription/phrases";
 
 /** L'Attività in corso in breve: il testo, l'avanzamento se c'è e se è una Registrazione. */
@@ -89,17 +93,15 @@ export function Sidebar({
   const search = useRef<HTMLInputElement>(null);
 
   // Ctrl+K porta alla ricerca da qualunque punto della finestra.
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        search.current?.focus();
-        search.current?.select();
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+  const focusSearch = useCallback(() => {
+    search.current?.focus();
+    search.current?.select();
   }, []);
+  useScorciatoia("cerca", focusSearch);
+  useScorciatoia("importa", onImport);
+  const navigate = useNavigate();
+  const openSettings = useCallback(() => navigate("/settings"), [navigate]);
+  useScorciatoia("impostazioni", openSettings);
 
   const typeQuery = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value),
@@ -153,9 +155,11 @@ export function Sidebar({
       <div className="flex flex-col gap-1 px-3 pt-1">
         {record}
         <Button
+          aria-keyshortcuts={ariaTasti("importa")}
           className="h-9 justify-start gap-2.5 px-3.5 font-normal text-sidebar-foreground/85"
           disabled={busy}
           onClick={onImport}
+          title={conTasti(t, t("sidebar.importFile"), "importa")}
           variant="ghost"
         >
           <FileUp />
@@ -169,6 +173,7 @@ export function Sidebar({
           className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <input
+          aria-keyshortcuts={ariaTasti("cerca")}
           className="h-9 w-full rounded-lg border border-sidebar-border bg-background/70 pr-14 pl-9 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/25 [&::-webkit-search-cancel-button]:hidden"
           onChange={typeQuery}
           onKeyDown={clearOnEscape}
@@ -272,7 +277,11 @@ export function Sidebar({
           className="h-9 justify-start gap-2.5 px-2.5 font-normal"
           variant="ghost"
         >
-          <Link to="/settings">
+          <Link
+            aria-keyshortcuts={ariaTasti("impostazioni")}
+            title={conTasti(t, t("settings.open"), "impostazioni")}
+            to="/settings"
+          >
             <Settings />
             {t("settings.open")}
           </Link>

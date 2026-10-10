@@ -33,6 +33,11 @@ import {
 import { CleaningProfile } from "@/features/settings/cleaning-profile";
 import { GuadagnoSelect } from "@/features/settings/guadagno-select";
 import { useSettings } from "@/features/settings/settings-context";
+import {
+  ariaTasti,
+  conTasti,
+  useScorciatoia,
+} from "@/features/shortcuts/shortcuts-provider";
 import { cn } from "@/lib/utils";
 
 const AUDIO_INPUTS = {
@@ -125,6 +130,7 @@ export function RecordingPanel({
       onPausedChange(!paused);
     }
   }, [onPausedChange, paused]);
+  useScorciatoia("pausaRegistrazione", stopping ? null : togglePause);
 
   const stop = useCallback(async () => {
     setStopping(true);
@@ -223,9 +229,15 @@ export function RecordingPanel({
           {collapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
         </Button>
         <Button
+          aria-keyshortcuts={ariaTasti("pausaRegistrazione")}
           className="h-[30px] px-3 text-sm [&_svg]:size-3.5"
           disabled={stopping}
           onClick={togglePause}
+          title={conTasti(
+            t,
+            paused ? t("recording.resume") : t("recording.pause"),
+            "pausaRegistrazione"
+          )}
           variant="outline"
         >
           {paused ? <Play /> : <Pause />}

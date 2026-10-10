@@ -18,6 +18,11 @@ import {
   withInput,
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import {
+  ariaTasti,
+  conTasti,
+  useScorciatoia,
+} from "@/features/shortcuts/shortcuts-provider";
 
 /** Microfono e Audio di sistema: icona, profilo audio e scelta del dispositivo. */
 const INPUTS = {
@@ -55,6 +60,7 @@ export function RecordMenu({
   onRecord: () => void;
 }) {
   const { t } = useTranslation();
+  useScorciatoia("nuovaRegistrazione", onRecord);
   const [devices, setDevices] = useState<Devices>({ mic: null, system: null });
   const loadDevices = useCallback(async () => {
     const [mic, system] = await Promise.all([
@@ -74,9 +80,11 @@ export function RecordMenu({
   return (
     <div className="flex">
       <Button
+        aria-keyshortcuts={ariaTasti("nuovaRegistrazione")}
         className="h-10 flex-1 justify-start gap-2.5 rounded-r-none pl-3.5 text-[0.9375rem]"
         disabled={disabled}
         onClick={onRecord}
+        title={conTasti(t, t("sidebar.newRecording"), "nuovaRegistrazione")}
       >
         <Mic />
         {t("sidebar.newRecording")}

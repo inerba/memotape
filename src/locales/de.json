@@ -532,5 +532,34 @@
     "unreadable": "Datei prüfen",
     "recordingTitle": "Aufnahme um {{time}}",
     "hint": "Nimm Audio auf oder importiere eine Datei. Audio und Text werden in der Bibliothek gespeichert."
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "show": "Tastenkürzel anzeigen",
+    "groups": {
+      "generale": "Allgemein",
+      "ascolto": "Wiedergabe",
+      "testo": "Text",
+      "registrazione": "Aufnahme"
+    },
+    "lines": {
+      "nuovaRegistrazione": "Neue Aufnahme",
+      "importa": "Datei importieren",
+      "cerca": "In der Bibliothek suchen",
+      "barraLaterale": "Seitenleiste",
+      "impostazioni": "Einstellungen",
+      "pannello": "Tastenkürzel",
+      "riproduci": "Wiedergabe oder Pause",
+      "indietroAvanti": "5 s zurück und vor",
+      "velocita": "Geschwindigkeit",
+      "tornaAlPunto": "Zur Wiedergabestelle",
+      "copiaTesto": "Ganzen Text kopieren",
+      "pausaRegistrazione": "Pausieren oder fortsetzen"
+    },
+    "keys": {
+      "Ctrl": "Strg",
+      "Shift": "Umschalt",
+      "Space": "Leertaste"
+    }
   }
 }

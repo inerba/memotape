@@ -569,6 +569,16 @@ Spec `.scratch/anteprime-ui/spec.md` («1 · Vista della trascrizione»), ticket
 - In Copione e Nastro un silenzio stimato di almeno 5 s tra due turni (la stima dei paragrafi del Markdown) diventa il separatore «Pausa di 9 s», «Pausa di 1 min 20 s» oltre il minuto. Le pause dentro un turno non si segnano.
 - Il tempo porta lì il player; ▶, Riascolta, Unisci e Copia turno compaiono in hover o con il focus in una barretta in alto a destra del turno; il clic sul nome rinomina il Parlante. Editor del Turno, Segui l'audio e «Torna al punto in ascolto» come prima.
 
+## Scorciatoie da tastiera — requisiti concordati il 10 ottobre 2026
+
+Spec `.scratch/anteprime-ui/spec.md` («5 · Scorciatoie»), ticket `anteprime-ui/05`.
+
+- Ctrl+N Nuova registrazione, Ctrl+O Importa un file, Ctrl+K Cerca nella Libreria, Ctrl+, Impostazioni, Spazio Riproduci o metti in pausa, ← → indietro e avanti di 5 s, `[` `]` velocità più bassa e più alta, Ctrl+J Torna al punto in ascolto, Ctrl+Maiusc+C Copia tutto il testo, Ctrl+P Pausa o riprendi la Registrazione, Ctrl+/ il pannello «Scorciatoie da tastiera». Ctrl+B (barra laterale) arriva con la barra richiudibile.
+- Spazio, frecce e `[` `]` valgono solo fuori dai campi di testo; Spazio non agisce su un pulsante o un link con il focus, le frecce non agiscono sulla barra del player con il focus. I pulsanti ±10 s restano a 10 s. `[` e `]` valgono anche con AltGr, come sulla tastiera italiana.
+- Ogni scorciatoia segue il suo pulsante: Ctrl+N e Ctrl+O tacciono durante un'Attività, Ctrl+P agisce solo durante una Registrazione, i tasti del player solo con un player attivo, Ctrl+Maiusc+C solo con Copia testo attivo. Con Impostazioni o un dialog aperti vale solo Ctrl+/. Stop non ha scorciatoia.
+- Le combinazioni con Ctrl non arrivano mai a WebView2: Ctrl+N non apre un'altra finestra, Ctrl+P non stampa, Ctrl+Maiusc+C non apre l'ispettore (in sviluppo resta F12), anche quando non fanno nulla. Ctrl+C resta la copia della selezione.
+- I pulsanti interessati mostrano la scorciatoia nel tooltip («Copia tutto il testo (Ctrl+Maiusc+C)») e la dichiarano ai lettori di schermo. Il pannello si apre con Ctrl+/ o da Impostazioni → Generale; Esc, Ctrl+/ o un clic fuori lo chiudono.
+
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).

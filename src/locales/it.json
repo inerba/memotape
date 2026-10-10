@@ -536,5 +536,34 @@
     "unreadable": "Da verificare",
     "recordingTitle": "Registrazione delle {{time}}",
     "hint": "Registra audio o importa un file. Audio e testo si salvano nella Libreria."
+  },
+  "shortcuts": {
+    "title": "Scorciatoie da tastiera",
+    "show": "Mostra le scorciatoie",
+    "groups": {
+      "generale": "Generale",
+      "ascolto": "Ascolto",
+      "testo": "Testo",
+      "registrazione": "Registrazione"
+    },
+    "lines": {
+      "nuovaRegistrazione": "Nuova registrazione",
+      "importa": "Importa un file",
+      "cerca": "Cerca nella Libreria",
+      "barraLaterale": "Barra laterale",
+      "impostazioni": "Impostazioni",
+      "pannello": "Scorciatoie da tastiera",
+      "riproduci": "Riproduci o metti in pausa",
+      "indietroAvanti": "Indietro e avanti di 5 s",
+      "velocita": "Velocità",
+      "tornaAlPunto": "Torna al punto in ascolto",
+      "copiaTesto": "Copia tutto il testo",
+      "pausaRegistrazione": "Pausa o riprendi"
+    },
+    "keys": {
+      "Ctrl": "Ctrl",
+      "Shift": "Maiusc",
+      "Space": "Spazio"
+    }
   }
 }

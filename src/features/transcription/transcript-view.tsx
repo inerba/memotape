@@ -35,6 +35,7 @@ import { keepFocus, type PlayerState } from "@/features/player/player";
 import { autoScroll, playingAt } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
 import { useSettings } from "@/features/settings/settings-context";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts-provider";
 import {
   ParlanteNameInput,
   VOICE_DOTS,
@@ -317,9 +318,11 @@ export function TranscriptView({
       {free && followed ? (
         <div className="pointer-events-none sticky bottom-4 flex justify-center">
           <button
+            aria-keyshortcuts={ariaTasti("tornaAlPunto")}
             className="motion-safe:fade-in motion-safe:slide-in-from-bottom-2 pointer-events-auto flex items-center gap-2 rounded-full border bg-card px-3.5 py-1.5 text-sm shadow-float transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 motion-safe:animate-in"
             onClick={backToAudio}
             onPointerDown={keepFocus}
+            title={conTasti(t, t("player.backToAudio"), "tornaAlPunto")}
             type="button"
           >
             {away === "up" ? (

@@ -65,6 +65,12 @@ import { RecordingPanel } from "@/features/recording/recording-panel";
 import { recordAfterSettings } from "@/features/recording/start";
 import { nomeMicrofonoRegistrazione } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
+import {
+  ariaTasti,
+  conTasti,
+  ScorciatoieProvider,
+  useScorciatoia,
+} from "@/features/shortcuts/shortcuts-provider";
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
 import { fileName, isTape } from "@/features/source/file-name";
@@ -964,7 +970,11 @@ export function HomePage() {
   }
 
   return (
-    <>
+    <ScorciatoieProvider
+      attivita={busy}
+      coperta={settingsPage !== null}
+      registrazione={recording}
+    >
       <div className="flex h-screen" inert={settingsPage !== null}>
         <Sidebar
           activity={activitySummary(status, elapsedMs, t)}
@@ -1030,7 +1040,7 @@ export function HomePage() {
       {dragged && !confirmationOpen ? (
         <DropVeil verdict={dropVerdict(dragged, busy)} />
       ) : null}
-    </>
+    </ScorciatoieProvider>
   );
 }
 
@@ -1704,11 +1714,14 @@ function CopyButton({
   onCopy: () => void;
 }) {
   const { t } = useTranslation();
+  useScorciatoia("copiaTesto", disabled ? null : onCopy);
   return (
     <Button
+      aria-keyshortcuts={ariaTasti("copiaTesto")}
       className="h-8 gap-2 bg-card"
       disabled={disabled}
       onClick={onCopy}
+      title={conTasti(t, t("shortcuts.lines.copiaTesto"), "copiaTesto")}
       variant="outline"
     >
       {copied ? <Check className="text-play" /> : <Copy />}

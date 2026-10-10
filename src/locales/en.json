@@ -532,5 +532,34 @@
     "unreadable": "Check file",
     "recordingTitle": "Recording at {{time}}",
     "hint": "Record audio or import a file. Audio and text are saved in your Library."
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "show": "Show shortcuts",
+    "groups": {
+      "generale": "General",
+      "ascolto": "Listening",
+      "testo": "Text",
+      "registrazione": "Recording"
+    },
+    "lines": {
+      "nuovaRegistrazione": "New recording",
+      "importa": "Import a file",
+      "cerca": "Search the Library",
+      "barraLaterale": "Sidebar",
+      "impostazioni": "Settings",
+      "pannello": "Keyboard shortcuts",
+      "riproduci": "Play or pause",
+      "indietroAvanti": "Back and forward 5 s",
+      "velocita": "Speed",
+      "tornaAlPunto": "Back to the playing point",
+      "copiaTesto": "Copy all text",
+      "pausaRegistrazione": "Pause or resume"
+    },
+    "keys": {
+      "Ctrl": "Ctrl",
+      "Shift": "Shift",
+      "Space": "Space"
+    }
   }
 }

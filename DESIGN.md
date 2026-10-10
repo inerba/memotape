@@ -350,6 +350,10 @@ Una striscia sospesa su una riga sola, foglio, 16 px di angolo, `shadow-float`, 
 ### Avviso
 Sospeso in alto al centro del pannello, foglio, 14 px di angolo, icona di stato (mattone per l'errore, spunta salvia per l'esito), testo a 14 px, link sottolineato alle Impostazioni quando serve e una X per chiuderlo. Entra con una dissolvenza e uno scivolamento dall'alto, solo se il movimento è consentito.
 
+### Scorciatoie
+- **Tooltip:** il `title` nativo del pulsante con la combinazione tra parentesi, nella lingua dell'interfaccia: «Copia tutto il testo (Ctrl+Maiusc+C)», «Velocità ([ ])». Niente tooltip disegnati: quelli di Windows bastano e non coprono il contenuto.
+- **Pannello «Scorciatoie da tastiera»:** `<dialog>` modale al centro, largo 560 px (meno 32 px sotto quella larghezza), `popover`, filo, 16 px di angolo, `shadow-float`, padding 24×20 px; lo sfondo dietro è carta al 55%. Titolo Commissioner a 22 px con la X a destra; sotto due colonne (gruppi Generale, Ascolto, Testo, Registrazione) con il titoletto a 11 px maiuscolo `ink-muted` (+0.07em) e righe a 13,5 px: il nome a sinistra, i tasti a destra come `kbd` da 11 px, carta (`card`), filo, 5 px di angolo, `ink-muted`.
+
 ### Movimento
 Il preload di avvio approvato il 7 ottobre 2026 usa il simbolo originale da 76 px,
 il logotipo da 184 px e una sola animazione: il mozzo gira intorno al suo centro

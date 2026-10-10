@@ -540,5 +540,34 @@
     "unreadable": "Sprawdź plik",
     "recordingTitle": "Nagranie z {{time}}",
     "hint": "Nagraj dźwięk lub zaimportuj plik. Dźwięk i tekst zostaną zapisane w Bibliotece."
+  },
+  "shortcuts": {
+    "title": "Skróty klawiszowe",
+    "show": "Pokaż skróty",
+    "groups": {
+      "generale": "Ogólne",
+      "ascolto": "Odsłuch",
+      "testo": "Tekst",
+      "registrazione": "Nagrywanie"
+    },
+    "lines": {
+      "nuovaRegistrazione": "Nowe nagranie",
+      "importa": "Importuj plik",
+      "cerca": "Szukaj w Bibliotece",
+      "barraLaterale": "Pasek boczny",
+      "impostazioni": "Ustawienia",
+      "pannello": "Skróty klawiszowe",
+      "riproduci": "Odtwórz lub wstrzymaj",
+      "indietroAvanti": "5 s wstecz i do przodu",
+      "velocita": "Prędkość",
+      "tornaAlPunto": "Wróć do miejsca odtwarzania",
+      "copiaTesto": "Kopiuj cały tekst",
+      "pausaRegistrazione": "Wstrzymaj lub wznów"
+    },
+    "keys": {
+      "Ctrl": "Ctrl",
+      "Shift": "Shift",
+      "Space": "Spacja"
+    }
   }
 }

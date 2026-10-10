@@ -536,5 +536,34 @@
     "unreadable": "Fichier à vérifier",
     "recordingTitle": "Enregistrement de {{time}}",
     "hint": "Enregistre de l’audio ou importe un fichier. L’audio et le texte sont sauvegardés dans la Bibliothèque."
+  },
+  "shortcuts": {
+    "title": "Raccourcis clavier",
+    "show": "Afficher les raccourcis",
+    "groups": {
+      "generale": "Général",
+      "ascolto": "Écoute",
+      "testo": "Texte",
+      "registrazione": "Enregistrement"
+    },
+    "lines": {
+      "nuovaRegistrazione": "Nouvel enregistrement",
+      "importa": "Importer un fichier",
+      "cerca": "Rechercher dans la Bibliothèque",
+      "barraLaterale": "Barre latérale",
+      "impostazioni": "Paramètres",
+      "pannello": "Raccourcis clavier",
+      "riproduci": "Lire ou mettre en pause",
+      "indietroAvanti": "Reculer et avancer de 5 s",
+      "velocita": "Vitesse",
+      "tornaAlPunto": "Revenir au point d'écoute",
+      "copiaTesto": "Copier tout le texte",
+      "pausaRegistrazione": "Mettre en pause ou reprendre"
+    },
+    "keys": {
+      "Ctrl": "Ctrl",
+      "Shift": "Maj",
+      "Space": "Espace"
+    }
   }
 }

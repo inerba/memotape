@@ -28,9 +28,16 @@ import {
   nextFollow,
 } from "@/features/player/sync";
 import { elapsedText } from "@/features/recording/recording";
+import {
+  ariaTasti,
+  conTasti,
+  useScorciatoia,
+} from "@/features/shortcuts/shortcuts-provider";
 
 const RATES = [1, 1.25, 1.5, 2];
 const SKIP_MS = 10_000;
+/** Le frecce spostano di meno dei pulsanti: per riascoltare una parola. */
+const ARROW_MS = 5000;
 /** Le barre della forma d'onda: abbastanza fitte per la larghezza del player. */
 const BARS = 180;
 /** Dove resta il volume scelto: una comodità di questo PC, non un'impostazione. */
@@ -97,16 +104,6 @@ export function usePlayer(durataMs: number): PlayerState {
     setPlaying,
     setPositionMs,
   };
-}
-
-/** Se con il focus su `target` Spazio non è per il player: si scrive, o attiva un controllo. */
-function spaceTaken(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest(
-      "textarea, select, button, a, [contenteditable], input:not([type=range])"
-    ) !== null
-  );
 }
 
 /** Un clic sui pulsanti del player non sposta il focus: Spazio resta Play/Pausa. */
@@ -178,23 +175,8 @@ export function Player({
   useEffect(() => {
     if (disabled) {
       audio.current?.pause();
-      return;
     }
-    const space = (e: KeyboardEvent) => {
-      if (
-        e.key !== " " ||
-        e.repeat ||
-        spaceTaken(e.target) ||
-        audio.current?.closest("[inert]")
-      ) {
-        return;
-      }
-      e.preventDefault();
-      toggle();
-    };
-    window.addEventListener("keydown", space);
-    return () => window.removeEventListener("keydown", space);
-  }, [audio, disabled, toggle]);
+  }, [audio, disabled]);
 
   useEffect(() => {
     if (audio.current) {
@@ -255,6 +237,23 @@ export function Player({
     setMuted(false);
   }, []);
   const toggleMute = useCallback(() => setMuted((m) => !m), []);
+  const step = (delta: number) => () =>
+    setRate((r) => RATES[RATES.indexOf(r) + delta] ?? r);
+  const backToAudio = useCallback(() => onFollow("follow"), [onFollow]);
+  // Spazio, frecce, [ ] e Ctrl+J, finché il player è attivo.
+  const keys = (handler: () => void) => (disabled ? null : handler);
+  useScorciatoia("riproduci", keys(toggle));
+  useScorciatoia(
+    "indietro",
+    keys(() => move(positionMs - ARROW_MS, "seek"))
+  );
+  useScorciatoia(
+    "avanti",
+    keys(() => move(Math.min(positionMs + ARROW_MS, durationMs), "seek"))
+  );
+  useScorciatoia("piuLento", keys(step(-1)));
+  useScorciatoia("piuVeloce", keys(step(1)));
+  useScorciatoia("tornaAlPunto", keys(backToAudio));
   const rateText = new Intl.NumberFormat(i18n.language);
   const silent = muted || volume === 0;
 
@@ -285,6 +284,7 @@ export function Player({
         <SkipIcon icon={<RotateCcw />} />
       </button>
       <button
+        aria-keyshortcuts={ariaTasti("riproduci")}
         aria-label={playing ? t("player.pause") : t("player.play")}
         className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-150 ease-out hover:scale-[1.04] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-95 disabled:opacity-50 [&_svg]:size-[1.125rem] [&_svg]:fill-current"
         disabled={disabled}
@@ -321,11 +321,12 @@ export function Player({
         {elapsedText(durationMs)}
       </span>
       <select
+        aria-keyshortcuts={`${ariaTasti("piuLento")} ${ariaTasti("piuVeloce")}`}
         aria-label={t("player.rate")}
         className="h-8 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-2 text-center font-medium text-sm tabular-nums transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:opacity-50"
         disabled={disabled}
         onChange={chooseRate}
-        title={t("player.rate")}
+        title={conTasti(t, t("player.rate"), "piuLento", "piuVeloce")}
         value={rate}
       >
         {RATES.map((r) => (

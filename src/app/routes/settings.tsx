@@ -4,6 +4,7 @@ import {
   Captions,
   ChevronDown,
   Info,
+  Keyboard,
   type LucideIcon,
   Mic,
   Plug,
@@ -59,6 +60,11 @@ import {
 import { useSettings } from "@/features/settings/settings-context";
 import type { SettingField } from "@/features/settings/settings-writer";
 import { VocabolarioList } from "@/features/settings/vocabolario-list";
+import {
+  ariaTasti,
+  conTasti,
+  useApriPannello,
+} from "@/features/shortcuts/shortcuts-provider";
 import { errorText } from "@/features/status/status";
 
 const COPY_FORMATS: CopiaCome[] = ["testo", "markdown"];
@@ -77,6 +83,7 @@ const SECTIONS = [
 export function SettingsPage() {
   const { i18n, t } = useTranslation();
   const { save, settings } = useSettings();
+  const apriPannello = useApriPannello();
   const [error, setError] = useState<AppError | null>(null);
   // `null` finché `list_microphones` e `list_output_devices` non rispondono.
   const [microphones, setMicrophones] = useState<AudioDevice[] | null>(null);
@@ -603,6 +610,18 @@ export function SettingsPage() {
                       onSave={chooseNomeMicrofono}
                       value={settings.nomeMicrofono ?? ""}
                     />
+                  </Field>
+                  <Field label={t("shortcuts.title")}>
+                    <Button
+                      aria-keyshortcuts={ariaTasti("pannello")}
+                      className="h-9 self-start"
+                      onClick={apriPannello}
+                      title={conTasti(t, t("shortcuts.show"), "pannello")}
+                      variant="outline"
+                    >
+                      <Keyboard />
+                      {t("shortcuts.show")}
+                    </Button>
                   </Field>
                 </>
               ) : null}

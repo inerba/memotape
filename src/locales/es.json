@@ -536,5 +536,34 @@
     "unreadable": "Revisar archivo",
     "recordingTitle": "Grabación de las {{time}}",
     "hint": "Graba audio o importa un archivo. El audio y el texto se guardan en la Biblioteca."
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "show": "Mostrar los atajos",
+    "groups": {
+      "generale": "General",
+      "ascolto": "Escucha",
+      "testo": "Texto",
+      "registrazione": "Grabación"
+    },
+    "lines": {
+      "nuovaRegistrazione": "Nueva grabación",
+      "importa": "Importar un archivo",
+      "cerca": "Buscar en la Biblioteca",
+      "barraLaterale": "Barra lateral",
+      "impostazioni": "Ajustes",
+      "pannello": "Atajos de teclado",
+      "riproduci": "Reproducir o pausar",
+      "indietroAvanti": "Retroceder y avanzar 5 s",
+      "velocita": "Velocidad",
+      "tornaAlPunto": "Volver al punto de escucha",
+      "copiaTesto": "Copiar todo el texto",
+      "pausaRegistrazione": "Pausar o reanudar"
+    },
+    "keys": {
+      "Ctrl": "Ctrl",
+      "Shift": "Mayús",
+      "Space": "Espacio"
+    }
   }
 }
