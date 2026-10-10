@@ -342,6 +342,8 @@
     "title": "Recording",
     "start": "Record",
     "live": "Transcribe live",
+    "liveHint": "The text appears while you record.",
+    "inputOff": "Off",
     "prefix": "Recording",
     "pause": "Pause",
     "resume": "Resume",

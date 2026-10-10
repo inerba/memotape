@@ -35,8 +35,8 @@ const LAYOUTS = {
     size: "sm",
   },
   menu: {
-    fieldset: "flex flex-col gap-1",
-    sensitivity: "flex-col gap-1.5",
+    fieldset: "flex flex-col gap-2",
+    sensitivity: "flex-col gap-1",
     size: "md",
   },
   settings: {
@@ -49,7 +49,8 @@ const LAYOUTS = {
 /**
  * Filtra rumore e Sensibilità di un Profilo audio, che salvano subito. `layout`: in Impostazioni
  * uno sotto l'altro; nella barra della Registrazione su una riga; nel menu di Nuova registrazione
- * come righe con l'interruttore a destra e la Sensibilità su tutta la larghezza.
+ * come righe con l'interruttore a destra e la Sensibilità a 13 px su tutta la larghezza, sotto la
+ * sua etichetta tenue.
  */
 export function CleaningProfile({
   name,
@@ -136,7 +137,7 @@ export function CleaningProfile({
         {t(legend)}
       </legend>
       <div className="flex min-w-0 flex-col gap-1">
-        <div className={cn("flex items-center gap-1", menu && "min-h-8")}>
+        <div className="flex items-center gap-1">
           <label
             className={cn(
               "flex w-fit cursor-pointer items-center gap-2 text-sm",
@@ -163,7 +164,10 @@ export function CleaningProfile({
       </div>
       <div className={cn("flex min-w-0", LAYOUTS[layout].sensitivity)}>
         <div className="flex items-center gap-1">
-          <span className="text-sm" id={`${id}-sensitivity`}>
+          <span
+            className={menu ? "text-muted-foreground text-xs" : "text-sm"}
+            id={`${id}-sensitivity`}
+          >
             {sensitivityLabel}
           </span>
           {menu ? null : (

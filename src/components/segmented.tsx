@@ -2,8 +2,15 @@ import { RadioGroup } from "radix-ui";
 import { type ReactNode, useCallback } from "react";
 import { cn } from "@/lib/utils";
 
-/** L'altezza di ogni segmento, dentro una traccia con 2 px di margine. */
-const SIZES = { lg: "h-7", md: "h-6", sm: "h-[18px]" } as const;
+/**
+ * L'altezza di ogni segmento, dentro una traccia con 2 px di margine; `md` (il menu di Nuova
+ * registrazione) ha anche il testo a 13 px invece di 12.
+ */
+const SIZES = {
+  lg: "h-7",
+  md: "h-7 px-1 text-[0.8125rem]",
+  sm: "h-[18px]",
+} as const;
 
 /**
  * Una voce del controllo: quello che si mostra (testo breve o simbolo) e il nome intero, per il
@@ -17,7 +24,8 @@ export interface SegmentedOption<T extends string> {
 
 /**
  * Poche scelte affiancate, una sola attiva: un gruppo di radio (frecce da tastiera, lettore di
- * schermo) disegnato come segmenti su una traccia tenue. `fill` divide tutta la larghezza.
+ * schermo) disegnato come segmenti su una traccia tenue. `fill` divide tutta la larghezza in parti
+ * uguali, ma un'etichetta lunga (tedesco, polacco) allarga il suo segmento invece di uscirne.
  */
 export function Segmented<T extends string>({
   className,
@@ -41,7 +49,7 @@ export function Segmented<T extends string>({
   name?: string;
   onChange: (value: T) => void;
   options: SegmentedOption<T>[];
-  /** 22 px nella barra della Registrazione, 28 px nel menu, 32 px in Impostazioni. */
+  /** 22 px nella barra della Registrazione, 32 px nel menu e in Impostazioni. */
   size?: keyof typeof SIZES;
   value: T;
 }) {
@@ -60,7 +68,7 @@ export function Segmented<T extends string>({
       aria-label={label}
       className={cn(
         "gap-0.5 rounded-md bg-secondary p-0.5 has-[:disabled]:opacity-50",
-        fill ? "grid auto-cols-fr grid-flow-col" : "inline-flex",
+        fill ? "flex" : "inline-flex",
         className
       )}
       disabled={disabled}
@@ -75,7 +83,8 @@ export function Segmented<T extends string>({
           aria-label={option.label}
           className={cn(
             "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-sm border border-transparent px-2 font-medium text-muted-foreground text-xs transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default data-[state=checked]:border-border data-[state=checked]:bg-card data-[state=checked]:text-foreground",
-            SIZES[size]
+            SIZES[size],
+            fill && "flex-1"
           )}
           key={option.value}
           title={option.label}

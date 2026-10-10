@@ -342,6 +342,8 @@
     "title": "Aufnahme",
     "start": "Aufnehmen",
     "live": "Live transkribieren",
+    "liveHint": "Der Text erscheint während der Aufnahme.",
+    "inputOff": "Aus",
     "prefix": "Aufnahme",
     "pause": "Pause",
     "resume": "Fortsetzen",

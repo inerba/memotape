@@ -343,6 +343,8 @@
     "title": "Registrazione",
     "start": "Registra",
     "live": "Trascrivi dal vivo",
+    "liveHint": "Il testo compare mentre registri.",
+    "inputOff": "Spento",
     "prefix": "Registrazione",
     "pause": "Pausa",
     "resume": "Riprendi",

@@ -320,7 +320,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Select nativo:** 32 px, foglio, filo `rule-input`, chevron da 16 px; è un `<select>` vero, nel tema giusto grazie a `color-scheme`.
 - **Nome del Parlante:** campo da 28 px sul posto, carta, filo `rule-input`, peso 500.
 - **Interruttore:** lo `Switch` di shadcn con la traccia salvia da acceso (`SWITCH_CLASS`), per ogni impostazione che si salva subito; in Impostazioni prima dell'etichetta, nei menu a destra.
-- **Segmenti:** `Segmented` (`components/segmented.tsx`), poche scelte affiancate su una traccia `secondary` da 6 px di angolo; il segmento scelto è foglio con il filo e l'inchiostro, gli altri `ink-muted`, 24 px, 12 px di testo. Etichette brevi a parole (anche "Spento"), nome intero nel tooltip e per i lettori di schermo.
+- **Segmenti:** `Segmented` (`components/segmented.tsx`), poche scelte affiancate su una traccia `secondary` da 6 px di angolo; il segmento scelto è foglio con il filo e l'inchiostro, gli altri `ink-muted`, 24 px, 12 px di testo (nel menu di Nuova registrazione 28 px e 13 px, a tutta larghezza: un'etichetta lunga allarga il suo segmento). Etichette brevi a parole (anche "Spento"), nome intero nel tooltip e per i lettori di schermo.
 - **Indicatore di livello:** `LevelMeter`, 8 px (6 px nella barra ridotta), traccia `secondary`, zone fisse salvia fino a −15 dBFS, senape (`level-warm`, la senape del marchio con il gemello scuro) fino a −3, mattone oltre; tacche ogni 10 dB e segno di picco in inchiostro che resta 1 s. In Muto grigio tratteggiato.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 
@@ -329,6 +329,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Breadcrumb:** Raccolta / Tape a 14 px, la Raccolta in `ink-muted` e cliccabile, il Tape in inchiostro; separatore `/` tenue.
 - **Schede:** Trascrizione e Parlanti a 44 px, peso 500, `ink-muted`; la scelta passa all'inchiostro con un trattino inferiore da 2 px a capi tondi, sopra il filo della barra. Il conteggio accanto è in cifre tabulari tenui.
 - **Menu a comparsa:** popover nativo ancorato (`position-area`), largo almeno 240 px, voci da 32 px con icona tenue a sinistra, divisori da 1 px e titoletti a 12 px; Elimina in mattone, in fondo.
+- **Menu di Nuova registrazione:** 352 px; un riquadro per Ingresso (filo `rule`, 10 px di angolo, 6 px di margine) con nella testata icona da 16 px, nome a peso 500 e interruttore; spento, «Spento» a 12 px in `ink-muted` prima dell'interruttore, senza opacità. Le opzioni hanno un solo rientro di 30 px, allineato al nome; «Sensibilità» è un'etichetta a 12 px in `ink-muted` sopra i segmenti. In fondo, dopo un filo, Trascrivi dal vivo a peso 500 con la spiegazione a 12 px in `ink-muted`.
 - **Controlli della finestra:** tre pulsanti da 46 px con icone da 16 px a tratto 1.25; Riduci e Ingrandisci con fondo inchiostro all'8% in hover, Chiudi con il rosso di Windows e l'icona bianca.
 
 ### Turno (componente firma)

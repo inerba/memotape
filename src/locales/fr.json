@@ -343,6 +343,8 @@
     "title": "Enregistrement",
     "start": "Enregistrer",
     "live": "Transcrire en direct",
+    "liveHint": "Le texte apparaît pendant l’enregistrement.",
+    "inputOff": "Désactivé",
     "prefix": "Enregistrement",
     "pause": "Pause",
     "resume": "Reprendre",

@@ -343,6 +343,8 @@
     "title": "Grabación",
     "start": "Grabar",
     "live": "Transcribir en directo",
+    "liveHint": "El texto aparece mientras grabas.",
+    "inputOff": "Desactivado",
     "prefix": "Grabación",
     "pause": "Pausa",
     "resume": "Reanudar",

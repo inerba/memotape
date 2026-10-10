@@ -344,6 +344,8 @@
     "title": "Nagrywanie",
     "start": "Nagrywaj",
     "live": "Transkrybuj na żywo",
+    "liveHint": "Tekst pojawia się w trakcie nagrywania.",
+    "inputOff": "Wyłączone",
     "prefix": "Nagranie",
     "pause": "Wstrzymaj",
     "resume": "Wznów",

@@ -40,10 +40,10 @@ interface Devices {
 }
 
 /**
- * Nuova registrazione ▾, l'azione principale della barra laterale. Il menu ha un gruppo per
- * Ingresso: l'interruttore "Registra da" e, se acceso, il dispositivo, Filtra rumore, Sensibilità e
- * Riconosci i parlanti (che vale solo dal vivo). In fondo Trascrivi dal vivo. I dispositivi si
- * rileggono a ogni apertura.
+ * Nuova registrazione ▾, l'azione principale della barra laterale. Il menu ha un riquadro per
+ * Ingresso: nella testata l'interruttore "Registra da" e, se acceso, sotto con un solo rientro il
+ * dispositivo, Filtra rumore, Sensibilità e Riconosci i parlanti (che vale solo dal vivo). In fondo,
+ * separato, Trascrivi dal vivo con la sua spiegazione. I dispositivi si rileggono a ogni apertura.
  */
 export function RecordMenu({
   disabled,
@@ -88,19 +88,18 @@ export function RecordMenu({
         id="record"
         label={t("recording.options")}
         onOpen={loadDevices}
-        panelClassName="w-80"
+        panelClassName="w-[22rem]"
         variant="default"
       >
-        <div className="flex flex-col gap-1 p-1">
+        <div className="flex flex-col gap-2 p-0.5">
           <InputGroup devices={devices.mic} input="mic" onError={onError} />
           <InputGroup
             devices={devices.system}
             input="system"
             onError={onError}
           />
-          <hr className="my-1 border-border" />
-          <div className="flex min-h-9 items-center px-0.5">
-            <div className="flex-1">
+          <div className="flex flex-col gap-0.5 border-t px-2.5 pt-2 pb-1">
+            <div className="font-medium">
               <SettingSwitch
                 end
                 inlineFeedback={false}
@@ -109,6 +108,9 @@ export function RecordMenu({
                 onError={onError}
               />
             </div>
+            <p className="text-muted-foreground text-xs">
+              {t("recording.liveHint")}
+            </p>
           </div>
         </div>
       </PopoverMenu>
@@ -116,7 +118,10 @@ export function RecordMenu({
   );
 }
 
-/** Il gruppo di un Ingresso nel menu: le sue opzioni si vedono solo se l'Ingresso è acceso. */
+/**
+ * Il riquadro di un Ingresso nel menu: le sue opzioni si vedono solo se l'Ingresso è acceso; spento
+ * resta la sola testata, che dice "Spento" senza sembrare disabilitata.
+ */
 function InputGroup({
   devices,
   input,
@@ -172,20 +177,22 @@ function InputGroup({
     parlanti = input === "mic" ? "parlantiMicrofono" : "parlantiSistema";
   }
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-1.5 rounded-lg border p-1.5">
       <label
-        className="flex min-h-9 cursor-pointer items-center gap-2.5 px-0.5 font-medium has-[:disabled]:cursor-default"
+        className="flex min-h-8 cursor-pointer items-center gap-2.5 px-1 font-medium has-[:disabled]:cursor-default"
         htmlFor={id}
         title={last ? t("settings.recording.lastInput") : undefined}
       >
-        <Icon
-          className={
-            on ? "size-5 text-foreground" : "size-5 text-muted-foreground"
-          }
-        />
-        <span className={on ? "flex-1" : "flex-1 text-muted-foreground"}>
-          {label}
-        </span>
+        <Icon className="size-4 shrink-0" />
+        <span className="flex-1">{label}</span>
+        {on ? null : (
+          <span
+            aria-hidden
+            className="font-normal text-muted-foreground text-xs"
+          >
+            {t("recording.inputOff")}
+          </span>
+        )}
         <Switch
           checked={on}
           className={SWITCH_CLASS}
@@ -195,9 +202,10 @@ function InputGroup({
         />
       </label>
       {on ? (
-        <div className="motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 flex flex-col gap-1 pb-2 pl-[1.875rem] motion-safe:animate-in">
+        // Un solo rientro (30 px) per tutte le opzioni: partono dove inizia il nome dell'Ingresso.
+        <div className="motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 flex flex-col gap-2 pt-0.5 pr-1 pb-1.5 pl-[1.875rem] motion-safe:animate-in">
           <DeviceSelect
-            className="h-7 text-xs"
+            className="h-[1.875rem] text-[0.8125rem]"
             compact
             devices={devices}
             label={t("settings.recording.deviceFor", { input: label })}
