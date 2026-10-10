@@ -12,6 +12,7 @@ use chrono::NaiveDate;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::{ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router};
 
+use crate::cartelle::{self, Cartelle};
 use crate::library::{self, Library, MARK_END, MARK_START};
 use crate::managers::settings::{CopiaCome, Settings};
 use crate::managers::transcription;
@@ -38,32 +39,27 @@ const DISABLED: &str = "Memotape does not allow assistants to read its Library. 
 const NOT_INDEXED: &str =
     "Memotape has not indexed this Library yet: ask the user to open Memotape once.";
 
-/// Le cartelle dell'app: dove leggere impostazioni e indice.
-#[derive(Clone)]
-pub struct Places {
-    /// `settings.json`, in `app_data_dir`.
-    pub settings: PathBuf,
-    /// La cartella degli indici della Libreria, in `app_local_data_dir`.
-    pub index: PathBuf,
-}
-
-impl Places {
-    /// Quelle che usa l'app: `%APPDATA%` e `%LOCALAPPDATA%` (le cartelle note, come Tauri).
-    fn of_app() -> Option<Self> {
-        Some(Self {
-            settings: dirs::data_dir()?.join(IDENTIFIER).join("settings.json"),
-            index: dirs::data_local_dir()?.join(IDENTIFIER).join("libreria"),
-        })
-    }
+/// Quelle che usa l'app: `%APPDATA%`, `%LOCALAPPDATA%` e Documenti (le cartelle note, come Tauri),
+/// o in debug la cartella dati di prova.
+fn cartelle_of_app() -> Option<Cartelle> {
+    Some(Cartelle::risolvi(
+        cartelle::prova(),
+        &dirs::data_dir()?.join(IDENTIFIER),
+        &dirs::data_local_dir()?.join(IDENTIFIER),
+        dirs::document_dir().as_deref(),
+    ))
 }
 
 /// Avvia il server su stdin e stdout e risponde finché l'Assistente non chiude stdin.
 pub fn serve() -> ExitCode {
-    let Some(places) = Places::of_app() else {
+    let Some(places) = cartelle_of_app() else {
         eprintln!("cartelle dell'app non trovate");
         return ExitCode::FAILURE;
     };
     start_log();
+    if let Some(dir) = &places.prova {
+        log::info!("cartella dati di prova attiva: {}", dir.display());
+    }
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -217,12 +213,12 @@ pub struct FraseOut {
 
 #[derive(Clone)]
 pub struct Server {
-    places: Places,
+    places: Cartelle,
 }
 
 #[tool_router]
 impl Server {
-    pub fn new(places: Places) -> Self {
+    pub fn new(places: Cartelle) -> Self {
         Self { places }
     }
 
@@ -422,11 +418,13 @@ impl Server {
         }
         let root = match &settings.recordings_folder {
             Some(folder) => PathBuf::from(folder),
-            None => dirs::document_dir()
-                .ok_or("Documents folder not found")?
-                .join(library::DEFAULT_FOLDER),
+            None => self
+                .places
+                .libreria
+                .clone()
+                .ok_or("Documents folder not found")?,
         };
-        let db = library::db_path(&self.places.index, &root);
+        let db = library::db_path(&self.places.indice, &root);
         if !db.is_file() {
             return Err(NOT_INDEXED.into());
         }
@@ -670,9 +668,11 @@ mod tests {
     fn server(name: &str, assistenti: bool) -> (PathBuf, Server) {
         let dir = temp_dir(&format!("mcp-{name}"));
         let root = dir.join("Memotape");
-        let places = Places {
+        let places = Cartelle {
             settings: dir.join("settings.json"),
-            index: dir.join("indice"),
+            indice: dir.join("indice"),
+            libreria: None,
+            prova: None,
         };
         Settings {
             recordings_folder: Some(root.display().to_string()),
@@ -692,7 +692,7 @@ mod tests {
             &[("mix:2", "Giulia Ferrara")],
         );
         tape_at(&root.join("Sciolto.tape"), 1000);
-        Library::open(&root, &library::db_path(&places.index, &root))
+        Library::open(&root, &library::db_path(&places.indice, &root))
             .unwrap()
             .sync()
             .unwrap();
@@ -713,7 +713,7 @@ mod tests {
     #[test]
     fn senza_indice_si_chiede_di_aprire_memotape() {
         let (_, server) = server("senza-indice", true);
-        std::fs::remove_dir_all(&server.places.index).unwrap();
+        std::fs::remove_dir_all(&server.places.indice).unwrap();
         let list = server.list_tapes(Parameters(ListParams {
             raccolta: None,
             from: None,
@@ -722,7 +722,7 @@ mod tests {
             offset: None,
         }));
         assert_eq!(list.err().as_deref(), Some(NOT_INDEXED));
-        assert!(!server.places.index.exists());
+        assert!(!server.places.indice.exists());
     }
 
     #[test]
@@ -798,7 +798,7 @@ mod tests {
             .parlanti
             .insert("microfono".into(), "Mario Ambiguo".into());
         tape::rewrite(&path, &document).unwrap();
-        Library::open(&root, &library::db_path(&server.places.index, &root))
+        Library::open(&root, &library::db_path(&server.places.indice, &root))
             .unwrap()
             .sync()
             .unwrap();
@@ -898,7 +898,7 @@ mod tests {
         let corretto = "Testo riunito.\n\nNuovo paragrafo.";
         tape::edit_turno(&path, Ingresso::Mix, &[0, 1], originale, corretto).unwrap();
         let mut library =
-            Library::open(&root, &library::db_path(&server.places.index, &root)).unwrap();
+            Library::open(&root, &library::db_path(&server.places.indice, &root)).unwrap();
         library.sync().unwrap();
         let Json(around) = server
             .read_around(Parameters(AroundParams {

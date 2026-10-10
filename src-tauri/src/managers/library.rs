@@ -36,12 +36,8 @@ fn current(app: &AppHandle) -> Result<(MutexGuard<'_, Option<Library>>, bool), A
         .unwrap_or_else(PoisonError::into_inner);
     let reopened = current.as_ref().is_none_or(|l| l.root() != root);
     if reopened {
-        let dir = app
-            .path()
-            .app_local_data_dir()
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .join("libreria");
-        *current = Some(Library::open(&root, &library::db_path(&dir, &root))?);
+        let dir = &app.state::<crate::cartelle::Cartelle>().indice;
+        *current = Some(Library::open(&root, &library::db_path(dir, &root))?);
     }
     Ok((current, reopened))
 }

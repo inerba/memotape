@@ -798,12 +798,13 @@ pub fn recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
     }
 }
 
-/// `Documenti\Memotape`, la Cartella della Libreria se le impostazioni non ne indicano un'altra.
+/// `Documenti\Memotape` (o `Libreria` nella cartella dati di prova), la Cartella della Libreria se
+/// le impostazioni non ne indicano un'altra.
 pub fn default_recordings_folder(app: &AppHandle) -> Result<PathBuf, AppError> {
-    app.path()
-        .document_dir()
-        .map(|documents| documents.join(crate::library::DEFAULT_FOLDER))
-        .map_err(|e| AppError::Internal(e.to_string()))
+    app.state::<crate::cartelle::Cartelle>()
+        .libreria
+        .clone()
+        .ok_or_else(|| AppError::Internal("cartella Documenti non trovata".into()))
 }
 
 /// Un Ogg della Registrazione in corso: il mix o, con gli Ingressi separati, un Ingresso, con la sua

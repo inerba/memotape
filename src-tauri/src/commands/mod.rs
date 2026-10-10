@@ -7,6 +7,7 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::audio_toolkit::capture::{self, AudioDevice, Kind};
+use crate::cartelle::Cartelle;
 use crate::error::AppError;
 use crate::library::{LibraryList, SearchResult};
 use crate::managers;
@@ -402,9 +403,23 @@ pub fn list_models(models: State<'_, Models>) -> Vec<ModelInfo> {
 pub fn download_model(
     app: AppHandle,
     models: State<'_, Models>,
+    cartelle: State<'_, Cartelle>,
     id: String,
 ) -> Result<(), AppError> {
+    modelli_scrivibili(&cartelle)?;
     models.start_download(&app, &id)
+}
+
+/// Con la cartella dati di prova i modelli sono quelli veri dell'utente, che un'altra istanza può
+/// usare o scaricare intanto (`.partial` condiviso): l'app di prova non li scarica né li elimina.
+fn modelli_scrivibili(cartelle: &Cartelle) -> Result<(), AppError> {
+    match &cartelle.prova {
+        Some(dir) => Err(AppError::Internal(format!(
+            "con la cartella dati di prova ({}) i modelli non si scaricano né si eliminano",
+            dir.display()
+        ))),
+        None => Ok(()),
+    }
 }
 
 /// Annulla il download e cancella il parziale. Restituisce `false` se non c'era un download.
@@ -468,7 +483,13 @@ pub fn set_settings(
 /// Trascrizione.
 #[tauri::command]
 #[specta::specta]
-pub fn delete_model(app: AppHandle, models: State<'_, Models>, id: String) -> Result<(), AppError> {
+pub fn delete_model(
+    app: AppHandle,
+    models: State<'_, Models>,
+    cartelle: State<'_, Cartelle>,
+    id: String,
+) -> Result<(), AppError> {
+    modelli_scrivibili(&cartelle)?;
     models.delete(&app, &id)
 }
 
