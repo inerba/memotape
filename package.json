@@ -6,7 +6,7 @@
   "scripts": {
     "app:prova": "bun scripts/app-prova.ts",
     "build": "tsc && vite build",
-    "check": "ultracite check",
+    "check": "ultracite check && bun scripts/check-design.ts",
     "dev": "vite",
     "fix": "ultracite fix",
     "format:backend": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check",
@@ -14,8 +14,9 @@
     "prepare": "husky",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "bun test src",
-    "typecheck": "tsc --noEmit"
+    "test": "bun test src scripts",
+    "typecheck": "tsc --noEmit",
+    "worktree:setup": "bun scripts/worktree-setup.ts"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css}": [

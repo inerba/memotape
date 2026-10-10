@@ -19,11 +19,12 @@ App desktop Tauri 2 + React, solo Windows x64, che trascrive in locale audio, vi
 | `bun run format:backend` | `cargo fmt --check` (per correggere: `cargo fmt` in `src-tauri`) |
 | `bun run lint:backend` | `cargo clippy --all-targets -- -D warnings` |
 | `cargo test` (in `src-tauri`) | test Rust |
+| `bun run worktree:setup [base]` | prepara un worktree: `.cargo/config.toml` con la build Rust condivisa, `bun install`, controllo del branch di base |
 | `bun run app:prova` | app di debug isolata (dati di prova, porta CDP libera); `stop <porta>` la chiude |
 | `bun tauri build` | installer NSIS in `src-tauri/target/release/bundle/nsis/` (vedi `docs/sviluppo/installer.md`) |
 
 Ogni ticket si chiude con i sei controlli verdi (da `typecheck` a `cargo test`; `bun tauri build` non è un controllo). Lancia una sola build Rust alla volta: condividono `src-tauri/target`.
-Il pre-commit esegue `bunx ultracite fix` sui file staged (lint-staged).
+Il pre-commit esegue `bunx ultracite fix` sui file staged, `typecheck`, i test del frontend, `scripts/check-design.ts` (colori e ombre di `DESIGN.md`) e rifiuta modifiche a `src/components/ui` senza `SHADCN_ADD=1`. Gli standard per la review sono in `CODING_STANDARDS.md`.
 Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, `refactor:`).
 
 ## Prerequisiti

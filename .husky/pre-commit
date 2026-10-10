@@ -1,1 +1,9 @@
 bunx lint-staged
+bun run typecheck
+bun run test
+bun scripts/check-design.ts
+# src/components/ui è di shadcn: si cambia solo con `shadcn add`.
+if [ -z "$SHADCN_ADD" ] && git diff --cached --name-only | grep -q '^src/components/ui/'; then
+  echo "src/components/ui si modifica solo con shadcn add: se è così, ripeti con SHADCN_ADD=1 git commit ..."
+  exit 1
+fi
