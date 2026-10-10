@@ -3,6 +3,9 @@ import {
   Clock,
   FileUp,
   Library,
+  Mic,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings,
 } from "lucide-react";
@@ -11,6 +14,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -19,6 +23,10 @@ import { Link, useNavigate } from "react-router";
 import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import {
+  type IconaDellaStriscia,
+  riapertura,
+} from "@/features/library/barra-laterale";
 import {
   azioniDelTape,
   durationWords,
@@ -44,20 +52,60 @@ import {
 } from "@/features/shortcuts/shortcuts-provider";
 import type { PhraseRef } from "@/features/transcription/phrases";
 
-/** L'Attività in corso in breve: il testo, l'avanzamento se c'è e se è una Registrazione. */
+/**
+ * L'Attività in corso in breve: il testo, l'avanzamento se c'è, se è una Registrazione e se è
+ * guasta (la Trascrizione dal vivo si è fermata).
+ */
 export interface ActivitySummary {
+  guasta: boolean;
   percent: number | null;
   recording: boolean;
   text: string;
 }
 
+const SIDEBAR_ID = "barra-laterale";
+
+/** Lo spazio a sinistra delle barre in alto per il pulsante della barra laterale. */
+export const SIDEBAR_TOGGLE_PADDING = "pl-[3.25rem]";
+
+/**
+ * Mostra o nasconde la barra laterale (Ctrl+B): sta sopra la riga del titolo di ogni vista, a
+ * sinistra, che per questo lascia `SIDEBAR_TOGGLE_PADDING`.
+ */
+export function SidebarToggle({
+  aperta,
+  onToggle,
+}: {
+  aperta: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  const label = aperta ? t("sidebar.hide") : t("sidebar.show");
+  return (
+    <button
+      aria-controls={SIDEBAR_ID}
+      aria-expanded={aperta}
+      aria-keyshortcuts={ariaTasti("barraLaterale")}
+      aria-label={label}
+      className="absolute top-2 left-3 flex size-8 items-center justify-center rounded-lg text-foreground/80 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&_svg]:size-4"
+      onClick={onToggle}
+      title={conTasti(t, label, "barraLaterale")}
+      type="button"
+    >
+      {aperta ? <PanelLeftClose /> : <PanelLeftOpen />}
+    </button>
+  );
+}
+
 /**
  * La barra laterale: il marchio, Nuova registrazione (`record`) e Importa un file, la ricerca
  * (Ctrl+K), i Tape recenti di tutta la Libreria per giorno (o i risultati della ricerca), l'Attività
- * in corso (solo se c'è) e in fondo la Libreria completa e Impostazioni.
+ * in corso (solo se c'è) e in fondo la Libreria completa e Impostazioni. Chiusa (`aperta` falso) è
+ * una striscia di icone; Ctrl+B la apre e la chiude.
  */
 export function Sidebar({
   activity,
+  aperta,
   busy,
   cancelling,
   list,
@@ -67,7 +115,9 @@ export function Sidebar({
   onImport,
   onHome,
   onOpen,
+  onRecord,
   onShowAll,
+  onToggle,
   operations,
   record,
   selected,
@@ -77,6 +127,7 @@ export function Sidebar({
 }: {
   /** L'Attività in corso, se c'è. */
   activity: ActivitySummary | null;
+  aperta: boolean;
   /** Un'Attività in corso: niente Importa un file. */
   busy: boolean;
   cancelling: boolean;
@@ -88,7 +139,10 @@ export function Sidebar({
   onHome: () => void;
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: PhraseRef) => void;
+  /** Nuova registrazione: il pulsante di `record`, l'icona della striscia e Ctrl+N. */
+  onRecord: () => void;
   onShowAll: () => void;
+  onToggle: () => void;
   /** Il menu e i tasti dei Recenti (non dei risultati della ricerca). */
   operations: TapeOperations;
   record: ReactNode;
@@ -104,13 +158,45 @@ export function Sidebar({
   const [query, setQuery] = useState("");
   const searching = query.trim() !== "";
   const search = useRef<HTMLInputElement>(null);
+  const recents = useRef<HTMLDivElement>(null);
+  // Dove va il focus quando la barra si riapre da un'icona della striscia.
+  const dopoApertura = useRef<"ricerca" | "recenti" | null>(null);
 
-  // Ctrl+K porta alla ricerca da qualunque punto della finestra.
   const focusSearch = useCallback(() => {
     search.current?.focus();
     search.current?.select();
   }, []);
-  useScorciatoia("cerca", focusSearch);
+  const riapri = useCallback(
+    (icona: IconaDellaStriscia) => {
+      dopoApertura.current = riapertura(icona);
+      onToggle();
+    },
+    [onToggle]
+  );
+  useEffect(() => {
+    if (!aperta) {
+      return;
+    }
+    if (dopoApertura.current === "ricerca") {
+      focusSearch();
+    } else if (dopoApertura.current === "recenti") {
+      recents.current
+        ?.querySelector<HTMLElement>("[aria-current=page], button")
+        ?.focus();
+    }
+    dopoApertura.current = null;
+  }, [aperta, focusSearch]);
+  // Ctrl+K porta alla ricerca da qualunque punto della finestra, riaprendo la barra se serve.
+  const cerca = useCallback(() => {
+    if (aperta) {
+      focusSearch();
+    } else {
+      riapri("cerca");
+    }
+  }, [aperta, focusSearch, riapri]);
+  useScorciatoia("cerca", cerca);
+  useScorciatoia("barraLaterale", onToggle);
+  useScorciatoia("nuovaRegistrazione", onRecord);
   useScorciatoia("importa", onImport);
   const navigate = useNavigate();
   const openSettings = useCallback(() => navigate("/settings"), [navigate]);
@@ -142,10 +228,28 @@ export function Sidebar({
   };
   const groups = groupByDate(list.tapes, new Date(), RECENTI_MAX);
 
+  if (!aperta) {
+    return (
+      <Striscia
+        activity={activity}
+        busy={busy}
+        onHome={onHome}
+        onImport={onImport}
+        onRecord={onRecord}
+        onRiapri={riapri}
+        onShowAll={onShowAll}
+        selected={selected !== null}
+        showingAll={showingAll}
+        showingHome={showingHome}
+      />
+    );
+  }
+
   return (
     <aside
       aria-label={t("library.title")}
       className="flex w-72 shrink-0 flex-col border-sidebar-border border-r bg-sidebar text-sidebar-foreground"
+      id={SIDEBAR_ID}
     >
       <div
         className="flex h-14 shrink-0 items-center gap-2.5 px-5"
@@ -206,7 +310,7 @@ export function Sidebar({
         <SectionTitle className="mx-3" id="sidebar-recents">
           {searching ? t("sidebar.results") : t("sidebar.recents")}
         </SectionTitle>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3" ref={recents}>
           {searching ? (
             <SearchResults
               onError={onError}
@@ -300,6 +404,144 @@ export function Sidebar({
             {t("settings.open")}
           </Link>
         </Button>
+      </div>
+    </aside>
+  );
+}
+
+const STRISCIA_BASE =
+  "relative flex size-10 items-center justify-center rounded-[10px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4";
+const STRISCIA_ICONA = `${STRISCIA_BASE} text-sidebar-foreground hover:bg-sidebar-accent/60 aria-[current=page]:bg-sidebar-accent data-[sel]:bg-sidebar-accent`;
+/** Nuova registrazione: il pulsante pieno, come nella barra aperta. */
+const STRISCIA_PRIMARIA = `${STRISCIA_BASE} bg-primary text-primary-foreground hover:bg-primary/90`;
+
+/**
+ * La barra laterale chiusa: una striscia di icone da 60 px. Nuova registrazione, Importa, Libreria
+ * e Impostazioni agiscono subito; Cerca e Recenti riaprono la barra (`riapertura`). L'Attività in
+ * corso è un pallino sui Recenti: salvia, mattone se è guasta.
+ */
+function Striscia({
+  activity,
+  busy,
+  onHome,
+  onImport,
+  onRecord,
+  onRiapri,
+  onShowAll,
+  selected,
+  showingAll,
+  showingHome,
+}: {
+  activity: ActivitySummary | null;
+  busy: boolean;
+  onHome: () => void;
+  onImport: () => void;
+  onRecord: () => void;
+  onRiapri: (icona: IconaDellaStriscia) => void;
+  onShowAll: () => void;
+  /** Un Tape è aperto: i Recenti sono il punto in cui si è. */
+  selected: boolean;
+  showingAll: boolean;
+  showingHome: boolean;
+}) {
+  const { t } = useTranslation();
+  const cerca = useCallback(() => onRiapri("cerca"), [onRiapri]);
+  const recenti = useCallback(() => onRiapri("recenti"), [onRiapri]);
+  const recentsLabel = activity
+    ? `${t("sidebar.recents")} · ${activity.text}`
+    : t("sidebar.recents");
+  const searchLabel = conTasti(t, t("sidebar.search"), "cerca");
+  return (
+    <aside
+      aria-label={t("library.title")}
+      className="flex w-[60px] shrink-0 flex-col items-center border-sidebar-border border-r bg-sidebar pb-3.5 text-sidebar-foreground"
+      id={SIDEBAR_ID}
+    >
+      <div
+        className="flex h-14 w-full shrink-0 items-center justify-center"
+        data-tauri-drag-region
+      >
+        <button
+          aria-current={showingHome ? "page" : undefined}
+          aria-label={t("home.back")}
+          className="rounded-md focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          onClick={onHome}
+          title={t("home.back")}
+          type="button"
+        >
+          <BrandMark className="size-7" small />
+        </button>
+      </div>
+      <div className="flex flex-col items-center gap-1.5 pt-1.5">
+        <button
+          aria-keyshortcuts={ariaTasti("nuovaRegistrazione")}
+          aria-label={t("sidebar.newRecording")}
+          className={STRISCIA_PRIMARIA}
+          disabled={busy}
+          onClick={onRecord}
+          title={conTasti(t, t("sidebar.newRecording"), "nuovaRegistrazione")}
+          type="button"
+        >
+          <Mic />
+        </button>
+        <button
+          aria-keyshortcuts={ariaTasti("importa")}
+          aria-label={t("sidebar.importFile")}
+          className={STRISCIA_ICONA}
+          disabled={busy}
+          onClick={onImport}
+          title={conTasti(t, t("sidebar.importFile"), "importa")}
+          type="button"
+        >
+          <FileUp />
+        </button>
+        <button
+          aria-keyshortcuts={ariaTasti("cerca")}
+          aria-label={t("sidebar.search")}
+          className={STRISCIA_ICONA}
+          onClick={cerca}
+          title={searchLabel}
+          type="button"
+        >
+          <Search />
+        </button>
+        <button
+          aria-label={recentsLabel}
+          className={STRISCIA_ICONA}
+          data-sel={selected || undefined}
+          onClick={recenti}
+          title={recentsLabel}
+          type="button"
+        >
+          <Clock />
+          {activity ? (
+            <span
+              aria-hidden
+              className={`absolute top-1.5 right-1.5 size-2 rounded-full ring-2 ring-sidebar motion-safe:animate-pulse ${activity.guasta ? "bg-destructive" : "bg-play"}`}
+            />
+          ) : null}
+        </button>
+      </div>
+      <div className="mt-auto flex flex-col items-center gap-1.5">
+        <button
+          aria-current={showingAll ? "page" : undefined}
+          aria-label={t("library.title")}
+          className={STRISCIA_ICONA}
+          onClick={onShowAll}
+          title={t("library.title")}
+          type="button"
+        >
+          <Library />
+        </button>
+        <Link
+          aria-keyshortcuts={ariaTasti("impostazioni")}
+          aria-label={t("settings.open")}
+          className={STRISCIA_ICONA}
+          title={conTasti(t, t("settings.open"), "impostazioni")}
+          to="/settings"
+        >
+          <Settings />
+        </Link>
       </div>
     </aside>
   );

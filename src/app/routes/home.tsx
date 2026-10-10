@@ -41,9 +41,14 @@ import {
   WindowControls,
 } from "@/components/window-controls";
 import { AllTapes } from "@/features/library/all-tapes";
+import { useBarraLaterale } from "@/features/library/barra-laterale";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
-import { Sidebar } from "@/features/library/sidebar";
+import {
+  SIDEBAR_TOGGLE_PADDING,
+  Sidebar,
+  SidebarToggle,
+} from "@/features/library/sidebar";
 import { TapeMenu } from "@/features/library/tape-actions";
 import type { TapeOperations } from "@/features/library/tape-context-menu";
 import {
@@ -169,6 +174,7 @@ export function HomePage() {
   // I file trascinati da Esplora file sopra la finestra.
   const [dragged, setDragged] = useState<string[] | null>(null);
   const { lastPath, remember, move: moveLastTape, forget } = useLastTape();
+  const barra = useBarraLaterale();
   const running = status.phase === "transcribing";
   const recording = status.phase === "recording";
   const paused = status.phase === "recording" && status.paused;
@@ -1021,6 +1027,7 @@ export function HomePage() {
       <div className="flex h-screen" inert={settingsPage !== null}>
         <Sidebar
           activity={activitySummary(status, elapsedMs, t)}
+          aperta={barra.aperta}
           busy={busy}
           cancelling={cancelling}
           list={library}
@@ -1030,7 +1037,9 @@ export function HomePage() {
           onHome={showHome}
           onImport={pickFile}
           onOpen={openFromLibrary}
+          onRecord={record}
           onShowAll={showAll}
+          onToggle={barra.alterna}
           operations={tapeOperations}
           record={
             <RecordMenu disabled={busy} onError={failed} onRecord={record} />
@@ -1045,6 +1054,7 @@ export function HomePage() {
           }
         />
         <main className="relative flex min-w-0 flex-1 flex-col">
+          <SidebarToggle aperta={barra.aperta} onToggle={barra.alterna} />
           <BannerSlot value={bannerView}>{renderMainView()}</BannerSlot>
           <p aria-atomic="true" className="sr-only" role="status">
             {recordingAnnouncement}
@@ -1255,7 +1265,7 @@ function TopBar({
   return (
     <>
       <header
-        className={`flex h-12 shrink-0 items-center gap-4 border-b pl-8 ${WINDOW_CONTROLS_PADDING}`}
+        className={`flex h-12 shrink-0 items-center gap-4 border-b ${SIDEBAR_TOGGLE_PADDING} ${WINDOW_CONTROLS_PADDING}`}
         data-tauri-drag-region
       >
         <nav

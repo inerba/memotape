@@ -491,6 +491,8 @@
     "search": "Szukaj w Bibliotece",
     "activity": "Aktywność",
     "recents": "Ostatnie",
+    "hide": "Ukryj pasek boczny",
+    "show": "Pokaż pasek boczny",
     "allTapes_one": "{{count}} Tape w Bibliotece",
     "allTapes_few": "Wszystkie {{count}} Tape’y w Bibliotece",
     "allTapes_many": "Wszystkie {{count}} Tape’ów w Bibliotece",

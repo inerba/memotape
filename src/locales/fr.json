@@ -490,6 +490,8 @@
     "search": "Rechercher dans la Bibliothèque",
     "activity": "Activité",
     "recents": "Récents",
+    "hide": "Masquer la barre latérale",
+    "show": "Afficher la barre latérale",
     "allTapes_one": "Le {{count}} Tape de la Bibliothèque",
     "allTapes_many": "Les {{count}} Tapes de la Bibliothèque",
     "allTapes_other": "Les {{count}} Tapes de la Bibliothèque",

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import "@/lib/i18n";
 import i18n from "i18next";
 import {
+  activitySummary,
   activityText,
   afterRecording,
   elapsedText,
@@ -220,6 +221,27 @@ test("l'Attività in corso dice il timer o la fase con la percentuale", () => {
   );
   expect(activityText({ phase: "idle", source: null }, 0, t)).toBeNull();
   expect(activityText({ phase: "cancelled" }, 0, t)).toBeNull();
+});
+
+test("l'Attività è guasta se la Trascrizione dal vivo si è fermata", () => {
+  const liveError = {
+    code: "liveTranscriptionUnavailable" as const,
+    detail: "Nemotron",
+  };
+  expect(
+    activitySummary({ liveError, paused: false, phase: "recording" }, 0, t)
+      ?.guasta
+  ).toBe(true);
+  expect(
+    activitySummary({ liveError, percent: null, phase: "completing" }, 0, t)
+      ?.guasta
+  ).toBe(true);
+  expect(
+    activitySummary({ paused: false, phase: "recording" }, 0, t)?.guasta
+  ).toBe(false);
+  expect(
+    activitySummary({ percent: 10, phase: "transcribing" }, 0, t)?.guasta
+  ).toBe(false);
 });
 
 test("l'esito finale conserva e mostra il successo di un Ingresso e il guasto dell'altro", () => {

@@ -490,6 +490,8 @@
     "search": "Cerca nella Libreria",
     "activity": "Attività",
     "recents": "Recenti",
+    "hide": "Nascondi la barra laterale",
+    "show": "Mostra la barra laterale",
     "allTapes_one": "Tutti i {{count}} Tape nella Libreria",
     "allTapes_many": "Tutti i {{count}} Tape nella Libreria",
     "allTapes_other": "Tutti i {{count}} Tape nella Libreria",

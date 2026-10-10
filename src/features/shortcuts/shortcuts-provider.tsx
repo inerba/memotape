@@ -277,8 +277,7 @@ function Pannello({ ref }: { ref: React.Ref<HTMLDialogElement> }) {
 function righe(gruppo: Gruppo): { riga: string; tasti: string[] }[] {
   const lista = new Map<string, string[]>();
   for (const s of SCORCIATOIE) {
-    // ponytail: Ctrl+B non fa ancora nulla; la barra laterale richiudibile (ticket 07) la mostra.
-    if (s.gruppo !== gruppo || s.azione === "barraLaterale") {
+    if (s.gruppo !== gruppo) {
       continue;
     }
     lista.set(s.riga, [...(lista.get(s.riga) ?? []), ...s.tasti]);

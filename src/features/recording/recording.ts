@@ -171,16 +171,23 @@ export function activityText(
 
 /**
  * L'Attività in corso per la barra laterale: il testo di `activityText`, l'avanzamento (`null` se
- * non è noto) e se è una Registrazione. `null` senza Attività.
+ * non è noto), se è una Registrazione e se è guasta (la Trascrizione dal vivo si è fermata, la
+ * Registrazione continua). `null` senza Attività.
  */
 export function activitySummary(
   status: Status,
   elapsedMs: number,
   t: TFunction
-): { percent: number | null; recording: boolean; text: string } | null {
+): {
+  guasta: boolean;
+  percent: number | null;
+  recording: boolean;
+  text: string;
+} | null {
   const text = activityText(status, elapsedMs, t);
   return text
     ? {
+        guasta: "liveError" in status && status.liveError !== undefined,
         percent: progressPercent(status),
         recording: status.phase === "recording",
         text,

@@ -18,11 +18,7 @@ import {
   withInput,
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
-import {
-  ariaTasti,
-  conTasti,
-  useScorciatoia,
-} from "@/features/shortcuts/shortcuts-provider";
+import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts-provider";
 
 /** Microfono e Audio di sistema: icona, profilo audio e scelta del dispositivo. */
 const INPUTS = {
@@ -60,7 +56,6 @@ export function RecordMenu({
   onRecord: () => void;
 }) {
   const { t } = useTranslation();
-  useScorciatoia("nuovaRegistrazione", onRecord);
   const [devices, setDevices] = useState<Devices>({ mic: null, system: null });
   const loadDevices = useCallback(async () => {
     const [mic, system] = await Promise.all([

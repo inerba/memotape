@@ -573,7 +573,7 @@ Spec `.scratch/anteprime-ui/spec.md` («1 · Vista della trascrizione»), ticket
 
 Spec `.scratch/anteprime-ui/spec.md` («5 · Scorciatoie»), ticket `anteprime-ui/05`.
 
-- Ctrl+N Nuova registrazione, Ctrl+O Importa un file, Ctrl+K Cerca nella Libreria, Ctrl+, Impostazioni, Spazio Riproduci o metti in pausa, ← → indietro e avanti di 5 s, `[` `]` velocità più bassa e più alta, Ctrl+J Torna al punto in ascolto, Ctrl+Maiusc+C Copia tutto il testo, Ctrl+P Pausa o riprendi la Registrazione, Ctrl+/ il pannello «Scorciatoie da tastiera». Ctrl+B (barra laterale) arriva con la barra richiudibile.
+- Ctrl+N Nuova registrazione, Ctrl+O Importa un file, Ctrl+K Cerca nella Libreria, Ctrl+, Impostazioni, Spazio Riproduci o metti in pausa, ← → indietro e avanti di 5 s, `[` `]` velocità più bassa e più alta, Ctrl+J Torna al punto in ascolto, Ctrl+Maiusc+C Copia tutto il testo, Ctrl+P Pausa o riprendi la Registrazione, Ctrl+/ il pannello «Scorciatoie da tastiera», Ctrl+B apre e chiude la barra laterale.
 - Spazio, frecce e `[` `]` valgono solo fuori dai campi di testo; Spazio non agisce su un pulsante o un link con il focus, le frecce non agiscono sulla barra del player con il focus. I pulsanti ±10 s restano a 10 s. `[` e `]` valgono anche con AltGr, come sulla tastiera italiana.
 - Ogni scorciatoia segue il suo pulsante: Ctrl+N e Ctrl+O tacciono durante un'Attività, Ctrl+P agisce solo durante una Registrazione, i tasti del player solo con un player attivo, Ctrl+Maiusc+C solo con Copia testo attivo. Con Impostazioni o un dialog aperti vale solo Ctrl+/. Stop non ha scorciatoia.
 - Le combinazioni con Ctrl non arrivano mai a WebView2: Ctrl+N non apre un'altra finestra, Ctrl+P non stampa, Ctrl+Maiusc+C non apre l'ispettore (in sviluppo resta F12), anche quando non fanno nulla. Ctrl+C resta la copia della selezione.
@@ -588,6 +588,14 @@ Spec `.scratch/anteprime-ui/spec.md` («6 · Libreria e menu contestuale»), tic
 - La tabella della Libreria è un solo elemento nel Tab: le frecce, Inizio, Fine e Pagina su e giù passano da una riga all'altra; Invio apre, F2 rinomina, Canc chiede la conferma di sempre e sposta nel Cestino. Nei Recenti valgono F2 e Canc. Il menu mostra i tasti accanto alle voci e il pannello delle scorciatoie li elenca nel gruppo Libreria.
 - La tabella usa tutta la larghezza del pannello e il titolo prende lo spazio che resta. In hover o con il focus una riga mostra il Cestino e «…»; il menu Sposta in… a tendina della riga non c'è più.
 - Accessibilità: il Cestino di ogni riga si chiama «Elimina {{titolo}}» e il «…» «Altre azioni per {{titolo}}»; l'intestazione ordinata dice il verso della sua colonna («Data, dalla più recente», «Titolo, dalla Z alla A», «Durata, dalla più corta»…).
+
+## Barra laterale richiudibile — requisiti concordati il 10 ottobre 2026
+
+Spec `.scratch/anteprime-ui/spec.md` («7 · Barra laterale richiudibile»), ticket `anteprime-ui/07`. Cambia la storia 64: la barra laterale c'è sempre, aperta o come striscia di icone.
+
+- La barra laterale si chiude e si riapre con Ctrl+B o con il pulsante a sinistra nella riga del titolo di ogni vista («Nascondi la barra laterale» / «Mostra la barra laterale»). Al primo avvio è aperta; poi resta come l'ha lasciata l'utente, anche dopo un riavvio (memoria del PC, non Impostazioni). Nessuna chiusura automatica, nemmeno a 880 px.
+- Chiusa resta una striscia di icone da 60 px, ognuna con il tooltip (e la scorciatoia, se c'è): marchio (Home), Nuova registrazione, Importa un file, Cerca nella Libreria, Recenti, Libreria, Impostazioni. Nuova registrazione, Importa, Libreria e Impostazioni agiscono subito e la barra resta chiusa; Nuova registrazione registra con le scelte salvate, senza il menu ▾. Cerca e Recenti riaprono la barra, Cerca con il cursore nel campo; anche Ctrl+K la riapre.
+- Un'Attività in corso è un pallino sull'icona dei Recenti: salvia, mattone se la Trascrizione dal vivo si è fermata. Il tooltip dei Recenti dice l'Attività; Annulla sta nella barra aperta.
 
 ## Fuori dal perimetro
 

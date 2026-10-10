@@ -5,6 +5,7 @@ import type { TapeEntry } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import { clockText, dayText, durationWords } from "@/features/library/library";
 import { homeTapes, recentTitle } from "@/features/library/recent-tapes";
+import { SIDEBAR_TOGGLE_PADDING } from "@/features/library/sidebar";
 import { elapsedText } from "@/features/recording/recording";
 
 /** La Home: ripresa esplicita del Tape, oppure primo avvio con le due azioni. */
@@ -50,7 +51,7 @@ export function LibraryHome({
   return (
     <>
       <header
-        className="flex h-12 shrink-0 items-center border-b pr-36 pl-8 text-sm"
+        className={`flex h-12 shrink-0 items-center border-b pr-36 text-sm ${SIDEBAR_TOGGLE_PADDING}`}
         data-tauri-drag-region
       >
         <span className="pointer-events-none">{t("home.title")}</span>
