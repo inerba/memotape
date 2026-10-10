@@ -512,8 +512,6 @@
     "resume": "Reprendre",
     "resumeDescription": "Retrouve le dernier Tape ouvert.",
     "recentDescription": "Ouvre un Tape récent de ta Bibliothèque.",
-    "lastOpened": "Dernier Tape ouvert",
-    "latestTape": "Tape le plus récent",
     "openTape": "Ouvrir le Tape",
     "openLibrary": "Ouvrir la Bibliothèque",
     "loading": "Chargement de la Bibliothèque…",

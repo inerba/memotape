@@ -1,7 +1,6 @@
 import {
   ArrowDown,
   ArrowUp,
-  AudioLines,
   FolderPen,
   FolderX,
   Plus,
@@ -368,10 +367,6 @@ function TapeRow({
         title={tape.path}
         type="button"
       >
-        <AudioLines
-          aria-hidden
-          className="size-4 shrink-0 text-muted-foreground"
-        />
         <span className="truncate decoration-muted-foreground/50 underline-offset-4 group-hover:underline">
           {title}
         </span>

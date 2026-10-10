@@ -277,8 +277,9 @@ export function DocumentHeader({
   title: ReactNode;
 }) {
   return (
-    <header className="flex flex-col gap-2 pt-12 pb-6">
-      <h1 className="font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em]">
+    <header className="flex flex-col gap-2 pt-12 pb-6 [@media(max-height:700px)]:pt-6 [@media(max-height:700px)]:pb-4">
+      {/* Nelle finestre basse il titolo cede spazio al testo. */}
+      <h1 className="font-display font-medium text-[2.75rem] leading-[1.1] tracking-[-0.015em] [@media(max-height:700px)]:text-4xl">
         {title}
       </h1>
       {meta ? (
@@ -286,7 +287,11 @@ export function DocumentHeader({
           {meta}
         </p>
       ) : null}
-      {chips ? <div className="mt-2 flex flex-wrap gap-2">{chips}</div> : null}
+      {chips ? (
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+          {chips}
+        </div>
+      ) : null}
     </header>
   );
 }
@@ -304,11 +309,13 @@ export function Chip({
   tone?: "warning";
 }) {
   let className =
-    "inline-flex max-w-full items-center gap-1.5 truncate rounded-lg border px-2.5 py-1 text-sm [&_svg]:size-3.5 [&_svg]:shrink-0";
+    "inline-flex max-w-full items-center gap-1.5 truncate text-sm [&_svg]:size-3.5 [&_svg]:shrink-0";
+  // Le informazioni sono testo tenue; solo un avviso ha il bordo, per distinguersi.
   if (tone === "warning") {
-    className += " border-destructive/30 text-destructive";
+    className +=
+      " rounded-lg border border-destructive/30 px-2.5 py-1 text-destructive";
   } else {
-    className += " bg-card text-foreground/85";
+    className += " text-muted-foreground";
   }
   return (
     <span className={className} title={title}>

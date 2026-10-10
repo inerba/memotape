@@ -509,8 +509,6 @@
     "resume": "Weitermachen",
     "resumeDescription": "Öffne dein zuletzt geöffnetes Tape.",
     "recentDescription": "Öffne ein aktuelles Tape aus deiner Bibliothek.",
-    "lastOpened": "Zuletzt geöffnetes Tape",
-    "latestTape": "Neuestes Tape",
     "openTape": "Tape öffnen",
     "openLibrary": "Bibliothek öffnen",
     "loading": "Bibliothek wird geladen…",

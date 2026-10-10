@@ -509,8 +509,6 @@
     "resume": "Pick up where you left off",
     "resumeDescription": "Return to the last Tape you opened.",
     "recentDescription": "Open a recent Tape from your Library.",
-    "lastOpened": "Last opened Tape",
-    "latestTape": "Most recent Tape",
     "openTape": "Open Tape",
     "openLibrary": "Open Library",
     "loading": "Loading Library…",

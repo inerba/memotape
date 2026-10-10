@@ -1,4 +1,4 @@
-import { AudioLines, FileUp, Library, Search, Settings } from "lucide-react";
+import { FileUp, Library, Search, Settings } from "lucide-react";
 import {
   type ChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -369,10 +369,6 @@ function TapeItem({
       title={tape.path}
       type="button"
     >
-      <AudioLines
-        aria-hidden
-        className="size-4 shrink-0 text-muted-foreground group-aria-[current=page]:text-foreground"
-      />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="wrap-anywhere text-sm leading-snug group-aria-[current=page]:font-medium">
           {title}

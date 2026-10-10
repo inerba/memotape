@@ -374,6 +374,7 @@ const TurnBlock = memo(function TurnBlockView({
             ingresso={turn.ingresso}
             label={turn.label}
             list={list}
+            muted={Boolean(first?.parlanteNonDeterminato)}
             name={turn.name}
             onCancel={cancelRename}
             onRename={onRename}
@@ -606,6 +607,7 @@ function VoiceName({
   ingresso,
   label,
   list,
+  muted,
   onCancel,
   onRename,
   onStart,
@@ -616,6 +618,8 @@ function VoiceName({
   ingresso: Ingresso;
   label: string;
   list: Parlante[];
+  /** Il Parlante non determinato: tenue, per non competere con i nomi veri. */
+  muted: boolean;
   onCancel: () => void;
   onRename?: (voce: Parlante, nome: string) => void;
   onStart?: () => void;
@@ -624,6 +628,7 @@ function VoiceName({
   voce?: Parlante;
 }) {
   const { t } = useTranslation();
+  const weight = muted ? "text-muted-foreground" : "font-medium";
   if (renaming && voce && onRename) {
     return (
       <ParlanteNameInput
@@ -637,7 +642,7 @@ function VoiceName({
   if (!onStart) {
     return (
       <span
-        className="inline-flex items-center gap-2 font-semibold text-sm"
+        className={`inline-flex items-center gap-2 text-sm ${weight}`}
         title={label}
       >
         <span className="sr-only">{label}</span>
@@ -648,7 +653,7 @@ function VoiceName({
   return (
     <button
       aria-label={label}
-      className="inline-flex items-center gap-2 rounded-sm font-semibold text-sm decoration-muted-foreground/50 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
+      className={`inline-flex items-center gap-2 rounded-sm text-sm decoration-muted-foreground/50 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 ${weight}`}
       onClick={onStart}
       title={t("transcription.rename")}
       type="button"

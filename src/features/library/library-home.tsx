@@ -1,10 +1,4 @@
-import {
-  ArrowRight,
-  AudioLines,
-  ChevronRight,
-  FileUp,
-  Mic,
-} from "lucide-react";
+import { ArrowRight, ChevronRight, FileUp, Mic } from "lucide-react";
 import { type MouseEvent, type ReactNode, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { TapeEntry } from "@/bindings";
@@ -88,9 +82,6 @@ export function LibraryHome({
                 {featured ? (
                   <section className="flex flex-wrap items-center justify-between gap-6 rounded-xl border bg-card p-7 text-card-foreground">
                     <div className="flex min-w-0 flex-1 basis-64 flex-col gap-2">
-                      <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                        {t(resumed ? "home.lastOpened" : "home.latestTape")}
-                      </p>
                       <h2
                         className="wrap-anywhere font-medium text-2xl leading-snug"
                         title={featured.titolo}
@@ -157,10 +148,6 @@ export function LibraryHome({
                           title={tape.titolo}
                           type="button"
                         >
-                          <AudioLines
-                            aria-hidden
-                            className="size-5 shrink-0 text-muted-foreground"
-                          />
                           <span className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="wrap-anywhere font-medium">
                               {recentTitle(tape, tapes, t)}
