@@ -262,7 +262,7 @@ Una carta e un inchiostro caldi (tinta 60–85), un accento salvia (tinta 118–
 
 Due colonne a tutta altezza: la barra laterale fissa a sinistra (288 px, `w-72`) e il pannello centrale fluido. Nessun breakpoint: la finestra va da 1200×800 al minimo di 880×600 e solo il pannello centrale si stringe; le chip vanno a capo, i titoli lunghi si troncano nel breadcrumb.
 
-- **Riga del titolo** (80 px, trascinabile, bordo inferiore da 1 px): breadcrumb in basso a sinistra (32 px di margine), azioni del documento a destra; i pulsanti di Windows (46×36 px) stanno fissi nell'angolo in alto a destra, sopra la riga.
+- **Riga del titolo** (48 px in ogni vista, trascinabile, bordo inferiore da 1 px): breadcrumb a sinistra (32 px di margine), azioni del documento a destra, subito prima dei pulsanti di Windows (46×36 px), fissi nell'angolo in alto a destra.
 - **Colonna del documento**: centrata, al massimo 46rem, con 40 px di margine laterale e 48 px sopra il titolo. Tutte le registrazioni usa una colonna più larga (60rem); il player e il dock di Registrazione 52rem; gli avvisi 46rem, come il documento.
 - **Barra delle schede**: appiccicata in cima allo scorrimento, sul fondo carta, con il filo inferiore; le schede distano 24 px e l'interruttore Segui l'audio è spinto a destra.
 - **Ritmo**: turni con 12 px sopra e sotto e 16 px di sfondamento laterale (lo sfondo del turno attivo sporge oltre la colonna del testo); il testo del turno rientra di 22 px per allinearsi al nome dopo il pallino. Gruppi della barra laterale a 20 px l'uno dall'altro.
@@ -311,7 +311,7 @@ Quieti e piccoli; uno solo pieno per vista.
 - **Select nativo:** 32 px, foglio, filo `rule-input`, chevron da 16 px; è un `<select>` vero, nel tema giusto grazie a `color-scheme`.
 - **Nome del Parlante:** campo da 28 px sul posto, carta, filo `rule-input`, peso 500.
 - **Interruttore:** lo `Switch` di shadcn con la traccia salvia da acceso (`SWITCH_CLASS`), per ogni impostazione che si salva subito; in Impostazioni prima dell'etichetta, nei menu a destra.
-- **Segmenti:** `Segmented` (`components/segmented.tsx`), poche scelte affiancate su una traccia `secondary` da 6 px di angolo; il segmento scelto è foglio con il filo e l'inchiostro, gli altri `ink-muted`, 24 px, 12 px di testo. Etichette brevi, nome intero per i lettori di schermo.
+- **Segmenti:** `Segmented` (`components/segmented.tsx`), poche scelte affiancate su una traccia `secondary` da 6 px di angolo; il segmento scelto è foglio con il filo e l'inchiostro, gli altri `ink-muted`, 24 px, 12 px di testo. Etichette brevi a parole (anche "Spento"), nome intero nel tooltip e per i lettori di schermo.
 - **Indicatore di livello:** `LevelMeter`, 8 px (6 px nella barra ridotta), traccia `secondary`, zone fisse salvia fino a −15 dBFS, senape (`level-warm`, la senape del marchio con il gemello scuro) fino a −3, mattone oltre; tacche ogni 10 dB e segno di picco in inchiostro che resta 1 s. In Muto grigio tratteggiato.
 - **Focus:** il bordo diventa salvia e compare l'anello da 3 px al 25–30%. **Errore:** bordo mattone. **Disabilitato:** opacità al 50%.
 

@@ -245,7 +245,7 @@ export function SettingsPage() {
           <div className="mt-8 flex items-start gap-6">
             <nav
               aria-label={t("settings.title")}
-              className="sticky top-6 flex w-60 shrink-0 flex-col gap-0.5 rounded-xl border bg-card p-1.5"
+              className="sticky top-6 -ml-2.5 flex w-60 shrink-0 flex-col gap-0.5"
             >
               {SECTIONS.map(({ icon: Icon, key, text }) => (
                 <button

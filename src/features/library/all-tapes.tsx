@@ -143,13 +143,7 @@ export function AllTapes({
   return (
     <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto flex w-full max-w-[60rem] flex-col px-10 pb-12">
-        <DocumentHeader
-          meta={t("library.destination", {
-            // Tutta la Libreria non è una cartella: le cose nuove vanno nella radice.
-            raccolta: raccoltaLabel(raccolta ?? "", t),
-          })}
-          title={t("library.title")}
-        />
+        <DocumentHeader title={t("library.title")} />
         <div
           aria-label={t("library.raccolte")}
           className="flex flex-wrap items-center gap-2"
@@ -216,7 +210,13 @@ export function AllTapes({
             </Button>
           </div>
         ) : null}
-        <h2 className="mt-8 font-medium">{raccoltaLabel(raccolta, t)}</h2>
+        {/* La pillola scelta dice già cosa si vede: qui solo dove finiscono le cose nuove. */}
+        <p className="mt-8 text-muted-foreground text-sm">
+          {t("library.destination", {
+            // Tutta la Libreria non è una cartella: le cose nuove vanno nella radice.
+            raccolta: raccoltaLabel(raccolta ?? "", t),
+          })}
+        </p>
         <div className="mt-3 flex items-center gap-4 border-b pb-2 text-muted-foreground text-sm">
           <SortHeader
             className="flex-1"

@@ -39,7 +39,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { WindowControls } from "@/components/window-controls";
+import {
+  WINDOW_CONTROLS_PADDING,
+  WindowControls,
+} from "@/components/window-controls";
 import { AllTapes } from "@/features/library/all-tapes";
 import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
@@ -1193,7 +1196,7 @@ function FileView({
 
 /**
  * La barra in alto del pannello centrale: si trascina come la barra del titolo di Windows. A
- * sinistra dove si è, a destra le azioni, sotto i pulsanti della finestra.
+ * sinistra dove si è, a destra le azioni, prima dei pulsanti della finestra. Alta come quella della Home.
  */
 function TopBar({
   actions,
@@ -1207,12 +1210,12 @@ function TopBar({
   return (
     <>
       <header
-        className="flex h-20 shrink-0 items-end gap-4 border-b px-8 pb-3"
+        className={`flex h-12 shrink-0 items-center gap-4 border-b pl-8 ${WINDOW_CONTROLS_PADDING}`}
         data-tauri-drag-region
       >
         <nav
           aria-label={t("app.whereAmI")}
-          className="flex min-w-0 flex-1 items-center gap-2 pb-1.5 text-muted-foreground text-sm"
+          className="flex min-w-0 flex-1 items-center gap-2 text-muted-foreground text-sm"
           data-tauri-drag-region
         >
           {crumbs}

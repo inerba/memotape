@@ -1,4 +1,3 @@
-import { Power } from "lucide-react";
 import { useCallback, useId } from "react";
 import { useTranslation } from "react-i18next";
 import type { AppError, Sensibilita } from "@/bindings";
@@ -187,12 +186,7 @@ export function CleaningProfile({
           onChange={chooseSensitivity}
           options={LEVELS.map((level) => ({
             label: t(`settings.protection.levels.${level}`),
-            short:
-              level === "spento" ? (
-                <Power aria-hidden className="size-3.5" />
-              ) : (
-                t(`settings.protection.short.${level}`)
-              ),
+            short: t(`settings.protection.short.${level}`),
             value: level,
           }))}
           size={LAYOUTS[layout].size}
