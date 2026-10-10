@@ -433,14 +433,32 @@
     "sortDate": "Data",
     "sortTitle": "Tytuł",
     "sortDuration": "Czas trwania",
-    "ascending": "od najstarszych, od A do Z lub od najkrótszych",
-    "descending": "od najnowszych, od Z do A lub od najdłuższych",
+    "order": {
+      "date": {
+        "ascending": "od najstarszych",
+        "descending": "od najnowszych"
+      },
+      "title": {
+        "ascending": "od A do Z",
+        "descending": "od Z do A"
+      },
+      "duration": {
+        "ascending": "od najkrótszych",
+        "descending": "od najdłuższych"
+      }
+    },
     "moveTo": "Przenieś do…",
     "addToLibrary": "Dodaj do Biblioteki…",
     "reveal": "Pokaż w Eksploratorze plików",
     "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
     "renameName": "Nowy tytuł pliku Tape",
     "delete": "Usuń",
+    "deleteNamed": "Usuń {{titolo}}",
+    "actionsOf": "Więcej działań dla {{titolo}}",
+    "open": "Otwórz",
+    "renameTape": "Zmień nazwę",
+    "moveInto": "Przenieś do",
+    "textCopied": "Skopiowano tekst „{{titolo}}”",
     "deleteTitle": "Usunąć plik Tape?",
     "deleteDescription": "„{{titolo}}” trafi do Kosza systemu Windows, skąd można go przywrócić.",
     "deleteKeep": "Anuluj",
@@ -548,7 +566,8 @@
       "generale": "Ogólne",
       "ascolto": "Odsłuch",
       "testo": "Tekst",
-      "registrazione": "Nagrywanie"
+      "registrazione": "Nagrywanie",
+      "libreria": "Biblioteka"
     },
     "lines": {
       "nuovaRegistrazione": "Nowe nagranie",
@@ -562,12 +581,17 @@
       "velocita": "Prędkość",
       "tornaAlPunto": "Wróć do miejsca odtwarzania",
       "copiaTesto": "Kopiuj cały tekst",
-      "pausaRegistrazione": "Wstrzymaj lub wznów"
+      "pausaRegistrazione": "Wstrzymaj lub wznów",
+      "apriTape": "Otwórz Tape",
+      "rinominaTape": "Zmień nazwę Tape",
+      "cestinaTape": "Przenieś do Kosza"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Shift",
-      "Space": "Spacja"
+      "Space": "Spacja",
+      "Enter": "Enter",
+      "Delete": "Delete"
     }
   }
 }

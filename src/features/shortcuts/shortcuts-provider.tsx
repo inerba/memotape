@@ -160,11 +160,20 @@ function noop() {
 const FRECCE: Record<string, string> = { ArrowLeft: "←", ArrowRight: "→" };
 
 /** Il nome di un tasto nella lingua dell'interfaccia. */
+const TRADOTTI = new Set(["Ctrl", "Shift", "Space", "Enter", "Delete"]);
+
 function nomeTasto(tasto: string, t: TFunction): string {
-  if (tasto === "Ctrl" || tasto === "Shift" || tasto === "Space") {
+  if (TRADOTTI.has(tasto)) {
     return t(`shortcuts.keys.${tasto}`);
   }
   return FRECCE[tasto] ?? tasto;
+}
+
+/** I tasti di `azione` nella lingua dell'interfaccia: «Ctrl+Maiusc+C», «Canc». */
+export function nomeTasti(t: TFunction, azione: Azione): string {
+  return tastiDi(azione)
+    .map((tasto) => nomeTasto(tasto, t))
+    .join("+");
 }
 
 /**
@@ -172,13 +181,7 @@ function nomeTasto(tasto: string, t: TFunction): string {
  * separano con uno spazio («Velocità ([ ])»).
  */
 export function conTasti(t: TFunction, testo: string, ...azioni: Azione[]) {
-  const tasti = azioni
-    .map((azione) =>
-      tastiDi(azione)
-        .map((tasto) => nomeTasto(tasto, t))
-        .join("+")
-    )
-    .join(" ");
+  const tasti = azioni.map((azione) => nomeTasti(t, azione)).join(" ");
   return `${testo} (${tasti})`;
 }
 
@@ -189,7 +192,13 @@ export function ariaTasti(azione: Azione): string {
     .join("+");
 }
 
-const GRUPPI: Gruppo[] = ["generale", "ascolto", "testo", "registrazione"];
+const GRUPPI: Gruppo[] = [
+  "generale",
+  "ascolto",
+  "testo",
+  "registrazione",
+  "libreria",
+];
 
 /** Il pannello «Scorciatoie da tastiera»: Esc, Ctrl+/ o un clic fuori lo chiudono. */
 function Pannello({ ref }: { ref: React.Ref<HTMLDialogElement> }) {

@@ -20,13 +20,23 @@ import type { AppError, LibraryList, TapeEntry } from "@/bindings";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import {
+  azioniDelTape,
   durationWords,
   groupByDate,
   RECENTI_MAX,
   recentWhen,
 } from "@/features/library/library";
+import { NameInput } from "@/features/library/name-input";
 import { recentTitle } from "@/features/library/recent-tapes";
 import { SearchResults } from "@/features/library/search-results";
+import {
+  contextMenu,
+  TapeContextMenu,
+  type TapeOperations,
+  tapeKeys,
+  useFocusBack,
+} from "@/features/library/tape-context-menu";
+import { siblingTitles } from "@/features/library/tape-header";
 import {
   ariaTasti,
   conTasti,
@@ -58,6 +68,7 @@ export function Sidebar({
   onHome,
   onOpen,
   onShowAll,
+  operations,
   record,
   selected,
   showingAll,
@@ -78,6 +89,8 @@ export function Sidebar({
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: PhraseRef) => void;
   onShowAll: () => void;
+  /** Il menu e i tasti dei Recenti (non dei risultati della ricerca). */
+  operations: TapeOperations;
   record: ReactNode;
   /** Il Tape aperto. */
   selected: string | null;
@@ -216,15 +229,16 @@ export function Sidebar({
                   </h3>
                   <ul className="flex flex-col gap-0.5">
                     {group.tapes.map((tape) => (
-                      <li key={tape.path}>
-                        <TapeItem
-                          group={group.key}
-                          onOpen={onOpen}
-                          selected={tape.path === selected}
-                          tape={tape}
-                          title={recentTitle(tape, list.tapes, t)}
-                        />
-                      </li>
+                      <TapeItem
+                        group={group.key}
+                        key={tape.path}
+                        library={list}
+                        menu={`recente-${list.tapes.indexOf(tape)}`}
+                        operations={operations}
+                        selected={tape.path === selected}
+                        tape={tape}
+                        title={recentTitle(tape, list.tapes, t)}
+                      />
                     ))}
                   </ul>
                 </section>
@@ -382,47 +396,104 @@ function ActivityCard({
   );
 }
 
+/**
+ * Un Recente: un clic lo apre; clic destro, tasto Menu o «…» aprono il menu del Tape, F2 lo
+ * rinomina sul posto e Canc chiede il Cestino.
+ */
 function TapeItem({
   group,
-  tape,
-  onOpen,
+  library,
+  menu,
+  operations,
   selected,
+  tape,
   title,
 }: {
   /** Il gruppo per data, che decide quanto dire del giorno. */
   group: string;
-  tape: TapeEntry;
-  onOpen: (path: string) => void;
+  library: LibraryList;
+  /** L'id del menu, unico nella pagina. */
+  menu: string;
+  operations: TapeOperations;
   selected: boolean;
+  tape: TapeEntry;
   title: string;
 }) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const item = useFocusBack<HTMLButtonElement>(renaming);
+  const { onOpen, onRename, onTrash } = operations;
+  const { modificabile } = azioniDelTape(
+    tape,
+    library.raccolte,
+    operations.lavorato
+  );
   const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
+  const startRename = useCallback(() => setRenaming(true), []);
+  const cancelRename = useCallback(() => setRenaming(false), []);
+  const submitRename = useCallback(
+    (titolo: string) => {
+      setRenaming(false);
+      onRename(tape.path, titolo);
+    },
+    [onRename, tape.path]
+  );
+  const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
+  if (renaming) {
+    return (
+      <li className="px-1 py-1.5">
+        <NameInput
+          initial={tape.titolo}
+          label={t("library.renameName")}
+          onCancel={cancelRename}
+          onSubmit={submitRename}
+          taken={siblingTitles(library, tape.path)}
+        />
+      </li>
+    );
+  }
   return (
-    <button
-      aria-current={selected ? "page" : undefined}
-      className="group flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
-      onClick={open}
-      title={tape.path}
-      type="button"
-    >
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="wrap-anywhere text-sm leading-snug group-aria-[current=page]:font-medium">
-          {title}
-        </span>
-        {title === tape.titolo ? null : (
-          <span className="sr-only">{tape.titolo}</span>
+    <li className="group/item relative">
+      {/* Invio apre già il pulsante: dai tasti del Tape servono F2 e Canc. */}
+      <button
+        aria-current={selected ? "page" : undefined}
+        className="group flex w-full items-center gap-3 rounded-lg py-2.5 pr-9 pl-2 text-left transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-[current=page]:bg-sidebar-accent"
+        onClick={open}
+        onContextMenu={contextMenu(menu)}
+        onKeyDown={tapeKeys(
+          modificabile ? { cestinaTape: trash, rinominaTape: startRename } : {}
         )}
-        <span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
-          {recentWhen(tape.creato, group, i18n.language)}
-          {tape.durataMs === null ? null : (
-            <span className="inline-flex items-center gap-1">
-              <Clock aria-hidden className="size-[11px]" />
-              {durationWords(tape.durataMs, i18n.language)}
-            </span>
+        ref={item}
+        title={tape.path}
+        type="button"
+      >
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="wrap-anywhere text-sm leading-snug group-aria-[current=page]:font-medium">
+            {title}
+          </span>
+          {title === tape.titolo ? null : (
+            <span className="sr-only">{tape.titolo}</span>
           )}
+          <span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
+            {recentWhen(tape.creato, group, i18n.language)}
+            {tape.durataMs === null ? null : (
+              <span className="inline-flex items-center gap-1">
+                <Clock aria-hidden className="size-[11px]" />
+                {durationWords(tape.durataMs, i18n.language)}
+              </span>
+            )}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+      <TapeContextMenu
+        className="absolute top-1.5 right-1 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-focus-within/item:opacity-100 group-hover/item:opacity-100 group-has-[:popover-open]/item:opacity-100"
+        id={menu}
+        onRename={startRename}
+        operations={operations}
+        raccolte={library.raccolte}
+        tape={tape}
+        title={title}
+      />
+    </li>
   );
 }

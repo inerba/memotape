@@ -45,6 +45,7 @@ import { chosenRaccolta, raccoltaLabel } from "@/features/library/library";
 import { LibraryHome } from "@/features/library/library-home";
 import { Sidebar } from "@/features/library/sidebar";
 import { TapeMenu } from "@/features/library/tape-actions";
+import type { TapeOperations } from "@/features/library/tape-context-menu";
 import {
   DocumentHeader,
   entryOf,
@@ -638,30 +639,74 @@ export function HomePage() {
 
   // Il documento del Tape `path`, o senza Tape quello della Trascrizione in corso o appena finita,
   // in testo semplice o Markdown secondo le impostazioni.
+  const tapeText = useCallback(async (path: string) => {
+    // Prima le correzioni ancora in scrittura; se non si salvano, niente copia.
+    if ((await pendingEdits.current.get(path)) === false) {
+      return null;
+    }
+    const result = await commands.tapeText(path);
+    if (result.status === "error") {
+      setNotice(result.error);
+      return null;
+    }
+    return result.data;
+  }, []);
   const copy = useCallback(
     async (path: string | null) => {
       try {
-        let text: string | null;
-        if (path) {
-          if ((await pendingEdits.current.get(path)) === false) {
-            return;
-          }
-          const result = await commands.tapeText(path);
-          if (result.status === "error") {
-            setNotice(result.error);
-            return;
-          }
-          text = result.data;
-        } else {
-          text = await commands.transcriptText(visiblePhrases(conversation));
+        const text = path
+          ? await tapeText(path)
+          : ((await commands.transcriptText(visiblePhrases(conversation))) ??
+            "");
+        if (text !== null) {
+          await navigator.clipboard.writeText(text);
+          setCopied(true);
         }
-        await navigator.clipboard.writeText(text ?? "");
-        setCopied(true);
       } catch (e) {
         setNotice(internalError(e));
       }
     },
-    [conversation]
+    [conversation, tapeText]
+  );
+  // Copia testo dal menu di un Tape della Libreria o dei Recenti: lo dice l'avviso.
+  const copyTape = useCallback(
+    async (path: string, titolo: string) => {
+      try {
+        const text = await tapeText(path);
+        if (text !== null) {
+          await navigator.clipboard.writeText(text);
+          setMessage(t("library.textCopied", { titolo }));
+        }
+      } catch (e) {
+        setNotice(internalError(e));
+      }
+    },
+    [t, tapeText]
+  );
+
+  // Il menu e i tasti dei Tape della Libreria e dei Recenti. Il Tape di Trascrivi su un Tape non
+  // si rinomina, sposta né cestina (il backend risponderebbe `activityInProgress`).
+  const lavorato =
+    transcribesSource(status) && source && isTape(source) ? source : null;
+  const tapeOperations = useMemo<TapeOperations>(
+    () => ({
+      lavorato,
+      onCopy: copyTape,
+      onMove: moveTape,
+      onOpen: openFromLibrary,
+      onRename: renameTape,
+      onReveal: reveal,
+      onTrash: requestTrash,
+    }),
+    [
+      copyTape,
+      lavorato,
+      moveTape,
+      openFromLibrary,
+      renameTape,
+      requestTrash,
+      reveal,
+    ]
   );
 
   const exported = useCallback(
@@ -902,11 +947,9 @@ export function HomePage() {
             <AllTapes
               list={library}
               onError={setNotice}
-              onMove={moveTape}
               onMoved={moved}
-              onOpen={openFromLibrary}
               onRaccolta={chooseRaccolta}
-              onTrash={requestTrash}
+              operations={tapeOperations}
               raccolta={raccolta}
             />
           </>
@@ -988,6 +1031,7 @@ export function HomePage() {
           onImport={pickFile}
           onOpen={openFromLibrary}
           onShowAll={showAll}
+          operations={tapeOperations}
           record={
             <RecordMenu disabled={busy} onError={failed} onRecord={record} />
           }

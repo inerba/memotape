@@ -431,14 +431,32 @@
     "sortDate": "Datum",
     "sortTitle": "Titel",
     "sortDuration": "Dauer",
-    "ascending": "älteste, A–Z oder kürzeste zuerst",
-    "descending": "neueste, Z–A oder längste zuerst",
+    "order": {
+      "date": {
+        "ascending": "älteste zuerst",
+        "descending": "neueste zuerst"
+      },
+      "title": {
+        "ascending": "A bis Z",
+        "descending": "Z bis A"
+      },
+      "duration": {
+        "ascending": "kürzeste zuerst",
+        "descending": "längste zuerst"
+      }
+    },
     "moveTo": "Verschieben nach…",
     "addToLibrary": "Zur Bibliothek hinzufügen…",
     "reveal": "Im Datei-Explorer anzeigen",
     "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
     "renameName": "Neuer Titel des Tape",
     "delete": "Löschen",
+    "deleteNamed": "{{titolo}} löschen",
+    "actionsOf": "Weitere Aktionen für {{titolo}}",
+    "open": "Öffnen",
+    "renameTape": "Umbenennen",
+    "moveInto": "Verschieben nach",
+    "textCopied": "Text von „{{titolo}}“ kopiert",
     "deleteTitle": "Tape löschen?",
     "deleteDescription": "„{{titolo}}“ wird in den Windows-Papierkorb verschoben und lässt sich dort wiederherstellen.",
     "deleteKeep": "Abbrechen",
@@ -540,7 +558,8 @@
       "generale": "Allgemein",
       "ascolto": "Wiedergabe",
       "testo": "Text",
-      "registrazione": "Aufnahme"
+      "registrazione": "Aufnahme",
+      "libreria": "Bibliothek"
     },
     "lines": {
       "nuovaRegistrazione": "Neue Aufnahme",
@@ -554,12 +573,17 @@
       "velocita": "Geschwindigkeit",
       "tornaAlPunto": "Zur Wiedergabestelle",
       "copiaTesto": "Ganzen Text kopieren",
-      "pausaRegistrazione": "Pausieren oder fortsetzen"
+      "pausaRegistrazione": "Pausieren oder fortsetzen",
+      "apriTape": "Tape öffnen",
+      "rinominaTape": "Tape umbenennen",
+      "cestinaTape": "In den Papierkorb"
     },
     "keys": {
       "Ctrl": "Strg",
       "Shift": "Umschalt",
-      "Space": "Leertaste"
+      "Space": "Leertaste",
+      "Enter": "Eingabe",
+      "Delete": "Entf"
     }
   }
 }

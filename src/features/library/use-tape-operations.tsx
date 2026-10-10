@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands } from "@/bindings";
 import {
@@ -92,9 +92,23 @@ export function useTapeOperations({
     }
   }, [onError, onTrashed, trashing]);
 
+  // Il dialog non ha un pulsante che lo apre (Canc, un menu): chiuso, il focus torna dov'era.
+  const before = useRef<Element | null>(null);
+  const requestTrash = useCallback((tape: Trashing) => {
+    before.current = document.activeElement;
+    setTrashing(tape);
+  }, []);
+  const focusBack = useCallback((e: Event) => {
+    const element = before.current;
+    if (element instanceof HTMLElement && element.isConnected) {
+      e.preventDefault();
+      element.focus();
+    }
+  }, []);
+
   const dialog = (
     <AlertDialog onOpenChange={close} open={trashing !== null}>
-      <AlertDialogContent>
+      <AlertDialogContent onCloseAutoFocus={focusBack}>
         <AlertDialogHeader>
           <AlertDialogTitle>{t("library.deleteTitle")}</AlertDialogTitle>
           <AlertDialogDescription>
@@ -110,5 +124,5 @@ export function useTapeOperations({
       </AlertDialogContent>
     </AlertDialog>
   );
-  return { dialog, moveTape, renameTape, requestTrash: setTrashing, reveal };
+  return { dialog, moveTape, renameTape, requestTrash, reveal };
 }

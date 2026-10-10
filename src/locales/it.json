@@ -432,14 +432,32 @@
     "sortDate": "Data",
     "sortTitle": "Titolo",
     "sortDuration": "Durata",
-    "ascending": "dalla meno recente, dalla A o dalla più corta",
-    "descending": "dalla più recente, dalla Z o dalla più lunga",
+    "order": {
+      "date": {
+        "ascending": "dalla meno recente",
+        "descending": "dalla più recente"
+      },
+      "title": {
+        "ascending": "dalla A alla Z",
+        "descending": "dalla Z alla A"
+      },
+      "duration": {
+        "ascending": "dalla più corta",
+        "descending": "dalla più lunga"
+      }
+    },
     "moveTo": "Sposta in…",
     "addToLibrary": "Aggiungi alla Libreria…",
     "reveal": "Mostra in Esplora file",
     "rename": "Clic per rinominare: Invio conferma, Esc annulla",
     "renameName": "Nuovo titolo del Tape",
     "delete": "Elimina",
+    "deleteNamed": "Elimina {{titolo}}",
+    "actionsOf": "Altre azioni per {{titolo}}",
+    "open": "Apri",
+    "renameTape": "Rinomina",
+    "moveInto": "Sposta in",
+    "textCopied": "Testo di «{{titolo}}» copiato",
     "deleteTitle": "Eliminare il Tape?",
     "deleteDescription": "«{{titolo}}» andrà nel Cestino di Windows, da cui potrai ripristinarlo.",
     "deleteKeep": "Annulla",
@@ -544,7 +562,8 @@
       "generale": "Generale",
       "ascolto": "Ascolto",
       "testo": "Testo",
-      "registrazione": "Registrazione"
+      "registrazione": "Registrazione",
+      "libreria": "Libreria"
     },
     "lines": {
       "nuovaRegistrazione": "Nuova registrazione",
@@ -558,12 +577,17 @@
       "velocita": "Velocità",
       "tornaAlPunto": "Torna al punto in ascolto",
       "copiaTesto": "Copia tutto il testo",
-      "pausaRegistrazione": "Pausa o riprendi"
+      "pausaRegistrazione": "Pausa o riprendi",
+      "apriTape": "Apri il Tape",
+      "rinominaTape": "Rinomina il Tape",
+      "cestinaTape": "Sposta nel Cestino"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Maiusc",
-      "Space": "Spazio"
+      "Space": "Spazio",
+      "Enter": "Invio",
+      "Delete": "Canc"
     }
   }
 }

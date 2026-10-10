@@ -6,7 +6,13 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
@@ -16,23 +22,35 @@ import {
 } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import {
+  azioniDelTape,
   nextOrder,
   orderOf,
   raccoltaLabel,
+  rigaDopo,
   sortTapes,
   type TapeColumn,
   type TapeOrder,
   tapesOf,
+  versoDellOrdine,
 } from "@/features/library/library";
-import { MoveSelect } from "@/features/library/move-select";
 import { NameInput } from "@/features/library/name-input";
 import { recentTitle } from "@/features/library/recent-tapes";
-import { DocumentHeader } from "@/features/library/tape-header";
+import {
+  contextMenu,
+  TapeContextMenu,
+  type TapeOperations,
+  tapeKeys,
+  useFocusBack,
+} from "@/features/library/tape-context-menu";
+import { DocumentHeader, siblingTitles } from "@/features/library/tape-header";
 import { elapsedText } from "@/features/recording/recording";
 import { folderOf } from "@/features/source/file-name";
 
 const PILL =
   "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground [&_svg]:size-3.5";
+
+/** Le righe di un salto di Pagina giù o su. ponytail: fisse, non misurate sull'altezza in vista. */
+const PAGINA = 10;
 
 /** L'ordinamento dell'elenco, ricordato in questo PC. */
 const ORDER_KEY = "memotape.order";
@@ -53,26 +71,24 @@ function savedOrder(): TapeOrder {
 export function AllTapes({
   list,
   onError,
-  onMove,
   onMoved,
-  onOpen,
   onRaccolta,
-  onTrash,
+  operations,
   raccolta,
 }: {
   list: LibraryList;
   onError: (error: AppError) => void;
-  onMove: (path: string, raccolta: string) => void;
   /** Una Raccolta rinominata: la cartella vecchia e quella nuova. */
   onMoved: (from: string, to: string) => void;
-  onOpen: (path: string) => void;
   onRaccolta: (raccolta: string | null) => void;
-  onTrash: (tape: { path: string; titolo: string }) => void;
+  operations: TapeOperations;
   /** `null` Tutta la Libreria, `""` Senza raccolta. */
   raccolta: string | null;
 }) {
   const { i18n, t } = useTranslation();
   const [order, setOrder] = useState(savedOrder);
+  // La riga nel Tab: la tabella è un solo elemento, le frecce passano da una riga all'altra.
+  const [active, setActive] = useState(0);
   // `recentTitle` scorre tutta la Libreria: una volta per Tape, non a ogni confronto dell'ordinamento.
   const shown = useMemo(() => {
     const titles = new Map(
@@ -142,7 +158,7 @@ export function AllTapes({
 
   return (
     <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto flex w-full max-w-[60rem] flex-col px-10 pb-12">
+      <div className="@container flex w-full flex-col px-10 pb-12">
         <DocumentHeader title={t("library.title")} />
         <div
           aria-label={t("library.raccolte")}
@@ -217,52 +233,77 @@ export function AllTapes({
             raccolta: raccoltaLabel(raccolta ?? "", t),
           })}
         </p>
-        <div className="mt-3 flex items-center gap-4 border-b pb-2 text-muted-foreground text-sm">
-          <SortHeader
-            className="flex-1"
-            column="title"
-            label={t("library.sortTitle")}
-            onSort={sort}
-            order={order}
-          />
-          {raccolta === null ? (
-            <span className="w-32 shrink-0">{t("library.raccolta")}</span>
-          ) : null}
-          <SortHeader
-            className="w-40"
-            column="date"
-            label={t("library.sortDate")}
-            onSort={sort}
-            order={order}
-          />
-          <SortHeader
-            className="w-16 justify-end"
-            column="duration"
-            label={t("library.sortDuration")}
-            onSort={sort}
-            order={order}
-          />
-          <span className="w-44 shrink-0" />
-        </div>
-        {tapes.length === 0 ? (
-          <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
-        ) : (
-          <ul className="flex flex-col divide-y">
-            {sortTapes(tapes, order, shown).map((tape) => (
+        <table
+          aria-label={t("library.title")}
+          // Bordi separati: con quelli uniti Chromium non disegna il contorno della riga col focus.
+          className="mt-3 w-full table-fixed border-separate border-spacing-0 text-sm"
+        >
+          {/* Il titolo prende la larghezza che resta; nelle finestre strette la Raccolta cede. */}
+          <colgroup>
+            <col />
+            {raccolta === null ? (
+              <col className="@2xl:table-column hidden w-36" />
+            ) : null}
+            <col className="w-40" />
+            <col className="w-20" />
+            <col className="w-20" />
+          </colgroup>
+          <thead className="text-muted-foreground">
+            <tr className="[&>th]:border-b">
+              <th className="pb-2 pl-2 text-left font-normal">
+                <SortHeader
+                  column="title"
+                  label={t("library.sortTitle")}
+                  onSort={sort}
+                  order={order}
+                />
+              </th>
+              {raccolta === null ? (
+                <th className="@2xl:table-cell hidden pb-2 pl-4 text-left font-normal">
+                  {t("library.raccolta")}
+                </th>
+              ) : null}
+              <th className="pb-2 pl-4 text-left font-normal">
+                <SortHeader
+                  column="date"
+                  label={t("library.sortDate")}
+                  onSort={sort}
+                  order={order}
+                />
+              </th>
+              <th className="pb-2 pl-4 text-right font-normal">
+                <SortHeader
+                  column="duration"
+                  label={t("library.sortDuration")}
+                  onSort={sort}
+                  order={order}
+                />
+              </th>
+              <th>
+                <span className="sr-only">{t("library.more")}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortTapes(tapes, order, shown).map((tape, index) => (
               <TapeRow
                 dateFormat={dateFormat}
+                index={index}
+                inTab={index === Math.min(active, tapes.length - 1)}
                 key={tape.path}
-                onMove={onMove}
-                onOpen={onOpen}
-                onTrash={onTrash}
-                raccolte={list.raccolte}
+                library={list}
+                onFocus={setActive}
+                operations={operations}
                 showRaccolta={raccolta === null}
                 tape={tape}
                 title={shown(tape)}
               />
             ))}
-          </ul>
-        )}
+          </tbody>
+        </table>
+        {tapes.length === 0 ? (
+          <p className="py-10 text-muted-foreground">{t("library.empty")}</p>
+        ) : null}
       </div>
     </section>
   );
@@ -294,13 +335,13 @@ function ScopePill({
 
 /** L'intestazione di una colonna: un clic ordina per lei, il secondo inverte il verso. */
 function SortHeader({
-  className,
+  className = "",
   column,
   label,
   onSort,
   order,
 }: {
-  className: string;
+  className?: string;
   column: TapeColumn;
   label: string;
   onSort: (column: TapeColumn) => void;
@@ -315,14 +356,11 @@ function SortHeader({
   }
   return (
     <button
-      // La colonna scelta dice anche il verso, che la freccia mostra solo a chi vede.
-      aria-label={
-        active
-          ? `${label}, ${t(order.descending ? "library.descending" : "library.ascending")}`
-          : label
-      }
+      // La colonna scelta dice anche il suo verso («Data, dalla più recente»), che la freccia
+      // mostra solo a chi vede.
+      aria-label={active ? `${label}, ${t(versoDellOrdine(order))}` : label}
       aria-pressed={active}
-      className={`-my-0.5 flex min-h-6 shrink-0 items-center gap-1 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:text-foreground [&_svg]:size-3.5 ${className}`}
+      className={`-my-0.5 inline-flex min-h-6 shrink-0 items-center gap-1 rounded-md transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-pressed:text-foreground [&_svg]:size-3.5 ${className}`}
       onClick={sort}
       type="button"
     >
@@ -332,76 +370,143 @@ function SortHeader({
   );
 }
 
+/**
+ * Una riga della tabella: il focus è sulla riga (Invio apre, F2 rinomina, Canc chiede il Cestino,
+ * il tasto Menu apre il menu); i pulsanti dentro restano fuori dal Tab.
+ */
 function TapeRow({
-  tape,
   dateFormat,
-  onMove,
-  onOpen,
-  onTrash,
-  raccolte,
+  index,
+  inTab,
+  library,
+  onFocus,
+  operations,
   showRaccolta,
+  tape,
   title,
 }: {
-  tape: TapeEntry;
   dateFormat: Intl.DateTimeFormat;
-  onMove: (path: string, raccolta: string) => void;
-  onOpen: (path: string) => void;
-  onTrash: (tape: { path: string; titolo: string }) => void;
-  raccolte: string[];
+  index: number;
+  /** La riga che il Tab raggiunge. */
+  inTab: boolean;
+  library: LibraryList;
+  onFocus: (index: number) => void;
+  operations: TapeOperations;
   showRaccolta: boolean;
+  tape: TapeEntry;
   /** Il titolo mostrato: compatto per le Registrazioni con il nome automatico. */
   title: string;
 }) {
   const { t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const row = useFocusBack<HTMLTableRowElement>(renaming);
+  const { modificabile } = azioniDelTape(
+    tape,
+    library.raccolte,
+    operations.lavorato
+  );
+  const { onOpen, onRename, onTrash } = operations;
+  const menu = `tape-${index}`;
   const open = useCallback(() => onOpen(tape.path), [tape.path, onOpen]);
-  const move = useCallback(
-    (raccolta: string) => onMove(tape.path, raccolta),
-    [tape.path, onMove]
+  const startRename = useCallback(() => setRenaming(true), []);
+  const cancelRename = useCallback(() => setRenaming(false), []);
+  const submitRename = useCallback(
+    (titolo: string) => {
+      setRenaming(false);
+      onRename(tape.path, titolo);
+    },
+    [onRename, tape.path]
   );
   const trash = useCallback(() => onTrash(tape), [tape, onTrash]);
+  const focused = useCallback(() => onFocus(index), [index, onFocus]);
+  // Le frecce, Inizio, Fine e Pagina su e giù passano il focus a un'altra riga.
+  const keyDown = useCallback(
+    (e: KeyboardEvent<HTMLTableRowElement>) => {
+      const tr = e.currentTarget;
+      const rows = (tr.parentElement as HTMLTableSectionElement | null)?.rows;
+      const next =
+        e.target === tr && rows
+          ? rigaDopo(e.key, tr.sectionRowIndex, rows.length, PAGINA)
+          : null;
+      if (next !== null) {
+        e.preventDefault();
+        rows?.[next]?.focus();
+        return;
+      }
+      tapeKeys(
+        modificabile
+          ? { apriTape: open, cestinaTape: trash, rinominaTape: startRename }
+          : { apriTape: open }
+      )(e);
+    },
+    [modificabile, open, startRename, trash]
+  );
   return (
-    <li className="group flex items-center gap-4 py-2.5">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        onClick={open}
-        title={tape.path}
-        type="button"
-      >
-        <span className="truncate decoration-muted-foreground/50 underline-offset-4 group-hover:underline">
-          {title}
-        </span>
-      </button>
+    <tr
+      className="group transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2 has-[:popover-open]:bg-accent/50 [&>td]:border-b"
+      onContextMenu={contextMenu(menu)}
+      onFocus={focused}
+      onKeyDown={keyDown}
+      ref={row}
+      tabIndex={inTab ? 0 : -1}
+    >
+      <td className="py-2.5 pr-2 pl-2">
+        {renaming ? (
+          <NameInput
+            initial={tape.titolo}
+            label={t("library.renameName")}
+            onCancel={cancelRename}
+            onSubmit={submitRename}
+            taken={siblingTitles(library, tape.path)}
+          />
+        ) : (
+          <button
+            className="block max-w-full truncate rounded-md py-1 text-left decoration-muted-foreground/50 underline-offset-4 hover:underline"
+            onClick={open}
+            tabIndex={-1}
+            title={tape.path}
+            type="button"
+          >
+            {title}
+          </button>
+        )}
+      </td>
       {showRaccolta ? (
-        <span className="w-32 shrink-0 truncate text-muted-foreground text-sm">
+        <td className="@2xl:table-cell hidden truncate pl-4 text-muted-foreground">
           {tape.raccolta ?? t("library.none")}
-        </span>
+        </td>
       ) : null}
-      <span className="w-40 shrink-0 text-muted-foreground text-sm tabular-nums">
+      <td className="truncate pl-4 text-muted-foreground tabular-nums">
         {dateFormat.format(new Date(tape.creato))}
-      </span>
-      <span className="w-16 shrink-0 text-right text-muted-foreground text-sm tabular-nums">
+      </td>
+      <td className="pl-4 text-right text-muted-foreground tabular-nums">
         {tape.durataMs === null ? "" : elapsedText(tape.durataMs)}
-      </span>
-      {/* Le azioni della riga compaiono passandoci sopra o con il focus: pochi comandi in vista. */}
-      <span className="flex w-44 shrink-0 items-center justify-end gap-1 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100">
-        <MoveSelect
-          className="min-w-0 flex-1"
-          current={tape.raccolta ?? ""}
-          label={t("library.moveTo")}
-          onMove={move}
-          raccolte={raccolte}
-        />
-        <Button
-          aria-label={t("library.delete")}
-          className="text-muted-foreground hover:text-destructive"
-          onClick={trash}
-          size="icon-sm"
-          title={t("library.delete")}
-          variant="ghost"
-        >
-          <Trash2 />
-        </Button>
-      </span>
-    </li>
+      </td>
+      {/* Le azioni compaiono passandoci sopra o con il focus sulla riga: pochi comandi in vista. */}
+      <td>
+        <span className="flex items-center justify-end opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 group-has-[:popover-open]:opacity-100">
+          <Button
+            aria-label={t("library.deleteNamed", { titolo: title })}
+            className="text-muted-foreground hover:text-destructive"
+            disabled={!modificabile}
+            onClick={trash}
+            size="icon-sm"
+            tabIndex={-1}
+            title={t("library.deleteNamed", { titolo: title })}
+            variant="ghost"
+          >
+            <Trash2 />
+          </Button>
+          <TapeContextMenu
+            id={menu}
+            onRename={startRename}
+            operations={operations}
+            raccolte={library.raccolte}
+            tape={tape}
+            title={title}
+          />
+        </span>
+      </td>
+    </tr>
   );
 }

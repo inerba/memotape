@@ -4,6 +4,7 @@ import {
   type Campo,
   type Stato,
   scorciatoia,
+  tastoDellaTabella,
 } from "@/features/shortcuts/shortcuts";
 
 const LIBERO: Stato = { attivita: false, coperta: false, registrazione: false };
@@ -133,6 +134,17 @@ test("tenendo premuto si ripetono solo le frecce", () => {
   expect(scorciatoia(tasto("ArrowRight", ripetuto), null, LIBERO)?.esegui).toBe(
     true
   );
+});
+
+test("Invio, F2 e Canc agiscono sul Tape della tabella, non sulla finestra", () => {
+  expect(tastoDellaTabella(tasto("Enter"))).toBe("apriTape");
+  expect(tastoDellaTabella(tasto("F2"))).toBe("rinominaTape");
+  expect(tastoDellaTabella(tasto("Delete"))).toBe("cestinaTape");
+  expect(tastoDellaTabella(ctrl("Delete"))).toBeNull();
+  expect(tastoDellaTabella(tasto(" "))).toBeNull();
+  for (const key of ["Enter", "F2", "Delete"]) {
+    expect(scorciatoia(tasto(key), null, LIBERO)).toBeNull();
+  }
 });
 
 test("Ctrl+B, Ctrl+K e Ctrl+, sono nella mappa", () => {

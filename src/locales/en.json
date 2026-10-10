@@ -431,14 +431,32 @@
     "sortDate": "Date",
     "sortTitle": "Title",
     "sortDuration": "Duration",
-    "ascending": "oldest, A to Z or shortest first",
-    "descending": "newest, Z to A or longest first",
+    "order": {
+      "date": {
+        "ascending": "oldest first",
+        "descending": "newest first"
+      },
+      "title": {
+        "ascending": "A to Z",
+        "descending": "Z to A"
+      },
+      "duration": {
+        "ascending": "shortest first",
+        "descending": "longest first"
+      }
+    },
     "moveTo": "Move to…",
     "addToLibrary": "Add to Library…",
     "reveal": "Show in File Explorer",
     "rename": "Click to rename: Enter confirms, Esc cancels",
     "renameName": "New title of the Tape",
     "delete": "Delete",
+    "deleteNamed": "Delete {{titolo}}",
+    "actionsOf": "More actions for {{titolo}}",
+    "open": "Open",
+    "renameTape": "Rename",
+    "moveInto": "Move to",
+    "textCopied": "Text of “{{titolo}}” copied",
     "deleteTitle": "Delete the Tape?",
     "deleteDescription": "“{{titolo}}” will go to the Windows Recycle Bin, where you can restore it.",
     "deleteKeep": "Cancel",
@@ -540,7 +558,8 @@
       "generale": "General",
       "ascolto": "Listening",
       "testo": "Text",
-      "registrazione": "Recording"
+      "registrazione": "Recording",
+      "libreria": "Library"
     },
     "lines": {
       "nuovaRegistrazione": "New recording",
@@ -554,12 +573,17 @@
       "velocita": "Speed",
       "tornaAlPunto": "Back to the playing point",
       "copiaTesto": "Copy all text",
-      "pausaRegistrazione": "Pause or resume"
+      "pausaRegistrazione": "Pause or resume",
+      "apriTape": "Open the Tape",
+      "rinominaTape": "Rename the Tape",
+      "cestinaTape": "Move to Recycle Bin"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Shift",
-      "Space": "Space"
+      "Space": "Space",
+      "Enter": "Enter",
+      "Delete": "Del"
     }
   }
 }

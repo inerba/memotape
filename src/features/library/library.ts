@@ -166,6 +166,53 @@ export function nextOrder(current: TapeOrder, column: TapeColumn): TapeOrder {
   return { column, descending: column !== "title" };
 }
 
+/**
+ * Il menu di un Tape della Libreria: dove si può spostare (Senza raccolta, `""`, e le Raccolte,
+ * tranne quella in cui sta) e se si può rinominare, spostare o mettere nel Cestino, cioè se non ci
+ * lavora l'Attività in corso (`lavorato`, il Tape di Trascrivi su un Tape).
+ */
+export function azioniDelTape(
+  tape: TapeEntry,
+  raccolte: string[],
+  lavorato: string | null
+): { destinazioni: string[]; modificabile: boolean } {
+  const qui = tape.raccolta ?? "";
+  return {
+    destinazioni: ["", ...raccolte].filter((r) => r !== qui),
+    modificabile: tape.path.toLowerCase() !== lavorato?.toLowerCase(),
+  };
+}
+
+/**
+ * La riga della tabella dopo il tasto `key` sulla riga `corrente`, fra `righe` righe con `pagina`
+ * righe in vista; `null` per un tasto che non sposta.
+ */
+export function rigaDopo(
+  key: string,
+  corrente: number,
+  righe: number,
+  pagina: number
+): number | null {
+  const passi: Record<string, number> = {
+    ArrowDown: 1,
+    ArrowUp: -1,
+    End: righe,
+    Home: -righe,
+    PageDown: pagina,
+    PageUp: -pagina,
+  };
+  const passo = passi[key];
+  if (passo === undefined) {
+    return null;
+  }
+  return Math.min(Math.max(corrente + passo, 0), righe - 1);
+}
+
+/** La chiave del verso di `order` per la sua colonna: «dalla più recente», «dalla Z alla A»… */
+export function versoDellOrdine({ column, descending }: TapeOrder): string {
+  return `library.order.${column}.${descending ? "descending" : "ascending"}`;
+}
+
 /** L'ordinamento ricordato (JSON), o quello predefinito se manca o non vale. */
 export function orderOf(saved: string | null): TapeOrder {
   try {

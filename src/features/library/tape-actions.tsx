@@ -185,12 +185,15 @@ export function MenuItem({
   className = "",
   disabled,
   icon,
+  kbd,
   onClick,
 }: {
   children: ReactNode;
   className?: string;
   disabled?: boolean;
   icon: ReactNode;
+  /** Il tasto che fa la stessa cosa, a destra. */
+  kbd?: string;
   onClick: () => void;
 }) {
   return (
@@ -202,6 +205,11 @@ export function MenuItem({
     >
       {icon}
       {children}
+      {kbd ? (
+        <kbd className="ml-auto pl-4 font-sans text-muted-foreground text-xs">
+          {kbd}
+        </kbd>
+      ) : null}
     </button>
   );
 }

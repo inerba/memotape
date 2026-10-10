@@ -38,6 +38,19 @@ export function titleOf(library: LibraryList, path: string): string {
   );
 }
 
+/** I titoli degli altri Tape nella cartella di `path`: quelli che una rinomina non può prendere. */
+export function siblingTitles(library: LibraryList, path: string): string[] {
+  const lower = path.toLowerCase();
+  const folder = folderOf(lower);
+  return library.tapes
+    .filter(
+      (b) =>
+        b.path.toLowerCase() !== lower &&
+        folderOf(b.path.toLowerCase()) === folder
+    )
+    .map((b) => b.titolo);
+}
+
 /**
  * La testata del documento di un Tape: il titolo grande, che un clic rinomina, il giorno, l'ora e la
  * durata, e le informazioni essenziali come etichette.
@@ -66,10 +79,6 @@ export function TapeHeader({
   const [renaming, setRenaming] = useState(false);
   const entry = entryOf(library, path);
   const titolo = titleOf(library, path);
-  const folder = folderOf(path.toLowerCase());
-  const siblings = library.tapes
-    .filter((b) => b !== entry && folderOf(b.path.toLowerCase()) === folder)
-    .map((b) => b.titolo);
 
   const start = useCallback(() => setRenaming(true), []);
   const cancel = useCallback(() => setRenaming(false), []);
@@ -121,7 +130,7 @@ export function TapeHeader({
             label={t("library.renameName")}
             onCancel={cancel}
             onSubmit={submit}
-            taken={siblings}
+            taken={siblingTitles(library, path)}
           />
         ) : (
           <button

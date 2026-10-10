@@ -432,14 +432,32 @@
     "sortDate": "Fecha",
     "sortTitle": "Título",
     "sortDuration": "Duración",
-    "ascending": "de la más antigua, de la A a la Z o de la más corta",
-    "descending": "de la más reciente, de la Z a la A o de la más larga",
+    "order": {
+      "date": {
+        "ascending": "de la más antigua",
+        "descending": "de la más reciente"
+      },
+      "title": {
+        "ascending": "de la A a la Z",
+        "descending": "de la Z a la A"
+      },
+      "duration": {
+        "ascending": "de la más corta",
+        "descending": "de la más larga"
+      }
+    },
     "moveTo": "Mover a…",
     "addToLibrary": "Añadir a la Biblioteca…",
     "reveal": "Mostrar en el Explorador de archivos",
     "rename": "Haz clic para renombrar: Intro confirma, Esc cancela",
     "renameName": "Nuevo título del Tape",
     "delete": "Eliminar",
+    "deleteNamed": "Eliminar {{titolo}}",
+    "actionsOf": "Más acciones para {{titolo}}",
+    "open": "Abrir",
+    "renameTape": "Cambiar nombre",
+    "moveInto": "Mover a",
+    "textCopied": "Texto de «{{titolo}}» copiado",
     "deleteTitle": "¿Eliminar el Tape?",
     "deleteDescription": "«{{titolo}}» irá a la Papelera de reciclaje de Windows, desde donde podrás restaurarlo.",
     "deleteKeep": "Cancelar",
@@ -544,7 +562,8 @@
       "generale": "General",
       "ascolto": "Escucha",
       "testo": "Texto",
-      "registrazione": "Grabación"
+      "registrazione": "Grabación",
+      "libreria": "Biblioteca"
     },
     "lines": {
       "nuovaRegistrazione": "Nueva grabación",
@@ -558,12 +577,17 @@
       "velocita": "Velocidad",
       "tornaAlPunto": "Volver al punto de escucha",
       "copiaTesto": "Copiar todo el texto",
-      "pausaRegistrazione": "Pausar o reanudar"
+      "pausaRegistrazione": "Pausar o reanudar",
+      "apriTape": "Abrir el Tape",
+      "rinominaTape": "Cambiar el nombre del Tape",
+      "cestinaTape": "Mover a la Papelera"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Mayús",
-      "Space": "Espacio"
+      "Space": "Espacio",
+      "Enter": "Intro",
+      "Delete": "Supr"
     }
   }
 }

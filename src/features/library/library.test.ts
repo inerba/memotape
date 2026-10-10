@@ -3,6 +3,7 @@ import "@/lib/i18n";
 import i18n from "i18next";
 import type { TapeEntry, TapeInfo } from "@/bindings";
 import {
+  azioniDelTape,
   chosenRaccolta,
   clockText,
   DEFAULT_ORDER,
@@ -14,10 +15,12 @@ import {
   nextOrder,
   orderOf,
   recentWhen,
+  rigaDopo,
   sortTapes,
   type TapeColumn,
   tapeDetails,
   tapesOf,
+  versoDellOrdine,
 } from "./library";
 
 /** Un Tape creato all'ora locale indicata. */
@@ -167,6 +170,52 @@ test("il clic su una colonna la sceglie con il suo verso, il secondo lo inverte"
     column: "title",
     descending: true,
   });
+});
+
+test("le frecce scorrono le righe della tabella senza uscirne", () => {
+  expect(rigaDopo("ArrowDown", 0, 5, 3)).toBe(1);
+  expect(rigaDopo("ArrowDown", 4, 5, 3)).toBe(4);
+  expect(rigaDopo("ArrowUp", 0, 5, 3)).toBe(0);
+  expect(rigaDopo("ArrowUp", 3, 5, 3)).toBe(2);
+  expect(rigaDopo("Home", 3, 5, 3)).toBe(0);
+  expect(rigaDopo("End", 1, 5, 3)).toBe(4);
+  expect(rigaDopo("PageDown", 1, 5, 3)).toBe(4);
+  expect(rigaDopo("PageDown", 0, 5, 3)).toBe(3);
+  expect(rigaDopo("PageUp", 4, 5, 3)).toBe(1);
+  expect(rigaDopo("PageUp", 1, 5, 3)).toBe(0);
+  // Gli altri tasti non muovono: li gestisce chi li conosce.
+  expect(rigaDopo("Enter", 2, 5, 3)).toBeNull();
+  expect(rigaDopo("ArrowLeft", 2, 5, 3)).toBeNull();
+});
+
+test("il menu di un Tape sposta altrove e tace dove lavora l'Attività", () => {
+  const call = tape("call", [2026, 10, 2], "Acme");
+  const sciolto = tape("sciolto", [2026, 10, 1]);
+  const raccolte = ["Acme", "Beta"];
+  expect(azioniDelTape(call, raccolte, null)).toEqual({
+    destinazioni: ["", "Beta"],
+    modificabile: true,
+  });
+  expect(azioniDelTape(sciolto, raccolte, null).destinazioni).toEqual([
+    "Acme",
+    "Beta",
+  ]);
+  // Trascrivi su quel Tape: niente Rinomina, Sposta in né Cestino; gli altri restano liberi.
+  expect(
+    azioniDelTape(call, raccolte, call.path.toUpperCase()).modificabile
+  ).toBe(false);
+  expect(azioniDelTape(sciolto, raccolte, call.path).modificabile).toBe(true);
+});
+
+test("l'intestazione ordinata dice il verso della sua colonna", () => {
+  const verso = (column: TapeColumn, descending: boolean) =>
+    i18n.t(versoDellOrdine({ column, descending }), { lng: "it" });
+  expect(verso("date", true)).toBe("dalla più recente");
+  expect(verso("date", false)).toBe("dalla meno recente");
+  expect(verso("title", false)).toBe("dalla A alla Z");
+  expect(verso("title", true)).toBe("dalla Z alla A");
+  expect(verso("duration", true)).toBe("dalla più lunga");
+  expect(verso("duration", false)).toBe("dalla più corta");
 });
 
 test("l'ordinamento ricordato si rilegge, o vale quello predefinito", () => {

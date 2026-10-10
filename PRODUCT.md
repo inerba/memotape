@@ -579,6 +579,16 @@ Spec `.scratch/anteprime-ui/spec.md` («5 · Scorciatoie»), ticket `anteprime-u
 - Le combinazioni con Ctrl non arrivano mai a WebView2: Ctrl+N non apre un'altra finestra, Ctrl+P non stampa, Ctrl+Maiusc+C non apre l'ispettore (in sviluppo resta F12), anche quando non fanno nulla. Ctrl+C resta la copia della selezione.
 - I pulsanti interessati mostrano la scorciatoia nel tooltip («Copia tutto il testo (Ctrl+Maiusc+C)») e la dichiarano ai lettori di schermo. Il pannello si apre con Ctrl+/ o da Impostazioni → Generale; Esc, Ctrl+/ o un clic fuori lo chiudono.
 
+## Libreria e menu contestuale — requisiti concordati il 10 ottobre 2026
+
+Spec `.scratch/anteprime-ui/spec.md` («6 · Libreria e menu contestuale»), ticket `anteprime-ui/06`.
+
+- Clic destro, tasto Menu (o Maiusc+F10) e il pulsante «…», che compare in hover o con il focus, aprono lo stesso menu su una riga della Libreria e su un Recente della barra laterale, non sui risultati della ricerca: Apri, Rinomina, Sposta in ▸ (Senza raccolta e le Raccolte, tranne quella in cui sta), Mostra in Esplora file, Copia testo e Sposta nel Cestino. Il clic destro lo apre dove si trova il puntatore. Rinomina apre il campo del titolo sul posto (Invio conferma, Esc o un clic fuori annullano); Copia testo copia il testo come Copia testo del Tape aperto e lo dice in un avviso.
+- Sul Tape su cui lavora Trascrivi Rinomina, Sposta in e Sposta nel Cestino sono spenti, con i loro tasti.
+- La tabella della Libreria è un solo elemento nel Tab: le frecce, Inizio, Fine e Pagina su e giù passano da una riga all'altra; Invio apre, F2 rinomina, Canc chiede la conferma di sempre e sposta nel Cestino. Nei Recenti valgono F2 e Canc. Il menu mostra i tasti accanto alle voci e il pannello delle scorciatoie li elenca nel gruppo Libreria.
+- La tabella usa tutta la larghezza del pannello e il titolo prende lo spazio che resta. In hover o con il focus una riga mostra il Cestino e «…»; il menu Sposta in… a tendina della riga non c'è più.
+- Accessibilità: il Cestino di ogni riga si chiama «Elimina {{titolo}}» e il «…» «Altre azioni per {{titolo}}»; l'intestazione ordinata dice il verso della sua colonna («Data, dalla più recente», «Titolo, dalla Z alla A», «Durata, dalla più corta»…).
+
 ## Fuori dal perimetro
 
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).

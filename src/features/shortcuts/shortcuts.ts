@@ -17,9 +17,17 @@ export type Azione =
   | "tornaAlPunto"
   | "copiaTesto"
   | "pausaRegistrazione"
-  | "pannello";
+  | "pannello"
+  | "apriTape"
+  | "rinominaTape"
+  | "cestinaTape";
 
-export type Gruppo = "generale" | "ascolto" | "testo" | "registrazione";
+export type Gruppo =
+  | "generale"
+  | "ascolto"
+  | "testo"
+  | "registrazione"
+  | "libreria";
 
 /**
  * Dove sta il focus: in un campo di `testo` (si scrive), su un `pulsante` o un link (Spazio lo
@@ -51,6 +59,8 @@ export interface Scorciatoia {
   /** Solo fuori dai campi, come Spazio. */
   fuoriDaiCampi?: true;
   gruppo: Gruppo;
+  /** Agisce sul Tape con il focus nella tabella della Libreria, non sulla finestra. */
+  nellaTabella?: true;
   quando?: (stato: Stato) => boolean;
   /** La riga del pannello (chiave `shortcuts.lines.*`): indietro e avanti ne condividono una. */
   riga: string;
@@ -162,6 +172,27 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     riga: "pannello",
     tasti: ["Ctrl", "/"],
   },
+  {
+    azione: "apriTape",
+    gruppo: "libreria",
+    nellaTabella: true,
+    riga: "apriTape",
+    tasti: ["Enter"],
+  },
+  {
+    azione: "rinominaTape",
+    gruppo: "libreria",
+    nellaTabella: true,
+    riga: "rinominaTape",
+    tasti: ["F2"],
+  },
+  {
+    azione: "cestinaTape",
+    gruppo: "libreria",
+    nellaTabella: true,
+    riga: "cestinaTape",
+    tasti: ["Delete"],
+  },
 ];
 
 const KEYS: Record<string, string> = { Space: " " };
@@ -208,7 +239,9 @@ export function scorciatoia(
   campo: Campo,
   stato: Stato
 ): { azione: Azione; esegui: boolean; riservata: boolean } | null {
-  const s = SCORCIATOIE.find((candidata) => corrisponde(candidata, tasto));
+  const s = SCORCIATOIE.find(
+    (candidata) => !candidata.nellaTabella && corrisponde(candidata, tasto)
+  );
   if (!s || trattenuto(s, campo)) {
     return null;
   }
@@ -219,6 +252,17 @@ export function scorciatoia(
   // Con Ctrl il tasto non arriva mai a WebView2, che ne fa acceleratori del browser (Ctrl+P la
   // stampa, Ctrl+Maiusc+C l'ispettore): il preventDefault della pagina li ferma.
   return { azione: s.azione, esegui, riservata: s.tasti.includes("Ctrl") };
+}
+
+/**
+ * L'azione di `tasto` sul Tape con il focus nella tabella della Libreria (o nei Recenti), o `null`.
+ * Le gestisce l'elemento con il focus, non il listener della finestra.
+ */
+export function tastoDellaTabella(tasto: Tasto): Azione | null {
+  return (
+    SCORCIATOIE.find((s) => s.nellaTabella && corrisponde(s, tasto))?.azione ??
+    null
+  );
 }
 
 /** I tasti di `azione`, in forma canonica. */
