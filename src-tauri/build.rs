@@ -21,7 +21,7 @@ fn main() {
 /// La feature `vulkan` di transcribe-cpp linka `vulkan-1.lib`, che sta in `%VULKAN_SDK%\Lib`.
 fn link_vulkan_sdk() {
     println!("cargo:rerun-if-env-changed=VULKAN_SDK");
-    let sdk = std::env::var("VULKAN_SDK").expect("VULKAN_SDK non impostata: vedi AGENTS.md");
+    let sdk = std::env::var("VULKAN_SDK").expect("VULKAN_SDK non impostata: vedi docs/sviluppo/prerequisiti.md");
     println!(
         "cargo:rustc-link-search=native={}",
         Path::new(&sdk).join("Lib").display()
@@ -37,7 +37,7 @@ fn link_vulkan_sdk() {
 fn stage_runtime_libs() {
     println!("cargo:rerun-if-env-changed=ORT_LIB_LOCATION");
     let lib_dir =
-        std::env::var("ORT_LIB_LOCATION").expect("ORT_LIB_LOCATION non impostata: vedi AGENTS.md");
+        std::env::var("ORT_LIB_LOCATION").expect("ORT_LIB_LOCATION non impostata: vedi docs/sviluppo/prerequisiti.md");
     let ort = Path::new(&lib_dir).join("onnxruntime.dll");
     println!("cargo:rerun-if-changed={}", ort.display());
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
