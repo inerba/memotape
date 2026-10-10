@@ -85,6 +85,7 @@ Prima di modificare o provare un'area, leggi il suo documento in `docs/sviluppo/
 | Impostazioni, lingua, tema, Assistenti (MCP), aggiornamenti | `impostazioni-e-servizi.md` |
 | Errori di build, versioni bloccate, dipendenze | `insidie-toolchain.md`, `insidie-audio.md` |
 | Provare l'app (CDP), verifiche a mano, hardware reale | `verifica-manuale.md` |
+| Provare l'app senza toccare i dati dell'utente (`MEMOTAPE_DATA_DIR`) | `cartella-dati-di-prova.md` |
 | Installer NSIS e sua verifica | `installer.md` |
 
 ## Agent skills
