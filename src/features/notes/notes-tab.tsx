@@ -4,6 +4,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import {
   Bold,
   Check,
+  CircleAlert,
   Copy,
   Ellipsis,
   Italic,
@@ -55,7 +56,12 @@ import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import { errorText } from "@/features/status/status";
 import { applica, ibrido, type Tempi } from "./ibrido";
 import { type Formato, inserisciTempo } from "./markdown";
-import { type NotaAperta, nomeRifiutato } from "./notes";
+import {
+  type Firma,
+  type NotaAperta,
+  nomeRifiutato,
+  oraDellaFirma,
+} from "./notes";
 import type { NoteDelTape } from "./use-note";
 
 /** Pausa nella scrittura dopo cui la Nota si salva da sola. */
@@ -129,8 +135,10 @@ interface NotesTabProps {
  * La scheda Note di un Tape (ADR-0032): la riga dei nomi delle Note, con «+ Nuova nota» e, a
  * destra, Salva e l'interruttore Salva da solo; sotto la Nota aperta nell'editor ibrido. Doppio
  * clic sul nome o F2 rinomina; il «…» rinomina, copia ed elimina. Senza Salva da solo una Nota con
- * modifiche ha un pallino. In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota
- * finché le Note non sono lette.
+ * modifiche ha un pallino. Sotto la riga, chi ha scritto la Nota l'ultima volta e quando; se un
+ * Assistente l'ha cambiata mentre aveva modifiche, un avviso che resta offre «Tieni le mie» e «Usa
+ * le sue». In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota finché le Note
+ * non sono lette.
  */
 export function NotesTab({
   note,
@@ -159,6 +167,16 @@ function NoteLette({
   const nota = note.note.find((n) => n.nome === aperta) ?? note.note[0];
   const modificate = Object.keys(bozze).length > 0;
   const salvate = salvaDaSolo && !modificate && nota.salvato !== null;
+  // La Nota aperta cambiata da un Assistente mentre aveva modifiche: l'utente sceglie.
+  const sua = nota.nome in note.conflitti;
+  const tieniLeMie = useCallback(
+    () => note.tieniLeMie(nota.nome),
+    [note, nota.nome]
+  );
+  const usaLeSue = useCallback(
+    () => note.usaLeSue(nota.nome),
+    [note, nota.nome]
+  );
   useScorciatoia("salvaNote", readOnly ? null : salvaTutte);
   const salvaSubito = useCallback(() => salvaTutte(), [salvaTutte]);
   // Accesa, le bozze in sospeso si salvano subito.
@@ -287,6 +305,11 @@ function NoteLette({
         </div>
       </div>
       <div className="flex h-8 items-center gap-1 pb-3.5">
+        {nota.firma ? (
+          <span className="truncate text-muted-foreground text-xs">
+            <FirmaNota firma={nota.firma} />
+          </span>
+        ) : null}
         <PopoverMenu
           className="ml-auto size-7"
           icon={<Ellipsis />}
@@ -316,10 +339,27 @@ function NoteLette({
           </MenuItem>
         </PopoverMenu>
       </div>
+      {sua ? (
+        <div
+          className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm"
+          role="alert"
+        >
+          <CircleAlert className="size-4 shrink-0 text-destructive" />
+          <span className="min-w-0 flex-1">
+            {t("notes.conflict.text", { nome: nota.nome })}
+          </span>
+          <Button onClick={tieniLeMie} size="sm" variant="outline">
+            {t("notes.conflict.keep")}
+          </Button>
+          <Button onClick={usaLeSue} size="sm" variant="outline">
+            {t("notes.conflict.theirs")}
+          </Button>
+        </div>
+      ) : null}
       <NotaEditor
         bozza={bozze[nota.nome]}
         durataMs={durataMs}
-        key={`${nota.nome}:${scarti}`}
+        key={`${nota.nome}:${scarti}:${note.versione}`}
         nota={nota}
         onError={onError}
         player={player}
@@ -349,6 +389,18 @@ function NoteLette({
       </AlertDialog>
     </div>
   );
+}
+
+/** Chi ha scritto la Nota l'ultima volta e quando: «Assistente (Claude) · 17:52», «Tu · 18:03». */
+function FirmaNota({ firma: { autore, modificata } }: { firma: Firma }) {
+  const { i18n, t } = useTranslation();
+  const time = oraDellaFirma(modificata, new Date(), i18n.language);
+  if (autore.tipo === "utente") {
+    return t("notes.by.user", { time });
+  }
+  return autore.client
+    ? t("notes.by.assistantClient", { client: autore.client, time })
+    : t("notes.by.assistant", { time });
 }
 
 /**

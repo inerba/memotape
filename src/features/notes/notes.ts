@@ -1,7 +1,14 @@
 import type { AppError, Nota } from "@/bindings";
 
-/** Una Nota della riga dei nomi: il nome e il testo su disco, `null` se la Nota non c'è ancora. */
+/** Chi ha scritto una Nota l'ultima volta e quando. */
+export type Firma = Pick<Nota, "autore" | "modificata">;
+
+/**
+ * Una Nota della riga dei nomi: il nome e il testo su disco, `null` se la Nota non c'è ancora, con
+ * la firma dell'ultima scrittura (manca in una Nota nuova).
+ */
 export interface NotaAperta {
+  firma?: Firma;
   nome: string;
   salvato: string | null;
 }
@@ -22,8 +29,70 @@ const NOME_MAX = 60;
  */
 export function noteIniziali(note: Nota[], predefinito: string): NotaAperta[] {
   return note.length > 0
-    ? note.map((n) => ({ nome: n.nome, salvato: n.testo }))
+    ? note.map(daDisco)
     : [{ nome: predefinito, salvato: null }];
+}
+
+function daDisco({ autore, modificata, nome, testo }: Nota): NotaAperta {
+  return { firma: { autore, modificata }, nome, salvato: testo };
+}
+
+/**
+ * Le Note `suDisco`, rilette al ritorno in primo piano (un Assistente può averle cambiate), al
+ * posto di quelle mostrate, `note`, che hanno le `bozze`. Una Nota senza bozza prende testo e firma
+ * del disco. Una con bozza cambiata su disco resta com'era, con la bozza e il testo da cui parte, e
+ * va nei `conflitti` con la Nota su disco: l'utente sceglie «Tieni le mie» o «Usa le sue». Le Note
+ * sparite dal disco se ne vanno, tranne le nuove e quelle con bozza, che restano da creare.
+ */
+export function rilette(
+  note: NotaAperta[],
+  suDisco: Nota[],
+  bozze: Readonly<Record<string, string>>,
+  predefinito: string
+): { conflitti: Record<string, Nota>; note: NotaAperta[] } {
+  const conflitti: Record<string, Nota> = {};
+  const lette = suDisco.map((d) => {
+    const locale = note.find((n) => n.nome === d.nome);
+    const bozza = bozze[d.nome];
+    if (
+      locale &&
+      bozza !== undefined &&
+      bozza !== d.testo &&
+      d.testo !== (locale.salvato ?? "")
+    ) {
+      conflitti[d.nome] = d;
+      return locale;
+    }
+    return daDisco(d);
+  });
+  const resto = note
+    .filter(
+      (n) =>
+        !suDisco.some((d) => d.nome === n.nome) &&
+        (n.salvato === null || n.nome in bozze)
+    )
+    .map((n) => ({ nome: n.nome, salvato: null }));
+  const tutte = [...lette, ...resto];
+  return {
+    conflitti,
+    note: tutte.length > 0 ? tutte : noteIniziali([], predefinito),
+  };
+}
+
+/** L'ora della firma `modificata` (ISO 8601): solo l'ora se è di oggi, se no anche il giorno. */
+export function oraDellaFirma(
+  modificata: string,
+  adesso: Date,
+  locale: string
+): string {
+  const quando = new Date(modificata);
+  const ora: Intl.DateTimeFormatOptions = {
+    hour: "2-digit",
+    minute: "2-digit",
+  };
+  return quando.toDateString() === adesso.toDateString()
+    ? quando.toLocaleTimeString(locale, ora)
+    : quando.toLocaleString(locale, { day: "numeric", month: "short", ...ora });
 }
 
 /** La Nota da aprire: quella di nome `scelta` (un risultato della ricerca) se c'è, se no la prima. */

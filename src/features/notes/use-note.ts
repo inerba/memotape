@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type AppError, commands } from "@/bindings";
+import { type AppError, commands, type Nota } from "@/bindings";
 import type { BozzeAction } from "./bozze";
 import {
   apertaIniziale,
@@ -8,13 +8,18 @@ import {
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
+  rilette,
   salvataggio,
   senzaNota,
 } from "./notes";
 
 interface Stato {
   aperta: string;
+  /** Le Note con bozza cambiate da fuori, con la Nota su disco: aspettano la scelta dell'utente. */
+  conflitti: Record<string, Nota>;
   note: NotaAperta[];
+  /** Cresce quando la Nota aperta prende un testo da fuori: il suo editor riparte da lì. */
+  versione: number;
 }
 
 /** Le Note del Tape aperto e le operazioni su di loro. */
@@ -33,6 +38,18 @@ export interface NoteDelTape extends Stato {
   salvaTutte: () => Promise<boolean>;
   /** L'editor della Nota `nome` ha `testo`: la bozza va nella route. */
   scrivi: (nome: string, testo: string) => void;
+  /** «Tieni le mie»: la bozza della Nota in conflitto si salva sopra il testo nuovo. */
+  tieniLeMie: (nome: string) => void;
+  /** «Usa le sue»: la bozza della Nota in conflitto si butta per il testo nuovo. */
+  usaLeSue: (nome: string) => void;
+}
+
+/** La firma di una scrittura dell'utente, adesso. */
+function firmaDellUtente() {
+  return {
+    autore: { tipo: "utente" as const },
+    modificata: new Date().toISOString(),
+  };
 }
 
 /** Quante Note ha il Tape su disco, per la scheda: le nuove ancora vuote non contano. */
@@ -47,7 +64,8 @@ export function quanteNote(note: NoteDelTape | null): number {
  * eliminazioni vanno uno dopo l'altro in una coda, e ognuno parte dalle Note lasciate dal
  * precedente; `onSaved` riceve la data di modifica nuova del Tape. Le bozze stanno nella route
  * (`bozze`, `onBozze`), che le tiene se la vista si rimonta. `scelta` (la Nota di un risultato
- * della ricerca) si apre appena c'è. `null` finché non sono lette.
+ * della ricerca) si apre appena c'è. Quando `ricariche` cresce (il Tape è cambiato da fuori, ADR-0031)
+ * le Note si rileggono con `rilette`. `null` finché non sono lette.
  */
 export function useNote({
   bozze,
@@ -55,6 +73,7 @@ export function useNote({
   onError,
   onSaved,
   path,
+  ricariche,
   scelta,
 }: {
   bozze: Record<string, string>;
@@ -62,6 +81,7 @@ export function useNote({
   onError: (error: AppError) => void;
   onSaved: (path: string, modificato: number | null) => void;
   path: string;
+  ricariche: number;
   scelta?: string;
 }): NoteDelTape | null {
   const { t } = useTranslation();
@@ -101,7 +121,9 @@ export function useNote({
       const note = noteIniziali(result.data, predefinito);
       attuale.current = {
         aperta: apertaIniziale(note, sceltaAllaLettura.current),
+        conflitti: {},
         note,
+        versione: 0,
       };
       setStato(attuale.current);
     });
@@ -109,6 +131,39 @@ export function useNote({
       vivo = false;
     };
   }, [onError, path, predefinito]);
+
+  // Le Note cambiate da fuori, in coda dopo i salvataggi in corso: un proprio salvataggio non
+  // sembra di fuori.
+  const ricaricheLette = useRef(ricariche);
+  useEffect(() => {
+    if (ricariche === ricaricheLette.current) {
+      return;
+    }
+    ricaricheLette.current = ricariche;
+    inCoda(async () => {
+      const result = await commands.tapeNote(path);
+      if (result.status === "error") {
+        onError(result.error);
+        return;
+      }
+      aggiorna((s) => {
+        const prima = s.note.find((n) => n.nome === s.aperta);
+        const { conflitti, note } = rilette(
+          s.note,
+          result.data,
+          bozzeAttuali.current,
+          predefinito
+        );
+        const aperta = note.find((n) => n.nome === s.aperta) ?? note[0];
+        return {
+          aperta: aperta.nome,
+          conflitti,
+          note,
+          versione: s.versione + (aperta.salvato === prima?.salvato ? 0 : 1),
+        };
+      });
+    });
+  }, [aggiorna, inCoda, onError, path, predefinito, ricariche]);
 
   const apri = useCallback(
     (aperta: string) => aggiorna((s) => ({ ...s, aperta })),
@@ -124,6 +179,7 @@ export function useNote({
     const nomi = attuale.current?.note.map((n) => n.nome) ?? [];
     const nome = nomeNuovo(nomi, (n) => t("notes.newName", { n }));
     aggiorna((s) => ({
+      ...s,
       aperta: nome,
       note: [...s.note, { nome, salvato: null }],
     }));
@@ -134,9 +190,15 @@ export function useNote({
     (nome: string, bozza: string) =>
       inCoda(async () => {
         const nota = attuale.current?.note.find((n) => n.nome === nome);
-        // Rinominata o eliminata nel frattempo: la bozza era già salvata uscendo dal campo.
-        if (!nota) {
+        // Rinominata o eliminata nel frattempo: la bozza era già salvata uscendo dal campo. Una
+        // Nota in conflitto aspetta «Tieni le mie» o «Usa le sue».
+        if (!nota || nome in (attuale.current?.conflitti ?? {})) {
           return false;
+        }
+        // Senza bozza non c'è niente da salvare: l'editor che si chiude dopo un testo arrivato da
+        // fuori non lo riscrive con il suo.
+        if (bozzeAttuali.current[nome] === undefined) {
+          return nota.salvato !== null;
         }
         const da = salvataggio(nome, nota.salvato, bozza);
         if (!da) {
@@ -150,7 +212,9 @@ export function useNote({
         aggiorna((s) => ({
           ...s,
           note: s.note.map((n) =>
-            n.nome === nome ? { ...n, salvato: da.testo } : n
+            n.nome === nome
+              ? { ...n, firma: firmaDellUtente(), salvato: da.testo }
+              : n
           ),
         }));
         onBozze({ nome, path, testo: da.testo, type: "salvata" });
@@ -206,6 +270,7 @@ export function useNote({
         }
         onBozze({ nome, nuovo, path, type: "rinominata" });
         aggiorna((s) => ({
+          ...s,
           aperta: s.aperta === nome ? nuovo : s.aperta,
           note: s.note.map((n) =>
             n.nome === nome ? { ...n, nome: nuovo } : n
@@ -234,12 +299,73 @@ export function useNote({
         aggiorna((s) => {
           const resto = senzaNota(s.note, nome, predefinito);
           return {
+            ...s,
             aperta: s.aperta === nome ? resto.aperta : s.aperta,
             note: resto.note,
           };
         });
       }),
     [aggiorna, inCoda, onBozze, onError, onSaved, path, predefinito]
+  );
+
+  const tieniLeMie = useCallback(
+    (nome: string) =>
+      inCoda(async () => {
+        const sua = attuale.current?.conflitti[nome];
+        const bozza = bozzeAttuali.current[nome];
+        if (!sua || bozza === undefined) {
+          return;
+        }
+        const result = await commands.saveNota(path, nome, bozza, sua.testo);
+        if (result.status === "error") {
+          onError(result.error);
+          return;
+        }
+        aggiorna((s) => ({
+          ...s,
+          conflitti: senza(s.conflitti, nome),
+          note: s.note.map((n) =>
+            n.nome === nome
+              ? { ...n, firma: firmaDellUtente(), salvato: bozza }
+              : n
+          ),
+        }));
+        onBozze({ nome, path, testo: bozza, type: "salvata" });
+        onSaved(path, result.data);
+      }),
+    [aggiorna, inCoda, onBozze, onError, onSaved, path]
+  );
+
+  const usaLeSue = useCallback(
+    (nome: string) => {
+      const sua = attuale.current?.conflitti[nome];
+      if (!sua) {
+        return;
+      }
+      // La bozza va via con il testo nuovo: l'editor che si chiude non ha niente da salvare.
+      onBozze({
+        nome,
+        path,
+        salvato: sua.testo,
+        testo: sua.testo,
+        type: "scritta",
+      });
+      aggiorna((s) => ({
+        aperta: s.aperta,
+        conflitti: senza(s.conflitti, nome),
+        note: s.note.map((n) =>
+          n.nome === nome
+            ? {
+                firma: { autore: sua.autore, modificata: sua.modificata },
+                nome,
+                salvato: sua.testo,
+              }
+            : n
+        ),
+        versione: s.versione + (s.aperta === nome ? 1 : 0),
+      }));
+    },
+    [aggiorna, onBozze, path]
   );
 
   return useMemo(
@@ -254,7 +380,30 @@ export function useNote({
         salva,
         salvaTutte,
         scrivi,
+        tieniLeMie,
+        usaLeSue,
       },
-    [apri, bozze, crea, elimina, rinomina, salva, salvaTutte, scrivi, stato]
+    [
+      apri,
+      bozze,
+      crea,
+      elimina,
+      rinomina,
+      salva,
+      salvaTutte,
+      scrivi,
+      stato,
+      tieniLeMie,
+      usaLeSue,
+    ]
   );
+}
+
+/** `conflitti` senza la Nota `nome`. */
+function senza(
+  conflitti: Record<string, Nota>,
+  nome: string
+): Record<string, Nota> {
+  const { [nome]: _, ...altri } = conflitti;
+  return altri;
 }

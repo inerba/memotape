@@ -4,12 +4,12 @@
 
 **Blocked by:** 03, 04
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Gli strumenti rispettano i due permessi, il lock su file e `activityInProgress`, con errori leggibili per nome già usato, testo atteso obsoleto e Nota non trovata
-- [ ] Test degli strumenti come quelli di ADR-0031 in `mcp.rs`, compreso l'autore con il nome del client
-- [ ] Un test o una verifica a mano prova l'avviso «Tieni le mie» / «Usa le sue» su una Nota con bozza
-- [ ] Il prompt ha la ricetta di `PRODUCT.md` e non tocca le Note esistenti
-- [ ] `docs/sviluppo/impostazioni-e-servizi.md` elenca strumenti e prompt
-- [ ] Testi nelle sei lingue
-- [ ] I sei controlli verdi
+- [x] Gli strumenti rispettano i due permessi, il lock su file e `activityInProgress`, con errori leggibili per nome già usato, testo atteso obsoleto e Nota non trovata
+- [x] Test degli strumenti come quelli di ADR-0031 in `mcp.rs`, compreso l'autore con il nome del client
+- [x] Un test o una verifica a mano prova l'avviso «Tieni le mie» / «Usa le sue» su una Nota con bozza
+- [x] Il prompt ha la ricetta di `PRODUCT.md` e non tocca le Note esistenti
+- [x] `docs/sviluppo/impostazioni-e-servizi.md` elenca strumenti e prompt
+- [x] Testi nelle sei lingue
+- [x] I sei controlli verdi

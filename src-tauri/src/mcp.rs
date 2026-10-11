@@ -12,8 +12,8 @@ use chrono::NaiveDate;
 use rmcp::handler::server::wrapper::{Json, Parameters};
 use rmcp::model::{PromptMessage, Role};
 use rmcp::{
-    ServerHandler, ServiceExt, prompt, prompt_handler, prompt_router, schemars, tool, tool_handler,
-    tool_router,
+    Peer, RoleServer, ServerHandler, ServiceExt, prompt, prompt_handler, prompt_router, schemars,
+    tool, tool_handler, tool_router,
 };
 
 use crate::cartelle::{self, Cartelle};
@@ -21,7 +21,7 @@ use crate::library::{self, Library, MARK_END, MARK_START};
 use crate::managers::settings::{CopiaCome, Settings};
 use crate::managers::transcription;
 use crate::transcript::Ingresso;
-use crate::{error::AppError, tape};
+use crate::{error::AppError, tape, tempi_nota};
 
 /// L'identifier di `tauri.conf.json`: il nome delle cartelle dell'app.
 const IDENTIFIER: &str = "it.memotape.desktop";
@@ -102,7 +102,7 @@ pub fn serve() -> ExitCode {
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct SearchParams {
     /// The words to find. Each word matches as a word prefix, ignoring case and accents; all words
-    /// must appear in the same phrase (or in the title, or in a renamed speaker's name).
+    /// must appear in the same phrase (or in the title, in a note, or in a renamed speaker's name).
     query: String,
     /// Search only this Raccolta (collection), by name; "" searches only Tape outside any Raccolta.
     /// Omit to search the whole Library.
@@ -222,6 +222,36 @@ pub struct TapeParams {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct NoteParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The name of the note, as returned by list_notes.
+    name: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct WriteNoteParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The name of the note: unique in the Tape, 1 to 60 characters.
+    name: String,
+    /// The whole new text of the note, in Markdown.
+    text: String,
+    /// The current text of the note, exactly as returned by read_note; "" to create a new note.
+    expected: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct RenameNoteParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The current name of the note, as returned by list_notes.
+    name: String,
+    /// The new name: unique in the Tape, 1 to 60 characters.
+    new_name: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct TaglioParams {
     /// The Tape, as its path relative to the Library returned by search or list_tapes.
     tape: String,
@@ -311,8 +341,65 @@ pub struct SearchOut {
 pub struct FoundTape {
     #[serde(flatten)]
     tape: TapeOut,
-    /// The matching phrases (up to 5), in order of time; empty if only the title matched.
+    /// The matching phrases (up to 5), in order of time; empty if only the title or notes matched.
     frasi: Vec<FoundFrase>,
+    /// The notes of the Tape that match: read one with read_note.
+    note: Vec<FoundNota>,
+}
+
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundNota {
+    nome: String,
+    /// An excerpt of the note with the matching words in **bold**.
+    estratto: String,
+}
+
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteOut {
+    #[serde(flatten)]
+    tape: TapeOut,
+    /// In order of creation; empty if the Tape has no notes.
+    note: Vec<NotaInfoOut>,
+}
+
+/// Una Nota senza il testo: chi l'ha scritta l'ultima volta e quando.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NotaInfoOut {
+    nome: String,
+    /// Who wrote it last: "user" or "assistant".
+    autore: String,
+    /// The name of the assistant's client, if it gave one.
+    client: Option<String>,
+    /// When it was written last, local time with UTC offset.
+    modificata: String,
+}
+
+impl From<&tape::Nota> for NotaInfoOut {
+    fn from(nota: &tape::Nota) -> Self {
+        let (autore, client) = match &nota.autore {
+            tape::Autore::Utente => ("user", None),
+            tape::Autore::Assistente { client } => ("assistant", client.clone()),
+        };
+        Self {
+            nome: nota.nome.clone(),
+            autore: autore.into(),
+            client,
+            modificata: nota.modificata.clone(),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct NotaOut {
+    #[serde(flatten)]
+    info: NotaInfoOut,
+    /// The text in Markdown: pass it to write_note as `expected`. A time in square brackets, as
+    /// [12:40] or [1:02:05], is a link to that point of the audio.
+    testo: String,
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
@@ -406,10 +493,10 @@ impl Server {
     }
 
     #[tool(
-        description = "Search the Memotape Library for words in titles, phrases and speaker names. \
-Returns the most relevant Tape, each with up to 5 matching phrases (excerpt, Ingresso, phraseId, \
-start time). Rephrase and search again with synonyms if nothing is found; read a hit's context with \
-read_around.",
+        description = "Search the Memotape Library for words in titles, phrases, notes and speaker \
+names. Returns the most relevant Tape, each with up to 5 matching phrases (excerpt, Ingresso, \
+phraseId, start time) and its matching notes (name, excerpt). Rephrase and search again with \
+synonyms if nothing is found; read a phrase's context with read_around, a note with read_note.",
         annotations(title = "Search the Library", read_only_hint = true)
     )]
     fn search(&self, Parameters(p): Parameters<SearchParams>) -> Result<Json<SearchOut>, String> {
@@ -431,6 +518,14 @@ read_around.",
                         ingresso: hit.ingresso.key().into(),
                         phrase_id: hit.phrase_id,
                         inizio_ms: hit.inizio_ms,
+                        estratto: bold(&hit.estratto),
+                    })
+                    .collect(),
+                note: r
+                    .note
+                    .into_iter()
+                    .map(|hit| FoundNota {
+                        nome: hit.nome,
                         estratto: bold(&hit.estratto),
                     })
                     .collect(),
@@ -896,6 +991,96 @@ of the Tape relative to the Library: use it from now on.",
         library::trash_tape(&path).map_err(|e| write_error(&p.tape, &e))?;
         Ok("Moved to the Recycle Bin.".into())
     }
+
+    #[tool(
+        description = "List the notes of a Tape: the user's notes in Markdown, kept in the Tape next \
+to its transcript, in order of creation, each with who wrote it last (the user or an assistant) and \
+when. Read one with read_note.",
+        annotations(title = "List the notes", read_only_hint = true)
+    )]
+    fn list_notes(&self, Parameters(p): Parameters<TapeParams>) -> Result<Json<NoteOut>, String> {
+        log::info!("Assistente: list_notes {}", p.tape);
+        let (_, library) = self.allowed_library()?;
+        let path = resolve(library.root(), &p.tape)?;
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let note = tape::note(&path).map_err(|e| read_error(&p.tape, &e))?;
+        Ok(Json(NoteOut {
+            tape: tape_of(&p.tape, &path, &document),
+            note: note.iter().map(NotaInfoOut::from).collect(),
+        }))
+    }
+
+    #[tool(
+        description = "Read a note of a Tape: its Markdown text, with who wrote it last and when. A \
+time in square brackets, as [12:40] or [1:02:05], links to that point of the audio.",
+        annotations(title = "Read a note", read_only_hint = true)
+    )]
+    fn read_note(&self, Parameters(p): Parameters<NoteParams>) -> Result<Json<NotaOut>, String> {
+        log::info!("Assistente: read_note {} {:?}", p.tape, p.name);
+        let (_, library) = self.allowed_library()?;
+        let path = resolve(library.root(), &p.tape)?;
+        let note = tape::note(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let nota = note
+            .iter()
+            .find(|n| n.nome == p.name)
+            .ok_or_else(|| no_note(&p.tape, &p.name))?;
+        Ok(Json(NotaOut {
+            info: nota.into(),
+            testo: nota.testo.clone(),
+        }))
+    }
+
+    #[tool(
+        description = "Create a note in a Tape, or rewrite one, in Markdown, as the user does in \
+Memotape's Notes tab. To create a note pass a name not used by the Tape's notes and \"\" as \
+`expected`; to rewrite one pass its whole new text and, as `expected`, its current text from \
+read_note, so a change made by the user in the meantime is not overwritten. Write a point of the \
+audio as a time in square brackets, [m:ss] or [h:mm:ss] (e.g. [12:40]): Memotape shows it as a link \
+to that point. Notes cannot be deleted by assistants.",
+        annotations(
+            title = "Write a note",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn write_note(
+        &self,
+        peer: Peer<RoleServer>,
+        Parameters(p): Parameters<WriteNoteParams>,
+    ) -> Result<String, String> {
+        // Il nome con cui il client si è presentato in `initialize`: l'autore che vede l'utente.
+        let client = peer
+            .peer_info()
+            .map(|info| {
+                info.client_info
+                    .title
+                    .clone()
+                    .unwrap_or_else(|| info.client_info.name.clone())
+            })
+            .filter(|nome| !nome.trim().is_empty());
+        self.scrivi_nota(&p, client)
+    }
+
+    #[tool(
+        description = "Rename a note of a Tape. The new name must not be used by another note of the \
+Tape.",
+        annotations(
+            title = "Rename a note",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn rename_note(&self, Parameters(p): Parameters<RenameNoteParams>) -> Result<String, String> {
+        log::info!(
+            "Assistente: rename_note {} {:?} → {:?}",
+            p.tape,
+            p.name,
+            p.new_name
+        );
+        let path = self.writable_tape(&p.tape)?;
+        tape::rinomina_nota(&path, &p.name, &p.new_name).map_err(|e| write_error(&p.tape, &e))?;
+        Ok("Renamed.".into())
+    }
 }
 
 #[prompt_router]
@@ -913,6 +1098,43 @@ cut its long silences, then a title if the current one is generic."
             fix_tape_recipe(&p.tape),
         )]
     }
+
+    #[prompt(
+        name = "write_notes",
+        title = "Scrivi le Note",
+        description = "Summarize a Tape in a new note: its decisions, to-dos and open questions, each \
+with the time it was said."
+    )]
+    fn write_notes(&self, Parameters(p): Parameters<TapeParams>) -> Vec<PromptMessage> {
+        log::info!("Assistente: prompt write_notes {}", p.tape);
+        vec![PromptMessage::new_text(
+            Role::User,
+            write_notes_recipe(&p.tape),
+        )]
+    }
+}
+
+/// La ricetta di «Scrivi le Note» (`PRODUCT.md`, «Note») per il Tape `tape`: una Nota nuova, le
+/// altre non si toccano.
+fn write_notes_recipe(tape: &str) -> String {
+    format!(
+        "Write a summary of the Memotape Tape `{tape}` in a new note, with the Memotape tools.\n\n\
+1. Name. Call list_notes. The note is called \"Riepilogo\" translated into the language spoken in \
+the Tape (e.g. \"Summary\" in English, \"Riepilogo\" in Italian); if the Tape already has a note \
+with that name, add the first free number: \"Riepilogo 2\", \"Riepilogo 3\"…\n\n\
+2. Read. Read all its turns with read_turns (every page, following `next`).\n\n\
+3. Write. Create the note with write_note, with \"\" as `expected`, in Markdown and in the language \
+spoken in the Tape, with three sections, their headings translated too:\n\
+## Decisioni\n- what was decided\n\
+## Da fare\n- [ ] Speaker: what someone has to do, with the speaker's name as read_turns gives it\n\
+## Aperto\n- questions and issues left open\n\
+End every point with the start time of the turn it comes from, in square brackets as [m:ss] or \
+[h:mm:ss] (e.g. [12:40], [1:02:05]), computed from its `inizioMs`: Memotape shows it as a link to \
+that point of the audio. Leave a section with no points out. Do not invent anything that was not \
+said.\n\n\
+Do not change, rename or rewrite any other note of the Tape. At the end, tell the user the name of \
+the note in one line."
+    )
 }
 
 /// La ricetta di «Sistema il Tape» (ADR-0031) per il Tape `tape`: il titolo per ultimo, perché
@@ -950,8 +1172,10 @@ identified by their path relative to the Library, as these tools return it. If t
 you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn, \
 merge a turn into an adjacent one with merge_turn, name a speaker with rename_speaker and change the \
 date with set_date; rename_tape changes its title, trash_tape moves it to the Recycle Bin; find its \
-long silences with find_silences and remove them with one cut_tape. The fix_tape prompt gives the \
-recipe to tidy up a Tape."
+long silences with find_silences and remove them with one cut_tape. A Tape also has notes in \
+Markdown: list_notes and read_note read them; if the user allows it, write_note creates or rewrites \
+a note and rename_note renames it (notes cannot be deleted). The fix_tape prompt gives the recipe \
+to tidy up a Tape, the write_notes prompt the recipe to summarize it in a new note."
 )]
 #[prompt_handler]
 impl ServerHandler for Server {}
@@ -997,6 +1221,49 @@ impl Server {
             path,
             settings,
             _lock: lock,
+        })
+    }
+
+    /// `write_note` di un Assistente che si è presentato come `client`, l'autore della Nota.
+    fn scrivi_nota(&self, p: &WriteNoteParams, client: Option<String>) -> Result<String, String> {
+        log::info!("Assistente {client:?}: write_note {} {:?}", p.tape, p.name);
+        let path = self.writable_tape(&p.tape)?;
+        let durata_ms = tape::read(&path)
+            .map_err(|e| read_error(&p.tape, &e))?
+            .durata_ms;
+        let nuova = !tape::note(&path)
+            .map_err(|e| read_error(&p.tape, &e))?
+            .iter()
+            .any(|n| n.nome == p.name);
+        // `salva_nota` rifiuta sotto il lock un testo atteso che non è quello su disco.
+        tape::salva_nota(
+            &path,
+            &p.name,
+            &p.text,
+            &p.expected,
+            &tape::Autore::Assistente { client },
+        )
+        .map_err(|e| write_error(&p.tape, &e))?;
+        let esito = match (nuova, p.text.is_empty()) {
+            (true, true) => return Ok("Nothing written: a new note needs some text.".into()),
+            (true, false) => "Created.",
+            (false, _) if p.text == p.expected => "Nothing to change: the text is the same.",
+            (false, _) => "Written.",
+        };
+        // Come nell'app: un tempo da dove finisce il Tape in poi non porta da nessuna parte.
+        let oltre: Vec<_> = tempi_nota::tempi(&p.text)
+            .into_iter()
+            .filter(|t| t.ms >= durata_ms)
+            .map(|t| &p.text[t.da..t.a])
+            .collect();
+        Ok(if oltre.is_empty() {
+            esito.into()
+        } else {
+            format!(
+                "{esito} These times are past the end of the Tape ({durata_ms} ms), so Memotape \
+shows them as plain text: {}.",
+                oltre.join(", ")
+            )
         })
     }
 }
@@ -1157,8 +1424,28 @@ or a space, or contain any of < > : \" / \\ | ? *."
         AppError::NoRecycleBin(_) => format!(
             "{tape} is on a drive without a Recycle Bin: ask the user to delete it in Memotape."
         ),
+        AppError::NoteChanged(nome) => format!(
+            "The note {nome:?} of {tape} does not have the text you passed as expected: it already \
+exists, it changed since you read it, or it does not exist. Call read_note and pass its current \
+text as expected, pass \"\" to create a note that does not exist, or choose another name for a new \
+note."
+        ),
+        AppError::NoteNotFound(nome) => no_note(tape, nome),
+        AppError::NoteNameTaken(nome) => {
+            format!("{tape} already has a note named {nome:?}: choose another name.")
+        }
+        AppError::NoteNameInvalid(nome) => format!(
+            "{nome:?} is not a valid note name: it must not be empty and at most {} characters \
+long.",
+            tape::NOME_NOTA_MAX
+        ),
         _ => format!("{tape} cannot be changed: {e}"),
     }
+}
+
+/// Il Tape `tape` non ha una Nota `nome`.
+fn no_note(tape: &str, nome: &str) -> String {
+    format!("{tape} has no note named {nome:?}: call list_notes for the names of its notes.")
 }
 
 /// Il log del server: su stderr, che Claude Desktop salva in `mcp-server-memotape.log`, e nel log
@@ -2242,7 +2529,7 @@ mod tests {
         assert!(server.get_info().capabilities.prompts.is_some());
         let prompts = Server::prompt_router().list_all();
         let names: Vec<_> = prompts.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, ["fix_tape"]);
+        assert_eq!(names, ["fix_tape", "write_notes"]);
         let argomenti = prompts[0].arguments.as_deref().unwrap_or_default();
         assert!(
             argomenti
@@ -2267,5 +2554,232 @@ mod tests {
         assert!(at("find_silences") < at("cut_tape"));
         assert!(at("cut_tape") < at("rename_tape"));
         assert!(testo.contains("100 characters"), "{testo}");
+    }
+
+    fn read_note(server: &Server, nome: &str) -> Result<NotaOut, String> {
+        server
+            .read_note(Parameters(NoteParams {
+                tape: CALL.into(),
+                name: nome.into(),
+            }))
+            .map(|Json(nota)| nota)
+    }
+
+    /// `write_note` di un Assistente che si presenta come `client`.
+    fn write_note(
+        server: &Server,
+        nome: &str,
+        testo: &str,
+        atteso: &str,
+        client: Option<&str>,
+    ) -> Result<String, String> {
+        server.scrivi_nota(
+            &WriteNoteParams {
+                tape: CALL.into(),
+                name: nome.into(),
+                text: testo.into(),
+                expected: atteso.into(),
+            },
+            client.map(Into::into),
+        )
+    }
+
+    fn rename_note(server: &Server, nome: &str, nuovo: &str) -> Result<String, String> {
+        server.rename_note(Parameters(RenameNoteParams {
+            tape: CALL.into(),
+            name: nome.into(),
+            new_name: nuovo.into(),
+        }))
+    }
+
+    #[test]
+    fn le_note_si_leggono_con_il_solo_permesso_di_lettura() {
+        let (root, server) = server("note-lettura", true);
+        let path = root.join(CALL);
+        let claude = tape::Autore::Assistente {
+            client: Some("Claude".into()),
+        };
+        tape::salva_nota(&path, "Riepilogo", "## Decisioni", "", &claude).unwrap();
+        tape::salva_nota(
+            &path,
+            "Mie note",
+            "Chiamare Sara",
+            "",
+            &tape::Autore::Utente,
+        )
+        .unwrap();
+        let Json(elenco) = server
+            .list_notes(Parameters(TapeParams { tape: CALL.into() }))
+            .unwrap();
+        assert_eq!(elenco.tape.titolo, "Call di lunedì");
+        assert_eq!(
+            elenco
+                .note
+                .iter()
+                .map(|n| (n.nome.as_str(), n.autore.as_str(), n.client.as_deref()))
+                .collect::<Vec<_>>(),
+            [
+                ("Riepilogo", "assistant", Some("Claude")),
+                ("Mie note", "user", None)
+            ]
+        );
+        assert!(elenco.note[0].modificata.starts_with("20"), "{elenco:?}");
+        let nota = read_note(&server, "Mie note").unwrap();
+        assert_eq!(nota.testo, "Chiamare Sara");
+        assert_eq!(nota.info.autore, "user");
+        let manca = read_note(&server, "Domande").unwrap_err();
+        assert!(manca.contains("list_notes"), "{manca}");
+        // Un Tape senza Note ne ha zero.
+        let Json(vuoto) = server
+            .list_notes(Parameters(TapeParams {
+                tape: "Sciolto.tape".into(),
+            }))
+            .unwrap();
+        assert!(vuoto.note.is_empty());
+        // Senza il consenso alla lettura niente.
+        let (_, spento) = super::tests::server("note-spento", false);
+        let letto = spento.list_notes(Parameters(TapeParams { tape: CALL.into() }));
+        assert_eq!(letto.err().as_deref(), Some(DISABLED));
+    }
+
+    #[test]
+    fn un_assistente_crea_riscrive_e_rinomina_le_note_con_il_suo_nome() {
+        let (root, server) = server_with("note-scrittura", true, true);
+        let path = root.join(CALL);
+        assert_eq!(
+            write_note(&server, "Riepilogo", "Uno", "", Some("Claude")).as_deref(),
+            Ok("Created.")
+        );
+        let note = tape::note(&path).unwrap();
+        assert_eq!(note[0].nome, "Riepilogo");
+        assert_eq!(note[0].testo, "Uno");
+        assert_eq!(
+            note[0].autore,
+            tape::Autore::Assistente {
+                client: Some("Claude".into())
+            }
+        );
+        // Una Nota che c'è non si ricrea, e una riscrittura con il testo atteso vecchio si rifiuta:
+        // il Tape resta com'era.
+        let prima = bytes(&root, &server, CALL);
+        let ricreata = write_note(&server, "Riepilogo", "Due", "", Some("Claude")).unwrap_err();
+        assert!(ricreata.contains("read_note"), "{ricreata}");
+        let obsoleta = write_note(&server, "Riepilogo", "Due", "Zero", None).unwrap_err();
+        assert!(obsoleta.contains("read_note"), "{obsoleta}");
+        let lungo = "x".repeat(61);
+        let invalida = write_note(&server, &lungo, "Due", "", None).unwrap_err();
+        assert!(invalida.contains("60 characters"), "{invalida}");
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        // Con il testo attuale come atteso si riscrive; un client senza nome resta anonimo.
+        assert_eq!(
+            write_note(&server, "Riepilogo", "Due", "Uno", None).as_deref(),
+            Ok("Written.")
+        );
+        let note = tape::note(&path).unwrap();
+        assert_eq!(note[0].testo, "Due");
+        assert_eq!(note[0].autore, tape::Autore::Assistente { client: None });
+        // Una Nota nuova vuota non si scrive.
+        let vuota = write_note(&server, "Vuota", "", "", None).unwrap();
+        assert!(vuota.starts_with("Nothing written"), "{vuota}");
+        // Un tempo oltre la fine del Tape resta testo: l'Assistente lo sa.
+        let tempi = write_note(&server, "Tempi", "[0:00] inizio, [9:00] dopo", "", None).unwrap();
+        assert!(
+            tempi.contains("[9:00]") && !tempi.contains("[0:00]"),
+            "{tempi}"
+        );
+        // Rinomina: nome preso, Nota che non c'è, nome valido.
+        let presa = rename_note(&server, "Tempi", "Riepilogo").unwrap_err();
+        assert!(presa.contains("already has a note"), "{presa}");
+        let manca = rename_note(&server, "Domande", "Altre").unwrap_err();
+        assert!(manca.contains("list_notes"), "{manca}");
+        assert_eq!(
+            rename_note(&server, "Tempi", "Momenti").as_deref(),
+            Ok("Renamed.")
+        );
+        let nomi: Vec<_> = tape::note(&path)
+            .unwrap()
+            .into_iter()
+            .map(|n| n.nome)
+            .collect();
+        assert_eq!(nomi, ["Riepilogo", "Momenti"]);
+    }
+
+    #[test]
+    fn le_note_si_scrivono_solo_con_il_permesso_e_senza_attivita_sul_tape() {
+        use crate::managers::activity::Activity;
+        let (root, server) = server_with("note-permesso", true, false);
+        tape::salva_nota(&root.join(CALL), "Note", "Uno", "", &tape::Autore::Utente).unwrap();
+        let prima = bytes(&root, &server, CALL);
+        let scritta = write_note(&server, "Note", "Due", "Uno", None);
+        assert_eq!(scritta.err().as_deref(), Some(READ_ONLY));
+        let rinominata = rename_note(&server, "Note", "Altre");
+        assert_eq!(rinominata.err().as_deref(), Some(READ_ONLY));
+        assert_eq!(bytes(&root, &server, CALL), prima);
+
+        let (root, server) = server_with("note-attivita", true, true);
+        tape::salva_nota(&root.join(CALL), "Note", "Uno", "", &tape::Autore::Utente).unwrap();
+        let activity = Activity::default();
+        let attivita = activity.begin(Some(root.join(CALL)), || {}).unwrap();
+        let prima = bytes(&root, &server, CALL);
+        let scritta = write_note(&server, "Note", "Due", "Uno", None);
+        assert_eq!(scritta.err().as_deref(), Some(BUSY));
+        let rinominata = rename_note(&server, "Note", "Altre");
+        assert_eq!(rinominata.err().as_deref(), Some(BUSY));
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        drop(attivita);
+        assert!(write_note(&server, "Note", "Due", "Uno", None).is_ok());
+    }
+
+    #[test]
+    fn la_ricerca_mostra_le_note_trovate() {
+        let (root, server) = server("note-ricerca", true);
+        tape::salva_nota(
+            &root.join(CALL),
+            "Mie note",
+            "Chiamare Sara",
+            "",
+            &tape::Autore::Utente,
+        )
+        .unwrap();
+        // L'indice lo riallinea l'app.
+        Library::open(&root, &library::db_path(&server.places.indice, &root))
+            .unwrap()
+            .sync()
+            .unwrap();
+        let Json(found) = server
+            .search(Parameters(SearchParams {
+                query: "sara".into(),
+                raccolta: None,
+                limit: None,
+            }))
+            .unwrap();
+        let [tape] = found.tapes.as_slice() else {
+            panic!("{found:?}");
+        };
+        assert!(tape.frasi.is_empty());
+        assert_eq!(
+            tape.note
+                .iter()
+                .map(|n| (n.nome.as_str(), n.estratto.as_str()))
+                .collect::<Vec<_>>(),
+            [("Mie note", "Chiamare **Sara**")]
+        );
+    }
+
+    #[test]
+    fn il_prompt_scrivi_le_note_crea_un_riepilogo_nuovo() {
+        let (_, server) = server("prompt-note", true);
+        let messaggi = server.write_notes(Parameters(TapeParams { tape: CALL.into() }));
+        let testo: String = messaggi
+            .iter()
+            .filter_map(|m| m.content.as_text().map(|t| t.text.clone()))
+            .collect();
+        assert!(testo.contains(CALL), "{testo}");
+        let at = |parola: &str| testo.find(parola).unwrap_or_else(|| panic!("{parola}"));
+        assert!(at("list_notes") < at("read_turns"));
+        assert!(at("read_turns") < at("write_note"));
+        for parola in ["Riepilogo", "Riepilogo 2", "- [ ]", "[12:40]", "expected"] {
+            assert!(testo.contains(parola), "{parola}: {testo}");
+        }
     }
 }

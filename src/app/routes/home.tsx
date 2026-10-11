@@ -182,6 +182,8 @@ export function HomePage() {
   // l'avviso lo mostra per un po' sopra la fase, che durante un'Attività non deve cambiare.
   const [notice, setNotice] = useState<AppError | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Quante volte il Tape mostrato si è ricaricato perché cambiato da fuori: le Note si rileggono.
+  const [ricariche, setRicariche] = useState(0);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [copied, setCopied] = useState(false);
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
@@ -819,6 +821,7 @@ export function HomePage() {
         setNotice(opened.error);
       } else {
         applyOpenedTape(path, opened.data);
+        setRicariche((n) => n + 1);
       }
     }
   });
@@ -1038,6 +1041,7 @@ export function HomePage() {
       onTrash={requestTrash}
       processing={isSource && transcribesSource(status)}
       recording={recording}
+      ricariche={ricariche}
       running={running}
       salvaNote={salvaNote}
       scarti={scarti}
@@ -1586,6 +1590,7 @@ function TapePane({
   onTagliato,
   onTranscribe,
   onTrash,
+  ricariche,
   isSource,
   processing,
   recording,
@@ -1627,6 +1632,8 @@ function TapePane({
   onTagliato: (path: string, opened: OpenedTape) => void;
   onTranscribe: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
+  /** Cresce quando il Tape si ricarica perché cambiato da fuori: le Note si rileggono. */
+  ricariche: number;
   isSource: boolean;
   processing: boolean;
   recording: boolean;
@@ -1726,6 +1733,7 @@ function TapePane({
     onError,
     onSaved: onNoteSalvate,
     path,
+    ricariche,
     scelta: nota,
   });
   const salvaTutte = note?.salvaTutte;

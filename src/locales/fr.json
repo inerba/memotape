@@ -577,6 +577,16 @@
     "save": "Enregistrer",
     "autosave": "Enregistrer automatiquement",
     "unsaved": "Modifications non enregistrées",
+    "by": {
+      "user": "Vous · {{time}}",
+      "assistant": "Assistant · {{time}}",
+      "assistantClient": "Assistant ({{client}}) · {{time}}"
+    },
+    "conflict": {
+      "text": "Un assistant a modifié « {{nome}} » pendant que vous la modifiiez.",
+      "keep": "Garder les miennes",
+      "theirs": "Utiliser les siennes"
+    },
     "leave": {
       "title": "Enregistrer les modifications des Notes ?",
       "description": "Certaines Notes de ce Tape ont des modifications non enregistrées. Sans les enregistrer, elles seront perdues.",

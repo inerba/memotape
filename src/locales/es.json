@@ -577,6 +577,16 @@
     "save": "Guardar",
     "autosave": "Guardar automáticamente",
     "unsaved": "Cambios sin guardar",
+    "by": {
+      "user": "Tú · {{time}}",
+      "assistant": "Asistente · {{time}}",
+      "assistantClient": "Asistente ({{client}}) · {{time}}"
+    },
+    "conflict": {
+      "text": "Un asistente cambió «{{nome}}» mientras la editabas.",
+      "keep": "Conservar las mías",
+      "theirs": "Usar las suyas"
+    },
     "leave": {
       "title": "¿Guardar los cambios en las Notas?",
       "description": "Algunas Notas de este Tape tienen cambios sin guardar. Si no las guardas, se perderán.",

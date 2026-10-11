@@ -5,9 +5,16 @@ import {
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
+  oraDellaFirma,
+  rilette,
   salvataggio,
   senzaNota,
 } from "@/features/notes/notes";
+
+const firma = {
+  autore: { tipo: "utente" },
+  modificata: "2026-10-11T18:03:00+02:00",
+} as const;
 
 const nota = (nome: string, testo: string): Nota => ({
   autore: { tipo: "utente" },
@@ -21,8 +28,8 @@ test("un Tape senza Note mostra una Nota nuova con il nome predefinito, che non 
   expect(
     noteIniziali([nota("Riepilogo", "## Decisioni"), nota("Mie", "")], "Note")
   ).toEqual([
-    { nome: "Riepilogo", salvato: "## Decisioni" },
-    { nome: "Mie", salvato: "" },
+    { firma, nome: "Riepilogo", salvato: "## Decisioni" },
+    { firma, nome: "Mie", salvato: "" },
   ]);
 });
 
@@ -108,4 +115,70 @@ test("si salva solo una bozza diversa dal testo su disco, che diventa l'atteso",
     nome: "Note",
     testo: "",
   });
+});
+
+test("rilette dal disco, le Note senza bozza prendono testo e firma nuovi", () => {
+  const claude = { client: "Claude", tipo: "assistente" } as const;
+  const locali = noteIniziali(
+    [nota("Mie note", "Uno"), nota("Vecchia", "v")],
+    "Note"
+  );
+  const { conflitti, note } = rilette(
+    [...locali, { nome: "Nota 3", salvato: null }],
+    [
+      { ...nota("Mie note", "Uno due"), autore: claude },
+      { ...nota("Riepilogo", "## Decisioni"), autore: claude },
+    ],
+    {},
+    "Note"
+  );
+  expect(conflitti).toEqual({});
+  // La Nota nuova ancora vuota resta in fondo; quella sparita dal disco se ne va.
+  expect(note).toEqual([
+    {
+      firma: { ...firma, autore: claude },
+      nome: "Mie note",
+      salvato: "Uno due",
+    },
+    {
+      firma: { ...firma, autore: claude },
+      nome: "Riepilogo",
+      salvato: "## Decisioni",
+    },
+    { nome: "Nota 3", salvato: null },
+  ]);
+  // Senza più Note torna la Nota nuova con il nome predefinito.
+  expect(rilette(locali, [], {}, "Note").note).toEqual([
+    { nome: "Note", salvato: null },
+  ]);
+});
+
+test("una Nota con bozza cambiata da fuori tiene bozza e testo da cui parte, in conflitto", () => {
+  const locali = noteIniziali(
+    [nota("Mie note", "Uno"), nota("B", "b")],
+    "Note"
+  );
+  const bozze = { B: "b mia", "Mie note": "Uno mio" };
+  const { conflitti, note } = rilette(
+    locali,
+    [nota("Mie note", "Uno suo"), nota("B", "b")],
+    bozze,
+    "Note"
+  );
+  // «B» non è cambiata: la sua bozza si salverà come sempre.
+  expect(conflitti).toEqual({ "Mie note": nota("Mie note", "Uno suo") });
+  expect(note).toEqual(locali);
+  // Una Nota con bozza sparita dal disco (rinominata da un Assistente) resta, da ricreare.
+  expect(rilette(locali, [nota("B", "b")], bozze, "Note").note).toEqual([
+    locali[1],
+    { nome: "Mie note", salvato: null },
+  ]);
+});
+
+test("la firma dice l'ora per oggi, giorno e ora per gli altri giorni", () => {
+  const adesso = new Date("2026-10-11T20:00:00");
+  expect(oraDellaFirma("2026-10-11T17:52:00", adesso, "it")).toBe("17:52");
+  expect(oraDellaFirma("2026-10-09T08:05:00", adesso, "it")).toBe(
+    "9 ott, 08:05"
+  );
 });

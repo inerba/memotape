@@ -574,6 +574,16 @@
     "save": "Save",
     "autosave": "Save automatically",
     "unsaved": "Unsaved changes",
+    "by": {
+      "user": "You · {{time}}",
+      "assistant": "Assistant · {{time}}",
+      "assistantClient": "Assistant ({{client}}) · {{time}}"
+    },
+    "conflict": {
+      "text": "An assistant changed “{{nome}}” while you were editing it.",
+      "keep": "Keep mine",
+      "theirs": "Use theirs"
+    },
     "leave": {
       "title": "Save changes to the Notes?",
       "description": "Some Notes in this Tape have unsaved changes. If you don't save them, they will be lost.",

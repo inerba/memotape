@@ -580,6 +580,16 @@
     "save": "Zapisz",
     "autosave": "Zapisuj automatycznie",
     "unsaved": "Niezapisane zmiany",
+    "by": {
+      "user": "Ty · {{time}}",
+      "assistant": "Asystent · {{time}}",
+      "assistantClient": "Asystent ({{client}}) · {{time}}"
+    },
+    "conflict": {
+      "text": "Asystent zmienił „{{nome}}”, gdy ją edytowałeś.",
+      "keep": "Zachowaj moje",
+      "theirs": "Użyj jego"
+    },
     "leave": {
       "title": "Zapisać zmiany w Notatkach?",
       "description": "Niektóre Notatki tego Tape mają niezapisane zmiany. Bez zapisania zostaną utracone.",
