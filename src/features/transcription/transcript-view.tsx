@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   Fragment,
+  type MouseEvent,
   memo,
   type ReactNode,
   useCallback,
@@ -38,6 +40,12 @@ import { useSettings } from "@/features/settings/settings-context";
 import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import {
+  type Silenzio,
+  silenziDi,
+  type Taglio,
+  tagliato,
+} from "@/features/taglio/taglio";
+import {
   ParlanteNameInput,
   VOICE_CLASSES,
 } from "@/features/transcription/parlante-name";
@@ -48,6 +56,7 @@ import {
   type PhraseRef,
   pausesOf,
   phraseKey,
+  SHOWN_PAUSE_MS,
   type Turn,
   textItemsOf,
   turnBody,
@@ -59,6 +68,24 @@ import { pauseDuration } from "@/lib/duration";
 import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+
+const NESSUNA_MODIFICA: {
+  onEdit?: EditTurn;
+  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
+  onRenaming?: (voce: Parlante | null, turnKey: string) => void;
+} = {};
+
+/** Le modifiche del testo, nessuna in modalità Taglio; senza `rinomina` i nomi non si cambiano. */
+function modificheDelTesto(
+  inTaglio: boolean,
+  modifiche: typeof NESSUNA_MODIFICA,
+  rinomina: boolean
+): typeof NESSUNA_MODIFICA {
+  if (inTaglio) {
+    return NESSUNA_MODIFICA;
+  }
+  return rinomina ? modifiche : { ...modifiche, onRenaming: undefined };
+}
 
 /** Ai turni senza Frasi in ascolto: sempre lo stesso array, così `memo` non li ridisegna. */
 const NOT_PLAYING: string[] = [];
@@ -101,6 +128,7 @@ export function TranscriptView({
   parlanti,
   player,
   renaming,
+  taglio,
 }: {
   conversation: Conversation;
   /** Al posto dei turni, se non ce ne sono. */
@@ -118,6 +146,11 @@ export function TranscriptView({
   player?: PlayerState;
   /** Il Parlante di cui si sta scrivendo il nome. */
   renaming?: Parlante | null;
+  /**
+   * La modalità Taglio: i silenzi lunghi (anche all'inizio e alla fine, e dentro un turno) sono
+   * righe che si selezionano, e il testo dei Tagli in sospeso è barrato.
+   */
+  taglio?: { durataMs: number; tagli: Taglio[] } | null;
 }) {
   const { t } = useTranslation();
   const section = useRef<HTMLElement>(null);
@@ -143,9 +176,12 @@ export function TranscriptView({
   const free = player?.follow === "free";
   // Turni e vicini dipendono dal testo, non dalla posizione del player: con un Tape lungo
   // ricalcolarli e ridisegnarli a ogni aggiornamento bloccava l'interfaccia durante l'ascolto.
-  const turns = useMemo(() => turnsOf(conversation, t), [conversation, t]);
+  const { inTaglio, pauses, silenzi, turns } = useTurni(
+    conversation,
+    t,
+    taglio
+  );
   const colors = useMemo(() => voiceColors(turns), [turns]);
-  const pauses = useMemo(() => pausesOf(turns), [turns]);
   const vista = useSettings().settings.vistaTrascrizione ?? "copione";
   let nameWidth: string | null = null;
   if (turns.some((turn) => turn.label !== null)) {
@@ -239,29 +275,44 @@ export function TranscriptView({
   // Ctrl+J vale solo finché si vede il pulsante.
   const backShown = free && followed !== undefined;
   useScorciatoia("tornaAlPunto", backShown ? backToAudio : null);
+  // In modalità Taglio il testo si seleziona e basta: niente correzioni, Unisci né nomi.
+  const modifiche = modificheDelTesto(
+    inTaglio,
+    { onEdit, onMerge, onRenaming: renameAt },
+    Boolean(onRenaming)
+  );
 
   return (
     <section
       aria-label={t("transcription.text")}
       className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+      data-taglio={inTaglio ? "" : undefined}
       ref={section}
     >
       <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
         {header}
         {turns.length === 0 ? empty : null}
         <div className={`flex flex-col ${RESE[vista].gap}`}>
+          <PrimaDelTurno
+            nameWidth={nameWidth}
+            silenzio={silenzi?.inizio}
+            tagli={taglio?.tagli}
+            vista={vista}
+          />
           {turns.map((turn, index) => {
             const { above, below, voce } = neighbours[index] ?? {};
             const heard = turn.items.some((item) =>
               playing.includes(phraseKey(item))
             );
-            const { Pausa } = RESE[vista];
-            const pause = Pausa ? pauses[index] : null;
             return (
               <Fragment key={turn.key}>
-                {Pausa && pause ? (
-                  <Pausa ms={pause} nameWidth={nameWidth} />
-                ) : null}
+                <PrimaDelTurno
+                  nameWidth={nameWidth}
+                  pause={pauses[index]}
+                  silenzio={silenzi?.prima[index]}
+                  tagli={taglio?.tagli}
+                  vista={vista}
+                />
                 <TurnBlock
                   above={above ?? null}
                   active={
@@ -279,12 +330,12 @@ export function TranscriptView({
                   highlight={highlight}
                   list={parlanti}
                   nameWidth={nameWidth}
-                  onEdit={onEdit}
+                  onEdit={modifiche.onEdit}
                   onJump={player ? jump : undefined}
-                  onMerge={onMerge}
+                  onMerge={modifiche.onMerge}
                   onPlay={player?.playFrom}
                   onRename={onRename}
-                  onRenaming={onRenaming ? renameAt : undefined}
+                  onRenaming={modifiche.onRenaming}
                   partials={conversation.partials}
                   playing={heard ? playing : NOT_PLAYING}
                   renaming={
@@ -293,6 +344,7 @@ export function TranscriptView({
                     renaming?.ingresso === voce.ingresso &&
                     renaming.parlante === voce.parlante
                   }
+                  tagli={taglio?.tagli}
                   turn={turn}
                   vista={vista}
                   voce={voce}
@@ -300,6 +352,12 @@ export function TranscriptView({
               </Fragment>
             );
           })}
+          <PrimaDelTurno
+            nameWidth={nameWidth}
+            silenzio={silenzi?.fine}
+            tagli={taglio?.tagli}
+            vista={vista}
+          />
         </div>
       </div>
       {backShown ? (
@@ -363,6 +421,99 @@ function NastroPause({ ms }: PauseProps) {
         })}
       </span>
     </div>
+  );
+}
+
+/**
+ * I turni con le loro pause; in modalità Taglio spezzati anche dai silenzi lunghi dentro la stessa
+ * voce, con i silenzi da mostrare come righe.
+ */
+function useTurni(
+  conversation: Conversation,
+  t: TFunction,
+  taglio: { durataMs: number } | null | undefined
+) {
+  const inTaglio = Boolean(taglio);
+  const durataMs = taglio?.durataMs ?? 0;
+  const turns = useMemo(
+    () => turnsOf(conversation, t, inTaglio ? SHOWN_PAUSE_MS : undefined),
+    [conversation, inTaglio, t]
+  );
+  const pauses = useMemo(() => pausesOf(turns), [turns]);
+  const silenzi = useMemo(
+    () => (inTaglio ? silenziDi(turns, pauses, durataMs) : null),
+    [durataMs, inTaglio, pauses, turns]
+  );
+  return { inTaglio, pauses, silenzi, turns };
+}
+
+/** Prima di un turno: il separatore della pausa, o in modalità Taglio la riga del suo silenzio. */
+function PrimaDelTurno({
+  nameWidth,
+  pause,
+  silenzio,
+  tagli,
+  vista,
+}: {
+  nameWidth: string | null;
+  pause?: number | null;
+  silenzio?: Silenzio | null;
+  tagli?: Taglio[];
+  vista: VistaTrascrizione;
+}) {
+  if (silenzio) {
+    return <SilenzioRow {...silenzio} nameWidth={nameWidth} tagli={tagli} />;
+  }
+  const { Pausa } = RESE[vista];
+  return Pausa && pause ? <Pausa ms={pause} nameWidth={nameWidth} /> : null;
+}
+
+/**
+ * Un silenzio lungo in modalità Taglio: una riga che un clic seleziona, come il testo, e che Canc
+ * taglia. Barrata se sta in un Taglio in sospeso.
+ */
+function SilenzioRow({
+  a,
+  b,
+  dove,
+  ms,
+  nameWidth,
+  tagli,
+}: Silenzio & { nameWidth: string | null; tagli?: Taglio[] }) {
+  const { t, i18n } = useTranslation();
+  const durata = pauseDuration(ms, i18n.language);
+  const testi = {
+    fine: t("taglio.silenzioFinale", { durata }),
+    inizio: t("taglio.silenzioIniziale", { durata }),
+    pausa: t("transcription.pause", { durata }),
+  };
+  const centro = (a + b) / 2;
+  const barrato = tagli?.some(
+    (taglio) => taglio.inizioMs <= centro && centro <= taglio.fineMs
+  );
+  const select = useCallback((e: MouseEvent<HTMLButtonElement>) => {
+    const range = document.createRange();
+    range.selectNodeContents(e.currentTarget);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, []);
+  return (
+    <button
+      className={`flex w-full items-center gap-3 rounded-md py-2 text-left text-muted-foreground text-xs transition-colors after:flex-1 after:border-input after:border-t after:border-dashed after:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 ${
+        barrato ? "line-through decoration-foreground/40" : ""
+      }`}
+      data-a={a}
+      data-b={b}
+      data-silenzio=""
+      onClick={select}
+      style={{
+        paddingLeft: nameWidth ? `calc(${nameWidth} + 1rem)` : undefined,
+      }}
+      type="button"
+    >
+      {testi[dove]}
+    </button>
   );
 }
 
@@ -434,6 +585,7 @@ const TurnBlock = memo(function TurnBlockView({
   partials,
   playing,
   renaming,
+  tagli,
   turn,
   vista,
   voce,
@@ -456,6 +608,7 @@ const TurnBlock = memo(function TurnBlockView({
   partials: TranscriptPartial[];
   playing: string[];
   renaming: boolean;
+  tagli?: Taglio[];
   turn: Turn;
   vista: VistaTrascrizione;
   voce?: Parlante;
@@ -513,6 +666,7 @@ const TurnBlock = memo(function TurnBlockView({
         onJump={onJump}
         partials={partials}
         playing={playing}
+        tagli={tagli}
         turn={turn}
         uncertain={uncertain}
       />
@@ -856,6 +1010,7 @@ function TurnText({
   onJump,
   partials,
   playing,
+  tagli,
   turn,
   uncertain,
 }: {
@@ -866,6 +1021,7 @@ function TurnText({
   onJump?: (ms: number) => void;
   partials: TranscriptPartial[];
   playing: string[];
+  tagli?: Taglio[];
   turn: Turn;
   uncertain: boolean;
 }) {
@@ -903,6 +1059,7 @@ function TurnText({
                     ("testoCorretto" in item && item.testoCorretto)
                   ) && playing.includes(key)
                 }
+                tagliata={tagli ? tagliato(tagli, item) : false}
               />
             </p>
           );
@@ -1157,6 +1314,7 @@ function PhraseText({
   onJump,
   partial,
   playing,
+  tagliata,
 }: {
   highlighted: boolean;
   item: TranscriptPhrase | TranscriptPartial;
@@ -1164,6 +1322,8 @@ function PhraseText({
   /** Il Parziale della Frase in corso, ancora provvisorio. */
   partial: boolean;
   playing: boolean;
+  /** Dentro un Taglio in sospeso: barrata. */
+  tagliata: boolean;
 }) {
   const { t } = useTranslation();
   const span = useRef<HTMLSpanElement>(null);
@@ -1186,6 +1346,10 @@ function PhraseText({
   }
   if (partial) {
     className += " text-muted-foreground italic";
+  }
+  if (tagliata) {
+    className +=
+      " text-muted-foreground line-through decoration-foreground/40 decoration-[1.5px]";
   }
   const time = onJump ? (
     <button

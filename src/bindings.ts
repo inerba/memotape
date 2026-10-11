@@ -73,6 +73,12 @@ export const commands = {
 	/**  Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente. */
 	unisciTurno: (path: string, ingresso: Ingresso, phraseIds: number[], destinazione: number) => typedError<null, AppError>(__TAURI_INVOKE("unisci_turno", { path, ingresso, phraseIds, destinazione })),
 	/**
+	 *  Applica i Tagli `tratti` al Tape `path` (ADR-0030) e restituisce il documento scritto. Con
+	 *  `cestino` l'originale va nel Cestino, e un volume senza Cestino dà `noRecycleBin`; senza, il Tape
+	 *  tagliato lo sostituisce e basta.
+	 */
+	tagliaTape: (path: string, tratti: Tratto[], cestino: boolean) => typedError<OpenedTape_Serialize, AppError>(__TAURI_INVOKE("taglia_tape", { path, tratti, cestino })),
+	/**
 	 *  Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
 	 *  il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
@@ -248,7 +254,9 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
 /**  Si elimina solo una Raccolta vuota. */
 { code: "raccoltaNotEmpty"; detail: string } | 
 /**  Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
-{ code: "tapeNotFound"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "tapeNotFound"; detail: string } | 
+/**  Il volume del Tape non ha un Cestino: l'originale non si potrebbe recuperare. */
+{ code: "noRecycleBin"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -781,6 +789,12 @@ export type TranscriptionOutcome =
 export type TranscriptionProgress = {
 	sessionId: string | null,
 	percent: number | null,
+};
+
+/**  Un tratto da tagliare, in ms sulla linea del tempo del Tape. */
+export type Tratto = {
+	inizioMs: number,
+	fineMs: number,
 };
 
 /**  Una versione più recente di quella in esecuzione. */

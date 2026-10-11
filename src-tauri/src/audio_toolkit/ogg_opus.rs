@@ -2,9 +2,11 @@
 //! trascritto: libopus via `opus`, pagine con `ogg`.
 
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Seek, Write};
+use std::ops::Range;
 use std::sync::{Arc, OnceLock};
 
+use ogg::reading::{OggReadError, PacketReader};
 use ogg::writing::{PacketWriteEndInfo, PacketWriter};
 use opus::{Application, Bitrate, Channels, Encoder};
 
@@ -236,6 +238,75 @@ impl OggCopy {
     }
 }
 
+/// Copia l'Ogg/Opus `input` in `out` senza i pacchetti audio di `via` (indici da 0, tratti ordinati
+/// e disgiunti), senza ricodificare: intestazioni, serial e pre-skip restano, le granule si rifanno.
+/// Restituisce la durata dell'audio rimasto, in ms. Il decoder attraversa la giunzione con lo stato
+/// del pacchetto prima: i tagli cadono nei silenzi, dove non si sente (ADR-0030).
+pub fn taglia<R: Read + Seek, W: Write>(
+    input: R,
+    out: W,
+    via: &[Range<u64>],
+) -> Result<u32, AppError> {
+    let unreadable = |e: OggReadError| AppError::UnreadableFile(format!("Ogg: {e}"));
+    let mut reader = PacketReader::new(input);
+    let mut pages = PacketWriter::new(out);
+    let head = reader.read_packet_expected().map_err(unreadable)?;
+    let serial = head.stream_serial();
+    let pre_skip = match head.data.get(..12) {
+        Some(bytes) if bytes.starts_with(b"OpusHead") => {
+            u64::from(u16::from_le_bytes([bytes[10], bytes[11]]))
+        }
+        _ => return Err(AppError::UnreadableFile("Ogg senza OpusHead".into())),
+    };
+    pages
+        .write_packet(head.data, serial, PacketWriteEndInfo::EndPage, 0)
+        .map_err(io)?;
+    let tags = reader.read_packet_expected().map_err(unreadable)?;
+    pages
+        .write_packet(tags.data, serial, PacketWriteEndInfo::EndPage, 0)
+        .map_err(io)?;
+    // Il pacchetto tenuto si scrive solo quando arriva il seguente: l'ultimo chiude il flusso.
+    let mut held: Option<(Vec<u8>, i64)> = None;
+    let (mut index, mut kept) = (0u64, 0u64);
+    while let Some(packet) = reader.read_packet().map_err(unreadable)? {
+        index += 1;
+        if via.iter().any(|r| r.contains(&(index - 1))) {
+            continue;
+        }
+        // L'end trimming della pagina con EOS: quanto la fine vera precede i pacchetti decodificati.
+        let trim = if packet.last_in_stream() {
+            packet.absgp_page().cast_signed() - (index * PACKET_48K).cast_signed()
+        } else {
+            0
+        };
+        if let Some((data, _)) = held.replace((packet.data, trim)) {
+            kept += 1;
+            let info = if kept.is_multiple_of(PACKETS_PER_PAGE) {
+                PacketWriteEndInfo::EndPage
+            } else {
+                PacketWriteEndInfo::NormalPacket
+            };
+            pages
+                .write_packet(data, serial, info, kept * PACKET_48K)
+                .map_err(io)?;
+        }
+    }
+    let (data, trim) =
+        held.ok_or_else(|| AppError::Internal("il Taglio toglierebbe tutto l'audio".into()))?;
+    kept += 1;
+    let end = ((kept * PACKET_48K).cast_signed() + trim.min(0)).max(pre_skip.cast_signed());
+    pages
+        .write_packet(
+            data,
+            serial,
+            PacketWriteEndInfo::EndStream,
+            end.cast_unsigned(),
+        )
+        .map_err(io)?;
+    pages.into_inner().flush().map_err(io)?;
+    u32::try_from((end.cast_unsigned() - pre_skip) / 48).map_err(internal)
+}
+
 fn random_serial() -> u32 {
     use std::hash::{BuildHasher, RandomState};
     RandomState::new().hash_one(std::time::SystemTime::now()) as u32
@@ -349,6 +420,52 @@ pub(crate) mod tests {
             assert!((s - r).abs() < 0.1, "{i}: {s} contro {r}");
         }
         assert!(scritta[500] < 0.01 && scritta[100] > 0.4, "{scritta:?}");
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn il_taglio_toglie_i_pacchetti_senza_ricodificare_e_il_file_si_rilegge() {
+        let dir = temp_dir("ogg-opus-taglio");
+        let path = dir.join("intero.ogg");
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(&path).unwrap(), 48_000, 1, 32).unwrap();
+        // 10 s: sinusoide, poi silenzio da 4 a 6 s, poi sinusoide; la fine non è un multiplo di 20 ms.
+        let mut audio = sine(48_000, 1, 4.0);
+        audio.extend(vec![0.0; 48_000 * 2]);
+        audio.extend(sine(48_000, 1, 4.013));
+        writer.write(&audio).unwrap();
+        writer.finish().unwrap();
+        let cut = |via: &[Range<u64>]| {
+            let out = dir.join(format!("{via:?}.ogg"));
+            let durata = taglia(
+                std::fs::File::open(&path).unwrap(),
+                std::fs::File::create(&out).unwrap(),
+                via,
+            )
+            .unwrap();
+            (durata, decoded_seconds(&out), out)
+        };
+        // In mezzo, nel silenzio: 1 s (50 pacchetti) in meno, la fine esatta resta.
+        let (durata, seconds, out) = cut(&[225..275]);
+        assert_eq!(durata, 9013);
+        assert!((seconds - 9.013).abs() < 0.001, "{seconds} s");
+        let peaks = crate::audio_toolkit::decode::peaks(&out, 90).unwrap();
+        assert!(
+            peaks[45] < 0.01 && peaks[10] > 0.4 && peaks[80] > 0.4,
+            "{peaks:?}"
+        );
+        // All'inizio e alla fine: la coda tagliata non ha più l'end trimming.
+        let (durata, seconds, _) = cut(&[0..100, 450..502]);
+        // 350 pacchetti tenuti, meno i 312 campioni di pre-skip.
+        assert_eq!(durata, 6993);
+        assert!((seconds - 6.9935).abs() < 0.001, "{seconds} s");
+        assert!(matches!(
+            taglia(std::fs::File::open(&path).unwrap(), Vec::new(), &[0..1000]),
+            Err(AppError::Internal(_))
+        ));
     }
 
     #[test]

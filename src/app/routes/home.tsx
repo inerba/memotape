@@ -24,6 +24,7 @@ import {
   type RecordingCleaningFailed,
   type RecordingCleaningPreparing,
   type TapeEntry,
+  type TranscriptPhrase,
   type UpdateInfo,
 } from "@/bindings";
 import {
@@ -93,6 +94,11 @@ import {
   statusText,
   transcribesSource,
 } from "@/features/status/status";
+import {
+  type ModalitaTaglio,
+  TaglioBar,
+  useModalitaTaglio,
+} from "@/features/taglio/taglio-bar";
 import {
   diarizationNeedsConfirmation,
   wasDiarized,
@@ -917,6 +923,7 @@ export function HomePage() {
       onRenameParlante={rename}
       onRenameTitle={renameTape}
       onReveal={reveal}
+      onTagliato={applyOpenedTape}
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
       processing={isSource && transcribesSource(status)}
@@ -1454,6 +1461,7 @@ function TapePane({
   onRenameParlante,
   onRenameTitle,
   onReveal,
+  onTagliato,
   onTranscribe,
   onTrash,
   isSource,
@@ -1484,6 +1492,8 @@ function TapePane({
   onRenameParlante: (path: string, voce: Parlante, nome: string) => void;
   onRenameTitle: (path: string, titolo: string) => void;
   onReveal: (path: string) => void;
+  /** Il documento del Tape `path` appena tagliato. */
+  onTagliato: (path: string, opened: OpenedTape) => void;
   onTranscribe: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
   isSource: boolean;
@@ -1550,6 +1560,17 @@ function TapePane({
   // Durante una Registrazione niente salti né evidenziazione: il player è disabilitato.
   const listening = processing || recording ? undefined : player;
   const hasText = conversation.phrases.length > 0;
+  const toTranscript = useCallback(() => setTab("transcript"), []);
+  const taglio = useModalitaTaglio({
+    attiva: editable,
+    info,
+    onApri: toTranscript,
+    onTagliato,
+    path,
+    player,
+    testo: hasText,
+  });
+  const { modalita } = taglio;
   const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
 
   const header = (
@@ -1599,6 +1620,7 @@ function TapePane({
               onExported={onExported}
               onMove={onMove}
               onReveal={onReveal}
+              onTaglia={taglio.apri}
               onTranscribe={
                 isSource && !busy && hasText ? onTranscribe : undefined
               }
@@ -1644,13 +1666,19 @@ function TapePane({
           parlanti={parlanti}
           player={listening}
           renaming={renaming}
+          taglio={modalita}
         />
       )}
       <TapePlayer
         disabled={recording}
+        key={taglio.versione}
+        modalita={modalita}
+        onError={onError}
         path={path}
+        phrases={conversation.phrases}
         player={player}
         processing={processing}
+        versione={taglio.versione}
       />
     </>
   );
@@ -1658,18 +1686,36 @@ function TapePane({
 
 function TapePlayer({
   disabled,
+  modalita,
+  onError,
   path,
+  phrases,
   player,
   processing,
+  versione,
 }: {
   disabled: boolean;
+  /** La modalità Taglio: la sua barra sta sopra il player. */
+  modalita: ModalitaTaglio | null;
+  onError: (error: AppError) => void;
   path: string;
+  phrases: TranscriptPhrase[];
   player: PlayerState;
   processing: boolean;
+  versione: number;
 }) {
   return processing ? null : (
     <Dock>
-      <Player disabled={disabled} path={path} player={player} />
+      {modalita ? (
+        <TaglioBar modalita={modalita} onError={onError} phrases={phrases} />
+      ) : null}
+      <Player
+        disabled={disabled}
+        path={path}
+        player={player}
+        tagli={modalita?.tagli}
+        versione={versione}
+      />
     </Dock>
   );
 }

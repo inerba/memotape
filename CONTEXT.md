@@ -69,6 +69,14 @@ Un intervallo dell'audio di un Ingresso effettivamente elaborato, ricordato dal 
 Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file audio o video: un archivio zip con l'audio del mix, l'audio di ogni Ingresso (quando la Registrazione è da Entrambi), la Forma d'onda e il testo con i suoi metadati. Si apre come Sorgente; il suo titolo è il nome del file.
 _Avoid_: Bino (il nome di prima), progetto, archivio, pacchetto, nastro, cassetta
 
+**Taglio**:
+Un tratto tolto da un Tape, all'inizio, alla fine o in mezzo, insieme al suo audio (mix e ogni Ingresso) e al suo testo; il resto si ricongiunge in una linea del tempo continua. Vale per tutti gli Ingressi insieme e i suoi bordi cadono di preferenza nei silenzi. L'originale finisce nel Cestino di Windows.
+_Avoid_: ritaglio, trim, cut, elimina tratto
+
+**Taglio in sospeso**:
+Un tratto scelto per il Taglio ma non ancora applicato: il suo testo resta visibile barrato e si può ripristinare. Non si salva nel Tape; diventa un Taglio solo con «Applica i tagli».
+_Avoid_: bozza, anteprima, ignorato
+
 **Forma d'onda**:
 L'andamento del volume del mix di un Tape, dall'inizio alla fine, che il player mostra come barra di avanzamento; sta dentro il Tape, così riaprirlo non la ricalcola.
 _Avoid_: waveform, picchi, cache

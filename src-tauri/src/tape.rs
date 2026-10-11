@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -721,6 +722,168 @@ pub fn set_creato(path: &Path, local: &str) -> Result<String, AppError> {
     Ok(scritto)
 }
 
+/// I Tagli `tagli` (ms sulla linea del tempo del Tape) come li applica l'audio: ordinati, uniti dove
+/// si toccano, dentro la durata e ai 20 ms di un pacchetto Opus.
+pub fn tagli_applicabili(tagli: &[Range<u32>], durata_ms: u32) -> Vec<Range<u32>> {
+    let pacchetto = |ms: u32| (ms.min(durata_ms) + 10) / 20 * 20;
+    let mut tagli: Vec<_> = tagli
+        .iter()
+        .map(|r| pacchetto(r.start)..pacchetto(r.end))
+        .filter(|r| !r.is_empty())
+        .collect();
+    tagli.sort_by_key(|r| r.start);
+    let mut uniti: Vec<Range<u32>> = Vec::new();
+    for taglio in tagli {
+        match uniti.last_mut() {
+            Some(last) if taglio.start <= last.end => last.end = last.end.max(taglio.end),
+            _ => uniti.push(taglio),
+        }
+    }
+    uniti
+}
+
+impl Document {
+    /// Toglie dal documento i tratti `tagli` (da `tagli_applicabili`) e ricongiunge la linea del
+    /// tempo: le Frasi tutte dentro un tratto spariscono, le altre restano intere con i tempi
+    /// spostati; un Taglio all'inizio sposta in avanti `creato`. I Parlanti non si rinumerano e una
+    /// correzione del Turno resta sulle Frasi rimaste.
+    pub fn taglia(&mut self, tagli: &[Range<u32>], durata_ms: u32) {
+        let tolti_prima = |t: u32| -> u32 {
+            tagli
+                .iter()
+                .map(|r| t.clamp(r.start, r.end) - r.start)
+                .sum()
+        };
+        let sposta = |t: u32| t - tolti_prima(t);
+        let dentro = |a: u32, b: u32| tagli.iter().any(|r| r.start <= a && b <= r.end);
+        self.frasi.retain(|f| !dentro(f.inizio_ms, f.fine_ms));
+        for frase in &mut self.frasi {
+            frase.inizio_ms = sposta(frase.inizio_ms);
+            frase.fine_ms = sposta(frase.fine_ms);
+            frase.tempi.retain(|t| !dentro(t.inizio_ms, t.fine_ms));
+            for tempo in &mut frase.tempi {
+                tempo.inizio_ms = sposta(tempo.inizio_ms);
+                tempo.fine_ms = sposta(tempo.fine_ms);
+            }
+        }
+        let rimaste: Vec<_> = self.frasi.iter().map(|f| (f.ingresso, f.id)).collect();
+        for correzione in &mut self.correzioni_testo {
+            correzione
+                .frasi
+                .retain(|id| rimaste.contains(&(correzione.ingresso, *id)));
+        }
+        self.correzioni_testo.retain(|c| !c.frasi.is_empty());
+        for tratto in &mut self.pulizia_audio {
+            let frame = |ms: u32| u64::from(ms) * u64::from(tratto.frequenza) / 1000;
+            let sposta = |f: u64| {
+                f - tagli
+                    .iter()
+                    .map(|r| f.clamp(frame(r.start), frame(r.end)) - frame(r.start))
+                    .sum::<u64>()
+            };
+            tratto.inizio_frame = sposta(tratto.inizio_frame);
+            tratto.fine_frame = sposta(tratto.fine_frame);
+        }
+        self.pulizia_audio.retain(|t| t.inizio_frame < t.fine_frame);
+        if let Some(primo) = tagli.first().filter(|r| r.start == 0)
+            && let Ok(creato) = DateTime::parse_from_rfc3339(&self.creato)
+        {
+            let dopo = creato + chrono::Duration::milliseconds(i64::from(primo.end));
+            self.creato = dopo.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
+        }
+        self.durata_ms = durata_ms;
+    }
+}
+
+/// Applica i Tagli `tagli` al Tape `path`: riscrive accanto l'audio di ogni Ingresso senza i tratti
+/// (senza ricodificare), la Forma d'onda e il documento, poi chiama `scarta` sull'originale (il
+/// Cestino) e mette il nuovo al suo posto. A metà, l'originale resta intatto.
+pub fn taglia(
+    path: &Path,
+    tagli: &[Range<u32>],
+    scarta: impl FnOnce(&Path) -> Result<(), AppError>,
+) -> Result<(), AppError> {
+    let _writing = writing();
+    let mut document = read(path)?;
+    let tagli = tagli_applicabili(tagli, document.durata_ms);
+    if tagli.is_empty() {
+        return Ok(());
+    }
+    let pacchetti: Vec<_> = tagli
+        .iter()
+        .map(|r| u64::from(r.start / 20)..u64::from(r.end / 20))
+        .collect();
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".{}.tmp", temporary_id()));
+    let temp = PathBuf::from(name);
+    let mut created = false;
+    let written = (|| {
+        let mut old = open(path)?;
+        let file = File::create_new(&temp).map_err(|e| unwritable(&temp, &e))?;
+        created = true;
+        let mut zip = ZipWriter::new(file);
+        let audio: Vec<_> = [Ingresso::Mix, Ingresso::Microfono, Ingresso::Sistema]
+            .into_iter()
+            .map(audio_entry)
+            .filter(|name| old.index_for_name(name).is_some())
+            .collect();
+        let mut durata = document.durata_ms;
+        for ingresso in [Ingresso::Mix, Ingresso::Microfono, Ingresso::Sistema]
+            .into_iter()
+            .filter(|&i| audio.contains(&audio_entry(i)))
+        {
+            zip.start_file(
+                audio_entry(ingresso),
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored),
+            )
+            .map_err(|e| unwritable(&temp, &e))?;
+            let rimasta = crate::audio_toolkit::ogg_opus::taglia(
+                Mix::open_ingresso(path, ingresso)?,
+                &mut zip,
+                &pacchetti,
+            )?;
+            if ingresso == Ingresso::Mix {
+                durata = rimasta;
+            }
+        }
+        for i in 0..old.len() {
+            let entry = old.by_index_raw(i).map_err(|e| unreadable(path, &e))?;
+            let riscritta =
+                [DOCUMENT, FORMA_ONDA].contains(&entry.name()) || audio.contains(&entry.name());
+            if !riscritta {
+                zip.raw_copy_file(entry)
+                    .map_err(|e| unwritable(&temp, &e))?;
+            }
+        }
+        if let Some(values) = forma_onda(path) {
+            // Ogni valore copre lo stesso tempo: si tolgono quelli dei tratti tagliati.
+            let passo = f64::from(document.durata_ms) / values.len() as f64;
+            let rimasti: Vec<f32> = values
+                .iter()
+                .enumerate()
+                .filter(|&(i, _)| {
+                    let centro = ((i as f64 + 0.5) * passo) as u32;
+                    !tagli.iter().any(|r| r.contains(&centro))
+                })
+                .map(|(_, &v)| v)
+                .collect();
+            write_forma_onda(&mut zip, &temp, &rimasti)?;
+        }
+        document.taglia(&tagli, durata);
+        write_document(&mut zip, &temp, &document)?;
+        let file = zip.finish().map_err(|e| unwritable(&temp, &e))?;
+        file.sync_all().map_err(|e| unwritable(&temp, &e))?;
+        drop(file);
+        drop(old);
+        scarta(path)?;
+        std::fs::rename(&temp, path).map_err(|e| unwritable(path, &e))
+    })();
+    if written.is_err() && created {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
+}
+
 /// Legge, cambia e riscrive il documento.
 fn update(
     path: &Path,
@@ -1176,6 +1339,100 @@ mod tests {
         assert_eq!(forma_onda(&vuota), None);
         save_forma_onda(&vuota, &[0.5]).unwrap();
         assert_eq!(forma_onda(&vuota), Some(vec![0.5]));
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn il_taglio_toglie_audio_e_frasi_e_ricongiunge_la_linea_del_tempo() {
+        let dir = temp_dir("tape-taglio");
+        let mix = ogg_named(&dir, "mix.ogg", 30.0);
+        let microfono = ogg_named(&dir, "microfono.ogg", 30.0);
+        let path = dir.join("Riunione.tape");
+        let mut written = document(&["Ciao.", "Uno.", "Due.", "Tre.", "Fine."]);
+        for frase in &mut written.frasi {
+            frase.inizio_ms *= 10;
+            frase.fine_ms *= 10;
+        }
+        written.durata_ms = 30_000;
+        written.correzioni_testo.push(TestoTurno {
+            ingresso: Ingresso::Mix,
+            frasi: vec![1, 2],
+            testo: "Uno e due.".into(),
+        });
+        written
+            .pulizia_audio
+            .push(crate::audio_toolkit::cleaning::TrattoPulizia {
+                ingresso: Ingresso::Mix,
+                algoritmo: "dfn3".into(),
+                versione: "1".into(),
+                frequenza: 16_000,
+                inizio_frame: 0,
+                fine_frame: 16_000 * 30,
+            });
+        let forma: Vec<f32> = (0..300).map(|i| i as f32 / 300.0).collect();
+        write(
+            &path,
+            &[(Ingresso::Mix, &mix), (Ingresso::Microfono, &microfono)],
+            &written,
+            Some(&forma),
+        )
+        .unwrap();
+        // I saluti (Frase 0) e la Frase 2; il secondo bordo cade già su un pacchetto.
+        let tagli = [0..5_600, 11_500..17_500];
+        let mut scartato = None;
+        taglia(&path, &tagli, |p| {
+            scartato = Some(p.to_path_buf());
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(scartato.as_deref(), Some(path.as_path()));
+        let tagliato = read(&path).unwrap();
+        assert_eq!(tagliato.durata_ms, 18_400);
+        let tempi: Vec<_> = tagliato
+            .frasi
+            .iter()
+            .map(|f| (f.id, f.inizio_ms, f.fine_ms))
+            .collect();
+        assert_eq!(
+            tempi,
+            [(1, 400, 5_400), (3, 6_400, 11_400), (4, 12_400, 17_400)]
+        );
+        assert_eq!(tagliato.creato, "2026-10-03T17:05:05+02:00");
+        assert_eq!(tagliato.correzioni_testo[0].frasi, [1]);
+        assert_eq!(tagliato.pulizia_audio[0].fine_frame, 16_000 * 184 / 10);
+        let forma = forma_onda(&path).unwrap();
+        assert_eq!(forma.len(), 300 - 56 - 60);
+        assert!((forma[0] - 56.0 / 300.0).abs() < 1e-6);
+        let mut audio = Vec::new();
+        Mix::open_ingresso(&path, Ingresso::Microfono)
+            .unwrap()
+            .read_to_end(&mut audio)
+            .unwrap();
+        let ogg = dir.join("microfono-tagliato.ogg");
+        std::fs::write(&ogg, audio).unwrap();
+        assert!((decoded_seconds(&ogg) - 18.4).abs() < 0.001);
+        // Se l'originale non va nel Cestino, il Tape resta com'era e non restano file temporanei.
+        let prima = std::fs::read(&path).unwrap();
+        let rifiuto = taglia(&path, &[0..1_000], |_| {
+            Err(AppError::NoRecycleBin("prova".into()))
+        });
+        assert!(matches!(rifiuto, Err(AppError::NoRecycleBin(_))));
+        assert_eq!(std::fs::read(&path).unwrap(), prima);
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn i_tagli_si_uniscono_e_cadono_sui_pacchetti_da_20_ms() {
+        assert_eq!(
+            tagli_applicabili(
+                &[900..1_000, 0..15, 2_005..2_031, 990..1_200, 40..40],
+                2_020
+            ),
+            [0..20, 900..1_200, 2_000..2_020]
+        );
     }
 
     #[test]

@@ -71,6 +71,9 @@ pub enum AppError {
     /// Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app.
     #[error("Tape non trovato: {0}")]
     TapeNotFound(String),
+    /// Il volume del Tape non ha un Cestino: l'originale non si potrebbe recuperare.
+    #[error("il volume non ha un Cestino: {0}")]
+    NoRecycleBin(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

@@ -564,10 +564,7 @@ pub fn trash(path: &Path) -> Result<(), AppError> {
     };
     // SAFETY: `volume` è un percorso terminato da zero e `info` ha `cbSize` impostato.
     if unsafe { SHQueryRecycleBinW(volume.as_ptr(), &raw mut info) } < 0 {
-        return Err(AppError::UnwritableFolder(format!(
-            "{}: il volume non ha un Cestino",
-            path.display()
-        )));
+        return Err(AppError::NoRecycleBin(path.display().to_string()));
     }
     // Un elenco di percorsi terminato da due zeri.
     let from: Vec<u16> = absolute.as_os_str().encode_wide().chain([0, 0]).collect();

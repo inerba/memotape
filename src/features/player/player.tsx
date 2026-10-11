@@ -32,6 +32,7 @@ import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 
 const RATES = [1, 1.25, 1.5, 2];
+const NO_TAGLI: { fineMs: number; inizioMs: number }[] = [];
 const SKIP_MS = 10_000;
 /** Le frecce spostano di meno dei pulsanti: per riascoltare una parola. */
 const ARROW_MS = 5000;
@@ -130,10 +131,19 @@ export function Player({
   disabled,
   path,
   player,
+  tagli = NO_TAGLI,
+  versione = 0,
 }: {
   disabled: boolean;
   path: string;
   player: PlayerState;
+  /** I Tagli in sospeso, tratteggiati sulla forma d'onda. */
+  tagli?: { fineMs: number; inizioMs: number }[];
+  /**
+   * Cresce quando il mix cambia allo stesso percorso (un Taglio): la WebView riuserebbe l'audio
+   * già letto da quell'indirizzo. Il protocollo ignora la query.
+   */
+  versione?: number;
 }) {
   const { i18n, t } = useTranslation();
   const [rate, setRate] = useState(1);
@@ -265,7 +275,7 @@ export function Player({
         onTimeUpdate={time}
         preload="metadata"
         ref={audio}
-        src={convertFileSrc(path, "tape")}
+        src={`${convertFileSrc(path, "tape")}${versione ? `?v=${versione}` : ""}`}
       />
       <button
         aria-label={t("player.back")}
@@ -311,6 +321,7 @@ export function Player({
         onSeek={seek}
         path={path}
         positionMs={positionMs}
+        tagli={tagli}
       />
       <span className="w-14 shrink-0 pl-2 text-muted-foreground text-sm tabular-nums">
         {elapsedText(durationMs)}
@@ -399,6 +410,7 @@ function Waveform({
   onSeek,
   path,
   positionMs,
+  tagli,
 }: {
   disabled: boolean;
   durationMs: number;
@@ -406,6 +418,7 @@ function Waveform({
   onSeek: (e: ChangeEvent<HTMLInputElement>) => void;
   path: string;
   positionMs: number;
+  tagli: { fineMs: number; inizioMs: number }[];
 }) {
   const peaks = usePeaks(path);
   const position = Math.min(positionMs, durationMs);
@@ -449,6 +462,19 @@ function Waveform({
           />
         )}
       </svg>
+      {durationMs > 0
+        ? tagli.map((taglio) => (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 rounded-sm bg-[repeating-linear-gradient(135deg,color-mix(in_oklch,var(--foreground)_22%,transparent)_0_2px,transparent_2px_6px)] bg-background/70"
+              key={taglio.inizioMs}
+              style={{
+                left: `${(taglio.inizioMs / durationMs) * 100}%`,
+                width: `${((taglio.fineMs - taglio.inizioMs) / durationMs) * 100}%`,
+              }}
+            />
+          ))
+        : null}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground"

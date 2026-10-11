@@ -139,7 +139,8 @@
       "audioCleaningMissing": "The DeepFilterNet3 model bundled with the app is missing. Reinstall Memotape.",
       "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
-      "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop."
+      "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop.",
+      "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin"
     },
     "app": {
       "title": "Something went wrong",
@@ -578,14 +579,43 @@
       "pausaRegistrazione": "Pause or resume",
       "apriTape": "Open the Tape",
       "rinominaTape": "Rename the Tape",
-      "cestinaTape": "Move to Recycle Bin"
+      "cestinaTape": "Move to Recycle Bin",
+      "tagliaSelezione": "Cut selection (Cut mode)",
+      "esciDalTaglio": "Leave Cut mode"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Shift",
       "Space": "Space",
       "Enter": "Enter",
-      "Delete": "Del"
+      "Delete": "Del",
+      "Escape": "Esc"
     }
+  },
+  "taglio": {
+    "menu": "Cut…",
+    "titolo": "Cut",
+    "suggerimento": "Select text or a silence, then press Del",
+    "inSospeso_one": "{{count}} pending cut · −{{durata}}",
+    "inSospeso_other": "{{count}} pending cuts · −{{durata}}",
+    "annulla": "Cancel",
+    "tagliaSelezione": "Cut selection",
+    "applica": "Apply cuts",
+    "elenco": "Pending cuts",
+    "ripristina": "Restore {{tratto}}",
+    "conferma": {
+      "titolo_one": "Apply the cut?",
+      "titolo_other": "Apply {{count}} cuts?",
+      "descrizione": "The Tape goes from {{prima}} to {{dopo}}. The original goes to the Windows Recycle Bin, where you can restore it.",
+      "correzioni": "Some hand-corrected Turns are only partly cut: their corrected text stays on the remaining Phrases, so check it after cutting.",
+      "azione": "Cut"
+    },
+    "senzaCestino": {
+      "titolo": "This drive has no Recycle Bin",
+      "descrizione": "The Tape is on a drive without a Windows Recycle Bin: after cutting, the original cannot be recovered.",
+      "conferma": "Cut anyway"
+    },
+    "silenzioIniziale": "Opening silence of {{durata}}",
+    "silenzioFinale": "Closing silence of {{durata}}"
   }
 }

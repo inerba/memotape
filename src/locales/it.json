@@ -139,7 +139,8 @@
       "audioCleaningMissing": "Il modello DeepFilterNet3 distribuito con l’app è assente. Reinstalla Memotape.",
       "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
       "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
-      "liveTranscriptionLagging": "La Trascrizione dal vivo è troppo indietro ed è stata interrotta. L’audio continua a essere registrato; potrai trascriverlo dopo Stop."
+      "liveTranscriptionLagging": "La Trascrizione dal vivo è troppo indietro ed è stata interrotta. L’audio continua a essere registrato; potrai trascriverlo dopo Stop.",
+      "noRecycleBin": "Il disco di {{detail}} non ha un Cestino di Windows"
     },
     "app": {
       "title": "Qualcosa è andato storto",
@@ -582,14 +583,45 @@
       "pausaRegistrazione": "Pausa o riprendi",
       "apriTape": "Apri il Tape",
       "rinominaTape": "Rinomina il Tape",
-      "cestinaTape": "Sposta nel Cestino"
+      "cestinaTape": "Sposta nel Cestino",
+      "tagliaSelezione": "Taglia la selezione (modalità Taglio)",
+      "esciDalTaglio": "Esci dalla modalità Taglio"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Maiusc",
       "Space": "Spazio",
       "Enter": "Invio",
-      "Delete": "Canc"
+      "Delete": "Canc",
+      "Escape": "Esc"
     }
+  },
+  "taglio": {
+    "menu": "Taglia…",
+    "titolo": "Taglia",
+    "suggerimento": "Seleziona il testo o un silenzio, poi premi Canc",
+    "inSospeso_one": "{{count}} taglio in sospeso · −{{durata}}",
+    "inSospeso_many": "{{count}} tagli in sospeso · −{{durata}}",
+    "inSospeso_other": "{{count}} tagli in sospeso · −{{durata}}",
+    "annulla": "Annulla",
+    "tagliaSelezione": "Taglia la selezione",
+    "applica": "Applica i tagli",
+    "elenco": "Tagli in sospeso",
+    "ripristina": "Ripristina {{tratto}}",
+    "conferma": {
+      "titolo_one": "Applicare il taglio?",
+      "titolo_many": "Applicare {{count}} tagli?",
+      "titolo_other": "Applicare {{count}} tagli?",
+      "descrizione": "Il Tape passa da {{prima}} a {{dopo}}. L'originale va nel Cestino di Windows, da cui puoi ripristinarlo.",
+      "correzioni": "Alcuni Turni corretti a mano restano solo in parte: il testo corretto resta sulle Frasi rimaste, controllalo dopo il taglio.",
+      "azione": "Taglia"
+    },
+    "senzaCestino": {
+      "titolo": "Il disco non ha un Cestino",
+      "descrizione": "Il Tape sta su un disco senza Cestino di Windows: dopo il taglio l'originale non si potrà recuperare.",
+      "conferma": "Taglia comunque"
+    },
+    "silenzioIniziale": "Silenzio iniziale di {{durata}}",
+    "silenzioFinale": "Silenzio finale di {{durata}}"
   }
 }

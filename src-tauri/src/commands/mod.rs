@@ -336,6 +336,40 @@ pub async fn edit_turno(
     .await
 }
 
+/// Un tratto da tagliare, in ms sulla linea del tempo del Tape.
+#[derive(Debug, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Tratto {
+    pub inizio_ms: u32,
+    pub fine_ms: u32,
+}
+
+/// Applica i Tagli `tratti` al Tape `path` (ADR-0030) e restituisce il documento scritto. Con
+/// `cestino` l'originale va nel Cestino, e un volume senza Cestino dà `noRecycleBin`; senza, il Tape
+/// tagliato lo sostituisce e basta.
+#[tauri::command]
+#[specta::specta]
+pub async fn taglia_tape(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    tratti: Vec<Tratto>,
+    cestino: bool,
+) -> Result<managers::transcription::OpenedTape, AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        let tagli: Vec<_> = tratti.iter().map(|t| t.inizio_ms..t.fine_ms).collect();
+        tape::taglia(path, &tagli, |original| {
+            if cestino {
+                crate::library::trash(original)
+            } else {
+                Ok(())
+            }
+        })?;
+        managers::transcription::open_tape(path)
+    })
+    .await
+}
+
 /// Cambia la data e l'ora del Tape `path` con quelle locali `local` (`2026-10-03T17:05`) e restituisce
 /// il `creato` scritto. Rifiuta con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 #[tauri::command]

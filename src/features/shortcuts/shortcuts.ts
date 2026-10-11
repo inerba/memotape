@@ -18,6 +18,8 @@ export type Azione =
   | "piuVeloce"
   | "tornaAlPunto"
   | "copiaTesto"
+  | "tagliaSelezione"
+  | "esciDalTaglio"
   | "pausaRegistrazione"
   | "pannello"
   | "apriTape"
@@ -166,6 +168,20 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     tasti: ["Ctrl", "Shift", "C"],
   },
   {
+    azione: "tagliaSelezione",
+    gruppo: "testo",
+    riga: "tagliaSelezione",
+    tasti: ["Delete"],
+    trattenutaDa: NEL_TESTO,
+  },
+  {
+    azione: "esciDalTaglio",
+    gruppo: "testo",
+    riga: "esciDalTaglio",
+    tasti: ["Escape"],
+    trattenutaDa: NEL_TESTO,
+  },
+  {
     azione: "pausaRegistrazione",
     gruppo: "registrazione",
     quando: (s) => s.registrazione,
@@ -270,7 +286,14 @@ export function tastiDi(azione: Azione): readonly string[] {
 const FRECCE: Record<string, string> = { ArrowLeft: "←", ArrowRight: "→" };
 
 /** I tasti che hanno un nome nella lingua dell'interfaccia. */
-const TRADOTTI = new Set(["Ctrl", "Shift", "Space", "Enter", "Delete"]);
+const TRADOTTI = new Set([
+  "Ctrl",
+  "Shift",
+  "Space",
+  "Enter",
+  "Delete",
+  "Escape",
+]);
 
 /** Il nome di un tasto in forma canonica nella lingua dell'interfaccia: «Maiusc», «←», «F2». */
 export function nomeTasto(tasto: string, t: TFunction): string {
