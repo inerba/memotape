@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
 import { PopoverMenu } from "@/components/popover-menu";
 import {
+  dopoITagli,
   type Follow,
   type FollowEvent,
   nextFollow,
@@ -184,6 +185,25 @@ export function Player({
       audio.current?.pause();
     }
   }, [audio, disabled]);
+
+  // In modalità Taglio si ascolta il risultato: i Tagli in sospeso si saltano. Ogni fotogramma,
+  // perché `timeupdate` arriva ogni 250 ms e farebbe sentire l'inizio del tratto.
+  useEffect(() => {
+    const el = audio.current;
+    if (!(el && playing && tagli.length > 0)) {
+      return;
+    }
+    let frame = 0;
+    const salta = () => {
+      const dopo = dopoITagli(el.currentTime * 1000, tagli);
+      if (dopo !== null) {
+        el.currentTime = dopo / 1000;
+      }
+      frame = requestAnimationFrame(salta);
+    };
+    salta();
+    return () => cancelAnimationFrame(frame);
+  }, [audio, playing, tagli]);
 
   useEffect(() => {
     if (audio.current) {
