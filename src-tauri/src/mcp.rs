@@ -1658,6 +1658,15 @@ mod tests {
         assert_eq!(tagliato.err().as_deref(), Some(BUSY));
         let rinominato = rename_tape(&server, CALL, "Altro titolo");
         assert_eq!(rinominato.err().as_deref(), Some(BUSY));
+        // E per unione, nomi, data e Cestino.
+        let unito = merge_turn(&server, CALL, "mix", &[1], 0);
+        assert_eq!(unito.err().as_deref(), Some(BUSY));
+        let nominato = rename_speaker(&server, "mix", 0, "Marco");
+        assert_eq!(nominato.err().as_deref(), Some(BUSY));
+        let datato = set_date(&server, "2025-12-31T23:30");
+        assert_eq!(datato.err().as_deref(), Some(BUSY));
+        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        assert_eq!(buttato.err().as_deref(), Some(BUSY));
         assert_eq!(bytes(&root, &server, CALL), prima);
         // Finita l'Attività, come dopo un errore o Annulla, il lock è libero; un'Attività su un
         // altro Tape non blocca.
@@ -2173,15 +2182,21 @@ mod tests {
 
     #[test]
     fn senza_il_permesso_a_modificare_non_si_rinomina_ne_si_butta() {
-        let (root, server) = server_with("rinomina-sola-lettura", true, false);
-        let prima = bytes(&root, &server, CALL);
-        assert_eq!(
-            rename_tape(&server, CALL, "Altro").err().as_deref(),
-            Some(READ_ONLY)
-        );
-        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
-        assert_eq!(buttato.err().as_deref(), Some(READ_ONLY));
-        assert_eq!(bytes(&root, &server, CALL), prima);
+        for (lettura, modifica, errore) in [(true, false, READ_ONLY), (false, true, DISABLED)] {
+            let (root, server) = server_with(
+                &format!("rinomina-sola-lettura-{lettura}"),
+                lettura,
+                modifica,
+            );
+            let prima = bytes(&root, &server, CALL);
+            assert_eq!(
+                rename_tape(&server, CALL, "Altro").err().as_deref(),
+                Some(errore)
+            );
+            let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+            assert_eq!(buttato.err().as_deref(), Some(errore));
+            assert_eq!(bytes(&root, &server, CALL), prima);
+        }
     }
 
     #[test]
