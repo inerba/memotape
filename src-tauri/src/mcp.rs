@@ -654,7 +654,7 @@ correct its current text.",
             return Err(stale());
         }
         tape::edit_turno(&path, ingresso, &p.phrase_ids, &p.expected, &p.text)
-            .map_err(|e| format!("{} cannot be written: {e}", p.tape))?;
+            .map_err(|e| write_error(&p.tape, &e))?;
         Ok(if p.expected == p.text {
             "Nothing to change: the text is the same.".into()
         } else {
