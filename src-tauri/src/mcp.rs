@@ -42,6 +42,8 @@ const DISABLED: &str = "Memotape does not allow assistants to read its Library. 
 \"Allow assistants to read the Library\" in Memotape → Settings → Assistants.";
 const READ_ONLY: &str = "Memotape does not allow assistants to modify its Library. Ask the user to \
 turn on \"Allow assistants to modify the Library\" in Memotape → Settings → Assistants.";
+const BUSY: &str = "Memotape is recording, transcribing or recognizing speakers on this Tape: try \
+again when it has finished, or tell the user.";
 const NOT_INDEXED: &str =
     "Memotape has not indexed this Library yet: ask the user to open Memotape once.";
 
@@ -580,14 +582,35 @@ impl Server {
     }
 
     /// Il Tape `tape` da scrivere, se l'utente consente agli Assistenti di leggere e di modificare
-    /// la Libreria: ogni strumento che scrive passa da qui. Aprire la Libreria registra la sua
-    /// cartella, così le riscritture prendono il lock su file condiviso con l'app (ADR-0031).
-    fn writable_tape(&self, tape: &str) -> Result<PathBuf, String> {
+    /// la Libreria e l'app non ci sta lavorando: ogni strumento che scrive passa da qui. Aprire la
+    /// Libreria registra la sua cartella, così le riscritture prendono il lock su file condiviso
+    /// con l'app (ADR-0031).
+    fn writable_tape(&self, tape: &str) -> Result<Writable, String> {
         let (settings, library) = self.allowed_library()?;
         if !settings.assistenti_modifica {
             return Err(READ_ONLY.into());
         }
-        resolve(library.root(), tape)
+        let path = resolve(library.root(), tape)?;
+        let lock = tape::prova_attivita(&path).map_err(|e| match e {
+            AppError::ActivityInProgress => BUSY.to_owned(),
+            e => format!("{tape} cannot be written: {e}"),
+        })?;
+        Ok(Writable { path, _lock: lock })
+    }
+}
+
+/// Un Tape da scrivere: finché vive tiene il lock dell'Attività, così l'app non ne avvia una sul
+/// Tape a metà della scrittura.
+struct Writable {
+    path: PathBuf,
+    _lock: Option<std::fs::File>,
+}
+
+impl std::ops::Deref for Writable {
+    type Target = PathBuf;
+
+    fn deref(&self) -> &PathBuf {
+        &self.path
     }
 }
 
@@ -1183,6 +1206,35 @@ mod tests {
             assert_eq!(corretto.err().as_deref(), Some(errore));
             assert_eq!(bytes(&root, &server, CALL), prima);
         }
+    }
+
+    #[test]
+    fn un_attivita_sul_tape_blocca_le_scritture_solo_su_quel_tape() {
+        use crate::managers::activity::Activity;
+        let (root, server) = server_with("attivita", true, true);
+        let activity = Activity::default();
+        let correggi = || {
+            edit_turn(
+                &server,
+                CALL,
+                &[0],
+                "Buongiorno a tutti.",
+                "Buonasera a tutti.",
+            )
+        };
+        // L'Attività prende il lock come nell'app, con il percorso che usa l'app.
+        let call = root.join("Ferrara Quarzi").join("Call di lunedì.tape");
+        let attivita = activity.begin(Some(call), || {}).unwrap();
+        let prima = bytes(&root, &server, CALL);
+        assert_eq!(correggi().err().as_deref(), Some(BUSY));
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        // Finita l'Attività, come dopo un errore o Annulla, il lock è libero; un'Attività su un
+        // altro Tape non blocca.
+        drop(attivita);
+        let _altra = activity
+            .begin(Some(root.join("Sciolto.tape")), || {})
+            .unwrap();
+        assert!(correggi().is_ok());
     }
 
     #[test]
