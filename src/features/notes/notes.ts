@@ -1,4 +1,4 @@
-import type { AppError, Nota } from "@/bindings";
+import type { AppError, BozzaNota, Nota } from "@/bindings";
 
 /** Una Nota della riga dei nomi: il nome e il testo su disco, `null` se la Nota non c'è ancora. */
 export interface NotaAperta {
@@ -82,4 +82,14 @@ export function salvataggio(
 ): Salvataggio | null {
   const atteso = salvato ?? "";
   return bozza === atteso ? null : { atteso, nome, testo: bozza };
+}
+
+/**
+ * Le Note della Registrazione da mettere nella bozza: quelle scritte almeno una volta, anche se
+ * ora vuote, in ordine. Una Nota nuova mai scritta non c'è.
+ */
+export function bozzaNote(note: NotaAperta[]): BozzaNota[] {
+  return note.flatMap((n) =>
+    n.salvato === null ? [] : [{ nome: n.nome, testo: n.salvato }]
+  );
 }

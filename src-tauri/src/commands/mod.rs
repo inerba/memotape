@@ -14,7 +14,7 @@ use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
 use crate::managers::pending_tape::PendingTape;
-use crate::managers::recording::{Recorder, RecordingSaved};
+use crate::managers::recording::{BozzaNota, Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 use crate::tape;
 use crate::transcript::Ingresso;
@@ -695,6 +695,18 @@ pub fn pause_recording(recorder: State<'_, Recorder>, paused: bool) -> bool {
 #[specta::specta]
 pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
     recorder.stop()
+}
+
+/// Le Note scritte durante la Registrazione `session_id`, tutte: vanno nella bozza accanto all'Ogg
+/// e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
+#[tauri::command]
+#[specta::specta]
+pub fn save_recording_notes(
+    recorder: State<'_, Recorder>,
+    session_id: String,
+    note: Vec<BozzaNota>,
+) -> Result<bool, AppError> {
+    recorder.salva_note(&session_id, note)
 }
 
 /// Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop.

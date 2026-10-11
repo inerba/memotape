@@ -551,6 +551,7 @@
     "label": "Notatki Tape’a",
     "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
     "saved": "Zapisane w Tape",
+    "savedDraft": "Zapisane, po zatrzymaniu trafią do Tape",
     "jump": "Słuchaj od {{time}}",
     "format": {
       "label": "Formatowanie",

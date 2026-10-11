@@ -104,14 +104,23 @@ interface Posizione {
   top: number;
 }
 
+/** Il tempo di Ctrl+T e, se c'è `move`, il salto delle pillole. */
+type Ascolto = Pick<PlayerState, "positionMs"> &
+  Partial<Pick<PlayerState, "move">>;
+
 interface NotesTabProps {
+  /** Le Note della Registrazione: «Salvate» dice che entrano nel Tape allo Stop. */
+  bozza?: boolean;
   /** La durata del Tape: un tempo da lì in poi resta testo. */
   durataMs: number;
   onError: (error: AppError) => void;
   /** Un avviso, come «Nota copiata». */
   onMessage: (text: string) => void;
-  /** Manca durante la Registrazione e mentre si trascrive il Tape: niente salti. */
-  player?: Pick<PlayerState, "move" | "positionMs">;
+  /**
+   * Manca mentre si trascrive il Tape: niente salti né Ctrl+T. Durante la Registrazione ha solo il
+   * suo tempo, pause escluse.
+   */
+  player?: Ascolto;
   readOnly: boolean;
 }
 
@@ -129,6 +138,7 @@ export function NotesTab({
 }
 
 function NoteLette({
+  bozza,
   durataMs,
   note,
   onError,
@@ -223,7 +233,7 @@ function NoteLette({
         {salvate ? (
           <>
             <Check className="size-3.5 text-play" />
-            {t("notes.saved")}
+            {t(bozza ? "notes.savedDraft" : "notes.saved")}
           </>
         ) : null}
         <PopoverMenu
@@ -411,7 +421,7 @@ function NotaEditor({
   onError: (error: AppError) => void;
   /** Se su disco c'è il testo dell'editor. */
   onSalvate: (salvate: boolean) => void;
-  player?: Pick<PlayerState, "move" | "positionMs">;
+  player?: Ascolto;
   readOnly: boolean;
   salva: (nome: string, bozza: string) => Promise<boolean>;
   view: RefObject<EditorView | null>;
@@ -420,6 +430,7 @@ function NotaEditor({
   const host = useRef<HTMLDivElement>(null);
   const sola = useRef(new Compartment());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const salvaOra = useRef<() => void>(() => undefined);
   const { nome, salvato } = nota;
   const [barretta, setBarretta] = useState<Posizione | null>(null);
   const formatta = useCallback(
@@ -438,7 +449,7 @@ function NotaEditor({
   const tempi = useRef<Tempi>({
     durataMs: () => attuali.current.durataMs,
     etichetta: (time) => attuali.current.t("notes.jump", { time }),
-    salta: (ms) => attuali.current.player?.move(ms, "jump"),
+    salta: (ms) => attuali.current.player?.move?.(ms, "jump"),
   });
   useScorciatoia(
     "tempoNota",
@@ -517,6 +528,7 @@ function NotaEditor({
       }),
     });
     view.current = editor;
+    salvaOra.current = salvaBozza;
     onSalvate(salvato !== null);
     return () => {
       salvaBozza();
@@ -527,10 +539,14 @@ function NotaEditor({
     };
   }, [nome]);
 
+  // Diventando di sola lettura (lo Stop della Registrazione) salva subito, senza aspettare la pausa.
   useEffect(() => {
     view.current?.dispatch({
       effects: sola.current.reconfigure(soloLettura(readOnly)),
     });
+    if (readOnly) {
+      salvaOra.current();
+    }
   }, [readOnly, view]);
 
   return (

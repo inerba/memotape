@@ -420,6 +420,17 @@ pub fn write(
     document: &Document,
     forma_onda: Option<&[f32]>,
 ) -> Result<(), AppError> {
+    write_con_note(path, audio, document, forma_onda, &[])
+}
+
+/// Come `write`, con le Note `note` in `note.json`; nessuna voce se non ce ne sono.
+pub fn write_con_note(
+    path: &Path,
+    audio: &[(Ingresso, &Path)],
+    document: &Document,
+    forma_onda: Option<&[f32]>,
+    note: &[Nota],
+) -> Result<(), AppError> {
     let file = File::create_new(path).map_err(|e| unwritable(path, &e))?;
     let written = (|| {
         let mut zip = ZipWriter::new(file);
@@ -436,6 +447,9 @@ pub fn write(
             write_forma_onda(&mut zip, path, values)?;
         }
         write_document(&mut zip, path, document)?;
+        if !note.is_empty() {
+            write_note(&mut zip, path, note.to_vec())?;
+        }
         zip.finish().map_err(|e| unwritable(path, &e))?;
         Ok(())
     })();
@@ -572,7 +586,7 @@ pub fn salva_nota(
 pub const NOME_NOTA_MAX: usize = 60;
 
 /// Rifiuta con `NoteNameInvalid` un nome vuoto (o di soli spazi) o più lungo di `NOME_NOTA_MAX`.
-fn nome_valido(nome: &str) -> Result<(), AppError> {
+pub(crate) fn nome_valido(nome: &str) -> Result<(), AppError> {
     if nome.trim().is_empty() || nome.chars().count() > NOME_NOTA_MAX {
         return Err(AppError::NoteNameInvalid(nome.into()));
     }

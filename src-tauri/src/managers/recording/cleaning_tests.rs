@@ -455,7 +455,7 @@ fn due_ingressi_nativi_release(protected: bool) {
         &phrases,
     );
     document.pulizia_audio = recorded.pulizia_audio.clone();
-    let path = save_tape(&folder, &folder, "Nativo", &recorded, &document).unwrap();
+    let path = save_tape(&folder, &folder, "Nativo", &recorded, &document, &[]).unwrap();
     assert_eq!(tape::read(&path).unwrap(), document);
     assert_eq!(tape::forma_onda(&path), Some(recorded.forma_onda));
     for ingresso in [Ingresso::Microfono, Ingresso::Sistema, Ingresso::Mix] {

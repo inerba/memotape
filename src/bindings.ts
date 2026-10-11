@@ -182,6 +182,11 @@ export const commands = {
 	 *  `false` se non è in corso.
 	 */
 	stopRecording: () => __TAURI_INVOKE<boolean>("stop_recording"),
+	/**
+	 *  Le Note scritte durante la Registrazione `session_id`, tutte: vanno nella bozza accanto all'Ogg
+	 *  e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
+	 */
+	saveRecordingNotes: (sessionId: string, note: BozzaNota[]) => typedError<boolean, AppError>(__TAURI_INVOKE("save_recording_notes", { sessionId, note })),
 	/**  Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop. */
 	cancelRecordingStart: (sessionId: string) => __TAURI_INVOKE<void>("cancel_recording_start", { sessionId }),
 	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`. */
@@ -316,6 +321,12 @@ export type Autore_Deserialize = ({ tipo: "utente" }) & { client?: never } |
 export type Autore_Serialize = ({ tipo: "utente" }) & { client?: never } | 
 /**  Un Assistente, con il nome del client MCP se lo dice. */
 { tipo: "assistente"; client?: string | null };
+
+/**  Una Nota scritta durante la Registrazione, come la manda il frontend. */
+export type BozzaNota = {
+	nome: string,
+	testo: string,
+};
 
 export type Channels = "mono" | "stereo";
 

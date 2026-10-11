@@ -548,6 +548,7 @@
     "label": "Notas del Tape",
     "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
     "saved": "Guardadas en el Tape",
+    "savedDraft": "Guardadas, al detener entran en el Tape",
     "jump": "Escuchar desde {{time}}",
     "format": {
       "label": "Formato",

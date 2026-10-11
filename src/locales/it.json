@@ -548,6 +548,7 @@
     "label": "Note del Tape",
     "placeholder": "Scrivi le note: decisioni, cose da fare, link. In Markdown, come **grassetto** o - elenchi.",
     "saved": "Salvate nel Tape",
+    "savedDraft": "Salvate, allo Stop entrano nel Tape",
     "jump": "Ascolta da {{time}}",
     "format": {
       "label": "Formato",

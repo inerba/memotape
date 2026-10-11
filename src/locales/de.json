@@ -545,6 +545,7 @@
     "label": "Notizen des Tapes",
     "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
     "saved": "Im Tape gespeichert",
+    "savedDraft": "Gespeichert, beim Stopp kommen sie ins Tape",
     "jump": "Ab {{time}} anhören",
     "format": {
       "label": "Format",

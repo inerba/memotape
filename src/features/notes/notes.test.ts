@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { Nota } from "@/bindings";
 import {
   apertaIniziale,
+  bozzaNote,
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
@@ -108,4 +109,18 @@ test("si salva solo una bozza diversa dal testo su disco, che diventa l'atteso",
     nome: "Note",
     testo: "",
   });
+});
+
+test("la bozza della Registrazione ha le Note scritte, in ordine, anche svuotate, non quelle nuove mai scritte", () => {
+  expect(
+    bozzaNote([
+      { nome: "Note", salvato: "Decidere [1:05]" },
+      { nome: "Nota 2", salvato: null },
+      { nome: "Domande", salvato: "" },
+    ])
+  ).toEqual([
+    { nome: "Note", testo: "Decidere [1:05]" },
+    { nome: "Domande", testo: "" },
+  ]);
+  expect(bozzaNote([{ nome: "Note", salvato: null }])).toEqual([]);
 });
