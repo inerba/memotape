@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type AppError,
   commands,
   events,
+  type NoteHit,
   type SearchHit,
   type SearchResult,
   type TapeEntry,
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { raccoltaLabel } from "@/features/library/library";
 import { markedParts } from "@/features/library/search";
 import { elapsedText } from "@/features/recording/recording";
-import type { PhraseRef } from "@/features/transcription/phrases";
+import type { Trovato } from "@/features/source/view";
 
 /** Quanto si aspetta dopo l'ultimo tasto prima di cercare. */
 const DEBOUNCE_MS = 150;
@@ -30,7 +31,7 @@ export function SearchResults({
   selected,
 }: {
   onError: (error: AppError) => void;
-  onOpen: (path: string, phrase?: PhraseRef) => void;
+  onOpen: (path: string, phrase?: Trovato) => void;
   query: string;
   raccolta: string | null;
   selected: string | null;
@@ -97,7 +98,7 @@ function ResultItem({
   selected,
   showRaccolta,
 }: {
-  onOpen: (path: string, phrase?: PhraseRef) => void;
+  onOpen: (path: string, phrase?: Trovato) => void;
   result: SearchResult;
   selected: boolean;
   showRaccolta: boolean;
@@ -127,6 +128,11 @@ function ResultItem({
             <HitItem hit={hit} onOpen={onOpen} tape={tape} />
           </li>
         ))}
+        {result.note.map((hit) => (
+          <li key={`nota:${hit.nome}`}>
+            <NoteHitItem hit={hit} onOpen={onOpen} tape={tape} />
+          </li>
+        ))}
       </ul>
     </section>
   );
@@ -139,23 +145,66 @@ function HitItem({
 }: {
   tape: TapeEntry;
   hit: SearchHit;
-  onOpen: (path: string, phrase?: PhraseRef) => void;
+  onOpen: (path: string, phrase?: Trovato) => void;
 }) {
   const open = useCallback(
     () => onOpen(tape.path, { ingresso: hit.ingresso, phraseId: hit.phraseId }),
     [tape.path, hit.ingresso, hit.phraseId, onOpen]
   );
   return (
+    <HitButton
+      estratto={hit.estratto}
+      label={
+        <span className="shrink-0 tabular-nums">
+          {elapsedText(hit.inizioMs)}
+        </span>
+      }
+      onClick={open}
+    />
+  );
+}
+
+/** Una Nota trovata: il suo nome e l'estratto; apre il Tape su quella Nota. */
+function NoteHitItem({
+  tape,
+  hit,
+  onOpen,
+}: {
+  tape: TapeEntry;
+  hit: NoteHit;
+  onOpen: (path: string, phrase?: Trovato) => void;
+}) {
+  const open = useCallback(
+    () => onOpen(tape.path, { nota: hit.nome }),
+    [tape.path, hit.nome, onOpen]
+  );
+  return (
+    <HitButton
+      estratto={hit.estratto}
+      label={<span className="max-w-24 shrink-0 truncate">{hit.nome}</span>}
+      onClick={open}
+    />
+  );
+}
+
+function HitButton({
+  estratto,
+  label,
+  onClick,
+}: {
+  estratto: string;
+  label: ReactNode;
+  onClick: () => void;
+}) {
+  return (
     <button
       className="flex w-full gap-2 rounded-lg px-2 py-1 text-left text-xs leading-relaxed transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-      onClick={open}
+      onClick={onClick}
       type="button"
     >
-      <span className="shrink-0 text-muted-foreground tabular-nums">
-        {elapsedText(hit.inizioMs)}
-      </span>
+      <span className="flex shrink-0 text-muted-foreground">{label}</span>
       <span className="line-clamp-2 min-w-0">
-        {markedParts(hit.estratto).map((part, i) =>
+        {markedParts(estratto).map((part, i) =>
           part.mark ? (
             // biome-ignore lint/suspicious/noArrayIndexKey: le parti non cambiano ordine
             <mark className="rounded-sm bg-play-soft text-foreground" key={i}>

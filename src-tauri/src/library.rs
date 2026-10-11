@@ -20,7 +20,7 @@ pub const DEFAULT_FOLDER: &str = "Memotape";
 pub const TEMP_FOLDER: &str = ".memotape";
 
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
-const SCHEMA: i32 = 3;
+const SCHEMA: i32 = 4;
 
 const SCHEMA_SQL: &str = "
 CREATE TABLE tapes (
@@ -32,7 +32,8 @@ CREATE TABLE tapes (
     modificato INTEGER NOT NULL,
     dimensione INTEGER NOT NULL
 );
--- Una riga per Frase e una per il titolo (`frase` NULL). `parlante` è il nome dato al Parlante.
+-- Una riga per Frase, una per Nota (`nota` il suo nome, `frase` NULL) e una per il titolo (`frase`
+-- e `nota` NULL). `parlante` è il nome dato al Parlante.
 CREATE VIRTUAL TABLE ricerca USING fts5(
     percorso UNINDEXED,
     frase UNINDEXED,
@@ -40,9 +41,10 @@ CREATE VIRTUAL TABLE ricerca USING fts5(
     inizio_ms UNINDEXED,
     testo,
     parlante,
+    nota UNINDEXED,
     tokenize = 'unicode61 remove_diacritics 2'
 );
-PRAGMA user_version = 3;
+PRAGMA user_version = 4;
 ";
 
 /// Dove cominciano e finiscono le parole trovate negli estratti della ricerca.
@@ -61,12 +63,20 @@ pub struct LibraryList {
     pub tapes: Vec<TapeEntry>,
 }
 
-/// Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
-/// solo il titolo).
+/// Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio e le Note trovate
+/// (nessuna se ha trovato solo il titolo).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 pub struct SearchResult {
     pub tape: TapeEntry,
     pub frasi: Vec<SearchHit>,
+    pub note: Vec<NoteHit>,
+}
+
+/// Una Nota trovata: il suo nome e l'estratto, con le parole trovate come in `SearchHit`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+pub struct NoteHit {
+    pub nome: String,
+    pub estratto: String,
 }
 
 /// Una Frase trovata, con l'estratto in cui le parole trovate stanno tra `MARK_START` e `MARK_END`.
@@ -220,6 +230,20 @@ impl Library {
                 params![file.relative, titolo],
             )
             .map_err(internal)?;
+            let note = if document.is_some() {
+                tape::note(&path)
+                    .inspect_err(|e| log::warn!("Note illeggibili nella Libreria: {e}"))
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            for nota in note.iter().filter(|n| !n.testo.is_empty()) {
+                tx.execute(
+                    "INSERT INTO ricerca (percorso, testo, nota) VALUES (?1, ?2, ?3)",
+                    params![file.relative, nota.testo, nota.nome],
+                )
+                .map_err(internal)?;
+            }
             if let Some(document) = &document {
                 for frase in document
                     .frasi_visibili()
@@ -234,7 +258,8 @@ impl Library {
                             .get(&frase.ingresso.parlante_key(frase.parlante))
                     };
                     tx.execute(
-                        "INSERT INTO ricerca VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                        "INSERT INTO ricerca (percorso, frase, ingresso, inizio_ms, testo, parlante)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                         params![
                             file.relative,
                             frase.id,
@@ -330,22 +355,23 @@ impl Library {
             .db
             .prepare(
                 "WITH trovate AS (
-                     SELECT percorso, frase, ingresso, inizio_ms, bm25(ricerca) AS peso,
+                     SELECT percorso, frase, ingresso, inizio_ms, nota, bm25(ricerca) AS peso,
                             snippet(ricerca, 4, ?3, ?4, '…', 16) AS estratto,
                             highlight(ricerca, 5, ?3, ?4) AS parlante
                      FROM ricerca WHERE ricerca MATCH ?1
                  ), pesate AS (
                      SELECT *, sum(peso) OVER (PARTITION BY percorso) AS totale,
                             row_number() OVER (
-                                PARTITION BY percorso ORDER BY frase IS NULL, peso
+                                PARTITION BY percorso
+                                ORDER BY frase IS NULL AND nota IS NULL, peso
                             ) AS n
                      FROM trovate
                  )
                  SELECT b.percorso, b.raccolta, b.titolo, b.creato, b.durata_ms,
-                        p.frase, p.ingresso, p.inizio_ms, p.estratto, p.parlante
+                        p.frase, p.ingresso, p.inizio_ms, p.estratto, p.parlante, p.nota
                  FROM pesate p JOIN tapes b ON b.percorso = p.percorso
                  WHERE p.n <= ?5 AND (?2 IS NULL OR coalesce(b.raccolta, '') = ?2)
-                 ORDER BY p.totale, b.percorso, p.inizio_ms",
+                 ORDER BY p.totale, b.percorso, p.inizio_ms, p.peso",
             )
             .map_err(internal)?;
         let rows = statement
@@ -358,6 +384,10 @@ impl Library {
                     FRASI_PER_TAPE
                 ],
                 |r| {
+                    if let Some(nome) = r.get::<_, Option<String>>(10)? {
+                        let estratto = r.get(8)?;
+                        return Ok((self.entry(r)?, Hit::Nota(NoteHit { nome, estratto })));
+                    }
                     let hit = match (r.get::<_, Option<u32>>(5)?, r.get::<_, Option<String>>(6)?) {
                         (Some(phrase_id), Some(ingresso)) => {
                             Ingresso::from_key(&ingresso).map(|ingresso| {
@@ -371,7 +401,8 @@ impl Library {
                         }
                         _ => None,
                     };
-                    Ok((self.entry(r)?, hit.transpose()?))
+                    let hit = hit.transpose()?;
+                    Ok((self.entry(r)?, hit.map_or(Hit::Titolo, Hit::Frase)))
                 },
             )
             .map_err(internal)?;
@@ -385,10 +416,15 @@ impl Library {
                 results.push(SearchResult {
                     tape,
                     frasi: Vec::new(),
+                    note: Vec::new(),
                 });
             }
-            if let (Some(hit), Some(result)) = (hit, results.last_mut()) {
-                result.frasi.push(hit);
+            if let Some(result) = results.last_mut() {
+                match hit {
+                    Hit::Frase(hit) => result.frasi.push(hit),
+                    Hit::Nota(hit) => result.note.push(hit),
+                    Hit::Titolo => {}
+                }
             }
         }
         Ok(results)
@@ -612,6 +648,14 @@ pub fn trash(path: &Path) -> Result<(), AppError> {
         )));
     }
     Ok(())
+}
+
+/// Una riga trovata dalla ricerca.
+enum Hit {
+    Frase(SearchHit),
+    Nota(NoteHit),
+    /// Il titolo, o una Frase di un Ingresso sconosciuto.
+    Titolo,
 }
 
 /// L'estratto di una Frase; se le parole sono nel nome del Parlante, il nome prima del testo.
@@ -1380,6 +1424,55 @@ pub(crate) mod tests {
         assert_eq!(found(&library, "preventivo saluti", ferrara), []);
         assert_eq!(found(&library, "", None), []);
         assert_eq!(found(&library, "   ", None), []);
+    }
+
+    #[test]
+    fn la_ricerca_trova_le_parole_delle_note_con_il_nome_della_nota() {
+        let (root, mut library) = searchable("ricerca-note");
+        let path = root.join("Ferrara Quarzi").join("Call di lunedì.tape");
+        let utente = tape::Autore::Utente;
+        tape::salva_nota(&path, "Mie note", "Chiamare Sara", "", &utente).unwrap();
+        tape::salva_nota(
+            &path,
+            "Riepilogo",
+            "- [ ] Preventivo aggiornato",
+            "",
+            &utente,
+        )
+        .unwrap();
+        // Il riallineamento rilegge `note.json` del Tape riscritto.
+        assert_eq!(library.sync().unwrap(), 1);
+        let results = library.search("aggiornato", None).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].tape.titolo, "Call di lunedì");
+        assert_eq!(results[0].frasi, []);
+        assert_eq!(
+            results[0].note,
+            [NoteHit {
+                nome: "Riepilogo".into(),
+                estratto: format!("- [ ] Preventivo {MARK_START}aggiornato{MARK_END}"),
+            }]
+        );
+        // Una parola delle Frasi e di una Nota: le Frasi e la Nota.
+        let results = library
+            .search("preventivo", Some("Ferrara Quarzi"))
+            .unwrap();
+        assert_eq!(
+            results[0]
+                .frasi
+                .iter()
+                .map(|f| f.phrase_id)
+                .collect::<Vec<_>>(),
+            [1, 2]
+        );
+        assert_eq!(
+            results[0]
+                .note
+                .iter()
+                .map(|n| n.nome.as_str())
+                .collect::<Vec<_>>(),
+            ["Riepilogo"]
+        );
     }
 
     #[test]

@@ -7,7 +7,18 @@ import {
   pendingTape,
   type SourceViewAction,
   sourceView,
+  trovato,
 } from "@/features/source/view";
+
+test("un risultato in una Nota apre la Nota, non una Frase", () => {
+  const frase = { ingresso: "mix", phraseId: 3 } as const;
+  expect(trovato(frase)).toEqual({ frase });
+  expect(trovato({ nota: "Riepilogo" })).toEqual({
+    frase: null,
+    nota: "Riepilogo",
+  });
+  expect(trovato(null)).toEqual({ frase: null });
+});
 
 const opened = (text: string): OpenedTape => ({
   info: null as unknown as OpenedTape["info"],

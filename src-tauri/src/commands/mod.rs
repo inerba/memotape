@@ -276,19 +276,16 @@ pub async fn tape_peaks(app: AppHandle, path: String, count: u32) -> Result<Vec<
     .await
 }
 
-/// Salva il Markdown del Tape `path` dove sceglie l'utente nel dialog di sistema, proponendo
-/// `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
+/// Salva il Markdown del Tape `path`, con le Note prima della Trascrizione, dove sceglie l'utente
+/// nel dialog di sistema, proponendo `<titolo>.md`. Restituisce il file scritto, o `null` se
+/// l'utente annulla.
 #[tauri::command]
 #[specta::specta]
 pub async fn export_markdown(app: AppHandle, path: String) -> Result<Option<String>, AppError> {
     let path = tape_path(&path)?;
     blocking(app, move |app| {
         let settings = app.state::<SettingsStore>().get();
-        let markdown = managers::transcription::tape_text(
-            &path,
-            &settings,
-            managers::settings::CopiaCome::Markdown,
-        )?;
+        let markdown = managers::transcription::export_markdown(&path, &settings)?;
         let title = path.file_stem().unwrap_or_default().to_string_lossy();
         let Some(picked) = app
             .dialog()
