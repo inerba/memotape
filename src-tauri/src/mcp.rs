@@ -167,6 +167,39 @@ pub struct EditTurnParams {
     text: String,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct MergeTurnParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The Ingresso of the turn, as returned by read_turns.
+    ingresso: String,
+    /// All the phrase ids of the turn to reattribute (`phraseIds`), as returned by read_turns.
+    phrase_ids: Vec<u32>,
+    /// A phrase id of the turn just before or just after it, of the same Ingresso: the turn takes
+    /// that turn's speaker.
+    into_phrase_id: u32,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct RenameSpeakerParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The Ingresso of the phrase, as returned by read_turns.
+    ingresso: String,
+    /// The id of any phrase of the speaker to name, as returned by read_turns.
+    phrase_id: u32,
+    /// The speaker's name, e.g. "Giulia Ferrara".
+    name: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SetDateParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The new date and time, in the user's local time, as YYYY-MM-DDTHH:MM (e.g. 2026-10-03T17:05).
+    date: String,
+}
+
 /// Un Tape della Libreria.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -538,6 +571,133 @@ correct its current text.",
             "Corrected.".into()
         })
     }
+
+    #[tool(
+        description = "Merge a turn of a Tape into the turn just before or just after it, as the user \
+does in Memotape to fix a wrong speaker attribution: the turn takes that turn's speaker, its text and \
+times stay. Both turns must be of the same Ingresso and the other turn's speaker must be known. The \
+attribution is marked as made by hand; turns change after it, so call read_turns again.",
+        annotations(
+            title = "Merge a turn",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn merge_turn(&self, Parameters(p): Parameters<MergeTurnParams>) -> Result<String, String> {
+        log::info!(
+            "Assistente: merge_turn {} {}:{:?} in {}",
+            p.tape,
+            p.ingresso,
+            p.phrase_ids,
+            p.into_phrase_id
+        );
+        let path = self.writable_tape(&p.tape)?;
+        let ingresso = ingresso(&p.ingresso)?;
+        // `unisci_turno` rifiuta senza scrivere le richieste non valide o obsolete.
+        tape::unisci_turno(&path, ingresso, &p.phrase_ids, p.into_phrase_id).map_err(|e| {
+            format!(
+                "The turn {} {:?} of {} cannot be merged into phrase {} ({e}): pass a whole turn and \
+a phrase of the turn just before or after it, of the same Ingresso and with a known speaker. Call \
+read_turns again if the turns changed.",
+                p.ingresso, p.phrase_ids, p.tape, p.into_phrase_id
+            )
+        })?;
+        Ok("Merged.".into())
+    }
+
+    #[tool(
+        description = "Name a speaker of a Tape, as the user does in Memotape: every phrase of that \
+speaker, in that Ingresso, shows the new name. Identify the speaker by any of its phrases, as \
+read_turns returns them. The name must differ from the other speakers' names of the same Ingresso; a \
+phrase of an unknown speaker cannot be named (merge its turn instead).",
+        annotations(
+            title = "Name a speaker",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn rename_speaker(
+        &self,
+        Parameters(p): Parameters<RenameSpeakerParams>,
+    ) -> Result<String, String> {
+        log::info!(
+            "Assistente: rename_speaker {} {}:{}",
+            p.tape,
+            p.ingresso,
+            p.phrase_id
+        );
+        let path = self.writable_tape(&p.tape)?;
+        let ingresso = ingresso(&p.ingresso)?;
+        let nome = p.name.trim();
+        if nome.is_empty() {
+            return Err("The name is empty.".into());
+        }
+        let settings = Settings::load(&self.places.settings).map_err(|e| e.to_string())?;
+        let labels = transcription::labels(&settings);
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let visibili = document.frasi_visibili();
+        let frase = visibili
+            .iter()
+            .find(|f| f.ingresso == ingresso && f.id == p.phrase_id)
+            .ok_or_else(|| {
+                format!(
+                    "{} has no phrase {} {}: call read_turns again.",
+                    p.tape, p.ingresso, p.phrase_id
+                )
+            })?;
+        // Come nell'app: si nominano i Parlanti noti e gli Ingressi senza Parlanti, non il mix.
+        if frase.parlante_non_determinato || (frase.parlante.is_none() && ingresso == Ingresso::Mix)
+        {
+            return Err(format!(
+                "The phrase {} {} has no known speaker to name: merge its turn into an adjacent one \
+instead.",
+                p.ingresso, p.phrase_id
+            ));
+        }
+        // Come `nomeTaken` dell'app: due Parlanti con lo stesso nome non si distinguerebbero più.
+        let taken = visibili.iter().any(|f| {
+            f.ingresso == ingresso
+                && !f.parlante_non_determinato
+                && f.parlante != frase.parlante
+                && labels
+                    .nome(&document.parlanti, ingresso, f.parlante)
+                    .as_deref()
+                    == Some(nome)
+        });
+        if taken {
+            return Err(format!(
+                "Another speaker of {} is already named {nome:?}: choose another name.",
+                p.ingresso
+            ));
+        }
+        tape::rename_parlante(&path, ingresso, frase.parlante, nome)
+            .map_err(|e| format!("{} cannot be written: {e}", p.tape))?;
+        Ok("Renamed.".into())
+    }
+
+    #[tool(
+        description = "Change the date and time of a Tape (when it was recorded), as the user does in \
+Memotape. Pass the user's local time as YYYY-MM-DDTHH:MM; returns the date written, with its UTC \
+offset.",
+        annotations(
+            title = "Change the date",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn set_date(&self, Parameters(p): Parameters<SetDateParams>) -> Result<String, String> {
+        log::info!("Assistente: set_date {} {}", p.tape, p.date);
+        let path = self.writable_tape(&p.tape)?;
+        // `set_creato` rifiuta senza scrivere una data non valida o un'ora che non esiste.
+        let creato = tape::set_creato(&path, &p.date).map_err(|e| {
+            format!(
+                "The date of {} cannot be set to {:?} ({e}): pass an existing local date and time \
+as YYYY-MM-DDTHH:MM, e.g. 2026-10-03T17:05.",
+                p.tape, p.date
+            )
+        })?;
+        Ok(format!("The Tape is now dated {creato}."))
+    }
 }
 
 #[tool_handler(
@@ -549,7 +709,7 @@ mix, microfono (the user's microphone) or sistema (system audio, e.g. the other 
 Raccolte are folders that group Tape. Use search to find phrases by words, then read_around for the \
 context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
 identified by their path relative to the Library, as these tools return it. If the user allows it, \
-you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn."
+you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn, \nmerge a turn into an adjacent one with merge_turn, name a speaker with rename_speaker and change \nthe date with set_date."
 )]
 impl ServerHandler for Server {}
 
@@ -1181,6 +1341,12 @@ mod tests {
                 "Buonasera a tutti.",
             );
             assert_eq!(corretto.err().as_deref(), Some(errore));
+            let unito = merge_turn(&server, CALL, "mix", &[1], 0);
+            assert_eq!(unito.err().as_deref(), Some(errore));
+            let nominato = rename_speaker(&server, "mix", 0, "Marco");
+            assert_eq!(nominato.err().as_deref(), Some(errore));
+            let datato = set_date(&server, "2025-12-31T23:30");
+            assert_eq!(datato.err().as_deref(), Some(errore));
             assert_eq!(bytes(&root, &server, CALL), prima);
         }
     }
@@ -1251,6 +1417,130 @@ mod tests {
         // Una parte di un Turno, o Frasi di due Turni, non sono un Turno.
         assert!(edit_turn(&server, "Lungo.tape", &[0], unito, "x").is_err());
         assert!(edit_turn(&server, "Lungo.tape", &[2, 3], "Terza.", "x").is_err());
+    }
+
+    fn merge_turn(
+        server: &Server,
+        tape: &str,
+        ingresso: &str,
+        ids: &[u32],
+        into: u32,
+    ) -> Result<String, String> {
+        server.merge_turn(Parameters(MergeTurnParams {
+            tape: tape.into(),
+            ingresso: ingresso.into(),
+            phrase_ids: ids.to_vec(),
+            into_phrase_id: into,
+        }))
+    }
+
+    #[test]
+    fn si_unisce_un_turno_al_turno_adiacente() {
+        let (root, server) = server_with("unisce", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        // Non adiacente, o solo una parte di un Turno: rifiutato senza scrivere.
+        let prima = bytes(&root, &server, CALL);
+        assert!(
+            merge_turn(&server, CALL, "mix", &[3], 0)
+                .unwrap_err()
+                .contains("read_turns")
+        );
+        assert!(merge_turn(&server, CALL, "mix", &[1], 1).is_err());
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        assert!(merge_turn(&server, CALL, "mix", &[1], 0).is_ok());
+        let turni = read_turns(&server, CALL, None, None);
+        assert_eq!(turni.total, 2);
+        assert_eq!(turni.turni[0].phrase_ids, [0, 1, 2]);
+        assert_eq!(turni.turni[0].parlante.as_deref(), Some("Parlante 1"));
+        assert!(tape::read(&root.join(CALL)).unwrap().frasi[1].parlante_corretto);
+        assert_eq!(bytes(&root, &server, CALL).1, indice);
+    }
+
+    #[test]
+    fn non_si_unisce_un_turno_a_un_altro_ingresso() {
+        let (root, server) = server_with("ingressi", true, true);
+        let path = root.join("Ingressi.tape");
+        tape_with(
+            &path,
+            &[("Io.", None), ("Lei.", Some(1)), ("Lui.", Some(2))],
+            &[],
+        );
+        let mut document = tape::read(&path).unwrap();
+        document.frasi[0].ingresso = Ingresso::Microfono;
+        for frase in &mut document.frasi[1..] {
+            frase.ingresso = Ingresso::Sistema;
+        }
+        tape::rewrite(&path, &document).unwrap();
+        let prima = std::fs::read(&path).unwrap();
+        assert!(merge_turn(&server, "Ingressi.tape", "sistema", &[1], 0).is_err());
+        assert!(merge_turn(&server, "Ingressi.tape", "microfono", &[0], 1).is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), prima);
+        assert!(merge_turn(&server, "Ingressi.tape", "sistema", &[2], 1).is_ok());
+        let turni = read_turns(&server, "Ingressi.tape", None, None);
+        assert_eq!(turni.turni[1].phrase_ids, [1, 2]);
+    }
+
+    fn rename_speaker(
+        server: &Server,
+        ingresso: &str,
+        id: u32,
+        name: &str,
+    ) -> Result<String, String> {
+        server.rename_speaker(Parameters(RenameSpeakerParams {
+            tape: CALL.into(),
+            ingresso: ingresso.into(),
+            phrase_id: id,
+            name: name.into(),
+        }))
+    }
+
+    #[test]
+    fn si_da_un_nome_al_parlante_di_una_frase() {
+        let (root, server) = server_with("nomi", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        let prima = bytes(&root, &server, CALL);
+        // Il nome di un altro Parlante dello stesso Ingresso, un nome vuoto, una Frase che non c'è.
+        assert!(rename_speaker(&server, "mix", 0, " Giulia Ferrara ").is_err());
+        assert!(rename_speaker(&server, "mix", 0, "  ").is_err());
+        assert!(rename_speaker(&server, "mix", 9, "Marco").is_err());
+        assert!(rename_speaker(&server, "sistema", 0, "Marco").is_err());
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        assert!(rename_speaker(&server, "mix", 2, " Marco Quarzi ").is_ok());
+        let turni = read_turns(&server, CALL, None, None);
+        assert_eq!(turni.turni[0].parlante.as_deref(), Some("Marco Quarzi"));
+        assert_eq!(turni.turni[2].parlante.as_deref(), Some("Marco Quarzi"));
+        assert_eq!(turni.turni[1].parlante.as_deref(), Some("Giulia Ferrara"));
+        assert_eq!(bytes(&root, &server, CALL).1, indice);
+    }
+
+    fn set_date(server: &Server, date: &str) -> Result<String, String> {
+        server.set_date(Parameters(SetDateParams {
+            tape: CALL.into(),
+            date: date.into(),
+        }))
+    }
+
+    #[test]
+    fn si_cambiano_data_e_ora_del_tape() {
+        let (root, server) = server_with("data", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        let prima = bytes(&root, &server, CALL);
+        for sbagliata in ["31/12/2025", "2025-13-01T10:00", "2025-12-31"] {
+            assert!(
+                set_date(&server, sbagliata)
+                    .unwrap_err()
+                    .contains("YYYY-MM-DDTHH:MM")
+            );
+        }
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        assert!(
+            set_date(&server, "2025-12-31T23:30")
+                .unwrap()
+                .contains("2025-12-31T23:30")
+        );
+        let creato = read_turns(&server, CALL, None, None).tape.creato;
+        assert!(creato.starts_with("2025-12-31T23:30:00"), "{creato}");
+        assert_eq!(bytes(&root, &server, CALL).1, indice);
     }
 
     #[test]
