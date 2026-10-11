@@ -15,6 +15,10 @@ use crate::transcript::Ingresso;
 /// La Cartella della Libreria se le impostazioni non ne indicano un'altra, dentro Documenti.
 pub const DEFAULT_FOLDER: &str = "Memotape";
 
+/// La cartella nascosta della Libreria: gli Ogg delle Registrazioni in corso (dopo un crash l'audio
+/// è lì) e i file di lock condivisi con il server MCP (ADR-0031).
+pub const TEMP_FOLDER: &str = ".memotape";
+
 /// La `user_version` dell'indice: con un numero diverso si ricostruisce.
 const SCHEMA: i32 = 3;
 

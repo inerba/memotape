@@ -27,7 +27,7 @@ use crate::audio_toolkit::processing::Format;
 use crate::audio_toolkit::protection::{ProtectionTimeline, Sensibilita};
 use crate::engine::live::{self, LiveFeed};
 use crate::error::AppError;
-use crate::library::Library;
+use crate::library::{Library, TEMP_FOLDER};
 use crate::managers::activity::Activity;
 use crate::managers::models::Models;
 use crate::managers::settings::{
@@ -110,9 +110,6 @@ pub struct RecordingCleaningFailed {
     pub ingresso: Ingresso,
     pub error: AppError,
 }
-/// La cartella nascosta degli Ogg delle Registrazioni in corso, dentro la Cartella della Libreria.
-/// Dopo un crash l'audio è lì.
-pub(crate) const TEMP_FOLDER: &str = ".memotape";
 
 /// Durata registrata (pause escluse) e livelli dall'evento precedente.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]

@@ -25,11 +25,11 @@ use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
 use crate::engine::transcribe_cpp::TranscribeCpp;
 use crate::engine::{TranscriptionEngine, diarize};
 use crate::error::AppError;
-use crate::library::Library;
+use crate::library::{Library, TEMP_FOLDER};
 use crate::managers::activity::Activity;
 use crate::managers::models::{self, DiarizerLease, Models};
 use crate::managers::recording::{
-    TEMP_FOLDER, channel_count, create_numbered, numbered, recordings_folder, temp_folder,
+    channel_count, create_numbered, numbered, recordings_folder, temp_folder,
 };
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore, SpeechLanguage};
 use crate::tape;

@@ -1107,7 +1107,7 @@ fn libreria_di(path: &Path) -> Option<PathBuf> {
 /// Il file `name` nella `.memotape` della Libreria `root`, aperto per prenderne il lock, e il suo
 /// percorso.
 fn lock_file(root: &Path, name: &str) -> Result<(File, PathBuf), AppError> {
-    let dir = root.join(crate::managers::recording::TEMP_FOLDER);
+    let dir = root.join(crate::library::TEMP_FOLDER);
     std::fs::create_dir_all(&dir).map_err(|e| unwritable(&dir, &e))?;
     let lock = dir.join(name);
     let file = File::options()
@@ -2323,11 +2323,10 @@ mod tests {
         registra_libreria(&esterna);
         let lock = prova_attivita(&path).unwrap();
         assert!(lock.is_some());
-        assert!(esterna.join(crate::managers::recording::TEMP_FOLDER).is_dir());
-        assert!(!interna.join(crate::managers::recording::TEMP_FOLDER).exists());
         drop(writing(&path).unwrap());
-        assert!(esterna.join(crate::managers::recording::TEMP_FOLDER).join("riscritture.lock").is_file());
-        assert!(!interna.join(crate::managers::recording::TEMP_FOLDER).exists());
+        let locks = esterna.join(crate::library::TEMP_FOLDER);
+        assert!(locks.join("riscritture.lock").is_file());
+        assert!(!interna.join(crate::library::TEMP_FOLDER).exists());
     }
 
     #[test]
