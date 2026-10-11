@@ -581,35 +581,33 @@
       "pausaRegistrazione": "Pause or resume",
       "apriTape": "Open the Tape",
       "rinominaTape": "Rename the Tape",
-      "cestinaTape": "Move to Recycle Bin",
-      "tagliaSelezione": "Cut selection (Cut mode)",
-      "esciDalTaglio": "Leave Cut mode"
+      "cestinaTape": "Move to Recycle Bin"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Shift",
       "Space": "Space",
       "Enter": "Enter",
-      "Delete": "Del",
-      "Escape": "Esc"
+      "Delete": "Del"
     }
   },
   "taglio": {
-    "menu": "Cut…",
-    "titolo": "Cut",
-    "suggerimento": "Select text or a silence, then press Del",
-    "inSospeso_one": "{{count}} pending cut · −{{durata}}",
-    "inSospeso_other": "{{count}} pending cuts · −{{durata}}",
     "annulla": "Cancel",
-    "tagliaSelezione": "Cut selection",
-    "applica": "Apply cuts",
-    "elenco": "Pending cuts",
-    "ripristina": "Restore {{tratto}}",
     "conferma": {
-      "titolo_one": "Apply the cut?",
-      "titolo_other": "Apply {{count}} cuts?",
-      "descrizione": "The Tape goes from {{prima}} to {{dopo}}. The original goes to the Windows Recycle Bin, where you can restore it.",
-      "correzioni": "Some hand-corrected Turns are only partly cut: their corrected text stays on the remaining Phrases, so check it after cutting.",
+      "titolo": {
+        "prima": "Cut the beginning?",
+        "dopo": "Cut the end?"
+      },
+      "prima_one": "The first {{durata}} go ({{count}} Turn).",
+      "prima_other": "The first {{durata}} go ({{count}} Turns).",
+      "primaSilenzio": "The first {{durata}} of silence go.",
+      "primaTesto": "The Tape will start with",
+      "dopo_one": "The last {{durata}} go ({{count}} Turn).",
+      "dopo_other": "The last {{durata}} go ({{count}} Turns).",
+      "dopoSilenzio": "The last {{durata}} of silence go.",
+      "dopoTesto": "The Tape will end with",
+      "durata": "Length {{prima}} → {{dopo}}",
+      "cestino": "The original goes to the Windows Recycle Bin, where you can restore it.",
       "azione": "Cut"
     },
     "senzaCestino": {
@@ -617,7 +615,7 @@
       "descrizione": "The Tape is on a drive without a Windows Recycle Bin: after cutting, the original cannot be recovered.",
       "conferma": "Cut anyway"
     },
-    "silenzioIniziale": "Opening silence of {{durata}}",
-    "silenzioFinale": "Closing silence of {{durata}}"
+    "prima": "Cut everything before this Turn",
+    "dopo": "Cut everything after this Turn"
   }
 }

@@ -4,7 +4,6 @@ import {
   FolderInput,
   FolderOpen,
   RefreshCcw,
-  Scissors,
   Trash2,
   UsersRound,
 } from "lucide-react";
@@ -24,8 +23,8 @@ export const MENU_ITEM =
 
 /**
  * "…" del Tape aperto, con le azioni meno frequenti: Esporta Markdown…, Mostra in Esplora file,
- * Taglia… (se `onTaglia`), Sposta in… (o Aggiungi alla Libreria… per un Tape da fuori), Trascrivi di
- * nuovo (se `onTranscribe`, apre il dialog delle scelte) ed Elimina.
+ * Sposta in… (o Aggiungi alla Libreria… per un Tape da fuori), Trascrivi di nuovo (se `onTranscribe`,
+ * apre il dialog delle scelte) ed Elimina.
  */
 export function TapeMenu({
   disabled,
@@ -37,7 +36,6 @@ export function TapeMenu({
   onExported,
   onMove,
   onReveal,
-  onTaglia,
   onTranscribe,
   onTrash,
   path,
@@ -52,8 +50,6 @@ export function TapeMenu({
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
   onReveal: (path: string) => void;
-  /** Apre la modalità Taglio; assente senza testo o se ci lavora l'Attività in corso. */
-  onTaglia?: () => void;
   /** Trascrivi di nuovo; assente se il Tape non è la Sorgente o un'Attività è in corso. */
   onTranscribe?: () => void;
   onTrash: (tape: { path: string; titolo: string }) => void;
@@ -90,10 +86,6 @@ export function TapeMenu({
     closeMenu();
     onTranscribe?.();
   }, [onTranscribe]);
-  const taglia = useCallback(() => {
-    closeMenu();
-    onTaglia?.();
-  }, [onTaglia]);
   const diarize = useCallback(() => {
     closeMenu();
     onDiarize?.();
@@ -117,11 +109,6 @@ export function TapeMenu({
       <MenuItem icon={<FolderOpen />} onClick={reveal}>
         {t("library.reveal")}
       </MenuItem>
-      {onTaglia ? (
-        <MenuItem icon={<Scissors />} onClick={taglia}>
-          {t("taglio.menu")}
-        </MenuItem>
-      ) : null}
       {targets.length > 0 ? (
         <>
           <hr className="my-1" />

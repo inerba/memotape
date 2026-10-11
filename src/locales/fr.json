@@ -585,37 +585,35 @@
       "pausaRegistrazione": "Mettre en pause ou reprendre",
       "apriTape": "Ouvrir le Tape",
       "rinominaTape": "Renommer le Tape",
-      "cestinaTape": "Mettre à la Corbeille",
-      "tagliaSelezione": "Couper la sélection (mode Couper)",
-      "esciDalTaglio": "Quitter le mode Couper"
+      "cestinaTape": "Mettre à la Corbeille"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Maj",
       "Space": "Espace",
       "Enter": "Entrée",
-      "Delete": "Suppr",
-      "Escape": "Échap"
+      "Delete": "Suppr"
     }
   },
   "taglio": {
-    "menu": "Couper…",
-    "titolo": "Couper",
-    "suggerimento": "Sélectionnez du texte ou un silence, puis appuyez sur Suppr",
-    "inSospeso_one": "{{count}} coupe en attente · −{{durata}}",
-    "inSospeso_many": "{{count}} coupes en attente · −{{durata}}",
-    "inSospeso_other": "{{count}} coupes en attente · −{{durata}}",
     "annulla": "Annuler",
-    "tagliaSelezione": "Couper la sélection",
-    "applica": "Appliquer les coupes",
-    "elenco": "Coupes en attente",
-    "ripristina": "Rétablir {{tratto}}",
     "conferma": {
-      "titolo_one": "Appliquer la coupe ?",
-      "titolo_many": "Appliquer {{count}} coupes ?",
-      "titolo_other": "Appliquer {{count}} coupes ?",
-      "descrizione": "Le Tape passe de {{prima}} à {{dopo}}. L'original va dans la Corbeille de Windows, d'où vous pouvez le restaurer.",
-      "correzioni": "Certains Tours corrigés à la main ne sont coupés qu'en partie : leur texte corrigé reste sur les Phrases restantes, vérifiez-le après la coupe.",
+      "titolo": {
+        "prima": "Couper le début ?",
+        "dopo": "Couper la fin ?"
+      },
+      "prima_one": "Les premières {{durata}} sont retirées ({{count}} Tour).",
+      "prima_many": "Les premières {{durata}} sont retirées ({{count}} Tours).",
+      "prima_other": "Les premières {{durata}} sont retirées ({{count}} Tours).",
+      "primaSilenzio": "Les premières {{durata}} de silence sont retirées.",
+      "primaTesto": "Le Tape commencera par",
+      "dopo_one": "Les dernières {{durata}} sont retirées ({{count}} Tour).",
+      "dopo_many": "Les dernières {{durata}} sont retirées ({{count}} Tours).",
+      "dopo_other": "Les dernières {{durata}} sont retirées ({{count}} Tours).",
+      "dopoSilenzio": "Les dernières {{durata}} de silence sont retirées.",
+      "dopoTesto": "Le Tape finira par",
+      "durata": "Durée {{prima}} → {{dopo}}",
+      "cestino": "L'original va dans la Corbeille de Windows, d'où vous pouvez le restaurer.",
       "azione": "Couper"
     },
     "senzaCestino": {
@@ -623,7 +621,7 @@
       "descrizione": "Le Tape se trouve sur un disque sans Corbeille Windows : après la coupe, l'original ne pourra pas être récupéré.",
       "conferma": "Couper quand même"
     },
-    "silenzioIniziale": "Silence initial de {{durata}}",
-    "silenzioFinale": "Silence final de {{durata}}"
+    "prima": "Couper tout ce qui précède ce Tour",
+    "dopo": "Couper tout ce qui suit ce Tour"
   }
 }

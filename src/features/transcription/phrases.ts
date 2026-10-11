@@ -348,7 +348,7 @@ function silenceMs(
 }
 
 /** Da questo silenzio stimato in su, Copione e Nastro mostrano il separatore della pausa. */
-export const SHOWN_PAUSE_MS = 5000;
+const SHOWN_PAUSE_MS = 5000;
 
 /**
  * Il silenzio stimato prima di ogni turno, se merita il separatore (almeno 5 s), altrimenti `null`.
@@ -372,12 +372,7 @@ export function pausesOf(turns: Turn[]): (number | null)[] {
  * La conversazione a turni, in ordine di inizio con i Parziali al loro posto: un turno nuovo a ogni
  * cambio di etichetta (Ingresso o Parlante) o, senza etichette, dopo una pausa: come nel Markdown.
  */
-export function turnsOf(
-  conversation: Conversation,
-  t: TFunction,
-  /** Con le etichette, un silenzio da qui in su apre comunque un turno nuovo (modalità Taglio). */
-  spezzaDaMs = Number.POSITIVE_INFINITY
-): Turn[] {
+export function turnsOf(conversation: Conversation, t: TFunction): Turn[] {
   // Senza etichette i turni sono i paragrafi del Markdown, separati dalle pause.
   const labeled = [...conversation.phrases, ...conversation.partials].some(
     (p) =>
@@ -417,10 +412,7 @@ export function turnsOf(
         Boolean(item.parlanteNonDeterminato) &&
       Boolean(previous.parlanteProvvisorio) ===
         Boolean(item.parlanteProvvisorio) &&
-      (labeled
-        ? silenceMs(previous, item) < spezzaDaMs ||
-          stessaCorrezione(previous, item)
-        : silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
+      (labeled || silenceMs(previous, item) <= PARAGRAPH_PAUSE_MS)
     ) {
       last.items.push(item);
     } else {
@@ -443,17 +435,6 @@ export function turnsOf(
     }
   }
   return turns;
-}
-
-/** Due Frasi della stessa correzione del Turno: il suo testo sta nella prima, non si separano. */
-function stessaCorrezione(
-  a: TranscriptPhrase | ConversationPartial,
-  b: TranscriptPhrase | ConversationPartial
-): boolean {
-  const ta = "testoTurno" in a ? a.testoTurno : null;
-  return (
-    ta !== null && ta !== undefined && "testoTurno" in b && b.testoTurno === ta
-  );
 }
 
 /** Il testo di Copia turno, sempre semplice: solo le Frasi, senza Ingresso né nome della voce. */

@@ -21,7 +21,7 @@ Il server MCP scrive da solo i file della Libreria, anche ad app chiusa. Il lock
   1. correzione leggera: errori di riconoscimento, nomi propri coerenti, punteggiatura, maiuscole, ripetizioni involontarie e intercalari; stile, ordine e senso restano, e i Turni senza errori evidenti non si toccano (conservano testo originale e tempi delle parole);
   2. Taglio dei Silenzi;
   3. titolo, solo se quello attuale è generico (il predefinito della Registrazione o il nome del file importato): breve, al massimo 100 caratteri, nella Lingua del parlato, sull'argomento, senza data; se è già preso se ne sceglie un altro.
-- **Silenzi**: stessa regola della modalità Taglio (`src/features/taglio/taglio.ts`), calcolata in Rust: almeno 5 s di silenzio stimato fra le Frasi di tutti gli Ingressi, tolto tutto all'inizio e alla fine, 1 s per lato in mezzo.
+- **Silenzi**: la regola dei Silenzi, calcolata in Rust (`Document::silenzi`; la modalità Taglio dell'app che la usava non c'è più): almeno 5 s di silenzio stimato fra le Frasi di tutti gli Ingressi, tolto tutto all'inizio e alla fine, 1 s per lato in mezzo.
 
 ## Alternative scartate
 

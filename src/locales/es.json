@@ -585,37 +585,35 @@
       "pausaRegistrazione": "Pausar o reanudar",
       "apriTape": "Abrir el Tape",
       "rinominaTape": "Cambiar el nombre del Tape",
-      "cestinaTape": "Mover a la Papelera",
-      "tagliaSelezione": "Recortar la selección (modo Recortar)",
-      "esciDalTaglio": "Salir del modo Recortar"
+      "cestinaTape": "Mover a la Papelera"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Mayús",
       "Space": "Espacio",
       "Enter": "Intro",
-      "Delete": "Supr",
-      "Escape": "Esc"
+      "Delete": "Supr"
     }
   },
   "taglio": {
-    "menu": "Recortar…",
-    "titolo": "Recortar",
-    "suggerimento": "Selecciona texto o un silencio y pulsa Supr",
-    "inSospeso_one": "{{count}} recorte pendiente · −{{durata}}",
-    "inSospeso_many": "{{count}} recortes pendientes · −{{durata}}",
-    "inSospeso_other": "{{count}} recortes pendientes · −{{durata}}",
     "annulla": "Cancelar",
-    "tagliaSelezione": "Recortar la selección",
-    "applica": "Aplicar los recortes",
-    "elenco": "Recortes pendientes",
-    "ripristina": "Restaurar {{tratto}}",
     "conferma": {
-      "titolo_one": "¿Aplicar el recorte?",
-      "titolo_many": "¿Aplicar {{count}} recortes?",
-      "titolo_other": "¿Aplicar {{count}} recortes?",
-      "descrizione": "El Tape pasa de {{prima}} a {{dopo}}. El original va a la Papelera de reciclaje de Windows, desde donde puedes restaurarlo.",
-      "correzioni": "Algunos Turnos corregidos a mano se recortan solo en parte: su texto corregido queda en las Frases restantes; revísalo después del recorte.",
+      "titolo": {
+        "prima": "¿Recortar el principio?",
+        "dopo": "¿Recortar el final?"
+      },
+      "prima_one": "Se quitan los primeros {{durata}} ({{count}} Turno).",
+      "prima_many": "Se quitan los primeros {{durata}} ({{count}} Turnos).",
+      "prima_other": "Se quitan los primeros {{durata}} ({{count}} Turnos).",
+      "primaSilenzio": "Se quitan los primeros {{durata}} de silencio.",
+      "primaTesto": "El Tape empezará con",
+      "dopo_one": "Se quitan los últimos {{durata}} ({{count}} Turno).",
+      "dopo_many": "Se quitan los últimos {{durata}} ({{count}} Turnos).",
+      "dopo_other": "Se quitan los últimos {{durata}} ({{count}} Turnos).",
+      "dopoSilenzio": "Se quitan los últimos {{durata}} de silencio.",
+      "dopoTesto": "El Tape terminará con",
+      "durata": "Duración {{prima}} → {{dopo}}",
+      "cestino": "El original va a la Papelera de reciclaje de Windows, desde donde puedes restaurarlo.",
       "azione": "Recortar"
     },
     "senzaCestino": {
@@ -623,7 +621,7 @@
       "descrizione": "El Tape está en un disco sin Papelera de reciclaje de Windows: después del recorte no se podrá recuperar el original.",
       "conferma": "Recortar de todos modos"
     },
-    "silenzioIniziale": "Silencio inicial de {{durata}}",
-    "silenzioFinale": "Silencio final de {{durata}}"
+    "prima": "Recortar todo lo anterior a este Turno",
+    "dopo": "Recortar todo lo posterior a este Turno"
   }
 }

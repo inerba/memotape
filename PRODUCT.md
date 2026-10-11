@@ -604,15 +604,13 @@ Spec `.scratch/anteprime-ui/spec.md` («7 · Barra laterale richiudibile»), tic
 
 ## Taglio — requisiti concordati l'11 ottobre 2026
 
-Come in Descript, si taglia dal testo: niente timeline né Forma d'onda dettagliata. Decisione sul formato in ADR-0030.
+Si toglie l'inizio o la fine di un Tape, per esempio i saluti o il tempo vuoto dopo essersi allontanati, partendo da un Turno: niente selezione né tagli in mezzo, quindi nessuna giunzione nell'audio. Decisione sul formato in ADR-0030; gli Assistenti tagliano anche in mezzo (ADR-0031).
 
-- «Taglia…» nel menu «…» di un Tape con testo apre la modalità Taglio, se nessuna Attività lavora su quel Tape. Il testo resta in sola lettura e si seleziona come un documento: niente correzioni, Unisci né nomi dei Parlanti finché si è lì. Esc o Annulla esce e scarta i tagli scelti.
-- In modalità Taglio i silenzi di almeno 5 s sono righe che un clic seleziona, in tutte e tre le viste: «Silenzio iniziale di …» prima della prima Frase, «Pausa di …» tra i turni (anche dentro la stessa voce) e «Silenzio finale di …» dopo l'ultima. Così si toglie anche il tempo vuoto senza parole, come quando ci si allontana a fine Registrazione.
-- Canc o «Taglia la selezione» aggiunge un Taglio in sospeso: la selezione si allarga alle Frasi intere (con tutto un Turno corretto a mano, se ne tocca il testo) e ai silenzi intorno, lasciando 1 s di pausa per lato; con le prime Frasi parte dall'inizio del Tape, con le ultime arriva alla fine. Senza Frasi taglia i silenzi selezionati con lo stesso margine. Un'altra voce che parla sopra non si taglia.
-- I Tagli in sospeso sono barrati nel testo, tratteggiati sulla Forma d'onda del player ed elencati sopra il player con il numero e la durata tolta; × li ripristina uno per uno. Tagli che si toccano si uniscono. Non si salvano: chiudere il Tape li scarta.
-- In modalità Taglio il player salta i Tagli in sospeso: si ascolta il risultato prima di applicarlo, giunzioni comprese.
-- «Applica i tagli» chiede conferma una volta, con la durata prima e dopo. Avvisa se un Taglio toglie solo una parte di un Turno corretto a mano: il testo corretto resta sulle Frasi rimaste. Il Tape si riscrive con l'audio (mix e ogni Ingresso) e le Frasi tolti; l'originale va nel Cestino di Windows con lo stesso nome. Su un disco senza Cestino una seconda conferma dice che l'originale non si potrà recuperare.
-- Dopo il Taglio la linea del tempo è continua: le Frasi dopo un tratto tagliato arretrano della sua durata, un Taglio all'inizio sposta in avanti data e ora del Tape, i Parlanti non si rinumerano e i nomi restano. Il player rilegge l'audio nuovo; Libreria e ricerca si aggiornano.
+- Nella barretta di ogni Turno, accanto a ▶ e Copia, due forbici: «Taglia tutto prima di questo Turno» e «Taglia tutto dopo questo Turno». Ci sono se nessuna Attività lavora sul Tape, e una è spenta se da quella parte non c'è niente da togliere. Il Turno scelto resta sempre.
+- Puntando una forbice (o con il focus) ciò che sparirebbe si spegne, pause comprese, e una linea tratteggiata mattone segna il bordo sul Turno.
+- «Prima» taglia dall'inizio del Tape a 1 s prima del parlato del Turno; «dopo» da 1 s dopo fino alla fine. Con meno di 1 s di silenzio il bordo cade subito dopo (o prima) della Frase tolta. Il bordo non entra mai in una Frase che resta: una voce di un altro Ingresso che si accavalla al Turno resta intera e il bordo si sposta oltre di lei.
+- Un clic apre la conferma: «Tagliare l'inizio?» o «Tagliare la fine?», quanto si toglie e quanti Turni (o solo silenzio), la frase da cui il Tape comincerà o con cui finirà, la durata prima e dopo, e che l'originale va nel Cestino di Windows con lo stesso nome. Su un disco senza Cestino una seconda conferma dice che l'originale non si potrà recuperare.
+- Dopo il Taglio il Tape riscritto ha l'audio (mix e ogni Ingresso) e le Frasi senza il tratto; un Taglio all'inizio sposta in avanti data e ora del Tape, i Parlanti non si rinumerano e i nomi restano. Il player rilegge l'audio nuovo; Libreria e ricerca si aggiornano.
 
 ## Fuori dal perimetro
 

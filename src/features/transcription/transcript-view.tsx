@@ -1,4 +1,3 @@
-import type { TFunction } from "i18next";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,12 +9,12 @@ import {
   Mic,
   Play,
   RotateCcw,
+  ScissorsLineDashed,
   Speaker,
   X,
 } from "lucide-react";
 import {
   Fragment,
-  type MouseEvent,
   memo,
   type ReactNode,
   useCallback,
@@ -39,12 +38,8 @@ import { elapsedText } from "@/features/recording/recording";
 import { useSettings } from "@/features/settings/settings-context";
 import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
-import {
-  type Silenzio,
-  silenziDi,
-  type Taglio,
-  tagliato,
-} from "@/features/taglio/taglio";
+import type { Dove, RichiestaTaglio, Taglio } from "@/features/taglio/taglio";
+import { useAnteprimaTaglio } from "@/features/taglio/use-taglio";
 import {
   ParlanteNameInput,
   VOICE_CLASSES,
@@ -56,7 +51,6 @@ import {
   type PhraseRef,
   pausesOf,
   phraseKey,
-  SHOWN_PAUSE_MS,
   type Turn,
   textItemsOf,
   turnBody,
@@ -69,24 +63,6 @@ import { type CommitTurn, type EditTurn, TurnEditor } from "./turn-editor";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
-const NESSUNA_MODIFICA: {
-  onEdit?: EditTurn;
-  onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
-  onRenaming?: (voce: Parlante | null, turnKey: string) => void;
-} = {};
-
-/** Le modifiche del testo, nessuna in modalità Taglio; senza `rinomina` i nomi non si cambiano. */
-function modificheDelTesto(
-  inTaglio: boolean,
-  modifiche: typeof NESSUNA_MODIFICA,
-  rinomina: boolean
-): typeof NESSUNA_MODIFICA {
-  if (inTaglio) {
-    return NESSUNA_MODIFICA;
-  }
-  return rinomina ? modifiche : { ...modifiche, onRenaming: undefined };
-}
-
 /** Ai turni senza Frasi in ascolto: sempre lo stesso array, così `memo` non li ridisegna. */
 const NOT_PLAYING: string[] = [];
 
@@ -97,6 +73,21 @@ const NAME_COLUMN_SEPARATE = "140px";
 /** Un pulsante a icona della barretta del turno. */
 const ICON_BUTTON =
   "flex size-6 items-center justify-center rounded-md text-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40";
+
+/** Un Turno o una pausa che sparirebbe con il Taglio che si sta puntando. */
+const FUORI = "opacity-30";
+
+/** La linea mattone tratteggiata sul bordo del Turno puntato: dove cadrebbe il Taglio. */
+const BORDO: Record<Dove, string> = {
+  dopo: "after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-1 after:border-destructive/80 after:border-t-[1.5px] after:border-dashed after:content-['']",
+  prima:
+    "before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:border-destructive/80 before:border-t-[1.5px] before:border-dashed before:content-['']",
+};
+
+/** Le classi del Turno nell'anteprima del Taglio. */
+function classiTaglio(fuori: boolean, bordo: Dove | null): string {
+  return `transition-opacity duration-150 ${fuori ? FUORI : ""} ${bordo ? BORDO[bordo] : ""}`;
+}
 
 /** Il nome che si rinomina con un clic si sottolinea al passaggio. */
 const HOVER_UNDERLINE =
@@ -128,7 +119,7 @@ export function TranscriptView({
   parlanti,
   player,
   renaming,
-  taglio,
+  taglio = null,
 }: {
   conversation: Conversation;
   /** Al posto dei turni, se non ce ne sono. */
@@ -147,10 +138,10 @@ export function TranscriptView({
   /** Il Parlante di cui si sta scrivendo il nome. */
   renaming?: Parlante | null;
   /**
-   * La modalità Taglio: i silenzi lunghi (anche all'inizio e alla fine, e dentro un turno) sono
-   * righe che si selezionano, e il testo dei Tagli in sospeso è barrato.
+   * Le forbici del Taglio nella barretta di ogni Turno: tutto prima o tutto dopo. Puntandole si
+   * spegne quello che sparirebbe; un clic chiede `onTaglia`.
    */
-  taglio?: { durataMs: number; tagli: Taglio[] } | null;
+  taglio?: { durataMs: number; onTaglia: (r: RichiestaTaglio) => void } | null;
 }) {
   const { t } = useTranslation();
   const section = useRef<HTMLElement>(null);
@@ -176,12 +167,10 @@ export function TranscriptView({
   const free = player?.follow === "free";
   // Turni e vicini dipendono dal testo, non dalla posizione del player: con un Tape lungo
   // ricalcolarli e ridisegnarli a ogni aggiornamento bloccava l'interfaccia durante l'ascolto.
-  const { inTaglio, pauses, silenzi, turns } = useTurni(
-    conversation,
-    t,
-    taglio
-  );
+  const turns = useMemo(() => turnsOf(conversation, t), [conversation, t]);
   const colors = useMemo(() => voiceColors(turns), [turns]);
+  const pauses = useMemo(() => pausesOf(turns), [turns]);
+  const anteprima = useAnteprimaTaglio(turns, conversation.phrases, taglio);
   const vista = useSettings().settings.vistaTrascrizione ?? "copione";
   let nameWidth: string | null = null;
   if (turns.some((turn) => turn.label !== null)) {
@@ -275,44 +264,33 @@ export function TranscriptView({
   // Ctrl+J vale solo finché si vede il pulsante.
   const backShown = free && followed !== undefined;
   useScorciatoia("tornaAlPunto", backShown ? backToAudio : null);
-  // In modalità Taglio il testo si seleziona e basta: niente correzioni, Unisci né nomi.
-  const modifiche = modificheDelTesto(
-    inTaglio,
-    { onEdit, onMerge, onRenaming: renameAt },
-    Boolean(onRenaming)
-  );
 
   return (
     <section
       aria-label={t("transcription.text")}
-      className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] data-[taglio]:select-text"
-      data-taglio={inTaglio ? "" : undefined}
+      className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
       ref={section}
     >
       <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
         {header}
         {turns.length === 0 ? empty : null}
         <div className={`flex flex-col ${RESE[vista].gap}`}>
-          <PrimaDelTurno
-            nameWidth={nameWidth}
-            silenzio={silenzi?.inizio}
-            tagli={taglio?.tagli}
-            vista={vista}
-          />
           {turns.map((turn, index) => {
             const { above, below, voce } = neighbours[index] ?? {};
             const heard = turn.items.some((item) =>
               playing.includes(phraseKey(item))
             );
+            const { Pausa } = RESE[vista];
+            const pause = Pausa ? pauses[index] : null;
             return (
               <Fragment key={turn.key}>
-                <PrimaDelTurno
-                  nameWidth={nameWidth}
-                  pause={pauses[index]}
-                  silenzio={silenzi?.prima[index]}
-                  tagli={taglio?.tagli}
-                  vista={vista}
-                />
+                {Pausa && pause ? (
+                  <Pausa
+                    fuori={anteprima.fuoriPausa(index)}
+                    ms={pause}
+                    nameWidth={nameWidth}
+                  />
+                ) : null}
                 <TurnBlock
                   above={above ?? null}
                   active={
@@ -325,17 +303,21 @@ export function TranscriptView({
                     )
                   }
                   below={below ?? null}
+                  bordo={anteprima.bordo(turn)}
                   color={turn.label ? colors.get(turn.label) : undefined}
                   followed={heard ? followed : undefined}
+                  fuori={anteprima.fuori(turn)}
                   highlight={highlight}
                   list={parlanti}
                   nameWidth={nameWidth}
-                  onEdit={modifiche.onEdit}
+                  onEdit={onEdit}
                   onJump={player ? jump : undefined}
-                  onMerge={modifiche.onMerge}
+                  onMerge={onMerge}
                   onPlay={player?.playFrom}
+                  onPunta={anteprima.punta}
                   onRename={onRename}
-                  onRenaming={modifiche.onRenaming}
+                  onRenaming={onRenaming ? renameAt : undefined}
+                  onTaglia={anteprima.chiedi}
                   partials={conversation.partials}
                   playing={heard ? playing : NOT_PLAYING}
                   renaming={
@@ -344,7 +326,7 @@ export function TranscriptView({
                     renaming?.ingresso === voce.ingresso &&
                     renaming.parlante === voce.parlante
                   }
-                  tagli={taglio?.tagli}
+                  tagli={anteprima.tagliDi(index)}
                   turn={turn}
                   vista={vista}
                   voce={voce}
@@ -352,12 +334,6 @@ export function TranscriptView({
               </Fragment>
             );
           })}
-          <PrimaDelTurno
-            nameWidth={nameWidth}
-            silenzio={silenzi?.fine}
-            tagli={taglio?.tagli}
-            vista={vista}
-          />
         </div>
       </div>
       {backShown ? (
@@ -386,17 +362,19 @@ export function TranscriptView({
 }
 
 interface PauseProps {
+  /** Sparirebbe con il Taglio che si sta puntando. */
+  fuori?: boolean;
   ms: number;
   /** La colonna dei nomi del Copione; `null` se nessun turno ha un'etichetta. */
   nameWidth: string | null;
 }
 
 /** Il separatore di una pausa lunga tra due turni nel Copione: il testo e un filo tratteggiato. */
-function CopionePause({ ms, nameWidth }: PauseProps) {
+function CopionePause({ fuori, ms, nameWidth }: PauseProps) {
   const { t, i18n } = useTranslation();
   return (
     <div
-      className="flex items-center gap-3 py-2 text-muted-foreground text-xs after:flex-1 after:border-input after:border-t after:border-dashed after:content-['']"
+      className={`flex items-center gap-3 py-2 text-muted-foreground text-xs transition-opacity duration-150 after:flex-1 after:border-input after:border-t after:border-dashed after:content-[''] ${fuori ? FUORI : ""}`}
       style={{
         paddingLeft: nameWidth ? `calc(${nameWidth} + 1rem)` : undefined,
       }}
@@ -407,10 +385,12 @@ function CopionePause({ ms, nameWidth }: PauseProps) {
 }
 
 /** Il separatore di una pausa lunga tra due turni nel Nastro: un tratto tratteggiato della linea. */
-function NastroPause({ ms }: PauseProps) {
+function NastroPause({ fuori, ms }: PauseProps) {
   const { t, i18n } = useTranslation();
   return (
-    <div className="grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3">
+    <div
+      className={`grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3 transition-opacity duration-150 ${fuori ? FUORI : ""}`}
+    >
       <span />
       <span aria-hidden className="relative">
         <span className="absolute inset-y-0 left-1/2 w-[1.5px] -translate-x-1/2 bg-[repeating-linear-gradient(to_bottom,color-mix(in_oklch,var(--foreground)_25%,transparent)_0_3px,transparent_3px_7px)]" />
@@ -421,99 +401,6 @@ function NastroPause({ ms }: PauseProps) {
         })}
       </span>
     </div>
-  );
-}
-
-/**
- * I turni con le loro pause; in modalità Taglio spezzati anche dai silenzi lunghi dentro la stessa
- * voce, con i silenzi da mostrare come righe.
- */
-function useTurni(
-  conversation: Conversation,
-  t: TFunction,
-  taglio: { durataMs: number } | null | undefined
-) {
-  const inTaglio = Boolean(taglio);
-  const durataMs = taglio?.durataMs ?? 0;
-  const turns = useMemo(
-    () => turnsOf(conversation, t, inTaglio ? SHOWN_PAUSE_MS : undefined),
-    [conversation, inTaglio, t]
-  );
-  const pauses = useMemo(() => pausesOf(turns), [turns]);
-  const silenzi = useMemo(
-    () => (inTaglio ? silenziDi(turns, pauses, durataMs) : null),
-    [durataMs, inTaglio, pauses, turns]
-  );
-  return { inTaglio, pauses, silenzi, turns };
-}
-
-/** Prima di un turno: il separatore della pausa, o in modalità Taglio la riga del suo silenzio. */
-function PrimaDelTurno({
-  nameWidth,
-  pause,
-  silenzio,
-  tagli,
-  vista,
-}: {
-  nameWidth: string | null;
-  pause?: number | null;
-  silenzio?: Silenzio | null;
-  tagli?: Taglio[];
-  vista: VistaTrascrizione;
-}) {
-  if (silenzio) {
-    return <SilenzioRow {...silenzio} nameWidth={nameWidth} tagli={tagli} />;
-  }
-  const { Pausa } = RESE[vista];
-  return Pausa && pause ? <Pausa ms={pause} nameWidth={nameWidth} /> : null;
-}
-
-/**
- * Un silenzio lungo in modalità Taglio: una riga che un clic seleziona, come il testo, e che Canc
- * taglia. Barrata se sta in un Taglio in sospeso.
- */
-function SilenzioRow({
-  a,
-  b,
-  dove,
-  ms,
-  nameWidth,
-  tagli,
-}: Silenzio & { nameWidth: string | null; tagli?: Taglio[] }) {
-  const { t, i18n } = useTranslation();
-  const durata = pauseDuration(ms, i18n.language);
-  const testi = {
-    fine: t("taglio.silenzioFinale", { durata }),
-    inizio: t("taglio.silenzioIniziale", { durata }),
-    pausa: t("transcription.pause", { durata }),
-  };
-  const centro = (a + b) / 2;
-  const barrato = tagli?.some(
-    (taglio) => taglio.inizioMs <= centro && centro <= taglio.fineMs
-  );
-  const select = useCallback((e: MouseEvent<HTMLButtonElement>) => {
-    const range = document.createRange();
-    range.selectNodeContents(e.currentTarget);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }, []);
-  return (
-    <button
-      className={`flex w-full items-center gap-3 rounded-md py-2 text-left text-muted-foreground text-xs transition-colors after:flex-1 after:border-input after:border-t after:border-dashed after:content-[''] hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 ${
-        barrato ? "line-through decoration-foreground/40" : ""
-      }`}
-      data-a={a}
-      data-b={b}
-      data-silenzio=""
-      onClick={select}
-      style={{
-        paddingLeft: nameWidth ? `calc(${nameWidth} + 1rem)` : undefined,
-      }}
-      type="button"
-    >
-      {testi[dove]}
-    </button>
   );
 }
 
@@ -571,8 +458,10 @@ const TurnBlock = memo(function TurnBlockView({
   above,
   below,
   active,
+  bordo,
   color,
   followed,
+  fuori,
   highlight,
   list,
   nameWidth,
@@ -580,8 +469,10 @@ const TurnBlock = memo(function TurnBlockView({
   onMerge,
   onJump,
   onPlay,
+  onPunta,
   onRename,
   onRenaming,
+  onTaglia,
   partials,
   playing,
   renaming,
@@ -593,8 +484,10 @@ const TurnBlock = memo(function TurnBlockView({
   above: PhraseRef | null;
   below: PhraseRef | null;
   active: boolean;
+  bordo: Dove | null;
   color: number | undefined;
   followed: string | undefined;
+  fuori: boolean;
   highlight?: PhraseRef | null;
   list: Parlante[];
   /** La colonna dei nomi del Copione; `null` se nessun turno ha un'etichetta. */
@@ -605,10 +498,13 @@ const TurnBlock = memo(function TurnBlockView({
   onPlay?: (ms: number) => void;
   onRename?: (voce: Parlante, nome: string) => void;
   onRenaming?: (voce: Parlante | null, turnKey: string) => void;
+  onPunta: (turnKey: string, dove: Dove | null) => void;
+  onTaglia?: (turn: Turn, dove: Dove) => void;
   partials: TranscriptPartial[];
   playing: string[];
   renaming: boolean;
-  tagli?: Taglio[];
+  /** I due Tagli possibili da questo Turno; assenti senza le forbici. */
+  tagli?: { dopo: Taglio | null; prima: Taglio | null };
   turn: Turn;
   vista: VistaTrascrizione;
   voce?: Parlante;
@@ -651,11 +547,16 @@ const TurnBlock = memo(function TurnBlockView({
         current={turn.items.find((item) => phraseKey(item) === followed)}
         onMerge={onMerge && !live ? merge : undefined}
         onPlay={onPlay}
+        onPunta={onPunta}
+        onTaglia={live ? undefined : onTaglia}
+        tagli={tagli}
         turn={turn}
       />
     ),
     active,
+    bordo,
     color: uncertain ? undefined : color,
+    fuori,
     onJump,
     text: (
       <TurnText
@@ -666,7 +567,6 @@ const TurnBlock = memo(function TurnBlockView({
         onJump={onJump}
         partials={partials}
         playing={playing}
-        tagli={tagli}
         turn={turn}
         uncertain={uncertain}
       />
@@ -696,11 +596,15 @@ type VoiceProps = Omit<
 
 /** Quello che le tre rese di un turno hanno in comune. */
 interface RowProps {
-  /** La barretta di ▶, Riascolta, Unisci e Copia turno. */
+  /** La barretta di ▶, Riascolta, Unisci, Copia turno e le forbici del Taglio. */
   actions: ReactNode;
   active: boolean;
+  /** Il bordo del Taglio che si sta puntando da questo Turno. */
+  bordo: Dove | null;
   /** Il colore della voce; nessuno per il Parlante non determinato o senza etichetta. */
   color: number | undefined;
+  /** Sparirebbe con il Taglio che si sta puntando. */
+  fuori: boolean;
   onJump?: (ms: number) => void;
   text: ReactNode;
   turn: Turn;
@@ -714,7 +618,9 @@ interface RowProps {
 function CopioneRow({
   actions,
   active,
+  bordo,
   color,
+  fuori,
   nameWidth,
   onJump,
   text,
@@ -727,7 +633,7 @@ function CopioneRow({
     <article
       className={`group/turno relative -mx-3 grid items-start gap-4 rounded-[10px] px-3 py-[5px] transition-colors duration-200 ease-out ${
         active ? "bg-play-soft/55" : ""
-      }`}
+      } ${classiTaglio(fuori, bordo)}`}
       style={{
         gridTemplateColumns: nameWidth
           ? `${nameWidth} minmax(0, 1fr) 3rem`
@@ -772,7 +678,9 @@ function CopioneRow({
 function IntervistaRow({
   actions,
   active,
+  bordo,
   color,
+  fuori,
   onJump,
   text,
   turn,
@@ -798,7 +706,7 @@ function IntervistaRow({
     <article
       className={`group/turno relative -mx-3 rounded-[10px] py-1.5 pr-3 pl-[4.25rem] transition-colors duration-200 ease-out ${
         active ? "bg-play-soft/55" : ""
-      }`}
+      } ${classiTaglio(fuori, bordo)}`}
     >
       <TurnTime
         className="absolute top-[0.6rem] left-3"
@@ -845,7 +753,9 @@ function IntervistaRow({
 function NastroRow({
   actions,
   active,
+  bordo,
   color,
+  fuori,
   onJump,
   text,
   turn,
@@ -870,7 +780,9 @@ function NastroRow({
     );
   }
   return (
-    <article className="group/riga group/turno relative grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3">
+    <article
+      className={`group/riga group/turno relative grid grid-cols-[3rem_1.25rem_minmax(0,1fr)] gap-3 ${classiTaglio(fuori, bordo)}`}
+    >
       <TurnTime
         className="justify-self-end pt-1"
         ms={turn.items[0]?.inizioMs ?? 0}
@@ -946,6 +858,9 @@ function TurnActions({
   current,
   onMerge,
   onPlay,
+  onPunta,
+  onTaglia,
+  tagli,
   turn,
 }: {
   above: PhraseRef | null;
@@ -956,6 +871,9 @@ function TurnActions({
   current?: { inizioMs: number };
   onMerge?: (turn: Turn, target: PhraseRef) => Promise<boolean>;
   onPlay?: (ms: number) => void;
+  onPunta: (turnKey: string, dove: Dove | null) => void;
+  onTaglia?: (turn: Turn, dove: Dove) => void;
+  tagli?: { dopo: Taglio | null; prima: Taglio | null };
   turn: Turn;
 }) {
   const { t } = useTranslation();
@@ -994,7 +912,79 @@ function TurnActions({
         <MergeTurn above={above} below={below} onMerge={onMerge} turn={turn} />
       ) : null}
       <CopyTurn beforeCopy={beforeCopy} turn={turn} />
+      {onTaglia && tagli ? (
+        <>
+          <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+          <TagliaTurno
+            disponibile={tagli.prima !== null}
+            dove="prima"
+            onPunta={onPunta}
+            onTaglia={onTaglia}
+            turn={turn}
+          />
+          <TagliaTurno
+            disponibile={tagli.dopo !== null}
+            dove="dopo"
+            onPunta={onPunta}
+            onTaglia={onTaglia}
+            turn={turn}
+          />
+        </>
+      ) : null}
     </div>
+  );
+}
+
+/** La forbice «prima» ha la linea in alto, «dopo» in basso. */
+const FORBICE: Record<Dove, string> = {
+  dopo: "[&_svg]:rotate-90",
+  prima: "[&_svg]:-rotate-90",
+};
+
+/** Una forbice del Taglio: puntarla (o darle il focus) mostra cosa sparirebbe, il clic lo chiede. */
+function TagliaTurno({
+  disponibile,
+  dove,
+  onPunta,
+  onTaglia,
+  turn,
+}: {
+  disponibile: boolean;
+  dove: Dove;
+  onPunta: (turnKey: string, dove: Dove | null) => void;
+  onTaglia: (turn: Turn, dove: Dove) => void;
+  turn: Turn;
+}) {
+  const { t } = useTranslation();
+  const punta = useCallback(
+    () => onPunta(turn.key, dove),
+    [dove, onPunta, turn.key]
+  );
+  const lascia = useCallback(
+    () => onPunta(turn.key, null),
+    [onPunta, turn.key]
+  );
+  const taglia = useCallback(
+    () => onTaglia(turn, dove),
+    [dove, onTaglia, turn]
+  );
+  const label = t(`taglio.${dove}`);
+  return (
+    <button
+      aria-label={label}
+      className={`${ICON_BUTTON} disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-3.5 ${FORBICE[dove]}`}
+      disabled={!disponibile}
+      onBlur={lascia}
+      onClick={taglia}
+      onFocus={punta}
+      onPointerDown={keepFocus}
+      onPointerEnter={punta}
+      onPointerLeave={lascia}
+      title={label}
+      type="button"
+    >
+      <ScissorsLineDashed />
+    </button>
   );
 }
 
@@ -1010,7 +1000,6 @@ function TurnText({
   onJump,
   partials,
   playing,
-  tagli,
   turn,
   uncertain,
 }: {
@@ -1021,7 +1010,6 @@ function TurnText({
   onJump?: (ms: number) => void;
   partials: TranscriptPartial[];
   playing: string[];
-  tagli?: Taglio[];
   turn: Turn;
   uncertain: boolean;
 }) {
@@ -1059,7 +1047,6 @@ function TurnText({
                     ("testoCorretto" in item && item.testoCorretto)
                   ) && playing.includes(key)
                 }
-                tagliata={tagli ? tagliato(tagli, item) : false}
               />
             </p>
           );
@@ -1314,7 +1301,6 @@ function PhraseText({
   onJump,
   partial,
   playing,
-  tagliata,
 }: {
   highlighted: boolean;
   item: TranscriptPhrase | TranscriptPartial;
@@ -1322,8 +1308,6 @@ function PhraseText({
   /** Il Parziale della Frase in corso, ancora provvisorio. */
   partial: boolean;
   playing: boolean;
-  /** Dentro un Taglio in sospeso: barrata. */
-  tagliata: boolean;
 }) {
   const { t } = useTranslation();
   const span = useRef<HTMLSpanElement>(null);
@@ -1346,10 +1330,6 @@ function PhraseText({
   }
   if (partial) {
     className += " text-muted-foreground italic";
-  }
-  if (tagliata) {
-    className +=
-      " text-muted-foreground line-through decoration-foreground/40 decoration-[1.5px]";
   }
   const time = onJump ? (
     <button

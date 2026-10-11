@@ -70,16 +70,12 @@ Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file au
 _Avoid_: Bino (il nome di prima), progetto, archivio, pacchetto, nastro, cassetta
 
 **Taglio**:
-Un tratto tolto da un Tape, all'inizio, alla fine o in mezzo, insieme al suo audio (mix e ogni Ingresso) e al suo testo; il resto si ricongiunge in una linea del tempo continua. Vale per tutti gli Ingressi insieme e i suoi bordi cadono di preferenza nei Silenzi. L'originale finisce nel Cestino di Windows.
+Un tratto tolto da un Tape insieme al suo audio (mix e ogni Ingresso) e al suo testo; il resto si ricongiunge in una linea del tempo continua. Nell'app si toglie tutto prima o tutto dopo un Turno; un Assistente può tagliare anche in mezzo. Vale per tutti gli Ingressi insieme e i suoi bordi cadono di preferenza nei Silenzi. L'originale finisce nel Cestino di Windows.
 _Avoid_: ritaglio, trim, cut, elimina tratto
 
 **Silenzio**:
 Un tratto lungo di un Tape in cui nessun Ingresso ha Frasi: prima della prima Frase, dopo l'ultima o fra due Turni. Si riconosce dal testo, non dal volume dell'audio, quindi un Tape senza Frasi non ne ha. Un Taglio lo toglie tutto all'inizio e alla fine; in mezzo ne lascia un poco per lato.
 _Avoid_: pausa (è quella della Registrazione), vuoto, buco
-
-**Taglio in sospeso**:
-Un tratto scelto per il Taglio ma non ancora applicato: il suo testo resta visibile barrato e si può ripristinare. Non si salva nel Tape; diventa un Taglio solo con «Applica i tagli».
-_Avoid_: bozza, anteprima, ignorato
 
 **Forma d'onda**:
 L'andamento del volume del mix di un Tape, dall'inizio alla fine, che il player mostra come barra di avanzamento; sta dentro il Tape, così riaprirlo non la ricalcola.

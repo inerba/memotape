@@ -585,37 +585,35 @@
       "pausaRegistrazione": "Pausa o riprendi",
       "apriTape": "Apri il Tape",
       "rinominaTape": "Rinomina il Tape",
-      "cestinaTape": "Sposta nel Cestino",
-      "tagliaSelezione": "Taglia la selezione (modalità Taglio)",
-      "esciDalTaglio": "Esci dalla modalità Taglio"
+      "cestinaTape": "Sposta nel Cestino"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Maiusc",
       "Space": "Spazio",
       "Enter": "Invio",
-      "Delete": "Canc",
-      "Escape": "Esc"
+      "Delete": "Canc"
     }
   },
   "taglio": {
-    "menu": "Taglia…",
-    "titolo": "Taglia",
-    "suggerimento": "Seleziona il testo o un silenzio, poi premi Canc",
-    "inSospeso_one": "{{count}} taglio in sospeso · −{{durata}}",
-    "inSospeso_many": "{{count}} tagli in sospeso · −{{durata}}",
-    "inSospeso_other": "{{count}} tagli in sospeso · −{{durata}}",
     "annulla": "Annulla",
-    "tagliaSelezione": "Taglia la selezione",
-    "applica": "Applica i tagli",
-    "elenco": "Tagli in sospeso",
-    "ripristina": "Ripristina {{tratto}}",
     "conferma": {
-      "titolo_one": "Applicare il taglio?",
-      "titolo_many": "Applicare {{count}} tagli?",
-      "titolo_other": "Applicare {{count}} tagli?",
-      "descrizione": "Il Tape passa da {{prima}} a {{dopo}}. L'originale va nel Cestino di Windows, da cui puoi ripristinarlo.",
-      "correzioni": "Alcuni Turni corretti a mano restano solo in parte: il testo corretto resta sulle Frasi rimaste, controllalo dopo il taglio.",
+      "titolo": {
+        "prima": "Tagliare l'inizio?",
+        "dopo": "Tagliare la fine?"
+      },
+      "prima_one": "Si tolgono i primi {{durata}} ({{count}} Turno).",
+      "prima_many": "Si tolgono i primi {{durata}} ({{count}} Turni).",
+      "prima_other": "Si tolgono i primi {{durata}} ({{count}} Turni).",
+      "primaSilenzio": "Si tolgono i primi {{durata}} di silenzio.",
+      "primaTesto": "Il Tape comincerà da",
+      "dopo_one": "Si tolgono gli ultimi {{durata}} ({{count}} Turno).",
+      "dopo_many": "Si tolgono gli ultimi {{durata}} ({{count}} Turni).",
+      "dopo_other": "Si tolgono gli ultimi {{durata}} ({{count}} Turni).",
+      "dopoSilenzio": "Si tolgono gli ultimi {{durata}} di silenzio.",
+      "dopoTesto": "Il Tape finirà con",
+      "durata": "Durata {{prima}} → {{dopo}}",
+      "cestino": "L'originale va nel Cestino di Windows, da cui puoi ripristinarlo.",
       "azione": "Taglia"
     },
     "senzaCestino": {
@@ -623,7 +621,7 @@
       "descrizione": "Il Tape sta su un disco senza Cestino di Windows: dopo il taglio l'originale non si potrà recuperare.",
       "conferma": "Taglia comunque"
     },
-    "silenzioIniziale": "Silenzio iniziale di {{durata}}",
-    "silenzioFinale": "Silenzio finale di {{durata}}"
+    "prima": "Taglia tutto prima di questo Turno",
+    "dopo": "Taglia tutto dopo questo Turno"
   }
 }

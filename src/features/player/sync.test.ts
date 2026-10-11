@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import type { Ingresso } from "@/bindings";
 import {
   autoScroll,
-  dopoITagli,
   type Follow,
   type FollowEvent,
   nextFollow,
@@ -74,17 +73,4 @@ test("durante la correzione di una Frase il testo non scorre da solo", () => {
   expect(autoScroll("following", false)).toBe(true);
   expect(autoScroll("following", true)).toBe(false);
   expect(autoScroll("free", false)).toBe(false);
-});
-
-test("in modalità Taglio l'ascolto salta i tratti in sospeso, anche uno dopo l'altro", () => {
-  const tagli = [
-    { fineMs: 3000, inizioMs: 0 },
-    { fineMs: 9000, inizioMs: 5000 },
-    { fineMs: 12_000, inizioMs: 9000 },
-  ];
-  expect(dopoITagli(0, tagli)).toBe(3000);
-  expect(dopoITagli(4000, tagli)).toBeNull();
-  expect(dopoITagli(5000, tagli)).toBe(12_000);
-  expect(dopoITagli(12_000, tagli)).toBeNull();
-  expect(dopoITagli(1000, [])).toBeNull();
 });

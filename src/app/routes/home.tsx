@@ -25,7 +25,6 @@ import {
   type RecordingCleaningFailed,
   type RecordingCleaningPreparing,
   type TapeEntry,
-  type TranscriptPhrase,
   type UpdateInfo,
 } from "@/bindings";
 import {
@@ -100,11 +99,7 @@ import {
   statusText,
   transcribesSource,
 } from "@/features/status/status";
-import {
-  type ModalitaTaglio,
-  TaglioBar,
-  useModalitaTaglio,
-} from "@/features/taglio/taglio-bar";
+import { useTaglio } from "@/features/taglio/use-taglio";
 import {
   diarizationNeedsConfirmation,
   wasDiarized,
@@ -1608,17 +1603,21 @@ function TapePane({
   // Durante una Registrazione niente salti né evidenziazione: il player è disabilitato.
   const listening = processing || recording ? undefined : player;
   const hasText = conversation.phrases.length > 0;
-  const toTranscript = useCallback(() => setTab("transcript"), []);
-  const taglio = useModalitaTaglio({
+  const taglio = useTaglio({
     attiva: editable,
     info,
-    onApri: toTranscript,
+    onError,
     onTagliato,
     path,
     player,
-    testo: hasText,
   });
-  const { modalita } = taglio;
+  const forbici = useMemo(
+    () =>
+      taglio.chiedi
+        ? { durataMs: taglio.durataMs, onTaglia: taglio.chiedi }
+        : null,
+    [taglio.chiedi, taglio.durataMs]
+  );
   const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
 
   const header = (
@@ -1668,7 +1667,6 @@ function TapePane({
               onExported={onExported}
               onMove={onMove}
               onReveal={onReveal}
-              onTaglia={taglio.apri}
               onTranscribe={
                 isSource && !busy && hasText ? onTranscribe : undefined
               }
@@ -1714,54 +1712,42 @@ function TapePane({
           parlanti={parlanti}
           player={listening}
           renaming={renaming}
-          taglio={modalita}
+          taglio={forbici}
         />
       )}
       <TapePlayer
         disabled={recording}
         key={taglio.versione}
-        modalita={modalita}
-        onError={onError}
         path={path}
-        phrases={conversation.phrases}
         player={player}
         processing={processing}
         versione={taglio.versione}
       />
+      {taglio.dialog}
     </>
   );
 }
 
 function TapePlayer({
   disabled,
-  modalita,
-  onError,
   path,
-  phrases,
   player,
   processing,
   versione,
 }: {
   disabled: boolean;
-  /** La modalità Taglio: la sua barra sta sopra il player. */
-  modalita: ModalitaTaglio | null;
-  onError: (error: AppError) => void;
   path: string;
-  phrases: TranscriptPhrase[];
   player: PlayerState;
   processing: boolean;
+  /** Cresce quando il mix cambia (un Taglio): il player lo rilegge. */
   versione: number;
 }) {
   return processing ? null : (
     <Dock>
-      {modalita ? (
-        <TaglioBar modalita={modalita} onError={onError} phrases={phrases} />
-      ) : null}
       <Player
         disabled={disabled}
         path={path}
         player={player}
-        tagli={modalita?.tagli}
         versione={versione}
       />
     </Dock>

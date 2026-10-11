@@ -1,188 +1,108 @@
 import { expect, test } from "bun:test";
 import type { Ingresso, TranscriptPhrase } from "@/bindings";
-import {
-  conTaglio,
-  correzioniDivise,
-  durataTagliata,
-  silenziDi,
-  tagliato,
-  taglioDelleFrasi,
-  taglioDelSilenzio,
-} from "@/features/taglio/taglio";
+import { tagliato, taglioDelTurno } from "@/features/taglio/taglio";
+import type { Turn } from "@/features/transcription/phrases";
 
 function frase(
   phraseId: number,
   inizioMs: number,
   fineMs: number,
-  extra: Partial<TranscriptPhrase> = {}
+  ingresso: Ingresso = "mix"
 ): TranscriptPhrase {
   return {
     fineMs,
-    ingresso: "mix" as Ingresso,
+    ingresso,
     inizioMs,
     parlante: null,
     phraseId,
     text: `Frase ${phraseId}.`,
-    ...extra,
   };
 }
 
-// Saluti, la riunione, una pausa caffè di 7 minuti, la chiusura e 2 minuti di stanza vuota.
-const riunione = [
-  frase(0, 4000, 9000),
-  frase(1, 12_000, 19_000),
-  frase(2, 164_000, 170_000),
-  frase(3, 171_000, 180_000),
-  frase(4, 645_000, 650_000),
-  frase(5, 650_000, 655_000),
-];
-const DURATA = 800_000;
-
-test("i saluti si tagliano dall'inizio del Tape a 1 s prima della Frase che resta", () => {
-  expect(
-    taglioDelleFrasi(riunione, new Set(["mix:0", "mix:1"]), DURATA)
-  ).toEqual({
-    fineMs: 163_000,
-    inizioMs: 0,
-  });
-});
-
-test("le ultime Frasi si tagliano fino alla fine del Tape, lasciando 1 s dopo l'ultima che resta", () => {
-  expect(taglioDelleFrasi(riunione, new Set(["mix:5"]), DURATA)).toEqual({
-    fineMs: DURATA,
-    inizioMs: 650_000,
-  });
-  expect(
-    taglioDelleFrasi(riunione, new Set(["mix:4", "mix:5"]), DURATA)
-  ).toEqual({
-    fineMs: DURATA,
-    inizioMs: 181_000,
-  });
-});
-
-test("una Frase in mezzo si taglia con i silenzi intorno, a metà se sono corti", () => {
-  // Prima 1 s di silenzio: a metà; dopo 465 s: 1 s prima della Frase 4.
-  expect(taglioDelleFrasi(riunione, new Set(["mix:3"]), DURATA)).toEqual({
-    fineMs: 644_000,
-    inizioMs: 170_500,
-  });
-  expect(taglioDelleFrasi(riunione, new Set(), DURATA)).toBeNull();
-});
-
-test("una Frase di un altro Ingresso accavallata di poco resta intera, con il suo parlato", () => {
-  const phrases = [
-    frase(0, 0, 8400, { ingresso: "microfono" }),
-    frase(0, 8000, 20_000, { ingresso: "sistema" }),
-    frase(1, 30_000, 40_000, { ingresso: "microfono" }),
-  ];
-  const taglio = taglioDelleFrasi(phrases, new Set(["sistema:0"]), 50_000);
-  expect(taglio).toEqual({ fineMs: 29_000, inizioMs: 8000 });
-  expect(tagliato(taglio ? [taglio] : [], phrases[0] as TranscriptPhrase)).toBe(
-    false
-  );
-});
-
-test("la Frase dopo che comincia prima della fine della scelta non perde il suo audio", () => {
-  // Le parti di una Frase divisa al cambio di Parlante hanno i tempi ASR e possono accavallarsi.
-  const phrases = [
-    frase(0, 5000, 10_200, { parlante: 1 }),
-    frase(1, 10_000, 14_000, { parlante: 2 }),
-    frase(2, 18_000, 20_000, { parlante: 1 }),
-  ];
-  const taglio = taglioDelleFrasi(phrases, new Set(["mix:0"]), 30_000);
-  expect(taglio).toEqual({ fineMs: 10_200, inizioMs: 0 });
-});
-
-test("una voce che parla sopra la scelta per più di mezzo secondo si taglia con lei, barrata", () => {
-  const phrases = [
-    frase(0, 5000, 10_000, { ingresso: "microfono" }),
-    frase(0, 7000, 12_000, { ingresso: "sistema" }),
-    frase(1, 20_000, 25_000, { ingresso: "microfono" }),
-  ];
-  const taglio = taglioDelleFrasi(phrases, new Set(["microfono:0"]), 30_000);
-  expect(taglio).toEqual({ fineMs: 19_000, inizioMs: 0 });
-  expect(tagliato(taglio ? [taglio] : [], phrases[1] as TranscriptPhrase)).toBe(
-    true
-  );
-});
-
-test("scegliere il testo di un Turno corretto taglia tutte le sue Frasi", () => {
-  const phrases = [
-    frase(0, 0, 5000),
-    frase(1, 10_000, 15_000, { testoTurno: 1 }),
-    frase(2, 15_000, 20_000, { testoTurno: 1, text: "" }),
-    frase(3, 30_000, 35_000),
-  ];
-  expect(taglioDelleFrasi(phrases, new Set(["mix:1"]), 40_000)).toEqual({
-    fineMs: 29_000,
-    inizioMs: 6000,
-  });
-});
-
-test("i silenzi si tagliano lasciando 1 s per lato, interi all'inizio e alla fine", () => {
-  expect(taglioDelSilenzio(0, 4000, DURATA)).toEqual({
-    fineMs: 3000,
-    inizioMs: 0,
-  });
-  expect(taglioDelSilenzio(180_000, 645_000, DURATA)).toEqual({
-    fineMs: 644_000,
-    inizioMs: 181_000,
-  });
-  expect(taglioDelSilenzio(655_000, DURATA, DURATA)).toEqual({
-    fineMs: DURATA,
-    inizioMs: 656_000,
-  });
-});
-
-test("in modalità Taglio i silenzi lunghi sono all'inizio, tra i turni e alla fine", () => {
-  const turno = (items: TranscriptPhrase[]) => ({
-    ingresso: "mix" as Ingresso,
+function turno(...items: TranscriptPhrase[]): Turn {
+  return {
+    ingresso: items[0]?.ingresso ?? "mix",
     items,
     key: String(items[0]?.phraseId),
     label: null,
     name: null,
     parlante: null,
+  };
+}
+
+// Saluti, la riunione e 2 minuti di stanza vuota alla fine.
+const saluti = [frase(0, 4000, 9000), frase(1, 12_000, 19_000)];
+const riunione = [frase(2, 164_000, 170_000), frase(3, 171_000, 180_000)];
+const fine = [frase(4, 645_000, 655_000)];
+const tutte = [...saluti, ...riunione, ...fine];
+const DURATA = 800_000;
+
+test("prima di un Turno si taglia dall'inizio del Tape a 1 s prima del suo parlato", () => {
+  expect(taglioDelTurno(tutte, turno(...riunione), "prima", DURATA)).toEqual({
+    fineMs: 163_000,
+    inizioMs: 0,
   });
-  const turns = [
-    turno(riunione.slice(0, 2)),
-    turno(riunione.slice(2, 4)),
-    turno(riunione.slice(4)),
-  ];
-  const { fine, inizio, prima } = silenziDi(
-    turns,
-    [null, 146_000, 466_000],
-    DURATA
-  );
-  expect(inizio).toBeNull();
-  expect(prima).toEqual([
-    null,
-    { a: 19_000, b: 164_000, dove: "pausa", ms: 146_000 },
-    { a: 180_000, b: 645_000, dove: "pausa", ms: 466_000 },
-  ]);
-  expect(fine).toEqual({ a: 655_000, b: DURATA, dove: "fine", ms: 145_000 });
 });
 
-test("i Tagli si uniscono dove si toccano e ne contano la durata", () => {
-  const tagli = conTaglio(
-    conTaglio([{ fineMs: 200, inizioMs: 100 }], { fineMs: 50, inizioMs: 0 }),
-    { fineMs: 300, inizioMs: 150 }
-  );
-  expect(tagli).toEqual([
-    { fineMs: 50, inizioMs: 0 },
-    { fineMs: 300, inizioMs: 100 },
-  ]);
-  expect(durataTagliata(tagli)).toBe(250);
+test("dopo l'ultimo Turno si taglia solo il tempo vuoto, da 1 s dopo fino alla fine", () => {
+  expect(taglioDelTurno(tutte, turno(...fine), "dopo", DURATA)).toEqual({
+    fineMs: DURATA,
+    inizioMs: 656_000,
+  });
 });
 
-test("la conferma avvisa quando un Taglio divide un Turno corretto", () => {
+test("dopo un Turno in mezzo si tagliano anche i Turni che seguono", () => {
+  const taglio = taglioDelTurno(tutte, turno(...riunione), "dopo", DURATA);
+  expect(taglio).toEqual({ fineMs: DURATA, inizioMs: 181_000 });
+});
+
+test("con meno di 1 s di silenzio il bordo cade subito dopo la Frase tolta", () => {
+  const phrases = [frase(0, 0, 9600), frase(1, 10_000, 15_000)];
+  expect(
+    taglioDelTurno(
+      phrases,
+      turno(phrases[1] as TranscriptPhrase),
+      "prima",
+      20_000
+    )
+  ).toEqual({ fineMs: 9600, inizioMs: 0 });
+});
+
+test("non c'è niente da tagliare prima di un Turno che comincia all'inizio del Tape", () => {
+  expect(
+    taglioDelTurno(saluti, turno(frase(0, 0, 9000)), "prima", DURATA)
+  ).toBeNull();
+});
+
+test("non c'è niente da tagliare dopo un Turno che arriva alla fine del Tape", () => {
+  expect(
+    taglioDelTurno(tutte, turno(frase(4, 645_000, DURATA)), "dopo", DURATA)
+  ).toBeNull();
+});
+
+test("una voce di un altro Ingresso accavallata al Turno resta intera e sposta il bordo", () => {
+  const sopra = frase(0, 150_000, 166_000, "sistema");
+  const phrases = [frase(0, 4000, 9000, "microfono"), sopra, ...riunione];
+  const taglio = taglioDelTurno(phrases, turno(...riunione), "prima", DURATA);
+  expect(taglio && tagliato(taglio, sopra)).toBe(false);
+});
+
+test("il bordo spostato da una voce accavallata non entra nella Frase tolta prima di lei", () => {
   const phrases = [
-    frase(1, 10_000, 15_000, { testoTurno: 1 }),
-    frase(2, 15_000, 20_000, { testoTurno: 1 }),
+    frase(0, 4000, 9000, "microfono"),
+    frase(0, 150_000, 166_000, "sistema"),
+    ...riunione,
   ];
-  expect(correzioniDivise(phrases, [{ fineMs: 15_000, inizioMs: 9000 }])).toBe(
-    true
-  );
-  expect(correzioniDivise(phrases, [{ fineMs: 21_000, inizioMs: 9000 }])).toBe(
-    false
-  );
+  expect(taglioDelTurno(phrases, turno(...riunione), "prima", DURATA)).toEqual({
+    fineMs: 149_000,
+    inizioMs: 0,
+  });
+});
+
+test("una Frase è tagliata solo se sta tutta dentro il Taglio", () => {
+  const taglio = { fineMs: 163_000, inizioMs: 0 };
+  expect([
+    tagliato(taglio, frase(1, 12_000, 19_000)),
+    tagliato(taglio, frase(2, 162_000, 170_000)),
+  ]).toEqual([true, false]);
 });

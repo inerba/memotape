@@ -151,14 +151,9 @@ test("Invio, F2 e Canc agiscono sul Tape della tabella, non sulla finestra", () 
   expect(tastoDellaTabella(tasto("Delete"))).toBe("cestinaTape");
   expect(tastoDellaTabella(ctrl("Delete"))).toBeNull();
   expect(tastoDellaTabella(tasto(" "))).toBeNull();
-  for (const key of ["Enter", "F2"]) {
+  for (const key of ["Enter", "F2", "Delete"]) {
     expect(scorciatoia(tasto(key), null, LIBERO)).toBeNull();
   }
-  // Nella finestra Canc taglia la selezione, ma solo in modalità Taglio, che ne registra l'azione.
-  expect(scorciatoia(tasto("Delete"), null, LIBERO)?.azione).toBe(
-    "tagliaSelezione"
-  );
-  expect(scorciatoia(tasto("Delete"), "testo", LIBERO)).toBeNull();
 });
 
 test("Ctrl+B, Ctrl+K e Ctrl+, sono nella mappa", () => {

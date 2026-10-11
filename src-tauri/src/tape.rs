@@ -200,7 +200,7 @@ impl Document {
         turni
     }
 
-    /// I Silenzi, come in modalità Taglio (`src/features/taglio/taglio.ts`): prima della prima Frase,
+    /// I Silenzi, per gli Assistenti (`find_silences`): prima della prima Frase,
     /// fra due Turni e dopo l'ultima fino alla fine, quando durano almeno `SILENZIO_MS`. Fra le Frasi
     /// conta il silenzio stimato, dalla fine più tarda delle Frasi prima: con gli Ingressi separati
     /// una voce parla sopra l'altra. Le Frasi di una correzione del Turno non si dividono. Senza

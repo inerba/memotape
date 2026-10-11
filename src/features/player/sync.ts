@@ -23,25 +23,6 @@ export function playingAt(
   return previous ? [previous] : [];
 }
 
-/**
- * Dove continua l'ascolto alla posizione `ms` saltando i Tagli in sospeso: la fine del tratto che
- * la contiene (anche di più tratti in fila), o `null` se `ms` non sta in un tratto.
- */
-export function dopoITagli(
-  ms: number,
-  tagli: { fineMs: number; inizioMs: number }[]
-): number | null {
-  let salto: number | null = null;
-  let t = ms;
-  for (const taglio of [...tagli].sort((a, b) => a.inizioMs - b.inizioMs)) {
-    if (taglio.inizioMs <= t && t < taglio.fineMs) {
-      t = taglio.fineMs;
-      salto = t;
-    }
-  }
-  return salto;
-}
-
 /** Se il testo segue l'audio (`following`) o l'utente l'ha scorso da solo (`free`). */
 export type Follow = "following" | "free";
 

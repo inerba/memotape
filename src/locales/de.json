@@ -581,35 +581,33 @@
       "pausaRegistrazione": "Pausieren oder fortsetzen",
       "apriTape": "Tape öffnen",
       "rinominaTape": "Tape umbenennen",
-      "cestinaTape": "In den Papierkorb",
-      "tagliaSelezione": "Auswahl schneiden (Schneidemodus)",
-      "esciDalTaglio": "Schneidemodus verlassen"
+      "cestinaTape": "In den Papierkorb"
     },
     "keys": {
       "Ctrl": "Strg",
       "Shift": "Umschalt",
       "Space": "Leertaste",
       "Enter": "Eingabe",
-      "Delete": "Entf",
-      "Escape": "Esc"
+      "Delete": "Entf"
     }
   },
   "taglio": {
-    "menu": "Schneiden…",
-    "titolo": "Schneiden",
-    "suggerimento": "Text oder eine Stille markieren, dann Entf drücken",
-    "inSospeso_one": "{{count}} ausstehender Schnitt · −{{durata}}",
-    "inSospeso_other": "{{count}} ausstehende Schnitte · −{{durata}}",
     "annulla": "Abbrechen",
-    "tagliaSelezione": "Auswahl schneiden",
-    "applica": "Schnitte anwenden",
-    "elenco": "Ausstehende Schnitte",
-    "ripristina": "{{tratto}} wiederherstellen",
     "conferma": {
-      "titolo_one": "Schnitt anwenden?",
-      "titolo_other": "{{count}} Schnitte anwenden?",
-      "descrizione": "Das Tape wird von {{prima}} auf {{dopo}} gekürzt. Das Original kommt in den Windows-Papierkorb, aus dem du es wiederherstellen kannst.",
-      "correzioni": "Einige von Hand korrigierte Abschnitte werden nur teilweise geschnitten: Ihr korrigierter Text bleibt bei den verbleibenden Sätzen, prüfe ihn nach dem Schnitt.",
+      "titolo": {
+        "prima": "Den Anfang schneiden?",
+        "dopo": "Das Ende schneiden?"
+      },
+      "prima_one": "Die ersten {{durata}} fallen weg ({{count}} Abschnitt).",
+      "prima_other": "Die ersten {{durata}} fallen weg ({{count}} Abschnitte).",
+      "primaSilenzio": "Die ersten {{durata}} Stille fallen weg.",
+      "primaTesto": "Das Tape beginnt mit",
+      "dopo_one": "Die letzten {{durata}} fallen weg ({{count}} Abschnitt).",
+      "dopo_other": "Die letzten {{durata}} fallen weg ({{count}} Abschnitte).",
+      "dopoSilenzio": "Die letzten {{durata}} Stille fallen weg.",
+      "dopoTesto": "Das Tape endet mit",
+      "durata": "Dauer {{prima}} → {{dopo}}",
+      "cestino": "Das Original kommt in den Windows-Papierkorb, aus dem du es wiederherstellen kannst.",
       "azione": "Schneiden"
     },
     "senzaCestino": {
@@ -617,7 +615,7 @@
       "descrizione": "Das Tape liegt auf einem Laufwerk ohne Windows-Papierkorb: Nach dem Schnitt lässt sich das Original nicht wiederherstellen.",
       "conferma": "Trotzdem schneiden"
     },
-    "silenzioIniziale": "Stille am Anfang: {{durata}}",
-    "silenzioFinale": "Stille am Ende: {{durata}}"
+    "prima": "Alles vor diesem Abschnitt schneiden",
+    "dopo": "Alles nach diesem Abschnitt schneiden"
   }
 }

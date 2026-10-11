@@ -589,39 +589,37 @@
       "pausaRegistrazione": "Wstrzymaj lub wznów",
       "apriTape": "Otwórz Tape",
       "rinominaTape": "Zmień nazwę Tape",
-      "cestinaTape": "Przenieś do Kosza",
-      "tagliaSelezione": "Wytnij zaznaczenie (tryb przycinania)",
-      "esciDalTaglio": "Wyjdź z trybu przycinania"
+      "cestinaTape": "Przenieś do Kosza"
     },
     "keys": {
       "Ctrl": "Ctrl",
       "Shift": "Shift",
       "Space": "Spacja",
       "Enter": "Enter",
-      "Delete": "Delete",
-      "Escape": "Esc"
+      "Delete": "Delete"
     }
   },
   "taglio": {
-    "menu": "Przytnij…",
-    "titolo": "Przycinanie",
-    "suggerimento": "Zaznacz tekst lub ciszę i naciśnij Delete",
-    "inSospeso_one": "{{count}} oczekujące cięcie · −{{durata}}",
-    "inSospeso_few": "{{count}} oczekujące cięcia · −{{durata}}",
-    "inSospeso_many": "{{count}} oczekujących cięć · −{{durata}}",
-    "inSospeso_other": "{{count}} oczekującego cięcia · −{{durata}}",
     "annulla": "Anuluj",
-    "tagliaSelezione": "Wytnij zaznaczenie",
-    "applica": "Zastosuj cięcia",
-    "elenco": "Oczekujące cięcia",
-    "ripristina": "Przywróć {{tratto}}",
     "conferma": {
-      "titolo_one": "Zastosować cięcie?",
-      "titolo_few": "Zastosować {{count}} cięcia?",
-      "titolo_many": "Zastosować {{count}} cięć?",
-      "titolo_other": "Zastosować {{count}} cięcia?",
-      "descrizione": "Tape skróci się z {{prima}} do {{dopo}}. Oryginał trafi do Kosza systemu Windows, skąd możesz go przywrócić.",
-      "correzioni": "Niektóre ręcznie poprawione fragmenty są wycięte tylko częściowo: poprawiony tekst zostaje przy pozostałych zdaniach, sprawdź go po cięciu.",
+      "titolo": {
+        "prima": "Wyciąć początek?",
+        "dopo": "Wyciąć koniec?"
+      },
+      "prima_one": "Znika pierwsze {{durata}} ({{count}} fragment).",
+      "prima_few": "Znika pierwsze {{durata}} (fragmenty: {{count}}).",
+      "prima_many": "Znika pierwsze {{durata}} (fragmenty: {{count}}).",
+      "prima_other": "Znika pierwsze {{durata}} (fragmenty: {{count}}).",
+      "primaSilenzio": "Znika pierwsze {{durata}} ciszy.",
+      "primaTesto": "Tape zacznie się od",
+      "dopo_one": "Znika ostatnie {{durata}} ({{count}} fragment).",
+      "dopo_few": "Znika ostatnie {{durata}} (fragmenty: {{count}}).",
+      "dopo_many": "Znika ostatnie {{durata}} (fragmenty: {{count}}).",
+      "dopo_other": "Znika ostatnie {{durata}} (fragmenty: {{count}}).",
+      "dopoSilenzio": "Znika ostatnie {{durata}} ciszy.",
+      "dopoTesto": "Tape skończy się na",
+      "durata": "Długość {{prima}} → {{dopo}}",
+      "cestino": "Oryginał trafi do Kosza systemu Windows, skąd możesz go przywrócić.",
       "azione": "Wytnij"
     },
     "senzaCestino": {
@@ -629,7 +627,7 @@
       "descrizione": "Tape jest na dysku bez Kosza systemu Windows: po cięciu oryginału nie da się odzyskać.",
       "conferma": "Wytnij mimo to"
     },
-    "silenzioIniziale": "Cisza na początku: {{durata}}",
-    "silenzioFinale": "Cisza na końcu: {{durata}}"
+    "prima": "Wytnij wszystko przed tym fragmentem",
+    "dopo": "Wytnij wszystko po tym fragmencie"
   }
 }
