@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `rename_tape` restituisce il percorso nuovo; il file è rinominato; titolo già usato e nome non valido danno i loro errori
-- [ ] `trash_tape` toglie il file dalla Libreria (come `eliminare_un_tape_lo_manda_nel_cestino`)
-- [ ] Dopo rinomina e Cestino l'indice è identico a prima
-- [ ] Leggere il vecchio percorso dà l'errore che chiede di aprire Memotape
-- [ ] I sei controlli verdi
+- [x] `rename_tape` restituisce il percorso nuovo; il file è rinominato; titolo già usato e nome non valido danno i loro errori
+- [x] `trash_tape` toglie il file dalla Libreria (come `eliminare_un_tape_lo_manda_nel_cestino`)
+- [x] Dopo rinomina e Cestino l'indice è identico a prima
+- [x] Leggere il vecchio percorso dà l'errore che chiede di aprire Memotape
+- [x] I sei controlli verdi
