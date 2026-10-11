@@ -168,6 +168,20 @@ pub struct EditTurnParams {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct RenameTapeParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The new title: the file name without `.tape`, unique in its folder.
+    titolo: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct TrashTapeParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct SilencesParams {
     /// The Tape, as its path relative to the Library returned by search or list_tapes.
     tape: String,
@@ -653,7 +667,7 @@ cuts proposed by find_silences); call find_silences or read_turns again afterwar
 can go to the Recycle Bin, so nothing was changed.",
                 p.tape
             ),
-            _ => format!("{} cannot be cut: {e}", p.tape),
+            _ => write_error(&p.tape, &e),
         })?;
         let durata = tape::read(&path)
             .map_err(|e| read_error(&p.tape, &e))?
@@ -668,6 +682,41 @@ Recycle Bin.",
             )
         })
     }
+
+    #[tool(
+        description = "Rename a Tape, that is change its title (its file name). Returns the new path \
+of the Tape relative to the Library: use it from now on.",
+        annotations(
+            title = "Rename a Tape",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn rename_tape(&self, Parameters(p): Parameters<RenameTapeParams>) -> Result<String, String> {
+        log::info!("Assistente: rename_tape {} → {:?}", p.tape, p.titolo);
+        let path = self.writable_tape(&p.tape)?;
+        let to = library::rename_tape(&path, &p.titolo).map_err(|e| write_error(&p.tape, &e))?;
+        let name = to.file_name().unwrap_or_default();
+        Ok(Path::new(&p.tape)
+            .with_file_name(name)
+            .display()
+            .to_string())
+    }
+
+    #[tool(
+        description = "Move a Tape to the Windows Recycle Bin, where the user can restore it.",
+        annotations(
+            title = "Move a Tape to the Recycle Bin",
+            read_only_hint = false,
+            destructive_hint = true
+        )
+    )]
+    fn trash_tape(&self, Parameters(p): Parameters<TrashTapeParams>) -> Result<String, String> {
+        log::info!("Assistente: trash_tape {}", p.tape);
+        let path = self.writable_tape(&p.tape)?;
+        library::trash_tape(&path).map_err(|e| write_error(&p.tape, &e))?;
+        Ok("Moved to the Recycle Bin.".into())
+    }
 }
 
 #[tool_handler(
@@ -680,7 +729,8 @@ Raccolte are folders that group Tape. Use search to find phrases by words, then 
 context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
 identified by their path relative to the Library, as these tools return it. If the user allows it, \
 you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn; \
-find its long silences with find_silences and remove them with one cut_tape."
+rename_tape changes its title, trash_tape moves it to the Recycle Bin; find its long silences \
+with find_silences and remove them with one cut_tape."
 )]
 impl ServerHandler for Server {}
 
@@ -756,11 +806,16 @@ fn resolve(root: &Path, tape: &str) -> Result<PathBuf, String> {
     if path.is_file() {
         Ok(path)
     } else {
-        Err(format!(
-            "{tape} is not in the Library any more: search again, or ask the user to open Memotape \
-if it was moved."
-        ))
+        Err(not_found(tape))
     }
+}
+
+/// Il Tape `tape` non c'è più, anche se l'indice lo elenca ancora: l'indice lo riallinea l'app.
+fn not_found(tape: &str) -> String {
+    format!(
+        "{tape} is not in the Library any more: ask the user to open Memotape, which updates its \
+index, then search again."
+    )
 }
 
 /// Le Frasi da `at - before` a `at + after`, e se ce ne sono altre prima e dopo.
@@ -838,6 +893,24 @@ fn read_error(tape: &str, e: &AppError) -> String {
             format!("{tape} comes from a newer Memotape: ask the user to update the app.")
         }
         _ => format!("{tape} cannot be read: {e}"),
+    }
+}
+
+/// L'errore di una rinomina o del Cestino, da leggere per l'Assistente.
+fn write_error(tape: &str, e: &AppError) -> String {
+    match e {
+        AppError::NameTaken(titolo) => format!(
+            "A Tape titled {titolo:?} already exists in the same folder: choose another title."
+        ),
+        AppError::InvalidName(titolo) => format!(
+            "{titolo:?} is not a valid title: it must not be empty, start with a dot, end with a dot \
+or a space, or contain any of < > : \" / \\ | ? *."
+        ),
+        AppError::TapeNotFound(_) => not_found(tape),
+        AppError::NoRecycleBin(_) => format!(
+            "{tape} is on a drive without a Recycle Bin: ask the user to delete it in Memotape."
+        ),
+        _ => format!("{tape} cannot be changed: {e}"),
     }
 }
 
@@ -1659,5 +1732,73 @@ mod tests {
             assert_eq!(tagliato.err().as_deref(), Some(errore));
             assert_eq!(bytes(&root, &server, CALL), prima);
         }
+    }
+
+    fn rename_tape(server: &Server, tape: &str, titolo: &str) -> Result<String, String> {
+        server.rename_tape(Parameters(RenameTapeParams {
+            tape: tape.into(),
+            titolo: titolo.into(),
+        }))
+    }
+
+    #[test]
+    fn si_rinomina_un_tape_e_si_continua_dal_percorso_nuovo() {
+        let (root, server) = server_with("rinomina", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        let nuovo = rename_tape(&server, CALL, "Preventivo dell'impianto").unwrap();
+        assert_eq!(nuovo, r"Ferrara Quarzi\Preventivo dell'impianto.tape");
+        assert!(!root.join(CALL).exists());
+        assert_eq!(read_turns(&server, &nuovo, None, None).total, 4);
+        // Il server non scrive l'indice, che elenca ancora il percorso vecchio: chi lo legge è
+        // mandato ad aprire Memotape.
+        assert_eq!(bytes(&root, &server, &nuovo).1, indice);
+        let vecchio = server.read_transcript(Parameters(TranscriptParams {
+            tape: CALL.into(),
+            from: None,
+        }));
+        assert!(vecchio.unwrap_err().contains("open Memotape"));
+        let gia_usato = rename_tape(&server, &nuovo, "Sciolto");
+        assert!(gia_usato.is_ok(), "un'altra cartella: {gia_usato:?}");
+        tape_at(&root.join("Ferrara Quarzi").join("Altra call.tape"), 1000);
+        let preso = rename_tape(&server, r"Ferrara Quarzi\Sciolto.tape", "Altra call");
+        assert!(preso.unwrap_err().contains("already"));
+        let non_valido = rename_tape(&server, r"Ferrara Quarzi\Sciolto.tape", "Call: lunedì?");
+        assert!(non_valido.unwrap_err().contains("not a valid"));
+        let sparito = rename_tape(&server, CALL, "Altro titolo");
+        assert!(sparito.unwrap_err().contains("open Memotape"));
+    }
+
+    #[test]
+    fn senza_il_permesso_a_modificare_non_si_rinomina_ne_si_butta() {
+        let (root, server) = server_with("rinomina-sola-lettura", true, false);
+        let prima = bytes(&root, &server, CALL);
+        assert_eq!(
+            rename_tape(&server, CALL, "Altro").err().as_deref(),
+            Some(READ_ONLY)
+        );
+        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        assert_eq!(buttato.err().as_deref(), Some(READ_ONLY));
+        assert_eq!(bytes(&root, &server, CALL), prima);
+    }
+
+    #[test]
+    fn un_tape_buttato_va_nel_cestino_e_l_indice_non_cambia() {
+        let (root, server) = server_with("cestino", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        assert!(buttato.is_ok(), "{buttato:?}");
+        assert!(!root.join(CALL).exists());
+        assert_eq!(
+            std::fs::read(library::db_path(&server.places.indice, &root)).unwrap(),
+            indice
+        );
+        let di_nuovo = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        assert!(di_nuovo.unwrap_err().contains("open Memotape"));
+        let letto = server.read_turns(Parameters(TurnsParams {
+            tape: CALL.into(),
+            from: None,
+            limit: None,
+        }));
+        assert!(letto.err().unwrap().contains("open Memotape"));
     }
 }
