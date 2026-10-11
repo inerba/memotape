@@ -12,10 +12,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands } from "@/bindings";
-import { keepFocus } from "@/features/player/player";
+import { keepFocus, type PlayerState } from "@/features/player/player";
 import { type Azione, conTasti } from "@/features/shortcuts/shortcuts";
-import { applica, ibrido } from "./ibrido";
-import type { Formato } from "./markdown";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
+import { applica, ibrido, type Tempi } from "./ibrido";
+import { type Formato, inserisciTempo } from "./markdown";
 import { type NotaAperta, notaAperta, salvataggio } from "./notes";
 
 /** Pausa nella scrittura dopo cui la Nota si salva da sola. */
@@ -73,19 +74,26 @@ interface Posizione {
  * La scheda Note di un Tape: l'editor ibrido della prima Nota (ADR-0032), Markdown impaginato fuori
  * dalla riga del cursore, con la barretta del formato sulla selezione.
  * In un Tape senza Note il primo carattere crea la Nota con il nome predefinito. Si salva dopo
- * `PAUSA_MS` di pausa, uscendo dal campo e lasciando la scheda.
+ * `PAUSA_MS` di pausa, uscendo dal campo e lasciando la scheda. I Tempi nella Nota sono pillole che
+ * portano lì il `player`; Ctrl+T scrive al cursore il suo tempo.
  */
 export function NotesTab({
+  durataMs,
   onError,
   onSaved,
   path,
   readOnly,
+  player,
   scelta,
 }: {
+  /** La durata del Tape: un tempo da lì in poi resta testo. */
+  durataMs: number;
   onError: (error: AppError) => void;
   /** Il Tape `path` riscritto, con la sua nuova data di modifica. */
   onSaved: (path: string, modificato: number | null) => void;
   path: string;
+  /** Manca durante la Registrazione e mentre si trascrive il Tape: niente salti. */
+  player?: Pick<PlayerState, "move" | "positionMs">;
   readOnly: boolean;
   /** La Nota da aprire, per nome: quella di un risultato della ricerca. */
   scelta?: string;
@@ -155,6 +163,30 @@ export function NotesTab({
   // L'editor nasce con la Nota letta e vive quanto la scheda: uscendo salva la bozza.
   const salvaRef = useRef(salva);
   salvaRef.current = salva;
+  // Le pillole leggono durata, player e lingua quando si ridisegnano.
+  const attuali = useRef({ durataMs, player, t });
+  attuali.current = { durataMs, player, t };
+  const tempi = useRef<Tempi>({
+    durataMs: () => attuali.current.durataMs,
+    etichetta: (time) => attuali.current.t("notes.jump", { time }),
+    salta: (ms) => attuali.current.player?.move(ms, "jump"),
+  });
+  useScorciatoia(
+    "tempoNota",
+    readOnly || !player
+      ? null
+      : () => {
+          const editor = view.current;
+          if (editor) {
+            editor.dispatch({
+              ...inserisciTempo(editor.state, player.positionMs),
+              scrollIntoView: true,
+              userEvent: "input.time",
+            });
+            editor.focus();
+          }
+        }
+  );
   const testo = nota?.salvato;
   const caricata = nota !== null;
   // biome-ignore lint/correctness/useExhaustiveDependencies: testo e readOnly iniziali; readOnly cambia con il Compartment
@@ -177,12 +209,14 @@ export function NotesTab({
           placeholder(t("notes.placeholder")),
           sola.current.of(soloLettura(readOnly)),
           TEMA,
-          ibrido((url) =>
-            commands.openLink(url).then((result) => {
-              if (result.status === "error") {
-                onError(result.error);
-              }
-            })
+          ibrido(
+            (url) =>
+              commands.openLink(url).then((result) => {
+                if (result.status === "error") {
+                  onError(result.error);
+                }
+              }),
+            tempi.current
           ),
           EditorView.updateListener.of((update) => {
             if (

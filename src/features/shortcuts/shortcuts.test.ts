@@ -211,5 +211,12 @@ test("il pannello ha il gruppo Note con i tasti del formato", () => {
     { riga: "grassetto", tasti: ["Ctrl", "B"] },
     { riga: "corsivo", tasti: ["Ctrl", "I"] },
     { riga: "link", tasti: ["Ctrl", "K"] },
+    { riga: "tempoNota", tasti: ["Ctrl", "T"] },
   ]);
+});
+
+test("Ctrl+T scrive il tempo del player anche con il focus nel campo della Nota", () => {
+  for (const campo of ["nota", null] as const) {
+    expect(scorciatoia(ctrl("t"), campo, LIBERO)?.azione).toBe("tempoNota");
+  }
 });

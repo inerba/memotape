@@ -6,6 +6,8 @@ import {
   type EditorState,
   type TransactionSpec,
 } from "@codemirror/state";
+import { elapsedText } from "@/features/recording/recording";
+import { tempiNellaNota } from "./tempi";
 
 /**
  * Il Markdown delle Note come il Live Preview di Obsidian (ADR-0032): quello che si vede di ogni
@@ -19,7 +21,8 @@ export const markdownDelleNote = markdown({ base: markdownLanguage });
 
 /**
  * Come si mostra un tratto del testo: `segno` sparisce, `punto` diventa «•», `casella` una casella
- * da spuntare; gli altri sono stili. `attiva` è la riga del cursore, che mostra il Markdown.
+ * da spuntare, `tempo` la pillola di un Tempo nella Nota; gli altri sono stili. `attiva` è la riga
+ * del cursore, che mostra il Markdown.
  */
 export type Marcatura = { a: number; da: number } & (
   | {
@@ -28,6 +31,7 @@ export type Marcatura = { a: number; da: number } & (
   | { livello: number; tipo: "titolo" }
   | { tipo: "link"; url: string }
   | { fatta: boolean; tipo: "casella" }
+  | { ms: number; tipo: "tempo" }
 );
 
 /** Un nodo dell'albero di Lezer, quanto serve qui. */
@@ -91,11 +95,15 @@ function nudo(nodo: Nodo): boolean {
 }
 
 /**
- * Le marcature della Nota. Fuori dalle righe attive i segni spariscono e caselle e punti
- * d'elenco prendono il loro posto; le righe attive (solo con `focus`) mostrano il Markdown, con
- * gli stili.
+ * Le marcature della Nota. Fuori dalle righe attive i segni spariscono e caselle, punti d'elenco
+ * e pillole dei Tempi nella Nota (solo prima della fine del Tape lungo `durataMs`) prendono il loro
+ * posto; le righe attive (solo con `focus`) mostrano il Markdown, con gli stili.
  */
-export function marcature(state: EditorState, focus: boolean): Marcatura[] {
+export function marcature(
+  state: EditorState,
+  focus: boolean,
+  durataMs = 0
+): Marcatura[] {
   const attive = focus ? righeAttive(state) : new Set<number>();
   const fuori = (pos: number) => !attive.has(state.doc.lineAt(pos).number);
   const lista: Marcatura[] = [];
@@ -140,7 +148,34 @@ export function marcature(state: EditorState, focus: boolean): Marcatura[] {
       }
     },
   });
+  for (const { a, da, ms } of tempiNellaNota(state.doc.toString())) {
+    if (ms < durataMs && fuori(da)) {
+      lista.push({ a, da, ms, tipo: "tempo" });
+    }
+  }
   return lista;
+}
+
+const PAROLA = /\S/;
+
+/**
+ * Scrive al cursore, al posto della selezione, il Tempo nella Nota `ms` (il tempo del player),
+ * staccato dalle parole intorno, e mette il cursore dopo.
+ */
+export function inserisciTempo(
+  state: EditorState,
+  ms: number
+): TransactionSpec {
+  const tempo = `[${elapsedText(ms)}]`;
+  return state.changeByRange(({ from, to }) => {
+    const prima = PAROLA.test(state.doc.sliceString(from - 1, from)) ? " " : "";
+    const spazio = state.doc.sliceString(to, to + 1) === " ";
+    const insert = `${prima}${tempo}${spazio ? "" : " "}`;
+    return {
+      changes: { from, insert, to },
+      range: EditorSelection.cursor(from + insert.length + (spazio ? 1 : 0)),
+    };
+  });
 }
 
 /** I segni del nodo da nascondere fuori dalla riga del cursore, con caselle e punti. */

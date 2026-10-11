@@ -545,6 +545,7 @@
     "label": "Notas del Tape",
     "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
     "saved": "Guardadas en el Tape",
+    "jump": "Escuchar desde {{time}}",
     "format": {
       "label": "Formato",
       "bold": "Negrita",
@@ -605,7 +606,8 @@
       "cestinaTape": "Mover a la Papelera",
       "grassetto": "Negrita",
       "corsivo": "Cursiva",
-      "link": "Enlace"
+      "link": "Enlace",
+      "tempoNota": "Insertar el tiempo del reproductor"
     },
     "keys": {
       "Ctrl": "Ctrl",

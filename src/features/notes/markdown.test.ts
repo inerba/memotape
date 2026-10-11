@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import {
   formatta,
+  inserisciTempo,
   linkIn,
   type Marcatura,
   marcature,
@@ -22,10 +23,14 @@ function nota(doc: string, cursore = doc.length, ancora = cursore) {
  * Come si legge la Nota: i segni nascosti spariscono, un punto d'elenco diventa «•» e una casella
  * «☐» o «☑». Con `focus` la riga del cursore mostra il Markdown.
  */
-function letta(state: EditorState, focus = true): string {
-  const sostituzioni = marcature(state, focus)
+function letta(state: EditorState, focus = true, durataMs = 0): string {
+  const sostituzioni = marcature(state, focus, durataMs)
     .filter(
-      (m) => m.tipo === "segno" || m.tipo === "punto" || m.tipo === "casella"
+      (m) =>
+        m.tipo === "segno" ||
+        m.tipo === "punto" ||
+        m.tipo === "casella" ||
+        m.tipo === "tempo"
     )
     .sort((a, b) => a.da - b.da);
   let testo = "";
@@ -36,6 +41,8 @@ function letta(state: EditorState, focus = true): string {
       testo += "•";
     } else if (m.tipo === "casella") {
       testo += m.fatta ? "☑" : "☐";
+    } else if (m.tipo === "tempo") {
+      testo += `▶${m.ms / 1000}s`;
     }
     pos = m.a;
   }
@@ -162,4 +169,37 @@ test("elenco e da fare mettono o tolgono il segno a ogni riga", () => {
   expect(formattata("  pane", "daFare", 6)).toBe("  - [ ] pane|");
   expect(formattata("- [x] uno", "daFare", 9)).toBe("uno|");
   expect(formattata("- [ ] uno", "elenco", 9)).toBe("- uno|");
+});
+
+test("fuori dalla riga del cursore un Tempo nella Nota diventa una pillola, entro la durata", () => {
+  const doc = "Rilascio [12:40] e [1:02:05], `[0:30]`\nOra [0:30]";
+  // Il Tape dura un'ora: [1:02:05] è oltre e resta testo, come il tempo nel codice.
+  expect(letta(nota(doc), true, 3_600_000)).toBe(
+    "Rilascio ▶760s e [1:02:05], [0:30]\nOra [0:30]"
+  );
+  expect(letta(nota(doc), false, 3_600_000)).toBe(
+    "Rilascio ▶760s e [1:02:05], [0:30]\nOra ▶30s"
+  );
+  // Senza durata (un Tape ancora senza audio) nessuna pillola.
+  expect(letta(nota(doc), false)).toBe(
+    "Rilascio [12:40] e [1:02:05], [0:30]\nOra [0:30]"
+  );
+});
+
+test("Ctrl+T scrive il tempo del player al cursore, al posto della selezione", () => {
+  const scritto = (
+    doc: string,
+    ms: number,
+    ancora: number,
+    cursore = ancora
+  ) => {
+    const state = nota(doc, cursore, ancora);
+    const dopo = state.update(inserisciTempo(state, ms)).state;
+    const { head } = dopo.selection.main;
+    const testo = dopo.doc.toString();
+    return `${testo.slice(0, head)}|${testo.slice(head)}`;
+  };
+  expect(scritto("Decisione: ", 760_400, 11)).toBe("Decisione: [12:40] |");
+  expect(scritto("Ora qui", 3_725_000, 4, 7)).toBe("Ora [1:02:05] |");
+  expect(scritto("Ora\ndopo", 5000, 3)).toBe("Ora [0:05] |\ndopo");
 });

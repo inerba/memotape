@@ -11,6 +11,7 @@ mod mcp;
 mod player;
 mod startup;
 mod tape;
+mod tempi_nota;
 mod transcript;
 mod updates;
 

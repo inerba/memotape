@@ -545,6 +545,7 @@
     "label": "Note del Tape",
     "placeholder": "Scrivi le note: decisioni, cose da fare, link. In Markdown, come **grassetto** o - elenchi.",
     "saved": "Salvate nel Tape",
+    "jump": "Ascolta da {{time}}",
     "format": {
       "label": "Formato",
       "bold": "Grassetto",
@@ -605,7 +606,8 @@
       "cestinaTape": "Sposta nel Cestino",
       "grassetto": "Grassetto",
       "corsivo": "Corsivo",
-      "link": "Link"
+      "link": "Link",
+      "tempoNota": "Inserisci il tempo del player"
     },
     "keys": {
       "Ctrl": "Ctrl",

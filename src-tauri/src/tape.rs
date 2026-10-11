@@ -562,12 +562,7 @@ pub fn salva_nota(
         None if testo.is_empty() => return Ok(()),
         None => note.push(nota),
     }
-    replace(path, NOTE, |zip, temp| {
-        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-        zip.start_file(NOTE, options)
-            .map_err(|e| unwritable(temp, &e))?;
-        serde_json::to_writer_pretty(zip, &NoteJson { note }).map_err(|e| unwritable(temp, &e))
-    })
+    replace(path, NOTE, |zip, temp| write_note(zip, temp, note))
 }
 
 /// Aggiunge al Tape la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
@@ -992,7 +987,7 @@ impl Document {
 }
 
 /// Applica i Tagli `tagli` al Tape `path`: riscrive accanto l'audio di ogni Ingresso senza i tratti
-/// (senza ricodificare), la Forma d'onda e il documento, poi chiama `scarta` sull'originale (il
+/// (senza ricodificare), la Forma d'onda, il documento e le Note (con i Tempi spostati), poi chiama `scarta` sull'originale (il
 /// Cestino) e mette il nuovo al suo posto. A metà, l'originale resta intatto.
 pub fn taglia(
     path: &Path,
@@ -1044,8 +1039,8 @@ pub fn taglia(
         }
         for i in 0..old.len() {
             let entry = old.by_index_raw(i).map_err(|e| unreadable(path, &e))?;
-            let riscritta =
-                [DOCUMENT, FORMA_ONDA].contains(&entry.name()) || audio.contains(&entry.name());
+            let riscritta = [DOCUMENT, FORMA_ONDA, NOTE].contains(&entry.name())
+                || audio.contains(&entry.name());
             if !riscritta {
                 zip.raw_copy_file(entry)
                     .map_err(|e| unwritable(&temp, &e))?;
@@ -1067,6 +1062,14 @@ pub fn taglia(
         }
         document.taglia(&tagli, durata);
         write_document(&mut zip, &temp, &document)?;
+        if old.index_for_name(NOTE).is_some() {
+            // I Tempi nella Nota seguono la linea del tempo; il resto delle Note resta com'è.
+            let mut note = note(path)?;
+            for nota in &mut note {
+                nota.testo = crate::tempi_nota::sposta(&nota.testo, &tagli);
+            }
+            write_note(&mut zip, &temp, note)?;
+        }
         let file = zip.finish().map_err(|e| unwritable(&temp, &e))?;
         file.sync_all().map_err(|e| unwritable(&temp, &e))?;
         drop(file);
@@ -1306,6 +1309,13 @@ fn write_document(
     zip.start_file(DOCUMENT, options)
         .map_err(|e| unwritable(path, &e))?;
     serde_json::to_writer_pretty(zip, document).map_err(|e| unwritable(path, &e))
+}
+
+fn write_note(zip: &mut ZipWriter<File>, path: &Path, note: Vec<Nota>) -> Result<(), AppError> {
+    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    zip.start_file(NOTE, options)
+        .map_err(|e| unwritable(path, &e))?;
+    serde_json::to_writer_pretty(zip, &NoteJson { note }).map_err(|e| unwritable(path, &e))
 }
 
 fn write_forma_onda(
@@ -1738,6 +1748,30 @@ mod tests {
         assert!(matches!(rifiuto, Err(AppError::NoRecycleBin(_))));
         assert_eq!(std::fs::read(&path).unwrap(), prima);
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+    }
+
+    #[test]
+    fn il_taglio_sposta_i_tempi_delle_note_e_smonta_quelli_tolti() {
+        let dir = temp_dir("tape-taglio-note");
+        let path = tape_da_tagliare(&dir, 10.0, 10.0);
+        let testo = "## Già\n- [ ] **Sara**: [0:01] e [0:06] — `[0:06]` [0:06](u) ✓";
+        salva_nota(&path, "Note", testo, "", &Autore::Utente).unwrap();
+        salva_nota(&path, "Link", "[0:00](https://x.it)", "", &Autore::Utente).unwrap();
+        let prima = note(&path).unwrap();
+
+        taglia(&path, &[0..2_000, 3_000..4_000], |_| Ok(())).unwrap();
+
+        let dopo = note(&path).unwrap();
+        assert_eq!(
+            dopo[0].testo,
+            "## Già\n- [ ] **Sara**: 0:01 e [0:03] — `[0:06]` [0:06](u) ✓"
+        );
+        // Il resto della Nota resta com'era: nome, autore, ora e le Note senza tempi.
+        assert_eq!(
+            (&dopo[0].nome, &dopo[0].autore, &dopo[0].modificata),
+            (&prima[0].nome, &prima[0].autore, &prima[0].modificata)
+        );
+        assert_eq!(dopo[1], prima[1]);
     }
 
     /// Un Tape con il mix e il Microfono, lunghi `mix_s` e `microfono_s`.

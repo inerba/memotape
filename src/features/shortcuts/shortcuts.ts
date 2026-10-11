@@ -25,7 +25,8 @@ export type Azione =
   | "cestinaTape"
   | "grassetto"
   | "corsivo"
-  | "link";
+  | "link"
+  | "tempoNota";
 
 export type Gruppo =
   | "generale"
@@ -234,6 +235,13 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     nellaNota: true,
     riga: "link",
     tasti: ["Ctrl", "K"],
+  },
+  {
+    // La registra la scheda Note: scrive nella Nota anche con il focus sul player.
+    azione: "tempoNota",
+    gruppo: "note",
+    riga: "tempoNota",
+    tasti: ["Ctrl", "T"],
   },
 ];
 

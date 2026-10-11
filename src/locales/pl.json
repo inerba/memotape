@@ -548,6 +548,7 @@
     "label": "Notatki Tape’a",
     "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
     "saved": "Zapisane w Tape",
+    "jump": "Słuchaj od {{time}}",
     "format": {
       "label": "Formatowanie",
       "bold": "Pogrubienie",
@@ -609,7 +610,8 @@
       "cestinaTape": "Przenieś do Kosza",
       "grassetto": "Pogrubienie",
       "corsivo": "Kursywa",
-      "link": "Link"
+      "link": "Link",
+      "tempoNota": "Wstaw czas odtwarzacza"
     },
     "keys": {
       "Ctrl": "Ctrl",

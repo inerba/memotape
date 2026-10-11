@@ -1576,7 +1576,8 @@ function TapePane({
   );
   const parlanti = editable ? allParlanti : NO_PARLANTI;
   const transcribing = isSource && running;
-  const player = usePlayer(info?.durataMs ?? 0);
+  const durataMs = info?.durataMs ?? 0;
+  const player = usePlayer(durataMs);
   // La Frase di un risultato della ricerca porta lì il player, senza avviarlo.
   const phrases = useRef(conversation.phrases);
   useEffect(() => {
@@ -1731,9 +1732,11 @@ function TapePane({
             {header}
             {tab === "note" ? (
               <NotesTab
+                durataMs={durataMs}
                 onError={onError}
                 onSaved={onNoteSalvate}
                 path={path}
+                player={listening}
                 readOnly={!editable}
                 scelta={nota}
               />

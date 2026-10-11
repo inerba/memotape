@@ -51,6 +51,8 @@ src-tauri/src/
   engine/                trait `TranscriptionEngine`, motore transcribe-cpp, pipeline di Trascrizione
   transcript.rs          documento di una Trascrizione e rendering in Markdown o testo semplice
   tape.rs                il Tape: scrittura, lettura, riscrittura atomica, audio del mix e Forma d'onda dentro lo zip
+  tempi_nota.rs          i Tempi nella Nota: riconoscerli e spostarli dopo un Taglio (stessa regola di
+                         `features/notes/tempi.ts`, stessi casi in `tempi.casi.json`)
   library.rs             la Libreria: Raccolte, Tape, indice SQLite, operazioni sui file e Cestino
   player.rs              il protocollo `tape` del player (il `mix.ogg` di un Tape con le richieste `Range`) e la Forma d'onda
   mcp.rs                 il server MCP degli Assistenti (`memotape.exe --mcp`, ADR-0012): stdio; legge la Libreria

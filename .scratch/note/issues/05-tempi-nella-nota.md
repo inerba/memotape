@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Una regola sola per riconoscere i tempi (fuori dal codice inline e dai link) e per spostarli dato un elenco di tratti tolti, in Rust e in TypeScript, con gli stessi casi di test nei due lati
-- [ ] Il Taglio riscrive `note.json` insieme all'audio e al documento; un test prova lo spostamento, lo smontaggio e la conservazione carattere per carattere del resto
-- [ ] La pillola si legge «Ascolta da 12:40»; in sola lettura resta cliccabile
-- [ ] Ctrl+T elencato nel pannello delle scorciatoie
-- [ ] I sei controlli verdi
+- [x] Una regola sola per riconoscere i tempi (fuori dal codice inline e dai link) e per spostarli dato un elenco di tratti tolti, in Rust e in TypeScript, con gli stessi casi di test nei due lati
+- [x] Il Taglio riscrive `note.json` insieme all'audio e al documento; un test prova lo spostamento, lo smontaggio e la conservazione carattere per carattere del resto
+- [x] La pillola si legge «Ascolta da 12:40»; in sola lettura resta cliccabile
+- [x] Ctrl+T elencato nel pannello delle scorciatoie
+- [x] I sei controlli verdi

@@ -545,6 +545,7 @@
     "label": "Notes du Tape",
     "placeholder": "Écrivez vos notes : décisions, choses à faire, liens. En Markdown, comme **gras** ou - listes.",
     "saved": "Enregistrées dans le Tape",
+    "jump": "Écouter à partir de {{time}}",
     "format": {
       "label": "Format",
       "bold": "Gras",
@@ -605,7 +606,8 @@
       "cestinaTape": "Mettre à la Corbeille",
       "grassetto": "Gras",
       "corsivo": "Italique",
-      "link": "Lien"
+      "link": "Lien",
+      "tempoNota": "Insérer le temps du lecteur"
     },
     "keys": {
       "Ctrl": "Ctrl",

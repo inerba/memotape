@@ -384,7 +384,7 @@ fn silence_ms(previous: &Phrase, next: &Phrase) -> u32 {
 }
 
 /// `1:02:03` oltre l'ora, altrimenti `2:03`.
-fn duration(ms: u32) -> String {
+pub(crate) fn duration(ms: u32) -> String {
     let seconds = ms / 1000;
     let (hours, minutes, seconds) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
     if hours > 0 {

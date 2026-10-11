@@ -542,6 +542,7 @@
     "label": "Notizen des Tapes",
     "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
     "saved": "Im Tape gespeichert",
+    "jump": "Ab {{time}} anhören",
     "format": {
       "label": "Format",
       "bold": "Fett",
@@ -601,7 +602,8 @@
       "cestinaTape": "In den Papierkorb",
       "grassetto": "Fett",
       "corsivo": "Kursiv",
-      "link": "Link"
+      "link": "Link",
+      "tempoNota": "Zeit des Players einfügen"
     },
     "keys": {
       "Ctrl": "Strg",
