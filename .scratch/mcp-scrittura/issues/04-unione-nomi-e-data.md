@@ -4,9 +4,9 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Ognuno dei tre strumenti scrive quello che dice, verificato rileggendo il Tape
-- [ ] Richieste non valide o obsolete (Turno non adiacente, Ingressi diversi, data non valida) rifiutate senza scrivere
-- [ ] Con il permesso a modificare spento rifiutano
-- [ ] I sei controlli verdi
+- [x] Ognuno dei tre strumenti scrive quello che dice, verificato rileggendo il Tape
+- [x] Richieste non valide o obsolete (Turno non adiacente, Ingressi diversi, data non valida) rifiutate senza scrivere
+- [x] Con il permesso a modificare spento rifiutano
+- [x] I sei controlli verdi
