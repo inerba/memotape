@@ -90,7 +90,7 @@ Una cartella di primo livello della Libreria che raggruppa Tape, per esempio le 
 _Avoid_: progetto, cartella, etichetta, fascicolo
 
 **Assistente**:
-Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Tape della Libreria e, con un permesso a parte, li modifica su sua richiesta: corregge il testo, unisce Turni, dà nomi ai Parlanti, cambia titolo e data, applica Tagli e manda Tape nel Cestino. Non avvia Attività.
+Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Tape della Libreria e, con un permesso a parte, li modifica su sua richiesta: corregge il testo, unisce Turni, dà nomi ai Parlanti, cambia titolo e data, applica Tagli, scrive e rinomina Note e manda Tape nel Cestino. Non avvia Attività e non elimina Note.
 _Avoid_: agente, bot, integrazione, MCP
 
 ### Testo
@@ -155,6 +155,14 @@ _Avoid_: parole personalizzate, hotword, dizionario, glossario
 **Termine**:
 Una voce del Vocabolario, di una o più parole, come un nome proprio, un marchio o una parola tecnica. Un tratto del testo simile per scrittura o pronuncia diventa il Termine, che nell'audio occupa l'intervallo delle parole sostituite.
 _Avoid_: parola chiave, hotword, voce
+
+**Nota**:
+Un testo libero in Markdown, con un nome unico nel Tape, scritto dall'utente (anche durante la Registrazione) o da un Assistente; un Tape ne ha zero o più. È separata dalla Trascrizione: non è una Correzione manuale e Copia testo non la include.
+_Avoid_: appunti, meeting notes, riassunto, memo, verbale, pagina
+
+**Tempo nella Nota**:
+Un tempo del Tape scritto tra quadre in una Nota, come `[12:40]` o `[1:02:05]`, che porta il player a quel punto. Un Taglio lo sposta con la linea del tempo; dentro il tratto tolto torna testo semplice.
+_Avoid_: timestamp, segnalibro, marcatore
 
 ### Lingue
 
