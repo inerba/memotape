@@ -84,6 +84,16 @@ export const commands = {
 	 *  fuori e con `activityInProgress` il Tape su cui lavora l'Attività in corso.
 	 */
 	saveNota: (path: string, nome: string, testo: string, atteso: string) => typedError<number | null, AppError>(__TAURI_INVOKE("save_nota", { path, nome, testo, atteso })),
+	/**
+	 *  Rinomina la Nota `nome` del Tape `path` in `nuovo`. Restituisce la data di modifica del Tape
+	 *  riscritto; rifiuta con `noteNameInvalid`, `noteNameTaken` o `noteNotFound`.
+	 */
+	renameNota: (path: string, nome: string, nuovo: string) => typedError<number | null, AppError>(__TAURI_INVOKE("rename_nota", { path, nome, nuovo })),
+	/**
+	 *  Elimina la Nota `nome` del Tape `path`, senza Cestino. Restituisce la data di modifica del Tape
+	 *  riscritto; rifiuta con `noteNotFound`.
+	 */
+	deleteNota: (path: string, nome: string) => typedError<number | null, AppError>(__TAURI_INVOKE("delete_nota", { path, nome })),
 	/**  Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente. */
 	unisciTurno: (path: string, ingresso: Ingresso, phraseIds: number[], destinazione: number) => typedError<null, AppError>(__TAURI_INVOKE("unisci_turno", { path, ingresso, phraseIds, destinazione })),
 	/**
@@ -275,7 +285,13 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
  *  La Nota, di cui porta il nome, non ha più il testo da cui partiva la modifica: l'ha cambiata
  *  qualcun altro (un Assistente, un'altra finestra).
  */
-{ code: "noteChanged"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "noteChanged"; detail: string } | 
+/**  Il Tape non ha una Nota con questo nome: l'ha eliminata o rinominata qualcun altro. */
+{ code: "noteNotFound"; detail: string } | 
+/**  Il Tape ha già una Nota con questo nome. */
+{ code: "noteNameTaken"; detail: string } | 
+/**  Il nome di una Nota è vuoto o supera `tape::NOME_NOTA_MAX` caratteri. */
+{ code: "noteNameInvalid"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {

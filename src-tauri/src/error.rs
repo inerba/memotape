@@ -78,6 +78,15 @@ pub enum AppError {
     /// qualcun altro (un Assistente, un'altra finestra).
     #[error("Nota cambiata da fuori: {0}")]
     NoteChanged(String),
+    /// Il Tape non ha una Nota con questo nome: l'ha eliminata o rinominata qualcun altro.
+    #[error("Nota non trovata: {0}")]
+    NoteNotFound(String),
+    /// Il Tape ha già una Nota con questo nome.
+    #[error("nome di Nota già usato: {0}")]
+    NoteNameTaken(String),
+    /// Il nome di una Nota è vuoto o supera `tape::NOME_NOTA_MAX` caratteri.
+    #[error("nome di Nota non valido: {0}")]
+    NoteNameInvalid(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

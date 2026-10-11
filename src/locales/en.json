@@ -141,7 +141,10 @@
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
       "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop.",
       "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin",
-      "noteChanged": "The note “{{detail}}” was changed elsewhere, for example by an assistant: reopen the Tape to see the new text"
+      "noteChanged": "The note “{{detail}}” was changed elsewhere, for example by an assistant: reopen the Tape to see the new text",
+      "noteNotFound": "The note “{{detail}}” is no longer in the Tape: reopen the Tape to see the current notes",
+      "noteNameTaken": "The Tape already has a note “{{detail}}”: choose another name",
+      "noteNameInvalid": "A note name can’t be empty or longer than 60 characters"
     },
     "app": {
       "title": "Something went wrong",
@@ -541,7 +544,22 @@
     "defaultName": "Notes",
     "label": "Tape notes",
     "placeholder": "Write your notes: decisions, to-dos, links. In Markdown, like **bold** or - lists.",
-    "saved": "Saved in the Tape"
+    "saved": "Saved in the Tape",
+    "list": "Tape notes, by name",
+    "new": "New note",
+    "newName": "Note {{n}}",
+    "more": "More actions for {{nome}}",
+    "rename": "Rename",
+    "renameLabel": "Note name",
+    "copy": "Copy note",
+    "copied": "Note “{{nome}}” copied to the clipboard",
+    "delete": {
+      "action": "Delete note…",
+      "title": "Delete the note “{{nome}}”?",
+      "description": "The note is removed from the Tape and can’t be recovered.",
+      "keep": "Cancel",
+      "confirm": "Delete"
+    }
   },
   "parlantiTab": {
     "empty": "No speakers recognized",

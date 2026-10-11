@@ -141,7 +141,10 @@
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
       "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren.",
       "noRecycleBin": "Das Laufwerk von {{detail}} hat keinen Windows-Papierkorb",
-      "noteChanged": "Die Notiz „{{detail}}“ wurde anderswo geändert, etwa von einem Assistenten: öffne das Tape erneut, um den neuen Text zu sehen"
+      "noteChanged": "Die Notiz „{{detail}}“ wurde anderswo geändert, etwa von einem Assistenten: öffne das Tape erneut, um den neuen Text zu sehen",
+      "noteNotFound": "Die Notiz „{{detail}}“ ist nicht mehr im Tape: öffne das Tape erneut, um die aktuellen Notizen zu sehen",
+      "noteNameTaken": "Das Tape hat schon eine Notiz „{{detail}}“: wähle einen anderen Namen",
+      "noteNameInvalid": "Der Name einer Notiz darf nicht leer und nicht länger als 60 Zeichen sein"
     },
     "app": {
       "title": "Etwas ist schiefgelaufen",
@@ -541,7 +544,22 @@
     "defaultName": "Notizen",
     "label": "Notizen des Tapes",
     "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
-    "saved": "Im Tape gespeichert"
+    "saved": "Im Tape gespeichert",
+    "list": "Notizen des Tapes, nach Name",
+    "new": "Neue Notiz",
+    "newName": "Notiz {{n}}",
+    "more": "Weitere Aktionen für {{nome}}",
+    "rename": "Umbenennen",
+    "renameLabel": "Name der Notiz",
+    "copy": "Notiz kopieren",
+    "copied": "Notiz „{{nome}}“ in die Zwischenablage kopiert",
+    "delete": {
+      "action": "Notiz löschen…",
+      "title": "Notiz „{{nome}}“ löschen?",
+      "description": "Die Notiz verschwindet aus dem Tape und lässt sich nicht wiederherstellen.",
+      "keep": "Abbrechen",
+      "confirm": "Löschen"
+    }
   },
   "parlantiTab": {
     "empty": "Keine Sprecher erkannt",

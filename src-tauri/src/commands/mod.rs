@@ -373,6 +373,41 @@ pub async fn save_nota(
     .await
 }
 
+/// Rinomina la Nota `nome` del Tape `path` in `nuovo`. Restituisce la data di modifica del Tape
+/// riscritto; rifiuta con `noteNameInvalid`, `noteNameTaken` o `noteNotFound`.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_nota(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    nome: String,
+    nuovo: String,
+) -> Result<f64, AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::rinomina_nota(path, &nome, &nuovo)?;
+        Ok(tape::modificato(path)?.unwrap_or_default())
+    })
+    .await
+}
+
+/// Elimina la Nota `nome` del Tape `path`, senza Cestino. Restituisce la data di modifica del Tape
+/// riscritto; rifiuta con `noteNotFound`.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_nota(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    nome: String,
+) -> Result<f64, AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::elimina_nota(path, &nome)?;
+        Ok(tape::modificato(path)?.unwrap_or_default())
+    })
+    .await
+}
+
 /// Un tratto da tagliare, in ms sulla linea del tempo del Tape.
 #[derive(Debug, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

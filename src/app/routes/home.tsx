@@ -64,6 +64,7 @@ import { useLastTape } from "@/features/library/use-last-tape";
 import { useLibrary } from "@/features/library/use-library";
 import { useTapeOperations } from "@/features/library/use-tape-operations";
 import { NotesTab } from "@/features/notes/notes-tab";
+import { quanteNote, useNote } from "@/features/notes/use-note";
 import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
 import { RecordMenu } from "@/features/recording/record-menu";
@@ -973,6 +974,7 @@ export function HomePage() {
       onError={setNotice}
       onExported={exported}
       onMerge={merge}
+      onMessage={setMessage}
       onMove={moveTape}
       onNoteSalvate={noteSalvate}
       onRaccolta={openRaccolta}
@@ -1512,6 +1514,7 @@ function TapePane({
   onMerge,
   onError,
   onExported,
+  onMessage,
   onMove,
   onNoteSalvate,
   onRaccolta,
@@ -1544,6 +1547,7 @@ function TapePane({
   onMerge: (path: string, turn: Turn, target: PhraseRef) => Promise<boolean>;
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
+  onMessage: (text: string) => void;
   onMove: (path: string, raccolta: string) => void;
   onNoteSalvate: (path: string, modificato: number | null) => void;
   onRaccolta: (raccolta: string) => void;
@@ -1634,6 +1638,7 @@ function TapePane({
     [taglio.chiedi, taglio.durataMs]
   );
   const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
+  const note = useNote({ onError, onSaved: onNoteSalvate, path });
 
   const header = (
     <>
@@ -1648,6 +1653,7 @@ function TapePane({
       />
       <DocumentToolbar
         hasText={hasText}
+        note={quanteNote(note)}
         onTab={setTab}
         parlanti={parlanti.length}
         tab={tab}
@@ -1724,9 +1730,8 @@ function TapePane({
             {header}
             {tab === "note" ? (
               <NotesTab
-                onError={onError}
-                onSaved={onNoteSalvate}
-                path={path}
+                note={note}
+                onMessage={onMessage}
                 readOnly={!editable}
               />
             ) : (
@@ -1814,14 +1819,16 @@ function TapeEmpty({
 
 type DocumentTab = "transcript" | "parlanti" | "note";
 
-/** Le schede Trascrizione, Parlanti (se il Tape ha Frasi) e Note. */
+/** Le schede Trascrizione, Parlanti (se il Tape ha Frasi) e Note, con il numero delle Note. */
 function DocumentToolbar({
   hasText,
+  note,
   onTab,
   parlanti,
   tab,
 }: {
   hasText: boolean;
+  note: number;
   onTab: (tab: DocumentTab) => void;
   parlanti: number;
   tab: DocumentTab;
@@ -1848,6 +1855,11 @@ function DocumentToolbar({
         ) : null}
         <TabButton onClick={toNote} selected={tab === "note"}>
           {t("tabs.note")}
+          {note > 0 ? (
+            <span className="ml-1.5 text-muted-foreground tabular-nums">
+              {note}
+            </span>
+          ) : null}
         </TabButton>
       </div>
     </div>

@@ -141,7 +141,10 @@
       "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo: {{detail}}",
       "liveTranscriptionLagging": "La transcripción en vivo se ha retrasado demasiado y se ha detenido. El audio sigue grabándose; podrás transcribirlo después de Detener.",
       "noRecycleBin": "El disco de {{detail}} no tiene Papelera de reciclaje de Windows",
-      "noteChanged": "La nota «{{detail}}» se ha cambiado en otro sitio, por ejemplo por un asistente: vuelve a abrir el Tape para ver el texto nuevo"
+      "noteChanged": "La nota «{{detail}}» se ha cambiado en otro sitio, por ejemplo por un asistente: vuelve a abrir el Tape para ver el texto nuevo",
+      "noteNotFound": "La nota «{{detail}}» ya no está en el Tape: vuelve a abrir el Tape para ver las notas actuales",
+      "noteNameTaken": "El Tape ya tiene una nota «{{detail}}»: elige otro nombre",
+      "noteNameInvalid": "El nombre de una nota no puede estar vacío ni superar los 60 caracteres"
     },
     "app": {
       "title": "Algo ha salido mal",
@@ -544,7 +547,22 @@
     "defaultName": "Notas",
     "label": "Notas del Tape",
     "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
-    "saved": "Guardadas en el Tape"
+    "saved": "Guardadas en el Tape",
+    "list": "Notas del Tape, por nombre",
+    "new": "Nueva nota",
+    "newName": "Nota {{n}}",
+    "more": "Más acciones para {{nome}}",
+    "rename": "Cambiar nombre",
+    "renameLabel": "Nombre de la nota",
+    "copy": "Copiar nota",
+    "copied": "Nota «{{nome}}» copiada al portapapeles",
+    "delete": {
+      "action": "Eliminar nota…",
+      "title": "¿Eliminar la nota «{{nome}}»?",
+      "description": "La nota desaparece del Tape y no se podrá recuperar.",
+      "keep": "Cancelar",
+      "confirm": "Eliminar"
+    }
   },
   "parlantiTab": {
     "empty": "Ningún hablante reconocido",

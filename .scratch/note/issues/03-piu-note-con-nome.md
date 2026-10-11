@@ -4,12 +4,12 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Creare, rinominare ed eliminare una Nota riscrivono solo `note.json`; l'ordine è quello di creazione
-- [ ] Nome vuoto, oltre 60 caratteri o già usato nel Tape rifiutato con un codice di `AppError` dedicato e un messaggio tradotto
-- [ ] Logica pura dei nomi predefiniti e unici in un modulo del frontend con il suo `*.test.ts`
-- [ ] La riga dei nomi è un elenco di schede per i lettori di schermo; il «…» si chiama «Altre azioni per {{nome}}»
-- [ ] Copia nota copia il Markdown della Nota e lo dice in un avviso
-- [ ] Testi nelle sei lingue
-- [ ] I sei controlli verdi
+- [x] Creare, rinominare ed eliminare una Nota riscrivono solo `note.json`; l'ordine è quello di creazione
+- [x] Nome vuoto, oltre 60 caratteri o già usato nel Tape rifiutato con un codice di `AppError` dedicato e un messaggio tradotto
+- [x] Logica pura dei nomi predefiniti e unici in un modulo del frontend con il suo `*.test.ts`
+- [x] La riga dei nomi è un elenco di schede per i lettori di schermo; il «…» si chiama «Altre azioni per {{nome}}»
+- [x] Copia nota copia il Markdown della Nota e lo dice in un avviso
+- [x] Testi nelle sei lingue
+- [x] I sei controlli verdi

@@ -141,7 +141,10 @@
       "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
       "liveTranscriptionLagging": "Transkrypcja na żywo ma zbyt duże opóźnienie i została zatrzymana. Dźwięk jest nadal nagrywany; możesz go transkrybować po zatrzymaniu.",
       "noRecycleBin": "Dysk z {{detail}} nie ma Kosza systemu Windows",
-      "noteChanged": "Notatka „{{detail}}” została zmieniona gdzie indziej, np. przez asystenta: otwórz Tape ponownie, aby zobaczyć nowy tekst"
+      "noteChanged": "Notatka „{{detail}}” została zmieniona gdzie indziej, np. przez asystenta: otwórz Tape ponownie, aby zobaczyć nowy tekst",
+      "noteNotFound": "Notatki „{{detail}}” nie ma już w Tape: otwórz Tape ponownie, aby zobaczyć aktualne notatki",
+      "noteNameTaken": "Tape ma już notatkę „{{detail}}”: wybierz inną nazwę",
+      "noteNameInvalid": "Nazwa notatki nie może być pusta ani dłuższa niż 60 znaków"
     },
     "app": {
       "title": "Coś poszło nie tak",
@@ -547,7 +550,22 @@
     "defaultName": "Notatki",
     "label": "Notatki Tape’a",
     "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
-    "saved": "Zapisane w Tape"
+    "saved": "Zapisane w Tape",
+    "list": "Notatki Tape’a, według nazwy",
+    "new": "Nowa notatka",
+    "newName": "Notatka {{n}}",
+    "more": "Więcej działań dla {{nome}}",
+    "rename": "Zmień nazwę",
+    "renameLabel": "Nazwa notatki",
+    "copy": "Kopiuj notatkę",
+    "copied": "Notatka „{{nome}}” skopiowana do schowka",
+    "delete": {
+      "action": "Usuń notatkę…",
+      "title": "Usunąć notatkę „{{nome}}”?",
+      "description": "Notatka zniknie z Tape i nie będzie można jej odzyskać.",
+      "keep": "Anuluj",
+      "confirm": "Usuń"
+    }
   },
   "parlantiTab": {
     "empty": "Nie rozpoznano mówców",

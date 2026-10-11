@@ -560,8 +560,60 @@ pub fn salva_nota(
         Some(n) => *n = nota,
         None if !atteso.is_empty() => return Err(AppError::NoteChanged(nome.into())),
         None if testo.is_empty() => return Ok(()),
-        None => note.push(nota),
+        None => {
+            nome_valido(nome)?;
+            note.push(nota);
+        }
     }
+    scrivi_note(path, note)
+}
+
+/// Il nome più lungo di una Nota, in caratteri.
+pub const NOME_NOTA_MAX: usize = 60;
+
+/// Rifiuta con `NoteNameInvalid` un nome vuoto (o di soli spazi) o più lungo di `NOME_NOTA_MAX`.
+fn nome_valido(nome: &str) -> Result<(), AppError> {
+    if nome.trim().is_empty() || nome.chars().count() > NOME_NOTA_MAX {
+        return Err(AppError::NoteNameInvalid(nome.into()));
+    }
+    Ok(())
+}
+
+/// Rinomina la Nota `nome` in `nuovo` e riscrive solo `note.json`; testo, autore e ordine restano.
+/// Rifiuta un nome non valido o già usato da un'altra Nota del Tape, e una Nota che non c'è.
+pub fn rinomina_nota(path: &Path, nome: &str, nuovo: &str) -> Result<(), AppError> {
+    let _writing = writing(path)?;
+    let mut note = note(path)?;
+    nome_valido(nuovo)?;
+    if !note.iter().any(|n| n.nome == nome) {
+        return Err(AppError::NoteNotFound(nome.into()));
+    }
+    if nuovo == nome {
+        return Ok(());
+    }
+    if note.iter().any(|n| n.nome == nuovo) {
+        return Err(AppError::NoteNameTaken(nuovo.into()));
+    }
+    for n in note.iter_mut().filter(|n| n.nome == nome) {
+        n.nome = nuovo.into();
+    }
+    scrivi_note(path, note)
+}
+
+/// Elimina la Nota `nome` e riscrive solo `note.json`: non si recupera.
+pub fn elimina_nota(path: &Path, nome: &str) -> Result<(), AppError> {
+    let _writing = writing(path)?;
+    let mut note = note(path)?;
+    let prima = note.len();
+    note.retain(|n| n.nome != nome);
+    if note.len() == prima {
+        return Err(AppError::NoteNotFound(nome.into()));
+    }
+    scrivi_note(path, note)
+}
+
+/// Sostituisce `note.json` con `note`. Va chiamata sotto `writing(path)`.
+fn scrivi_note(path: &Path, note: Vec<Nota>) -> Result<(), AppError> {
     replace(path, NOTE, |zip, temp| {
         let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
         zip.start_file(NOTE, options)
@@ -2383,6 +2435,82 @@ mod tests {
         // Lo stesso testo non riscrive il Tape.
         salva_nota(&path, "Note", "Uno", "Uno", &Autore::Utente).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn rinominare_ed_eliminare_una_nota_riscrivono_solo_note_json_in_ordine_di_creazione() {
+        let dir = temp_dir("tape-note-nomi");
+        let path = dir.join("Call.tape");
+        write(
+            &path,
+            &[(Ingresso::Mix, &ogg(&dir))],
+            &document(&["Ciao."]),
+            Some(&[0.5]),
+        )
+        .unwrap();
+        let mut before = entries(&path);
+        for nome in ["Note", "Nota 2", "Nota 3"] {
+            salva_nota(&path, nome, nome, "", &Autore::Utente).unwrap();
+        }
+        let nomi = |path: &Path| -> Vec<String> {
+            note(path).unwrap().into_iter().map(|n| n.nome).collect()
+        };
+
+        rinomina_nota(&path, "Nota 2", "Domande per Sara").unwrap();
+        assert_eq!(nomi(&path), ["Note", "Domande per Sara", "Nota 3"]);
+        assert_eq!(note(&path).unwrap()[1].testo, "Nota 2");
+
+        elimina_nota(&path, "Note").unwrap();
+        assert_eq!(nomi(&path), ["Domande per Sara", "Nota 3"]);
+        // Le altre voci restano byte per byte.
+        let mut after = entries(&path);
+        after.remove(NOTE);
+        before.remove(NOTE);
+        assert_eq!(after, before);
+
+        assert_eq!(
+            elimina_nota(&path, "Note"),
+            Err(AppError::NoteNotFound("Note".into()))
+        );
+        assert_eq!(
+            rinomina_nota(&path, "Note", "Altro"),
+            Err(AppError::NoteNotFound("Note".into()))
+        );
+    }
+
+    #[test]
+    fn un_nome_vuoto_lungo_o_gia_usato_si_rifiuta_senza_scrivere() {
+        let dir = temp_dir("tape-note-nomi-rifiutati");
+        let path = dir.join("Call.tape");
+        write(
+            &path,
+            &[(Ingresso::Mix, &ogg(&dir))],
+            &document(&["Ciao."]),
+            None,
+        )
+        .unwrap();
+        salva_nota(&path, "Note", "Uno", "", &Autore::Utente).unwrap();
+        salva_nota(&path, "Riepilogo", "Due", "", &Autore::Utente).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let lungo = "è".repeat(61);
+        for nome in ["", "   ", lungo.as_str()] {
+            assert_eq!(
+                rinomina_nota(&path, "Note", nome),
+                Err(AppError::NoteNameInvalid(nome.into()))
+            );
+            assert_eq!(
+                salva_nota(&path, nome, "Tre", "", &Autore::Utente),
+                Err(AppError::NoteNameInvalid(nome.into()))
+            );
+        }
+        assert_eq!(
+            rinomina_nota(&path, "Note", "Riepilogo"),
+            Err(AppError::NoteNameTaken("Riepilogo".into()))
+        );
+        // Lo stesso nome non riscrive; 60 caratteri vanno bene.
+        rinomina_nota(&path, "Note", "Note").unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        rinomina_nota(&path, "Note", &"è".repeat(60)).unwrap();
     }
 
     #[test]

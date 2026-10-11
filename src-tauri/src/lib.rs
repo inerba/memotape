@@ -47,6 +47,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::edit_turno,
             commands::tape_note,
             commands::save_nota,
+            commands::rename_nota,
+            commands::delete_nota,
             commands::unisci_turno,
             commands::taglia_tape,
             commands::set_creato,
