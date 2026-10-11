@@ -71,7 +71,12 @@ import { useLibrary } from "@/features/library/use-library";
 import { useTapeOperations } from "@/features/library/use-tape-operations";
 import { type BozzeAction, bozzeDi } from "@/features/notes/bozze";
 import { NotesTab } from "@/features/notes/notes-tab";
-import { quanteNote, useNote } from "@/features/notes/use-note";
+import {
+  type NoteDelTape,
+  quanteNote,
+  useNote,
+} from "@/features/notes/use-note";
+import { useNoteRegistrazione } from "@/features/notes/use-note-registrazione";
 import { useUscitaProtetta } from "@/features/notes/use-uscita-protetta";
 import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
@@ -184,6 +189,11 @@ export function HomePage() {
   const [message, setMessage] = useState<string | null>(null);
   // Quante volte il Tape mostrato si è ricaricato perché cambiato da fuori: le Note si rileggono.
   const [ricariche, setRicariche] = useState(0);
+  // Le Note della Registrazione restano lasciando la sua vista e tornandoci.
+  const noteRegistrazione = useNoteRegistrazione({
+    onError: setNotice,
+    session,
+  });
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [copied, setCopied] = useState(false);
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
@@ -1106,8 +1116,11 @@ export function HomePage() {
             cleaningPreparing={cleaningPreparing}
             conversation={conversation}
             copied={copied}
+            elapsedMs={elapsedMs}
+            note={noteRegistrazione}
             onCopy={copyActivity}
             onError={setNotice}
+            onMessage={setMessage}
             onPausedChange={setPaused}
             paused={paused}
             sessionId={"id" in session ? session.id : null}
@@ -1241,14 +1254,20 @@ function shownBanner(
   return message ? { settings: false, text: message, tone: "info" } : status;
 }
 
-/** La Registrazione in corso, o il suo completamento dopo Stop, con il testo dal vivo. */
+/**
+ * La Registrazione in corso, o il suo completamento dopo Stop, con il testo dal vivo e le Note:
+ * si scrivono fino allo Stop, e Ctrl+T vi mette il tempo della Registrazione (`elapsedMs`).
+ */
 function LiveView({
   cleaningFailures,
   cleaningPreparing,
   conversation,
   copied,
+  elapsedMs,
+  note,
   onCopy,
   onError,
+  onMessage,
   onPausedChange,
   paused,
   sessionId,
@@ -1258,8 +1277,11 @@ function LiveView({
   cleaningPreparing: RecordingCleaningPreparing[];
   conversation: Conversation;
   copied: boolean;
+  elapsedMs: number;
+  note: NoteDelTape;
   onCopy: () => void;
   onError: (error: AppError) => void;
+  onMessage: (text: string) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
   sessionId: string | null;
@@ -1267,8 +1289,24 @@ function LiveView({
 }) {
   const { t } = useTranslation();
   const { settings } = useSettings();
+  const [tab, setTab] = useState<DocumentTab>("transcript");
   const live = settings.trascrizioneDalVivo ?? false;
   const recording = status.phase === "recording";
+  const header = (
+    <>
+      <DocumentHeader
+        meta={live ? t("live.on") : null}
+        title={t("live.title")}
+      />
+      <DocumentToolbar
+        hasText={false}
+        note={quanteNote(note)}
+        onTab={setTab}
+        parlanti={0}
+        tab={tab}
+      />
+    </>
+  );
   return (
     <>
       <TopBar
@@ -1288,21 +1326,35 @@ function LiveView({
           </Crumb>
         }
       />
-      <TranscriptView
-        conversation={conversation}
-        empty={
-          <p className="max-w-[34rem] py-6 text-muted-foreground leading-relaxed">
-            {live ? t("live.waiting") : t("live.off")}
-          </p>
-        }
-        header={
-          <DocumentHeader
-            meta={live ? t("live.on") : null}
-            title={t("live.title")}
-          />
-        }
-        parlanti={NO_PARLANTI}
-      />
+      {tab === "note" ? (
+        <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
+            {header}
+            {/* I tempi restano testo finché la Registrazione non è un Tape. */}
+            <NotesTab
+              bozza
+              durataMs={0}
+              note={note}
+              onError={onError}
+              onMessage={onMessage}
+              player={{ positionMs: elapsedMs }}
+              readOnly={!recording}
+              scarti={0}
+            />
+          </div>
+        </section>
+      ) : (
+        <TranscriptView
+          conversation={conversation}
+          empty={
+            <p className="max-w-[34rem] py-6 text-muted-foreground leading-relaxed">
+              {live ? t("live.waiting") : t("live.off")}
+            </p>
+          }
+          header={header}
+          parlanti={NO_PARLANTI}
+        />
+      )}
       {recording ? (
         <Dock>
           <RecordingPanel

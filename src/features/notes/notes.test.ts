@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { Nota } from "@/bindings";
 import {
   apertaIniziale,
+  bozzaNote,
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
@@ -181,4 +182,18 @@ test("la firma dice l'ora per oggi, giorno e ora per gli altri giorni", () => {
   expect(oraDellaFirma("2026-10-09T08:05:00", adesso, "it")).toBe(
     "9 ott, 08:05"
   );
+});
+
+test("la bozza della Registrazione ha le Note scritte, in ordine, anche svuotate, non quelle nuove mai scritte", () => {
+  expect(
+    bozzaNote([
+      { nome: "Note", salvato: "Decidere [1:05]" },
+      { nome: "Nota 2", salvato: null },
+      { nome: "Domande", salvato: "" },
+    ])
+  ).toEqual([
+    { nome: "Note", testo: "Decidere [1:05]" },
+    { nome: "Domande", testo: "" },
+  ]);
+  expect(bozzaNote([{ nome: "Note", salvato: null }])).toEqual([]);
 });

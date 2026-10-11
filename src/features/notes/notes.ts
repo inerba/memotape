@@ -1,4 +1,4 @@
-import type { AppError, Nota } from "@/bindings";
+import type { AppError, BozzaNota, Nota } from "@/bindings";
 
 /** Chi ha scritto una Nota l'ultima volta e quando. */
 export type Firma = Pick<Nota, "autore" | "modificata">;
@@ -151,4 +151,14 @@ export function salvataggio(
 ): Salvataggio | null {
   const atteso = salvato ?? "";
   return bozza === atteso ? null : { atteso, nome, testo: bozza };
+}
+
+/**
+ * Le Note della Registrazione da mettere nella bozza: quelle scritte almeno una volta, anche se
+ * ora vuote, in ordine. Una Nota nuova mai scritta non c'è.
+ */
+export function bozzaNote(note: NotaAperta[]): BozzaNota[] {
+  return note.flatMap((n) =>
+    n.salvato === null ? [] : [{ nome: n.nome, testo: n.salvato }]
+  );
 }
