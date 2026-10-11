@@ -1,0 +1,87 @@
+{
+  "riconosce": [
+    {
+      "caso": "minuti, minuti a due cifre e ore",
+      "testo": "Decisione [12:40], poi [5:07] e [05:07] e [1:02:05].",
+      "tempi": [
+        ["[12:40]", 760000],
+        ["[5:07]", 307000],
+        ["[05:07]", 307000],
+        ["[1:02:05]", 3725000]
+      ]
+    },
+    {
+      "caso": "non sono tempi",
+      "testo": "[12:4] [123:00] [12:60] [1:60:00] [1:2:03] [12:40:5] [ 1:00] [a:00] [] [:00]",
+      "tempi": []
+    },
+    {
+      "caso": "il codice inline resta codice, anche con più apici",
+      "testo": "`[12:40]` e ``a `[1:00]` b`` e [2:00]",
+      "tempi": [["[2:00]", 120000]]
+    },
+    {
+      "caso": "un apice senza chiusura è testo",
+      "testo": "`[1:00]",
+      "tempi": [["[1:00]", 60000]]
+    },
+    {
+      "caso": "testo e indirizzo di un link restano del link",
+      "testo": "[12:40](https://x.it) e [vedi [1:00]](u) e [x](https://x.it/[3:00]) e [2:00]",
+      "tempi": [["[2:00]", 120000]]
+    },
+    {
+      "caso": "indirizzi tra parentesi angolari e nudi",
+      "testo": "<https://x.it/[1:00]> https://x.it/[2:00] www.x.it/[4:00] [3:00]",
+      "tempi": [["[3:00]", 180000]]
+    },
+    {
+      "caso": "una quadra con la barra davanti è testo",
+      "testo": "\\[1:00] [2:00]",
+      "tempi": [["[2:00]", 120000]]
+    },
+    {
+      "caso": "caselle e caratteri non ASCII intorno",
+      "testo": "- [ ] Già fatto — [0:40] ✓\n- [x] [10:00]",
+      "tempi": [["[0:40]", 40000], ["[10:00]", 600000]]
+    }
+  ],
+  "sposta": [
+    {
+      "caso": "dentro il tratto tolto torna testo, dopo si sposta",
+      "testo": "Inizio [0:30], poi [1:10] e [2:00].",
+      "tagli": [[20000, 60000]],
+      "atteso": "Inizio 0:30, poi [0:30] e [1:20]."
+    },
+    {
+      "caso": "prima del tratto tolto resta scritto com'era",
+      "testo": "[05:00] e [1:00:00]",
+      "tagli": [[400000, 410000]],
+      "atteso": "[05:00] e [59:50]"
+    },
+    {
+      "caso": "più tratti tolti, con le ore",
+      "testo": "Fine [1:02:05]",
+      "tagli": [[0, 60000], [3000000, 3060000]],
+      "atteso": "Fine [1:00:05]"
+    },
+    {
+      "caso": "l'inizio del tratto è tolto, la fine resta",
+      "testo": "[0:10] [0:20]",
+      "tagli": [[10000, 20000]],
+      "atteso": "0:10 [0:10]"
+    },
+    {
+      "caso": "codice, link e il resto del Markdown restano carattere per carattere",
+      "testo": "## Già\n- [ ] **Sara**: `[1:00]` e [1:00](u) — [1:00] ✓\n\\[1:00]",
+      "tagli": [[0, 30000]],
+      "atteso": "## Già\n- [ ] **Sara**: `[1:00]` e [1:00](u) — [0:30] ✓\n\\[1:00]"
+    },
+    {
+      "caso": "un tempo che non si sposta al secondo resta com'era",
+      "testo": "[0:05] [1:00]",
+      "tagli": [[30000, 30400]],
+      "atteso": "[0:05] [0:59]"
+    }
+  ]
+}

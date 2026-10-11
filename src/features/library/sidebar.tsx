@@ -46,7 +46,7 @@ import {
 import { siblingTitles } from "@/features/library/tape-header";
 import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
 import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
-import type { PhraseRef } from "@/features/transcription/phrases";
+import type { Trovato } from "@/features/source/view";
 import { durationWords } from "@/lib/duration";
 
 /**
@@ -135,7 +135,7 @@ export function Sidebar({
   onImport: () => void;
   onHome: () => void;
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
-  onOpen: (path: string, phrase?: PhraseRef) => void;
+  onOpen: (path: string, phrase?: Trovato) => void;
   /** Nuova registrazione: il pulsante di `record`, l'icona della striscia e Ctrl+N. */
   onRecord: () => void;
   onShowAll: () => void;

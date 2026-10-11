@@ -26,6 +26,11 @@ export function noteIniziali(note: Nota[], predefinito: string): NotaAperta[] {
     : [{ nome: predefinito, salvato: null }];
 }
 
+/** La Nota da aprire: quella di nome `scelta` (un risultato della ricerca) se c'è, se no la prima. */
+export function apertaIniziale(note: NotaAperta[], scelta?: string): string {
+  return (note.find((n) => n.nome === scelta) ?? note[0]).nome;
+}
+
 /**
  * Il nome di una Nota nuova: `nome(n)` (per esempio «Nota 3») con `n` il numero delle Note più uno,
  * o il primo seguente non usato.

@@ -34,6 +34,10 @@ function campoDi(target: EventTarget | null): Campo {
   if (!(target instanceof Element)) {
     return null;
   }
+  // Il campo di una Nota (CodeMirror) ha i suoi tasti di formato.
+  if (target.closest(".cm-editor")) {
+    return "nota";
+  }
   if (
     target.closest(
       "textarea, select, [contenteditable], input:not([type=range])"
@@ -162,6 +166,7 @@ const GRUPPI: Gruppo[] = [
   "testo",
   "registrazione",
   "libreria",
+  "note",
 ];
 
 /** Il pannello «Scorciatoie da tastiera»: Esc, Ctrl+/ o un clic fuori lo chiudono. */

@@ -191,3 +191,32 @@ test("nel pannello indietro e avanti, e le due velocità, stanno su una riga", (
     { riga: "tornaAlPunto", tasti: ["Ctrl", "J"] },
   ]);
 });
+
+test("nel campo di una Nota Ctrl+B, Ctrl+I e Ctrl+K formattano: barra laterale e ricerca tacciono", () => {
+  for (const key of ["b", "i", "k"]) {
+    expect(scorciatoia(ctrl(key), "nota", LIBERO)).toBeNull();
+  }
+  // Per gli altri tasti il campo di una Nota è un campo di testo.
+  expect(scorciatoia(tasto(" "), "nota", LIBERO)).toBeNull();
+  expect(scorciatoia(ctrl("n"), "nota", LIBERO)?.azione).toBe(
+    "nuovaRegistrazione"
+  );
+  // Fuori dal campo restano come prima, anche in un altro campo di testo.
+  expect(scorciatoia(ctrl("b"), "testo", LIBERO)?.azione).toBe("barraLaterale");
+  expect(scorciatoia(ctrl("i"), null, LIBERO)).toBeNull();
+});
+
+test("il pannello ha il gruppo Note con i tasti del formato", () => {
+  expect(righe("note")).toEqual([
+    { riga: "grassetto", tasti: ["Ctrl", "B"] },
+    { riga: "corsivo", tasti: ["Ctrl", "I"] },
+    { riga: "link", tasti: ["Ctrl", "K"] },
+    { riga: "tempoNota", tasti: ["Ctrl", "T"] },
+  ]);
+});
+
+test("Ctrl+T scrive il tempo del player anche con il focus nel campo della Nota", () => {
+  for (const campo of ["nota", null] as const) {
+    expect(scorciatoia(ctrl("t"), campo, LIBERO)?.azione).toBe("tempoNota");
+  }
+});

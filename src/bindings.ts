@@ -32,6 +32,8 @@ export const commands = {
 } | null>("check_update"),
 	/**  Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro. */
 	openUpdate: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_update", { url })),
+	/**  Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView. */
+	openLink: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_link", { url })),
 	/**
 	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
 	 *  Tape nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Tape si
@@ -115,8 +117,9 @@ export const commands = {
 	 */
 	tapePeaks: (path: string, count: number) => typedError<(number | null)[], AppError>(__TAURI_INVOKE("tape_peaks", { path, count })),
 	/**
-	 *  Salva il Markdown del Tape `path` dove sceglie l'utente nel dialog di sistema, proponendo
-	 *  `<titolo>.md`. Restituisce il file scritto, o `null` se l'utente annulla.
+	 *  Salva il Markdown del Tape `path`, con le Note prima della Trascrizione, dove sceglie l'utente
+	 *  nel dialog di sistema, proponendo `<titolo>.md`. Restituisce il file scritto, o `null` se
+	 *  l'utente annulla.
 	 */
 	exportMarkdown: (path: string) => typedError<string | null, AppError>(__TAURI_INVOKE("export_markdown", { path })),
 	/**
@@ -510,6 +513,12 @@ export type Nota_Serialize = {
 	modificata: string,
 };
 
+/**  Una Nota trovata: il suo nome e l'estratto, con le parole trovate come in `SearchHit`. */
+export type NoteHit = {
+	nome: string,
+	estratto: string,
+};
+
 /**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */
 export type OpenedTape = OpenedTape_Serialize | OpenedTape_Deserialize;
 
@@ -603,12 +612,13 @@ export type SearchHit = {
 };
 
 /**
- *  Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio (nessuna se ha trovato
- *  solo il titolo).
+ *  Un Tape trovato dalla ricerca, con le Frasi trovate in ordine di inizio e le Note trovate
+ *  (nessuna se ha trovato solo il titolo).
  */
 export type SearchResult = {
 	tape: TapeEntry,
 	frasi: SearchHit[],
+	note: NoteHit[],
 };
 
 export type Sensibilita = "spento" | "sensibile" | "bilanciato" | "selettivo";

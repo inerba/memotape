@@ -11,6 +11,17 @@ import {
   type PhraseRef,
 } from "@/features/transcription/phrases";
 
+/** Cosa ha trovato un risultato della ricerca: una Frase o una Nota, per nome. */
+export type Trovato = PhraseRef | { nota: string };
+
+/** La Frase o il nome della Nota di un risultato della ricerca. */
+export function trovato(t: Trovato | null): {
+  frase: PhraseRef | null;
+  nota?: string;
+} {
+  return t && "nota" in t ? { frase: null, nota: t.nota } : { frase: t };
+}
+
 /** Un Tape aperto: le Frasi e le informazioni. */
 export interface TapeView {
   conversation: Conversation;
@@ -24,8 +35,8 @@ export interface TapeView {
  */
 export interface SourceView {
   consulted: TapeView | null;
-  /** La Frase di un risultato della ricerca, evidenziata nel Tape aperto. */
-  highlight: PhraseRef | null;
+  /** La Frase o la Nota di un risultato della ricerca, mostrata nel Tape aperto. */
+  highlight: Trovato | null;
   homeOpen: boolean;
   libraryOpen: boolean;
   /** Il Tape del doppio clic in Esplora file, finché non si può aprire. */
@@ -114,7 +125,7 @@ export type SourceViewAction =
       type: "sourceOpened";
       path: string | null;
       tape?: OpenedTape;
-      phrase?: PhraseRef;
+      phrase?: Trovato;
       restart?: boolean;
       keepView?: boolean;
     }
@@ -122,13 +133,13 @@ export type SourceViewAction =
       type: "tapeConsulted";
       path: string;
       tape: OpenedTape;
-      phrase?: PhraseRef;
+      phrase?: Trovato;
     }
   /** Un Tape della barra laterale, della Libreria o della ricerca, di Apri file, del doppio clic o rilasciato. */
   | {
       type: "openRequested";
       path: string;
-      phrase?: PhraseRef;
+      phrase?: Trovato;
       opening: Opening;
     }
   /** "Attività in corso" nella barra laterale. */

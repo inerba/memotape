@@ -235,6 +235,25 @@ impl Labels {
 /// Il documento: titolo, intestazione con data, durata, modello e Lingua del parlato, poi i
 /// paragrafi. In Markdown il titolo è un `#` e le etichette sono in grassetto.
 pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> String {
+    render_with_note(transcript, &[], labels, format)
+}
+
+/// Il Markdown di Esporta Markdown…: come `render`, con dopo l'intestazione le Note non vuote in
+/// ordine, ognuna sotto `## nome` con il suo testo com'è, e la Trascrizione sotto un suo `##`.
+pub fn export_markdown(
+    transcript: &Transcript,
+    note: &[crate::tape::Nota],
+    labels: &Labels,
+) -> String {
+    render_with_note(transcript, note, labels, CopiaCome::Markdown)
+}
+
+fn render_with_note(
+    transcript: &Transcript,
+    note: &[crate::tape::Nota],
+    labels: &Labels,
+    format: CopiaCome,
+) -> String {
     let markdown = format == CopiaCome::Markdown;
     let mut fields = vec![(labels.get("/transcript/date"), transcript.date.clone())];
     if let Some(durata_ms) = transcript.durata_ms {
@@ -291,6 +310,13 @@ pub fn render(transcript: &Transcript, labels: &Labels, format: CopiaCome) -> St
         } else {
             writeln!(out, "{label}: {value}")
         };
+    }
+    let note: Vec<_> = note.iter().filter(|n| !n.testo.trim().is_empty()).collect();
+    for nota in &note {
+        let _ = writeln!(out, "\n## {}\n\n{}", nota.nome, nota.testo.trim_end());
+    }
+    if !note.is_empty() {
+        let _ = writeln!(out, "\n## {}", labels.get("/tabs/transcript"));
     }
     for (label, text) in paragraphs(transcript, labels) {
         let _ = match label {
@@ -358,7 +384,7 @@ fn silence_ms(previous: &Phrase, next: &Phrase) -> u32 {
 }
 
 /// `1:02:03` oltre l'ora, altrimenti `2:03`.
-fn duration(ms: u32) -> String {
+pub(crate) fn duration(ms: u32) -> String {
     let seconds = ms / 1000;
     let (hours, minutes, seconds) = (seconds / 3600, seconds / 60 % 60, seconds % 60);
     if hours > 0 {
@@ -426,6 +452,42 @@ mod tests {
              - **Modello:** Nemotron\n\
              - **Lingua del parlato:** Italiano\n\
              \nBuongiorno. Iniziamo.\n"
+        );
+    }
+
+    #[test]
+    fn l_export_markdown_mette_le_note_in_ordine_prima_della_trascrizione() {
+        let nota = |nome: &str, testo: &str| crate::tape::Nota {
+            nome: nome.into(),
+            testo: testo.into(),
+            autore: crate::tape::Autore::Utente,
+            modificata: "2026-10-11T18:03:00+02:00".into(),
+        };
+        let document = transcript(vec![phrase(0, 3000, "Buongiorno.")]);
+        let note = [
+            nota("Riepilogo", "### Da fare\n\n- [ ] Preventivo [12:40]\n"),
+            nota("Vuota", "  \n"),
+            nota("Mie note", "Chiamare **Sara**"),
+        ];
+        assert_eq!(
+            export_markdown(&document, &note, &Labels::of(Language::It)),
+            "# Riunione\n\n\
+             - **Data:** 2026-10-03 17:05\n\
+             - **Durata:** 1:02:03\n\
+             - **Modello:** Nemotron\n\
+             - **Lingua del parlato:** Italiano\n\
+             \n## Riepilogo\n\
+             \n### Da fare\n\
+             \n- [ ] Preventivo [12:40]\n\
+             \n## Mie note\n\
+             \nChiamare **Sara**\n\
+             \n## Trascrizione\n\
+             \nBuongiorno.\n"
+        );
+        // Senza Note è il Markdown di Copia testo.
+        assert_eq!(
+            export_markdown(&document, &[], &Labels::of(Language::It)),
+            markdown(&document)
         );
     }
 

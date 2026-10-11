@@ -4,12 +4,12 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Plugin di decorazioni nostro su `@codemirror/lang-markdown`: segni nascosti fuori dalla riga del cursore, visibili sulla riga attiva
-- [ ] Un clic su una casella la spunta o la toglie cambiando solo `[ ]`/`[x]` nel testo
-- [ ] Un link si apre nel browser di Windows e non nella WebView
-- [ ] Nel campo Ctrl+B, Ctrl+I e Ctrl+K formattano e non arrivano a barra laterale e ricerca; fuori dal campo restano come prima
-- [ ] Il pannello «Scorciatoie da tastiera» ha il gruppo Note
-- [ ] Cursore, selezione e focus visibili nei due temi (verifica a mano nella finestra Windows)
-- [ ] I sei controlli verdi
+- [x] Plugin di decorazioni nostro su `@codemirror/lang-markdown`: segni nascosti fuori dalla riga del cursore, visibili sulla riga attiva
+- [x] Un clic su una casella la spunta o la toglie cambiando solo `[ ]`/`[x]` nel testo
+- [x] Un link si apre nel browser di Windows e non nella WebView
+- [x] Nel campo Ctrl+B, Ctrl+I e Ctrl+K formattano e non arrivano a barra laterale e ricerca; fuori dal campo restano come prima
+- [x] Il pannello «Scorciatoie da tastiera» ha il gruppo Note
+- [ ] Cursore, selezione e focus visibili nei due temi (verifica a mano nella finestra Windows): resta da fare nell'app, vedi `docs/sviluppo/verifica-manuale.md`; provati in un browser solo il tema chiaro, le decorazioni, la casella, il link e i tasti
+- [x] I sei controlli verdi

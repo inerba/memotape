@@ -548,6 +548,15 @@
     "label": "Notes du Tape",
     "placeholder": "Écrivez vos notes : décisions, choses à faire, liens. En Markdown, comme **gras** ou - listes.",
     "saved": "Enregistrées dans le Tape",
+    "jump": "Écouter à partir de {{time}}",
+    "format": {
+      "label": "Format",
+      "bold": "Gras",
+      "italic": "Italique",
+      "link": "Lien",
+      "list": "Liste",
+      "task": "À faire"
+    },
     "list": "Notes du Tape, par nom",
     "new": "Nouvelle note",
     "newName": "Note {{n}}",
@@ -594,7 +603,8 @@
       "ascolto": "Écoute",
       "testo": "Texte",
       "registrazione": "Enregistrement",
-      "libreria": "Bibliothèque"
+      "libreria": "Bibliothèque",
+      "note": "Notes"
     },
     "lines": {
       "nuovaRegistrazione": "Nouvel enregistrement",
@@ -611,7 +621,11 @@
       "pausaRegistrazione": "Mettre en pause ou reprendre",
       "apriTape": "Ouvrir le Tape",
       "rinominaTape": "Renommer le Tape",
-      "cestinaTape": "Mettre à la Corbeille"
+      "cestinaTape": "Mettre à la Corbeille",
+      "grassetto": "Gras",
+      "corsivo": "Italique",
+      "link": "Lien",
+      "tempoNota": "Insérer le temps du lecteur"
     },
     "keys": {
       "Ctrl": "Ctrl",

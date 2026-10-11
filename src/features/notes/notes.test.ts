@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { Nota } from "@/bindings";
 import {
+  apertaIniziale,
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
@@ -74,6 +75,16 @@ test("eliminata la Nota aperta si apre la seguente, o la precedente se era l'ult
     aperta: "Note",
     note: [{ nome: "Note", salvato: null }],
   });
+});
+
+test("un risultato della ricerca apre la sua Nota, la prima se non c'è più", () => {
+  const note = noteIniziali(
+    [nota("Mie note", "Uno"), nota("Riepilogo", "## Decisioni")],
+    "Note"
+  );
+  expect(apertaIniziale(note, "Riepilogo")).toBe("Riepilogo");
+  expect(apertaIniziale(note, "Rinominata")).toBe("Mie note");
+  expect(apertaIniziale(note)).toBe("Mie note");
 });
 
 test("si salva solo una bozza diversa dal testo su disco, che diventa l'atteso", () => {

@@ -11,6 +11,7 @@ mod mcp;
 mod player;
 mod startup;
 mod tape;
+mod tempi_nota;
 mod transcript;
 mod updates;
 
@@ -36,6 +37,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_source,
             commands::check_update,
             commands::open_update,
+            commands::open_link,
             commands::transcribe,
             commands::diarize,
             commands::cancel_transcription,

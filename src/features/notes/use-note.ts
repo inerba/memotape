@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands } from "@/bindings";
 import {
+  apertaIniziale,
   type NotaAperta,
   nomeNuovo,
   nomeRifiutato,
@@ -37,16 +38,19 @@ export function quanteNote(note: NoteDelTape | null): number {
  * del Tape, non quanto la scheda: le Note nuove e ancora vuote restano passando da una scheda
  * all'altra e spariscono uscendo dal Tape, perché su disco non ci sono. Salvataggi, rinomine ed
  * eliminazioni vanno uno dopo l'altro in una coda, e ognuno parte dalle Note lasciate dal
- * precedente; `onSaved` riceve la data di modifica nuova del Tape. `null` finché non sono lette.
+ * precedente; `onSaved` riceve la data di modifica nuova del Tape. `scelta` (la Nota di un risultato
+ * della ricerca) si apre appena c'è. `null` finché non sono lette.
  */
 export function useNote({
   onError,
   onSaved,
   path,
+  scelta,
 }: {
   onError: (error: AppError) => void;
   onSaved: (path: string, modificato: number | null) => void;
   path: string;
+  scelta?: string;
 }): NoteDelTape | null {
   const { t } = useTranslation();
   const [stato, setStato] = useState<Stato | null>(null);
@@ -54,6 +58,8 @@ export function useNote({
   const attuale = useRef<Stato | null>(null);
   const coda = useRef<Promise<unknown>>(Promise.resolve());
   const predefinito = t("notes.defaultName");
+  const sceltaAllaLettura = useRef(scelta);
+  sceltaAllaLettura.current = scelta;
 
   const aggiorna = useCallback((cambia: (stato: Stato) => Stato) => {
     if (attuale.current) {
@@ -78,7 +84,10 @@ export function useNote({
         return;
       }
       const note = noteIniziali(result.data, predefinito);
-      attuale.current = { aperta: note[0].nome, note };
+      attuale.current = {
+        aperta: apertaIniziale(note, sceltaAllaLettura.current),
+        note,
+      };
       setStato(attuale.current);
     });
     return () => {
@@ -90,6 +99,11 @@ export function useNote({
     (aperta: string) => aggiorna((s) => ({ ...s, aperta })),
     [aggiorna]
   );
+  useEffect(() => {
+    if (scelta && attuale.current?.note.some((n) => n.nome === scelta)) {
+      apri(scelta);
+    }
+  }, [apri, scelta]);
 
   const crea = useCallback(() => {
     const nomi = attuale.current?.note.map((n) => n.nome) ?? [];

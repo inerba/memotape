@@ -89,6 +89,8 @@ import {
   opening,
   pendingTape,
   type TapeView,
+  type Trovato,
+  trovato,
 } from "@/features/source/view";
 import {
   afterDiarization,
@@ -251,7 +253,7 @@ export function HomePage() {
   // ricerca con la Frase trovata evidenziata; `restart`: la sua vista riparte dall'inizio.
   // Restituisce l'errore, se non si apre.
   const loadTape = useCallback(
-    async (path: string, phrase?: PhraseRef, restart = false) => {
+    async (path: string, phrase?: Trovato, restart = false) => {
       const result = await commands.openTape(path);
       if (result.status === "error") {
         return result.error;
@@ -270,7 +272,7 @@ export function HomePage() {
   );
 
   const openTape = useCallback(
-    async (path: string, phrase?: PhraseRef) => {
+    async (path: string, phrase?: Trovato) => {
       const error = await loadTape(path, phrase);
       if (error) {
         dispatch({ status: { error, phase: "failed" }, type: "status" });
@@ -281,7 +283,7 @@ export function HomePage() {
 
   // Durante un'Attività un Tape della Libreria si consulta accanto, senza toccarla.
   const consult = useCallback(
-    async (path: string, phrase?: PhraseRef) => {
+    async (path: string, phrase?: Trovato) => {
       const result = await commands.openTape(path);
       if (result.status === "error") {
         setNotice(result.error);
@@ -297,7 +299,7 @@ export function HomePage() {
   // trovata), o un percorso di Apri file, del doppio clic o rilasciato: la vista della Sorgente
   // dice cosa leggere, qui lo si legge.
   const requestOpen = useCallback(
-    (path: string, phrase?: PhraseRef, fromLibrary = false) => {
+    (path: string, phrase?: Trovato, fromLibrary = false) => {
       const how = opening(state.view, status, path, fromLibrary);
       dispatch({ opening: how, path, phrase, type: "openRequested" });
       if (how === "restart") {
@@ -321,7 +323,7 @@ export function HomePage() {
   }, [requestOpen, t]);
 
   const openFromLibrary = useCallback(
-    (path: string, phrase?: PhraseRef) => requestOpen(path, phrase, true),
+    (path: string, phrase?: Trovato) => requestOpen(path, phrase, true),
     [requestOpen]
   );
 
@@ -1533,7 +1535,7 @@ function TapePane({
   busy: boolean;
   copied: boolean;
   editable: boolean;
-  highlight: PhraseRef | null;
+  highlight: Trovato | null;
   library: LibraryList;
   onCopy: (path: string) => void;
   onCreato: (path: string, local: string) => void;
@@ -1578,24 +1580,30 @@ function TapePane({
   );
   const parlanti = editable ? allParlanti : NO_PARLANTI;
   const transcribing = isSource && running;
-  const player = usePlayer(info?.durataMs ?? 0);
+  const durataMs = info?.durataMs ?? 0;
+  const player = usePlayer(durataMs);
   // La Frase di un risultato della ricerca porta lì il player, senza avviarlo.
   const phrases = useRef(conversation.phrases);
   useEffect(() => {
     phrases.current = conversation.phrases;
   }, [conversation.phrases]);
   const { audio, move } = player;
+  // Un risultato in una Nota apre la scheda Note su quella Nota.
+  const { frase, nota } = trovato(highlight);
   useEffect(() => {
+    if (nota !== undefined) {
+      setTab("note");
+      return;
+    }
     const found = phrases.current.find(
-      (p) =>
-        p.ingresso === highlight?.ingresso && p.phraseId === highlight.phraseId
+      (p) => p.ingresso === frase?.ingresso && p.phraseId === frase.phraseId
     );
     if (found) {
       setTab("transcript");
       audio.current?.pause();
       move(found.inizioMs, "jump");
     }
-  }, [audio, highlight, move]);
+  }, [audio, frase, move, nota]);
   const copy = useCallback(() => onCopy(path), [onCopy, path]);
   const rename = useCallback(
     (voce: Parlante, nome: string) => {
@@ -1638,7 +1646,12 @@ function TapePane({
     [taglio.chiedi, taglio.durataMs]
   );
   const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
-  const note = useNote({ onError, onSaved: onNoteSalvate, path });
+  const note = useNote({
+    onError,
+    onSaved: onNoteSalvate,
+    path,
+    scelta: nota,
+  });
 
   const header = (
     <>
@@ -1715,7 +1728,7 @@ function TapePane({
           conversation={conversation}
           empty={empty}
           header={header}
-          highlight={highlight}
+          highlight={frase}
           {...editingActions}
           onRename={rename}
           onRenaming={setRenaming}
@@ -1730,8 +1743,11 @@ function TapePane({
             {header}
             {tab === "note" ? (
               <NotesTab
+                durataMs={durataMs}
                 note={note}
+                onError={onError}
                 onMessage={onMessage}
+                player={listening}
                 readOnly={!editable}
               />
             ) : (

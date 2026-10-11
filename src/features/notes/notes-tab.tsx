@@ -1,10 +1,24 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
-import { Check, Copy, Ellipsis, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Bold,
+  Check,
+  Copy,
+  Ellipsis,
+  Italic,
+  Link,
+  List,
+  ListTodo,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import {
   type ChangeEvent,
+  type ComponentType,
   type KeyboardEvent,
+  type MouseEvent,
   type RefObject,
   useCallback,
   useEffect,
@@ -12,6 +26,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { type AppError, commands } from "@/bindings";
 import { closeMenu, PopoverMenu } from "@/components/popover-menu";
 import {
   AlertDialog,
@@ -26,7 +41,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MenuItem } from "@/features/library/tape-actions";
+import { keepFocus, type PlayerState } from "@/features/player/player";
+import { type Azione, conTasti } from "@/features/shortcuts/shortcuts";
+import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import { errorText } from "@/features/status/status";
+import { applica, ibrido, type Tempi } from "./ibrido";
+import { type Formato, inserisciTempo } from "./markdown";
 import { type NotaAperta, nomeRifiutato } from "./notes";
 import type { NoteDelTape } from "./use-note";
 
@@ -50,33 +70,72 @@ const TEMA = EditorView.theme({
   "&.cm-focused": { outline: "none" },
 });
 
+/** Un pulsante della barretta del formato, come quelli della barretta del Turno. */
+const ICON_BUTTON =
+  "flex size-7 items-center justify-center rounded-md text-foreground/80 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 [&_svg]:size-4";
+
+/** I pulsanti della barretta: formato, icona, nome (`notes.format.*`) e scorciatoia. */
+const FORMATI: {
+  chiave: string;
+  formato: Formato;
+  Icona: ComponentType;
+  scorciatoia?: Azione;
+}[] = [
+  {
+    chiave: "bold",
+    formato: "grassetto",
+    Icona: Bold,
+    scorciatoia: "grassetto",
+  },
+  {
+    chiave: "italic",
+    formato: "corsivo",
+    Icona: Italic,
+    scorciatoia: "corsivo",
+  },
+  { chiave: "link", formato: "link", Icona: Link, scorciatoia: "link" },
+  { chiave: "list", formato: "elenco", Icona: List },
+  { chiave: "task", formato: "daFare", Icona: ListTodo },
+];
+
+/** Dove sta la barretta sospesa, sopra la selezione e relativa al campo. */
+interface Posizione {
+  left: number;
+  top: number;
+}
+
+interface NotesTabProps {
+  /** La durata del Tape: un tempo da lì in poi resta testo. */
+  durataMs: number;
+  onError: (error: AppError) => void;
+  /** Un avviso, come «Nota copiata». */
+  onMessage: (text: string) => void;
+  /** Manca durante la Registrazione e mentre si trascrive il Tape: niente salti. */
+  player?: Pick<PlayerState, "move" | "positionMs">;
+  readOnly: boolean;
+}
+
 /**
  * La scheda Note di un Tape (ADR-0032): la riga dei nomi delle Note, con «+ Nuova nota», e sotto la
- * Nota aperta in un editor CodeMirror del Markdown grezzo. Doppio clic sul nome o F2 rinomina; il
- * «…» rinomina, copia ed elimina. In sola lettura (un'Attività sul Tape) si leggono e si copiano.
- * Vuota finché le Note non sono lette.
+ * Nota aperta nell'editor ibrido. Doppio clic sul nome o F2 rinomina; il «…» rinomina, copia ed
+ * elimina. In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota finché le Note non
+ * sono lette.
  */
 export function NotesTab({
   note,
   ...props
-}: {
-  note: NoteDelTape | null;
-  /** Un avviso, come «Nota copiata». */
-  onMessage: (text: string) => void;
-  readOnly: boolean;
-}) {
+}: NotesTabProps & { note: NoteDelTape | null }) {
   return note ? <NoteLette note={note} {...props} /> : null;
 }
 
 function NoteLette({
+  durataMs,
   note,
+  onError,
   onMessage,
+  player,
   readOnly,
-}: {
-  note: NoteDelTape;
-  onMessage: (text: string) => void;
-  readOnly: boolean;
-}) {
+}: NotesTabProps & { note: NoteDelTape }) {
   const { t } = useTranslation();
   const [rinominando, setRinominando] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
@@ -197,9 +256,12 @@ function NoteLette({
         </PopoverMenu>
       </div>
       <NotaEditor
+        durataMs={durataMs}
         key={nota.nome}
         nota={nota}
+        onError={onError}
         onSalvate={setSalvate}
+        player={player}
         readOnly={readOnly}
         salva={note.salva}
         view={view}
@@ -329,19 +391,27 @@ function NomeInModifica({
 }
 
 /**
- * L'editor della Nota `nota`, che nasce con il suo testo su disco. Si salva dopo `PAUSA_MS` di
- * pausa, uscendo dal campo e lasciando la Nota o la scheda.
+ * L'editor ibrido della Nota `nota` (ADR-0032), Markdown impaginato fuori dalla riga del cursore,
+ * con la barretta del formato sulla selezione; nasce con il testo su disco. Si salva dopo
+ * `PAUSA_MS` di pausa, uscendo dal campo e lasciando la Nota o la scheda. I Tempi nella Nota sono
+ * pillole che portano lì il `player`; Ctrl+T scrive al cursore il suo tempo.
  */
 function NotaEditor({
+  durataMs,
   nota,
+  onError,
   onSalvate,
+  player,
   readOnly,
   salva,
   view,
 }: {
+  durataMs: number;
   nota: NotaAperta;
+  onError: (error: AppError) => void;
   /** Se su disco c'è il testo dell'editor. */
   onSalvate: (salvate: boolean) => void;
+  player?: Pick<PlayerState, "move" | "positionMs">;
   readOnly: boolean;
   salva: (nome: string, bozza: string) => Promise<boolean>;
   view: RefObject<EditorView | null>;
@@ -351,6 +421,41 @@ function NotaEditor({
   const sola = useRef(new Compartment());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const { nome, salvato } = nota;
+  const [barretta, setBarretta] = useState<Posizione | null>(null);
+  const formatta = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      const formato = e.currentTarget.dataset.formato as Formato;
+      if (view.current) {
+        applica(view.current, formato);
+      }
+    },
+    [view]
+  );
+
+  // Le pillole leggono durata, player e lingua quando si ridisegnano.
+  const attuali = useRef({ durataMs, player, t });
+  attuali.current = { durataMs, player, t };
+  const tempi = useRef<Tempi>({
+    durataMs: () => attuali.current.durataMs,
+    etichetta: (time) => attuali.current.t("notes.jump", { time }),
+    salta: (ms) => attuali.current.player?.move(ms, "jump"),
+  });
+  useScorciatoia(
+    "tempoNota",
+    readOnly || !player
+      ? null
+      : () => {
+          const editor = view.current;
+          if (editor) {
+            editor.dispatch({
+              ...inserisciTempo(editor.state, player.positionMs),
+              scrollIntoView: true,
+              userEvent: "input.time",
+            });
+            editor.focus();
+          }
+        }
+  );
 
   // L'editor vive quanto la Nota aperta: uscendo salva la bozza.
   // biome-ignore lint/correctness/useExhaustiveDependencies: testo e readOnly iniziali; readOnly cambia con il Compartment
@@ -383,7 +488,24 @@ function NotaEditor({
           placeholder(t("notes.placeholder")),
           sola.current.of(soloLettura(readOnly)),
           TEMA,
+          ibrido(
+            (url) =>
+              commands.openLink(url).then((result) => {
+                if (result.status === "error") {
+                  onError(result.error);
+                }
+              }),
+            tempi.current
+          ),
           EditorView.updateListener.of((update) => {
+            if (
+              update.selectionSet ||
+              update.focusChanged ||
+              update.docChanged ||
+              update.geometryChanged
+            ) {
+              misuraBarretta(update.view, host.current, setBarretta);
+            }
             if (update.docChanged) {
               onSalvate(false);
               clearTimeout(timer.current);
@@ -411,7 +533,75 @@ function NotaEditor({
     });
   }, [readOnly, view]);
 
-  return <div className="select-text" ref={host} />;
+  return (
+    // Il campo è di CodeMirror: la barretta gli sta accanto, non dentro.
+    <div className="relative">
+      <div className="select-text" ref={host} />
+      {barretta ? (
+        <div
+          aria-label={t("notes.format.label")}
+          className="absolute z-10 flex -translate-y-full items-center gap-0.5 rounded-lg border bg-card p-0.5 shadow-float"
+          role="toolbar"
+          style={{ left: barretta.left, top: barretta.top }}
+        >
+          {FORMATI.map(({ chiave, formato, Icona, scorciatoia }) => {
+            const etichetta = t(`notes.format.${chiave}`);
+            const titolo = scorciatoia
+              ? conTasti(t, etichetta, scorciatoia)
+              : etichetta;
+            return (
+              <span className="contents" key={formato}>
+                {formato === "elenco" ? (
+                  <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />
+                ) : null}
+                <button
+                  aria-label={titolo}
+                  className={ICON_BUTTON}
+                  data-formato={formato}
+                  onClick={formatta}
+                  onPointerDown={keepFocus}
+                  title={titolo}
+                  type="button"
+                >
+                  <Icona />
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Mette la barretta del formato sopra l'inizio della selezione, se c'è una selezione nel campo
+ * con il focus e si può scrivere; altrimenti la toglie. Legge la geometria quando CodeMirror lo
+ * permette.
+ */
+function misuraBarretta(
+  view: EditorView,
+  campo: HTMLElement | null,
+  imposta: (posizione: Posizione | null) => void
+) {
+  view.requestMeasure({
+    read: (v): Posizione | null => {
+      const { main } = v.state.selection;
+      const inizio =
+        v.hasFocus && !main.empty && !v.state.readOnly && campo
+          ? v.coordsAtPos(main.from)
+          : null;
+      if (!(inizio && campo)) {
+        return null;
+      }
+      const box = campo.getBoundingClientRect();
+      return {
+        left: Math.max(0, inizio.left - box.left),
+        top: inizio.top - box.top - 6,
+      };
+    },
+    write: imposta,
+  });
 }
 
 function soloLettura(readOnly: boolean) {
