@@ -39,7 +39,7 @@ function groupKey(date: Date, today: Date): GroupKey {
 }
 
 /** Quanti Tape mostrano i Recenti della barra laterale. */
-export const RECENTI_MAX = 10;
+export const RECENTI_MAX = 20;
 
 /**
  * I Tape dal più recente, al più `limit`, raggruppati in Oggi, Ieri, Questa settimana e poi per
