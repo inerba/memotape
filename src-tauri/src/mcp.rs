@@ -149,7 +149,7 @@ pub struct TranscriptParams {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct TurnsParams {
+pub struct TurniParams {
     /// The Tape, as its path relative to the Library returned by search or list_tapes.
     tape: String,
     /// The index of the first turn to read: the `next` of the previous page. Omit to start.
@@ -214,57 +214,66 @@ pub struct RenameTapeParams {
     titolo: String,
 }
 
+/// I parametri degli strumenti e dei prompt che chiedono solo un Tape.
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct FixTapeParams {
-    /// The Tape to fix, as its path relative to the Library returned by search or list_tapes.
-    tape: String,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct TrashTapeParams {
+pub struct TapeParams {
     /// The Tape, as its path relative to the Library returned by search or list_tapes.
     tape: String,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct SilencesParams {
-    /// The Tape, as its path relative to the Library returned by search or list_tapes.
-    tape: String,
-}
-
-#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct CutParams {
+pub struct TaglioParams {
     /// The Tape, as its path relative to the Library returned by search or list_tapes.
     tape: String,
     /// The stretches to remove, in ms on the timeline of the Tape as it is now (all of them in
     /// one call): e.g. the `taglio` of each silence returned by find_silences.
-    tagli: Vec<CutOut>,
+    tagli: Vec<TaglioIn>,
 }
 
-/// Un tratto da tagliare, in ms sulla linea del tempo del Tape.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+/// Un Taglio chiesto dall'Assistente, in ms sulla linea del tempo del Tape.
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct CutOut {
+pub struct TaglioIn {
+    inizio_ms: u32,
+    fine_ms: u32,
+}
+
+/// Il Taglio che l'app propone per un Silenzio, in ms sulla linea del tempo del Tape.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TaglioOut {
     inizio_ms: u32,
     fine_ms: u32,
 }
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SilencesOut {
+pub struct SilenziOut {
     #[serde(flatten)]
     tape: TapeOut,
     /// In order of time; empty if the Tape has no long silences or no phrases.
-    silenzi: Vec<SilenceOut>,
+    silenzi: Vec<SilenzioOut>,
+}
+
+/// Dove cade un Silenzio.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum DoveOut {
+    /// Before the first phrase.
+    Inizio,
+    /// Between two turns.
+    Mezzo,
+    /// After the last phrase, up to the end of the Tape.
+    Fine,
 }
 
 /// Un Silenzio, con il Taglio che l'app propone.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SilenceOut {
+pub struct SilenzioOut {
     /// "inizio" (before the first phrase), "mezzo" (between two turns) or "fine" (after the last
     /// phrase, up to the end of the Tape).
-    dove: String,
+    dove: DoveOut,
     /// Where the speech before it ends (0 at the start of the Tape).
     inizio_ms: u32,
     /// Where the speech after it starts (the duration of the Tape at its end).
@@ -273,7 +282,7 @@ pub struct SilenceOut {
     silenzio_ms: u32,
     /// The cut Memotape proposes: the whole silence at the start and at the end, in between 1 s
     /// left on each side. Pass it to cut_tape.
-    taglio: CutOut,
+    taglio: TaglioOut,
 }
 
 /// Un Tape della Libreria.
@@ -353,11 +362,11 @@ pub struct FraseOut {
 
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct TurnsOut {
+pub struct TurniOut {
     #[serde(flatten)]
     tape: TapeOut,
     /// In order of time.
-    turni: Vec<TurnOut>,
+    turni: Vec<TurnoOut>,
     /// How many turns the Tape has.
     total: u32,
     /// The `from` of the next page; null if this is the last one.
@@ -367,7 +376,7 @@ pub struct TurnsOut {
 /// Un Turno come lo mostra l'editor del Turno.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct TurnOut {
+pub struct TurnoOut {
     ingresso: String,
     /// The phrases of the turn: pass them all to edit_turn.
     phrase_ids: Vec<u32>,
@@ -563,7 +572,7 @@ phrases of one speaker, with its Ingresso, phrase ids, speaker, start and end, a
 as Memotape's turn editor shows it. Use it before edit_turn.",
         annotations(title = "Read the turns", read_only_hint = true)
     )]
-    fn read_turns(&self, Parameters(p): Parameters<TurnsParams>) -> Result<Json<TurnsOut>, String> {
+    fn read_turns(&self, Parameters(p): Parameters<TurniParams>) -> Result<Json<TurniOut>, String> {
         log::info!("Assistente: read_turns {} da {:?}", p.tape, p.from);
         let (settings, library) = self.allowed_library()?;
         let path = resolve(library.root(), &p.tape)?;
@@ -582,7 +591,7 @@ as Memotape's turn editor shows it. Use it before edit_turn.",
                 break;
             }
             let first = &visibili[indices[0]];
-            page.push(TurnOut {
+            page.push(TurnoOut {
                 ingresso: first.ingresso.key().into(),
                 phrase_ids: indices.iter().map(|&i| visibili[i].id).collect(),
                 parlante: labels.assigned_name(
@@ -602,7 +611,7 @@ as Memotape's turn editor shows it. Use it before edit_turn.",
             });
         }
         let end = from + page.len();
-        Ok(Json(TurnsOut {
+        Ok(Json(TurniOut {
             tape: tape_of(&p.tape, &path, &document),
             turni: page,
             total: u32::try_from(turni.len()).unwrap_or(u32::MAX),
@@ -662,8 +671,8 @@ Each comes with the cut Memotape proposes: pass them to cut_tape in a single cal
     )]
     fn find_silences(
         &self,
-        Parameters(p): Parameters<SilencesParams>,
-    ) -> Result<Json<SilencesOut>, String> {
+        Parameters(p): Parameters<TapeParams>,
+    ) -> Result<Json<SilenziOut>, String> {
         log::info!("Assistente: find_silences {}", p.tape);
         let (_, library) = self.allowed_library()?;
         let path = resolve(library.root(), &p.tape)?;
@@ -671,23 +680,22 @@ Each comes with the cut Memotape proposes: pass them to cut_tape in a single cal
         let silenzi = document
             .silenzi()
             .into_iter()
-            .map(|s| SilenceOut {
+            .map(|s| SilenzioOut {
                 dove: match s.dove {
-                    tape::DoveSilenzio::Inizio => "inizio",
-                    tape::DoveSilenzio::Mezzo => "mezzo",
-                    tape::DoveSilenzio::Fine => "fine",
-                }
-                .into(),
+                    tape::DoveSilenzio::Inizio => DoveOut::Inizio,
+                    tape::DoveSilenzio::Mezzo => DoveOut::Mezzo,
+                    tape::DoveSilenzio::Fine => DoveOut::Fine,
+                },
                 inizio_ms: s.tratto.start,
                 fine_ms: s.tratto.end,
                 silenzio_ms: s.ms,
-                taglio: CutOut {
+                taglio: TaglioOut {
                     inizio_ms: s.taglio.start,
                     fine_ms: s.taglio.end,
                 },
             })
             .collect();
-        Ok(Json(SilencesOut {
+        Ok(Json(SilenziOut {
             tape: tape_of(&p.tape, &path, &document),
             silenzi,
         }))
@@ -701,7 +709,7 @@ Recycle Bin nothing is cut. Pass all the cuts in one call, in ms on the Tape as 
 cuts proposed by find_silences); call find_silences or read_turns again afterwards for the new times.",
         annotations(title = "Cut a Tape", read_only_hint = false, destructive_hint = true)
     )]
-    fn cut_tape(&self, Parameters(p): Parameters<CutParams>) -> Result<String, String> {
+    fn cut_tape(&self, Parameters(p): Parameters<TaglioParams>) -> Result<String, String> {
         log::info!("Assistente: cut_tape {} {:?}", p.tape, p.tagli);
         let path = self.writable_tape(&p.tape)?;
         let tagli: Vec<_> = p.tagli.iter().map(|t| t.inizio_ms..t.fine_ms).collect();
@@ -788,8 +796,7 @@ phrase of an unknown speaker cannot be named (merge its turn instead).",
         if nome.is_empty() {
             return Err("The name is empty.".into());
         }
-        let settings = Settings::load(&self.places.settings).map_err(|e| e.to_string())?;
-        let labels = transcription::labels(&settings);
+        let labels = transcription::labels(&path.settings);
         let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
         let visibili = document.frasi_visibili();
         let frase = visibili
@@ -883,7 +890,7 @@ of the Tape relative to the Library: use it from now on.",
             destructive_hint = true
         )
     )]
-    fn trash_tape(&self, Parameters(p): Parameters<TrashTapeParams>) -> Result<String, String> {
+    fn trash_tape(&self, Parameters(p): Parameters<TapeParams>) -> Result<String, String> {
         log::info!("Assistente: trash_tape {}", p.tape);
         let path = self.writable_tape(&p.tape)?;
         library::trash_tape(&path).map_err(|e| write_error(&p.tape, &e))?;
@@ -899,7 +906,7 @@ impl Server {
         description = "Tidy up a Tape the way Memotape suggests: a light correction of its turns, \
 cut its long silences, then a title if the current one is generic."
     )]
-    fn fix_tape(&self, Parameters(p): Parameters<FixTapeParams>) -> Vec<PromptMessage> {
+    fn fix_tape(&self, Parameters(p): Parameters<TapeParams>) -> Vec<PromptMessage> {
         log::info!("Assistente: prompt fix_tape {}", p.tape);
         vec![PromptMessage::new_text(
             Role::User,
@@ -986,7 +993,11 @@ impl Server {
         }
         let path = resolve(library.root(), tape)?;
         let lock = tape::prova_attivita(&path).map_err(|e| write_error(tape, &e))?;
-        Ok(Writable { path, _lock: lock })
+        Ok(Writable {
+            path,
+            settings,
+            _lock: lock,
+        })
     }
 }
 
@@ -994,6 +1005,8 @@ impl Server {
 /// Tape a metà della scrittura.
 struct Writable {
     path: PathBuf,
+    /// Le impostazioni lette per il permesso: i nomi dei Parlanti.
+    settings: Settings,
     _lock: Option<std::fs::File>,
 }
 
@@ -1571,9 +1584,9 @@ mod tests {
 
     const CALL: &str = r"Ferrara Quarzi\Call di lunedì.tape";
 
-    fn read_turns(server: &Server, tape: &str, from: Option<u32>, limit: Option<u32>) -> TurnsOut {
+    fn read_turns(server: &Server, tape: &str, from: Option<u32>, limit: Option<u32>) -> TurniOut {
         server
-            .read_turns(Parameters(TurnsParams {
+            .read_turns(Parameters(TurniParams {
                 tape: tape.into(),
                 from,
                 limit,
@@ -1650,11 +1663,7 @@ mod tests {
         assert_eq!(correggi().err().as_deref(), Some(BUSY));
         assert_eq!(bytes(&root, &server, CALL), prima);
         // Lo stesso per il taglio e la rinomina: il Tape resta dov'era, intero.
-        let taglio = CutOut {
-            inizio_ms: 0,
-            fine_ms: 1000,
-        };
-        let tagliato = cut_tape(&server, CALL, &[taglio]);
+        let tagliato = cut_tape(&server, CALL, &[(0, 1000)]);
         assert_eq!(tagliato.err().as_deref(), Some(BUSY));
         let rinominato = rename_tape(&server, CALL, "Altro titolo");
         assert_eq!(rinominato.err().as_deref(), Some(BUSY));
@@ -1665,7 +1674,7 @@ mod tests {
         assert_eq!(nominato.err().as_deref(), Some(BUSY));
         let datato = set_date(&server, "2025-12-31T23:30");
         assert_eq!(datato.err().as_deref(), Some(BUSY));
-        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        let buttato = server.trash_tape(Parameters(TapeParams { tape: CALL.into() }));
         assert_eq!(buttato.err().as_deref(), Some(BUSY));
         assert_eq!(bytes(&root, &server, CALL), prima);
         // Finita l'Attività, come dopo un errore o Annulla, il lock è libero; un'Attività su un
@@ -1686,7 +1695,7 @@ mod tests {
         assert_eq!(turni.tape.titolo, "Call di lunedì");
         assert_eq!(
             turni.turni[1],
-            TurnOut {
+            TurnoOut {
                 ingresso: "mix".into(),
                 phrase_ids: vec![1],
                 parlante: Some("Giulia Ferrara".into()),
@@ -1930,20 +1939,20 @@ mod tests {
         nome.into()
     }
 
-    fn find_silences(server: &Server, tape: &str) -> Result<Vec<SilenceOut>, String> {
+    fn find_silences(server: &Server, tape: &str) -> Result<Vec<SilenzioOut>, String> {
         server
-            .find_silences(Parameters(SilencesParams { tape: tape.into() }))
+            .find_silences(Parameters(TapeParams { tape: tape.into() }))
             .map(|out| out.0.silenzi)
     }
 
     /// Un Silenzio come lo restituisce `find_silences`, con il suo Taglio proposto.
-    fn silenzio(dove: &str, a: u32, b: u32, ms: u32, taglio: (u32, u32)) -> SilenceOut {
-        SilenceOut {
-            dove: dove.into(),
+    fn silenzio(dove: DoveOut, a: u32, b: u32, ms: u32, taglio: (u32, u32)) -> SilenzioOut {
+        SilenzioOut {
+            dove,
             inizio_ms: a,
             fine_ms: b,
             silenzio_ms: ms,
-            taglio: CutOut {
+            taglio: TaglioOut {
                 inizio_ms: taglio.0,
                 fine_ms: taglio.1,
             },
@@ -1973,9 +1982,15 @@ mod tests {
         assert_eq!(
             find_silences(&server, &riunione).unwrap(),
             [
-                silenzio("mezzo", 19_000, 164_000, 146_000, (20_000, 163_000)),
-                silenzio("mezzo", 180_000, 645_000, 466_000, (181_000, 644_000)),
-                silenzio("fine", 655_000, 800_000, 145_000, (656_000, 800_000)),
+                silenzio(DoveOut::Mezzo, 19_000, 164_000, 146_000, (20_000, 163_000)),
+                silenzio(
+                    DoveOut::Mezzo,
+                    180_000,
+                    645_000,
+                    466_000,
+                    (181_000, 644_000)
+                ),
+                silenzio(DoveOut::Fine, 655_000, 800_000, 145_000, (656_000, 800_000)),
             ]
         );
         // All'inizio dai 5 s in su, tolto tutto; in mezzo il silenzio stimato aggiunge hangover e
@@ -1994,8 +2009,8 @@ mod tests {
         assert_eq!(
             find_silences(&server, &soglie).unwrap(),
             [
-                silenzio("inizio", 0, 5000, 5000, (0, 4000)),
-                silenzio("mezzo", 11_000, 15_000, 5000, (12_000, 14_000)),
+                silenzio(DoveOut::Inizio, 0, 5000, 5000, (0, 4000)),
+                silenzio(DoveOut::Mezzo, 11_000, 15_000, 5000, (12_000, 14_000)),
             ]
         );
         // Con gli Ingressi separati il silenzio si misura dalla fine più tarda: il Microfono parla
@@ -2014,8 +2029,8 @@ mod tests {
         assert_eq!(
             find_silences(&server, &accavallati).unwrap(),
             [
-                silenzio("inizio", 0, 6000, 6000, (0, 5000)),
-                silenzio("mezzo", 20_000, 30_000, 11_000, (21_000, 29_000)),
+                silenzio(DoveOut::Inizio, 0, 6000, 6000, (0, 5000)),
+                silenzio(DoveOut::Mezzo, 20_000, 30_000, 11_000, (21_000, 29_000)),
             ]
         );
         // Un Tape senza Frasi non ha Silenzi: non si taglia tutto l'audio di un Tape non trascritto.
@@ -2044,7 +2059,13 @@ mod tests {
         tape::rewrite(&path, &document).unwrap();
         assert_eq!(
             find_silences(&server, &tape).unwrap(),
-            [silenzio("mezzo", 12_000, 20_000, 9000, (13_000, 19_000))]
+            [silenzio(
+                DoveOut::Mezzo,
+                12_000,
+                20_000,
+                9000,
+                (13_000, 19_000)
+            )]
         );
     }
 
@@ -2057,10 +2078,13 @@ mod tests {
         );
     }
 
-    fn cut_tape(server: &Server, tape: &str, tagli: &[CutOut]) -> Result<String, String> {
-        server.cut_tape(Parameters(CutParams {
+    fn cut_tape(server: &Server, tape: &str, tagli: &[(u32, u32)]) -> Result<String, String> {
+        server.cut_tape(Parameters(TaglioParams {
             tape: tape.into(),
-            tagli: tagli.to_vec(),
+            tagli: tagli
+                .iter()
+                .map(|&(inizio_ms, fine_ms)| TaglioIn { inizio_ms, fine_ms })
+                .collect(),
         }))
     }
 
@@ -2092,7 +2116,7 @@ mod tests {
         let tagli: Vec<_> = find_silences(&server, &tape)
             .unwrap()
             .into_iter()
-            .map(|s| s.taglio)
+            .map(|s| (s.taglio.inizio_ms, s.taglio.fine_ms))
             .collect();
         assert_eq!(tagli.len(), 3);
         assert!(cut_tape(&server, &tape, &tagli).is_ok());
@@ -2121,11 +2145,7 @@ mod tests {
         server.cestino = |path| Err(AppError::NoRecycleBin(path.display().to_string()));
         let tape = chiamata(&root);
         let prima = std::fs::read(root.join(&tape)).unwrap();
-        let taglio = CutOut {
-            inizio_ms: 0,
-            fine_ms: 7000,
-        };
-        let rifiuto = cut_tape(&server, &tape, &[taglio]).unwrap_err();
+        let rifiuto = cut_tape(&server, &tape, &[(0, 7000)]).unwrap_err();
         assert!(rifiuto.contains("Recycle Bin"), "{rifiuto}");
         assert_eq!(std::fs::read(root.join(&tape)).unwrap(), prima);
     }
@@ -2136,11 +2156,7 @@ mod tests {
             let (root, server) =
                 server_with(&format!("taglio-spento-{lettura}"), lettura, modifica);
             let prima = bytes(&root, &server, CALL);
-            let taglio = CutOut {
-                inizio_ms: 0,
-                fine_ms: 1000,
-            };
-            let tagliato = cut_tape(&server, CALL, &[taglio]);
+            let tagliato = cut_tape(&server, CALL, &[(0, 1000)]);
             assert_eq!(tagliato.err().as_deref(), Some(errore));
             assert_eq!(bytes(&root, &server, CALL), prima);
         }
@@ -2193,7 +2209,7 @@ mod tests {
                 rename_tape(&server, CALL, "Altro").err().as_deref(),
                 Some(errore)
             );
-            let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+            let buttato = server.trash_tape(Parameters(TapeParams { tape: CALL.into() }));
             assert_eq!(buttato.err().as_deref(), Some(errore));
             assert_eq!(bytes(&root, &server, CALL), prima);
         }
@@ -2203,16 +2219,16 @@ mod tests {
     fn un_tape_buttato_va_nel_cestino_e_l_indice_non_cambia() {
         let (root, server) = server_with("cestino", true, true);
         let indice = bytes(&root, &server, CALL).1;
-        let buttato = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        let buttato = server.trash_tape(Parameters(TapeParams { tape: CALL.into() }));
         assert!(buttato.is_ok(), "{buttato:?}");
         assert!(!root.join(CALL).exists());
         assert_eq!(
             std::fs::read(library::db_path(&server.places.indice, &root)).unwrap(),
             indice
         );
-        let di_nuovo = server.trash_tape(Parameters(TrashTapeParams { tape: CALL.into() }));
+        let di_nuovo = server.trash_tape(Parameters(TapeParams { tape: CALL.into() }));
         assert!(di_nuovo.unwrap_err().contains("open Memotape"));
-        let letto = server.read_turns(Parameters(TurnsParams {
+        let letto = server.read_turns(Parameters(TurniParams {
             tape: CALL.into(),
             from: None,
             limit: None,
@@ -2234,7 +2250,7 @@ mod tests {
                 .any(|a| a.name == "tape" && a.required == Some(true)),
             "{argomenti:?}"
         );
-        let messaggi = server.fix_tape(Parameters(FixTapeParams { tape: CALL.into() }));
+        let messaggi = server.fix_tape(Parameters(TapeParams { tape: CALL.into() }));
         let testo: String = messaggi
             .iter()
             .filter_map(|m| m.content.as_text().map(|t| t.text.clone()))
