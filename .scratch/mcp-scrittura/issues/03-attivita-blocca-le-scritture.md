@@ -4,9 +4,9 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Con il lock dell'Attività preso dal test come lo prende l'app, gli strumenti che scrivono rifiutano con l'errore di Attività in corso e il Tape resta identico
-- [ ] Un lock su un altro Tape non blocca la scrittura
-- [ ] Il lock si rilascia a fine Attività, anche con errore o Annulla
-- [ ] I sei controlli verdi
+- [x] Con il lock dell'Attività preso dal test come lo prende l'app, gli strumenti che scrivono rifiutano con l'errore di Attività in corso e il Tape resta identico
+- [x] Un lock su un altro Tape non blocca la scrittura
+- [x] Il lock si rilascia a fine Attività, anche con errore o Annulla
+- [x] I sei controlli verdi

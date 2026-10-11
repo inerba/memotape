@@ -1041,33 +1041,89 @@ struct Riscrittura {
 // solo l'esterna prenderebbe un altro lock.
 fn writing(path: &Path) -> Result<Riscrittura, AppError> {
     static WRITING: Mutex<()> = Mutex::new(());
-    let root = LIBRERIE
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .iter()
-        .filter(|root| crate::library::inside(path, root))
-        .max_by_key(|root| root.as_os_str().len())
-        .cloned();
-    let Some(root) = root else {
+    let Some(root) = libreria_di(path) else {
         return Ok(Riscrittura {
             _libreria: None,
             _processo: Some(WRITING.lock().unwrap_or_else(PoisonError::into_inner)),
         });
     };
+    let (file, lock) = lock_file(&root, "riscritture.lock")?;
+    file.lock().map_err(|e| unwritable(&lock, &e))?;
+    Ok(Riscrittura {
+        _libreria: Some(file),
+        _processo: None,
+    })
+}
+
+/// Il lock dell'Attività su `path`, un Tape o la cartella del Tape che nascerà: l'app lo tiene per
+/// tutta l'Attività, il server MCP per tutta una scrittura (ADR-0031). Aspetta che sia libero.
+/// `None` fuori da una Libreria registrata. Si rilascia al drop, anche quando il processo finisce.
+pub fn prendi_attivita(path: &Path) -> Result<Option<File>, AppError> {
+    let Some((file, lock)) = file_attivita(path)? else {
+        return Ok(None);
+    };
+    file.lock().map_err(|e| unwritable(&lock, &e))?;
+    Ok(Some(file))
+}
+
+/// Come `prendi_attivita`, senza aspettare: se il lock è preso risponde `ActivityInProgress`.
+pub fn prova_attivita(path: &Path) -> Result<Option<File>, AppError> {
+    let Some((file, lock)) = file_attivita(path)? else {
+        return Ok(None);
+    };
+    file.try_lock().map_err(|e| match e {
+        std::fs::TryLockError::WouldBlock => AppError::ActivityInProgress,
+        std::fs::TryLockError::Error(e) => unwritable(&lock, &e),
+    })?;
+    Ok(Some(file))
+}
+
+/// Il file del lock dell'Attività su `path`: `.memotape\attivita-<hash>.lock` della Libreria, con
+/// l'hash del percorso relativo alla Libreria, in minuscolo e con `/`, lo stesso nell'app e nel
+/// server MCP.
+// ponytail: i file restano in `.memotape`, vuoti, uno per Tape che ha avuto un'Attività; toglierli
+// se diventano troppi.
+fn file_attivita(path: &Path) -> Result<Option<(File, PathBuf)>, AppError> {
+    use sha2::{Digest, Sha256};
+    let Some(root) = libreria_di(path) else {
+        return Ok(None);
+    };
+    let lower = |p: &Path| PathBuf::from(p.to_string_lossy().to_lowercase());
+    let relative = lower(path)
+        .strip_prefix(lower(&root))
+        .unwrap_or(Path::new(""))
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+    let hash = format!("{:x}", Sha256::digest(relative.as_bytes()));
+    lock_file(&root, &format!("attivita-{}.lock", &hash[..16])).map(Some)
+}
+
+/// La Libreria registrata che contiene `path`; con Librerie una dentro l'altra, la più interna.
+fn libreria_di(path: &Path) -> Option<PathBuf> {
+    LIBRERIE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .filter(|root| crate::library::inside(path, root))
+        .max_by_key(|root| root.as_os_str().len())
+        .cloned()
+}
+
+/// Il file `name` nella `.memotape` della Libreria `root`, aperto per prenderne il lock, e il suo
+/// percorso.
+fn lock_file(root: &Path, name: &str) -> Result<(File, PathBuf), AppError> {
     let dir = root.join(crate::managers::recording::TEMP_FOLDER);
     std::fs::create_dir_all(&dir).map_err(|e| unwritable(&dir, &e))?;
-    let lock = dir.join("riscritture.lock");
+    let lock = dir.join(name);
     let file = File::options()
         .write(true)
         .create(true)
         .truncate(false)
         .open(&lock)
         .map_err(|e| unwritable(&lock, &e))?;
-    file.lock().map_err(|e| unwritable(&lock, &e))?;
-    Ok(Riscrittura {
-        _libreria: Some(file),
-        _processo: None,
-    })
+    Ok((file, lock))
 }
 
 /// Se il Tape `path` ha l'audio di ogni Ingresso: allora si trascrive per Ingresso (ADR-0015).

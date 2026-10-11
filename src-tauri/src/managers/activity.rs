@@ -1,10 +1,12 @@
 //! Una sola Attività alla volta, con il modo di fermarla.
 
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::error::AppError;
 use crate::library::inside;
+use crate::tape;
 
 /// Come si ferma l'Attività in corso: Annulla per la Trascrizione, Stop per la Registrazione.
 type Stop = Box<dyn Fn() + Send>;
@@ -13,6 +15,8 @@ struct Current {
     stop: Stop,
     /// Il Tape, o la cartella del Tape che nascerà, su cui lavora: lì le scritture si rifiutano.
     target: Option<PathBuf>,
+    /// Il lock dell'Attività su `target`, per il server MCP in un altro processo (ADR-0031).
+    _lock: Option<File>,
 }
 
 /// L'Attività in corso, se c'è. Registrata in `tauri::State`.
@@ -33,9 +37,15 @@ impl Activity {
         if current.is_some() {
             return Err(AppError::ActivityInProgress);
         }
+        // Aspetta solo una scrittura del server MCP su `target`, già iniziata.
+        let lock = match &target {
+            Some(path) => tape::prendi_attivita(path)?,
+            None => None,
+        };
         *current = Some(Current {
             stop: Box::new(stop),
             target,
+            _lock: lock,
         });
         Ok(ActivityGuard { activity: self })
     }
