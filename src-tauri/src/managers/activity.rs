@@ -27,7 +27,8 @@ pub struct Activity {
 
 impl Activity {
     /// Avvia un'Attività su `target`, che dura finché vive il guard restituito; `stop` la ferma.
-    /// Se ce n'è già una restituisce `AppError::ActivityInProgress`.
+    /// Se ce n'è già una, o se il server MCP sta scrivendo `target`, restituisce
+    /// `AppError::ActivityInProgress`.
     pub fn begin(
         &self,
         target: Option<PathBuf>,
@@ -37,9 +38,10 @@ impl Activity {
         if current.is_some() {
             return Err(AppError::ActivityInProgress);
         }
-        // Aspetta solo una scrittura del server MCP su `target`, già iniziata.
+        // Non aspetta una scrittura del server MCP su `target`, che può durare (un Taglio): con il
+        // mutex preso fermerebbe anche Annulla sul thread principale. Risponde `activityInProgress`.
         let lock = match &target {
-            Some(path) => tape::prendi_attivita(path)?,
+            Some(path) => tape::prova_attivita(path)?,
             None => None,
         };
         *current = Some(Current {
@@ -126,6 +128,35 @@ mod tests {
         drop(guard);
         assert!(!activity.cancel());
         assert_eq!(stops.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn mentre_l_assistente_scrive_il_tape_l_attivita_si_rifiuta_senza_aspettare() {
+        use std::sync::mpsc;
+        use std::time::Duration;
+        let root = crate::audio_toolkit::ogg_opus::tests::temp_dir("attivita-assistente");
+        crate::library::Library::open(&root, &root.join("indice.db")).unwrap();
+        let path = root.join("Call.tape");
+        // Il server MCP sta scrivendo il Tape.
+        let assistente = tape::prova_attivita(&path).unwrap();
+        assert!(assistente.is_some());
+        let activity = Activity::default();
+        let (sent, received) = mpsc::channel();
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let begun = activity.begin(Some(path.clone()), || {}).map(drop);
+                // Annulla, sul thread principale dell'app, non aspetta l'Assistente.
+                let cancelled = activity.cancel();
+                sent.send((begun, cancelled)).unwrap();
+            });
+            let result = received.recv_timeout(Duration::from_secs(2));
+            drop(assistente);
+            let (begun, cancelled) = result.expect("ha aspettato l'Assistente");
+            assert!(matches!(begun, Err(AppError::ActivityInProgress)));
+            assert!(!cancelled);
+        });
+        // Finita la scrittura dell'Assistente, l'Attività parte.
+        assert!(activity.begin(Some(path), || {}).is_ok());
     }
 
     #[test]

@@ -1056,17 +1056,9 @@ pub(crate) fn writing(path: &Path) -> Result<Riscrittura, AppError> {
 }
 
 /// Il lock dell'Attività su `path`, un Tape o la cartella del Tape che nascerà: l'app lo tiene per
-/// tutta l'Attività, il server MCP per tutta una scrittura (ADR-0031). Aspetta che sia libero.
-/// `None` fuori da una Libreria registrata. Si rilascia al drop, anche quando il processo finisce.
-pub fn prendi_attivita(path: &Path) -> Result<Option<File>, AppError> {
-    let Some((file, lock)) = file_attivita(path)? else {
-        return Ok(None);
-    };
-    file.lock().map_err(|e| unwritable(&lock, &e))?;
-    Ok(Some(file))
-}
-
-/// Come `prendi_attivita`, senza aspettare: se il lock è preso risponde `ActivityInProgress`.
+/// tutta l'Attività, il server MCP per tutta una scrittura (ADR-0031). Non aspetta: se è preso
+/// risponde `ActivityInProgress`. `None` fuori dalla Libreria registrata. Si rilascia al drop,
+/// anche quando il processo finisce.
 pub fn prova_attivita(path: &Path) -> Result<Option<File>, AppError> {
     let Some((file, lock)) = file_attivita(path)? else {
         return Ok(None);
