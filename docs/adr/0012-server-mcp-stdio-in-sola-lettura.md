@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded in part by ADR-0031
 ---
 
 # Gli Assistenti leggono la Libreria da `sbobino.exe --mcp`, in stdio e in sola lettura

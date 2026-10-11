@@ -70,8 +70,12 @@ Il file `.tape` prodotto da una Registrazione o dalla Trascrizione di un file au
 _Avoid_: Bino (il nome di prima), progetto, archivio, pacchetto, nastro, cassetta
 
 **Taglio**:
-Un tratto tolto da un Tape, all'inizio, alla fine o in mezzo, insieme al suo audio (mix e ogni Ingresso) e al suo testo; il resto si ricongiunge in una linea del tempo continua. Vale per tutti gli Ingressi insieme e i suoi bordi cadono di preferenza nei silenzi. L'originale finisce nel Cestino di Windows.
+Un tratto tolto da un Tape, all'inizio, alla fine o in mezzo, insieme al suo audio (mix e ogni Ingresso) e al suo testo; il resto si ricongiunge in una linea del tempo continua. Vale per tutti gli Ingressi insieme e i suoi bordi cadono di preferenza nei Silenzi. L'originale finisce nel Cestino di Windows.
 _Avoid_: ritaglio, trim, cut, elimina tratto
+
+**Silenzio**:
+Un tratto lungo di un Tape in cui nessun Ingresso ha Frasi: prima della prima Frase, dopo l'ultima o fra due Turni. Si riconosce dal testo, non dal volume dell'audio, quindi un Tape senza Frasi non ne ha. Un Taglio lo toglie tutto all'inizio e alla fine; in mezzo ne lascia un poco per lato.
+_Avoid_: pausa (è quella della Registrazione), vuoto, buco
 
 **Taglio in sospeso**:
 Un tratto scelto per il Taglio ma non ancora applicato: il suo testo resta visibile barrato e si può ripristinare. Non si salva nel Tape; diventa un Taglio solo con «Applica i tagli».
@@ -90,7 +94,7 @@ Una cartella di primo livello della Libreria che raggruppa Tape, per esempio le 
 _Avoid_: progetto, cartella, etichetta, fascicolo
 
 **Assistente**:
-Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Tape della Libreria; non li modifica e non avvia Attività.
+Un'app di intelligenza artificiale esterna, come Claude o Codex, che con il permesso dell'utente cerca e legge i Tape della Libreria e, con un permesso a parte, li modifica su sua richiesta: corregge il testo, unisce Turni, dà nomi ai Parlanti, cambia titolo e data, applica Tagli e manda Tape nel Cestino. Non avvia Attività.
 _Avoid_: agente, bot, integrazione, MCP
 
 ### Testo
@@ -133,7 +137,7 @@ Un Parlante già attribuito a una Frase ma ancora rettificabile dall’analisi f
 La Diarizzazione eseguita dopo Stop sull’audio salvato, quando la Trascrizione ha smaltito la sua coda. Non ritrascrive il testo. Il suo esito è distinto da `completa`; con gli Ingressi separati ogni Ingresso ha il proprio esito e si consolida indipendentemente. Il Tape conserva il risultato disponibile anche con Annulla o errore.
 
 **Turno**:
-Frasi consecutive (e Parziali) con lo stesso Ingresso e lo stesso Parlante; senza Parlanti né Ingressi separati, le Frasi fino a una pausa lunga. È l'unità in cui si legge il testo.
+Frasi consecutive (e Parziali) con lo stesso Ingresso e lo stesso Parlante; senza Parlanti né Ingressi separati, le Frasi fino a un Silenzio lungo. È l'unità in cui si legge il testo.
 _Avoid_: spezzone, blocco, intervento, chat, paragrafo
 
 **Vista della trascrizione**:
@@ -141,7 +145,7 @@ Come si impagina il testo, scelto dall'utente in Impostazioni: Copione (il nome 
 _Avoid_: layout, modalità di lettura, nastro (per il Tape)
 
 **Correzione manuale**:
-Una modifica dell'utente al testo della Trascrizione, all'attribuzione di un Turno o al nome di un Parlante. È distinta dall'attribuzione automatica della Diarizzazione e dalle modifiche al titolo o alla data del Tape.
+Una modifica al testo della Trascrizione, all'attribuzione di un Turno o al nome di un Parlante, fatta dall'utente o da un Assistente su sua richiesta. È distinta dall'attribuzione automatica della Diarizzazione e dalle modifiche al titolo o alla data del Tape.
 _Avoid_: modifica del Tape, revisione automatica
 
 **Unione di Turni**:
