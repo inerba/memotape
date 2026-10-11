@@ -255,7 +255,9 @@
       },
       "nomeMicrofono": "Dein Name",
       "nomeMicrofonoDescription": "Wird für das Mikrofon verwendet, wenn du nicht mehrere Sprecher erkennst: Jedes neue Tape aus Beidem benennt es so. Vorhandene Tapes ändern sich nicht.",
-      "nomeMicrofonoPlaceholder": "Mikrofon"
+      "nomeMicrofonoPlaceholder": "Mikrofon",
+      "noteSalvaDaSolo": "Notizen automatisch speichern",
+      "noteSalvaDaSoloDescription": "Notizen werden nach einer kurzen Schreibpause und beim Verlassen des Felds gespeichert. Ausgeschaltet speichern Sie mit Speichern oder Strg+S."
     },
     "assistants": {
       "title": "Assistenten",
@@ -568,6 +570,16 @@
       "description": "Die Notiz verschwindet aus dem Tape und lässt sich nicht wiederherstellen.",
       "keep": "Abbrechen",
       "confirm": "Löschen"
+    },
+    "save": "Speichern",
+    "autosave": "Automatisch speichern",
+    "unsaved": "Nicht gespeicherte Änderungen",
+    "leave": {
+      "title": "Änderungen an den Notizen speichern?",
+      "description": "Einige Notizen dieses Tapes haben nicht gespeicherte Änderungen. Ohne Speichern gehen sie verloren.",
+      "save": "Speichern",
+      "discard": "Nicht speichern",
+      "cancel": "Abbrechen"
     }
   },
   "parlantiTab": {
@@ -621,7 +633,8 @@
       "grassetto": "Fett",
       "corsivo": "Kursiv",
       "link": "Link",
-      "tempoNota": "Zeit des Players einfügen"
+      "tempoNota": "Zeit des Players einfügen",
+      "salvaNote": "Notizen speichern"
     },
     "keys": {
       "Ctrl": "Strg",

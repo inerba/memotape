@@ -110,6 +110,15 @@ pub struct Settings {
     /// Manca nei file salvati prima che esistesse: allora è vuoto.
     #[serde(default)]
     pub vocabolario: Vec<String>,
+    /// Salva da solo: le Note si salvano dopo una pausa nella scrittura e uscendo dal campo; spenta,
+    /// solo con Salva. Vale per tutti i Tape. Manca nei file salvati prima che esistesse: allora è
+    /// accesa.
+    #[serde(default = "acceso")]
+    pub note_salva_da_solo: bool,
+}
+
+fn acceso() -> bool {
+    true
 }
 
 /// Il fattore per cui un Guadagno di `db` moltiplica i campioni.
@@ -342,6 +351,7 @@ impl Default for Settings {
             guadagno_sistema: 0,
             nome_microfono: None,
             vocabolario: Vec::new(),
+            note_salva_da_solo: true,
         }
     }
 }
@@ -839,6 +849,25 @@ mod tests {
     }
 
     #[test]
+    fn le_note_si_salvano_da_sole_di_partenza_e_quando_il_campo_manca() {
+        assert!(
+            Settings::load(&temp_file("note-assente"))
+                .unwrap()
+                .note_salva_da_solo
+        );
+        let path = temp_file("senza-note-salva-da-solo");
+        let mut value = serde_json::to_value(Settings {
+            note_salva_da_solo: false,
+            ..Settings::default()
+        })
+        .unwrap();
+        assert_eq!(value["noteSalvaDaSolo"], false);
+        value.as_object_mut().unwrap().remove("noteSalvaDaSolo");
+        std::fs::write(&path, value.to_string()).unwrap();
+        assert!(Settings::load(&path).unwrap().note_salva_da_solo);
+    }
+
+    #[test]
     fn sistema_lascia_il_tema_a_windows_chiaro_e_scuro_lo_fissano() {
         assert_eq!(Tema::Sistema.theme(), None);
         assert_eq!(Tema::Chiaro.theme(), Some(tauri::Theme::Light));
@@ -940,6 +969,7 @@ mod tests {
             guadagno_sistema: -3,
             nome_microfono: Some("Francesco".into()),
             vocabolario: vec!["ChargeBee".into(), "Niccolò".into()],
+            note_salva_da_solo: false,
         };
         settings.save(&path).unwrap();
         assert_eq!(Settings::load(&path), Ok(settings.clone()));

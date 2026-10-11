@@ -144,6 +144,11 @@ export function centerView(state: HomeState): CenterView {
   return view.source ? { kind: "file", path: view.source } : { kind: "home" };
 }
 
+/** Il Tape al centro, di cui si proteggono le bozze delle Note; `null` se non c'è. */
+export function tapeMostrato(center: CenterView): string | null {
+  return center.kind === "tape" ? center.tape.path : null;
+}
+
 /**
  * Cosa evidenzia la barra laterale: quello che mostra `centerView`, Home, la Libreria o il Tape (o
  * il file); niente durante la preparazione e la Registrazione.

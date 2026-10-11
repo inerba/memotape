@@ -257,7 +257,9 @@
       },
       "nomeMicrofono": "Twoje imię",
       "nomeMicrofonoDescription": "Używane dla Mikrofonu, gdy nie rozpoznajesz wielu mówców: każdy nowy Tape nagrany z Obu tak go nazywa. Istniejące Tape’y się nie zmieniają.",
-      "nomeMicrofonoPlaceholder": "Mikrofon"
+      "nomeMicrofonoPlaceholder": "Mikrofon",
+      "noteSalvaDaSolo": "Zapisuj Notatki automatycznie",
+      "noteSalvaDaSoloDescription": "Notatki zapisują się po krótkiej przerwie w pisaniu i po wyjściu z pola. Po wyłączeniu zapisujesz je przyciskiem Zapisz lub Ctrl+S."
     },
     "assistants": {
       "title": "Asystenci",
@@ -574,6 +576,16 @@
       "description": "Notatka zniknie z Tape i nie będzie można jej odzyskać.",
       "keep": "Anuluj",
       "confirm": "Usuń"
+    },
+    "save": "Zapisz",
+    "autosave": "Zapisuj automatycznie",
+    "unsaved": "Niezapisane zmiany",
+    "leave": {
+      "title": "Zapisać zmiany w Notatkach?",
+      "description": "Niektóre Notatki tego Tape mają niezapisane zmiany. Bez zapisania zostaną utracone.",
+      "save": "Zapisz",
+      "discard": "Nie zapisuj",
+      "cancel": "Anuluj"
     }
   },
   "parlantiTab": {
@@ -629,7 +641,8 @@
       "grassetto": "Pogrubienie",
       "corsivo": "Kursywa",
       "link": "Link",
-      "tempoNota": "Wstaw czas odtwarzacza"
+      "tempoNota": "Wstaw czas odtwarzacza",
+      "salvaNote": "Zapisz Notatki"
     },
     "keys": {
       "Ctrl": "Ctrl",

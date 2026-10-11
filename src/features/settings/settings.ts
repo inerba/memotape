@@ -66,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   model: catalog.predefinito,
   nemotron3Path: null,
   nomeMicrofono: null,
+  noteSalvaDaSolo: true,
   outputDevice: null,
   parlantiFile: false,
   parlantiMicrofono: false,
@@ -132,6 +133,8 @@ export const settingsSchema = z.object({
   nemotron3Path: z.string().nullable().optional(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   nomeMicrofono: z.string().nullable().optional(),
+  // Facoltativa come nei bindings; quando manca vale accesa.
+  noteSalvaDaSolo: z.boolean().optional(),
   outputDevice: z.string().nullable(),
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   parlantiFile: z.boolean().optional(),

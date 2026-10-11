@@ -256,7 +256,9 @@
       },
       "nomeMicrofono": "Il tuo nome",
       "nomeMicrofonoDescription": "Usato per il Microfono quando non riconosci più parlanti: ogni Tape nuovo registrato da Entrambi lo nomina così. I Tape esistenti non cambiano.",
-      "nomeMicrofonoPlaceholder": "Microfono"
+      "nomeMicrofonoPlaceholder": "Microfono",
+      "noteSalvaDaSolo": "Salva le Note da sole",
+      "noteSalvaDaSoloDescription": "Le Note si salvano dopo una breve pausa nella scrittura e uscendo dal campo. Spento, si salvano con Salva o Ctrl+S."
     },
     "assistants": {
       "title": "Assistenti",
@@ -571,6 +573,16 @@
       "description": "La Nota sparisce dal Tape e non si potrà recuperare.",
       "keep": "Annulla",
       "confirm": "Elimina"
+    },
+    "save": "Salva",
+    "autosave": "Salva da solo",
+    "unsaved": "Modifiche non salvate",
+    "leave": {
+      "title": "Salvare le modifiche alle Note?",
+      "description": "Alcune Note di questo Tape hanno modifiche non salvate. Senza salvarle andranno perse.",
+      "save": "Salva",
+      "discard": "Non salvare",
+      "cancel": "Annulla"
     }
   },
   "parlantiTab": {
@@ -625,7 +637,8 @@
       "grassetto": "Grassetto",
       "corsivo": "Corsivo",
       "link": "Link",
-      "tempoNota": "Inserisci il tempo del player"
+      "tempoNota": "Inserisci il tempo del player",
+      "salvaNote": "Salva le Note"
     },
     "keys": {
       "Ctrl": "Ctrl",

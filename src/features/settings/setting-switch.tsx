@@ -23,6 +23,7 @@ export function SettingSwitch({
   note,
   onError,
   inlineFeedback = true,
+  predefinito = false,
 }: {
   description?: string;
   disabled?: boolean;
@@ -33,10 +34,13 @@ export function SettingSwitch({
     | "assistentiModifica"
     | "parlantiFile"
     | "trascrizioneDalVivo"
+    | "noteSalvaDaSolo"
     | ParlantiRegistrazione;
   note?: string;
   onError: (error: AppError) => void;
   inlineFeedback?: boolean;
+  /** Il valore quando il campo manca nel file delle Impostazioni. */
+  predefinito?: boolean;
 }) {
   const id = useId();
   const { save, settings } = useSettings();
@@ -59,7 +63,7 @@ export function SettingSwitch({
   const control = (
     <Switch
       aria-describedby={description ? `${id}-description` : undefined}
-      checked={settings[name] ?? false}
+      checked={settings[name] ?? predefinito}
       className={SWITCH_CLASS}
       disabled={disabled}
       id={id}

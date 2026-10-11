@@ -256,7 +256,9 @@
       },
       "nomeMicrofono": "Votre nom",
       "nomeMicrofonoDescription": "Utilisé pour le Microphone lorsque vous ne reconnaissez pas plusieurs locuteurs : chaque nouveau Tape enregistré depuis Les deux le nomme ainsi. Les Tapes existants ne changent pas.",
-      "nomeMicrofonoPlaceholder": "Microphone"
+      "nomeMicrofonoPlaceholder": "Microphone",
+      "noteSalvaDaSolo": "Enregistrer les Notes automatiquement",
+      "noteSalvaDaSoloDescription": "Les Notes s’enregistrent après une courte pause dans la saisie et en quittant le champ. Désactivé, elles s’enregistrent avec Enregistrer ou Ctrl+S."
     },
     "assistants": {
       "title": "Assistants",
@@ -571,6 +573,16 @@
       "description": "La note disparaît du Tape et ne pourra pas être récupérée.",
       "keep": "Annuler",
       "confirm": "Supprimer"
+    },
+    "save": "Enregistrer",
+    "autosave": "Enregistrer automatiquement",
+    "unsaved": "Modifications non enregistrées",
+    "leave": {
+      "title": "Enregistrer les modifications des Notes ?",
+      "description": "Certaines Notes de ce Tape ont des modifications non enregistrées. Sans les enregistrer, elles seront perdues.",
+      "save": "Enregistrer",
+      "discard": "Ne pas enregistrer",
+      "cancel": "Annuler"
     }
   },
   "parlantiTab": {
@@ -625,7 +637,8 @@
       "grassetto": "Gras",
       "corsivo": "Italique",
       "link": "Lien",
-      "tempoNota": "Insérer le temps du lecteur"
+      "tempoNota": "Insérer le temps du lecteur",
+      "salvaNote": "Enregistrer les Notes"
     },
     "keys": {
       "Ctrl": "Ctrl",

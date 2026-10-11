@@ -712,6 +712,12 @@ export type Settings = {
 	 *  Manca nei file salvati prima che esistesse: allora è vuoto.
 	 */
 	vocabolario?: string[],
+	/**
+	 *  Salva da solo: le Note si salvano dopo una pausa nella scrittura e uscendo dal campo; spenta,
+	 *  solo con Salva. Vale per tutti i Tape. Manca nei file salvati prima che esistesse: allora è
+	 *  accesa.
+	 */
+	noteSalvaDaSolo?: boolean,
 };
 
 export type SpeakerAssignment = {

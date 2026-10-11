@@ -212,7 +212,21 @@ test("il pannello ha il gruppo Note con i tasti del formato", () => {
     { riga: "corsivo", tasti: ["Ctrl", "I"] },
     { riga: "link", tasti: ["Ctrl", "K"] },
     { riga: "tempoNota", tasti: ["Ctrl", "T"] },
+    { riga: "salvaNote", tasti: ["Ctrl", "S"] },
   ]);
+});
+
+test("Ctrl+S salva le Note anche dal campo della Nota, ma non sotto un dialog", () => {
+  for (const campo of ["nota", null] as const) {
+    expect(scorciatoia(ctrl("s"), campo, LIBERO)).toEqual({
+      azione: "salvaNote",
+      esegui: true,
+      riservata: true,
+    });
+  }
+  expect(
+    scorciatoia(ctrl("s"), "nota", { ...LIBERO, coperta: true })?.esegui
+  ).toBe(false);
 });
 
 test("Ctrl+T scrive il tempo del player anche con il focus nel campo della Nota", () => {

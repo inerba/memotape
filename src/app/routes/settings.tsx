@@ -597,6 +597,15 @@ export function SettingsPage() {
                       ))}
                     </NativeSelect>
                   </Field>
+                  <SettingSwitch
+                    description={t(
+                      "settings.general.noteSalvaDaSoloDescription"
+                    )}
+                    label={t("settings.general.noteSalvaDaSolo")}
+                    name="noteSalvaDaSolo"
+                    onError={setError}
+                    predefinito
+                  />
                   <Field
                     description={t("settings.general.nomeMicrofonoDescription")}
                     id="nome-microfono"

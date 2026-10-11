@@ -4,12 +4,12 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `note_salva_da_solo` vero di default e quando manca nel file delle Impostazioni
-- [ ] Lo stato delle bozze vive in un reducer della route con il suo `*.test.ts`: casi in cui il dialog compare e casi in cui no
-- [ ] La chiusura della finestra con bozze aperte passa dal dialog; Annulla lascia la finestra aperta
-- [ ] Il pallino si legge «Modifiche non salvate»; Salva è spento senza modifiche
-- [ ] Testi nelle sei lingue; il pannello delle scorciatoie elenca Ctrl+S
-- [ ] `docs/sviluppo/impostazioni-e-servizi.md` e `docs/sviluppo/frontend.md` aggiornati
-- [ ] I sei controlli verdi
+- [x] `note_salva_da_solo` vero di default e quando manca nel file delle Impostazioni
+- [x] Lo stato delle bozze vive in un reducer della route con il suo `*.test.ts`: casi in cui il dialog compare e casi in cui no
+- [x] La chiusura della finestra con bozze aperte passa dal dialog; Annulla lascia la finestra aperta
+- [x] Il pallino si legge «Modifiche non salvate»; Salva è spento senza modifiche
+- [x] Testi nelle sei lingue; il pannello delle scorciatoie elenca Ctrl+S
+- [x] `docs/sviluppo/impostazioni-e-servizi.md` e `docs/sviluppo/frontend.md` aggiornati
+- [x] I sei controlli verdi

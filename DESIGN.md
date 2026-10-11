@@ -360,6 +360,8 @@ Sospeso in alto al centro del pannello, foglio, 14 px di angolo, icona di stato 
 ### Note (editor ibrido)
 Il campo delle Note è testo da lettura (17 px, interlinea 1,7, inchiostro), come il Live Preview di Obsidian: fuori dalla riga del cursore il Markdown si legge impaginato, sulla riga del cursore (con il focus) tornano i segni, su un fondo `accent` al 45% con 6 px di angolo che dice dove si scrive. Titoletti in peso 600 (il primo livello a 1,25 em), grassetto 600, corsivo, codice inline su `muted` con 5 px di angolo a 0,9 em, link sottolineati con l'inchiostro al 35% a 3 px dal testo (puntatore a mano fuori dalla riga del cursore), punti d'elenco «•» in `ink-muted`, caselle native con `accent-color` salvia (`play`). Un Tempo nella Nota fuori dalla riga del cursore è una pillola foglio (`card`, filo, angolo pieno, 0,82 em in cifre tabulari, `ink-muted`) con il triangolo ▶ da 10 px in salvia, come l'audio: in hover l'inchiostro e il filo `input`. Selezionando compare sopra la selezione una barretta foglio come quella del Turno (filo, 8 px di angolo, `shadow-float`, pulsanti a icona da 28 px): grassetto, corsivo, link, un filo, elenco, da fare; tooltip con la scorciatoia.
 
+La riga dei nomi ha a destra, in `ink-muted` a 12 px, Salva (pulsante outline piccolo su `card`, spento senza modifiche, solo con Salva da solo spento) o «Salvate nel Tape» con la spunta salvia, e l'interruttore «Salva da solo» (acceso salvia, come in Impostazioni). Una Nota con modifiche non salvate ha accanto al nome un pallino d'inchiostro da 6 px, letto «Modifiche non salvate».
+
 ### Movimento
 Il preload di avvio approvato il 7 ottobre 2026 usa il simbolo originale da 76 px,
 il logotipo da 184 px e una sola animazione: il mozzo gira intorno al suo centro

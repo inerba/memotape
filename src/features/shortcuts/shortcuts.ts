@@ -26,7 +26,8 @@ export type Azione =
   | "grassetto"
   | "corsivo"
   | "link"
-  | "tempoNota";
+  | "tempoNota"
+  | "salvaNote";
 
 export type Gruppo =
   | "generale"
@@ -242,6 +243,13 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     gruppo: "note",
     riga: "tempoNota",
     tasti: ["Ctrl", "T"],
+  },
+  {
+    // La registra la scheda Note: salva le bozze di tutte le Note del Tape.
+    azione: "salvaNote",
+    gruppo: "note",
+    riga: "salvaNote",
+    tasti: ["Ctrl", "S"],
   },
 ];
 

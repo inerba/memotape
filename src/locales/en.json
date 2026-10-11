@@ -255,7 +255,9 @@
       },
       "nomeMicrofono": "Your name",
       "nomeMicrofonoDescription": "Used for the Microphone when you don't recognize several speakers: every new Tape recorded from Both names it this way. Existing Tapes don't change.",
-      "nomeMicrofonoPlaceholder": "Microphone"
+      "nomeMicrofonoPlaceholder": "Microphone",
+      "noteSalvaDaSolo": "Save Notes automatically",
+      "noteSalvaDaSoloDescription": "Notes are saved after a short pause in typing and when you leave the field. When off, they are saved with Save or Ctrl+S."
     },
     "assistants": {
       "title": "Assistants",
@@ -568,6 +570,16 @@
       "description": "The note is removed from the Tape and can’t be recovered.",
       "keep": "Cancel",
       "confirm": "Delete"
+    },
+    "save": "Save",
+    "autosave": "Save automatically",
+    "unsaved": "Unsaved changes",
+    "leave": {
+      "title": "Save changes to the Notes?",
+      "description": "Some Notes in this Tape have unsaved changes. If you don't save them, they will be lost.",
+      "save": "Save",
+      "discard": "Don't save",
+      "cancel": "Cancel"
     }
   },
   "parlantiTab": {
@@ -621,7 +633,8 @@
       "grassetto": "Bold",
       "corsivo": "Italic",
       "link": "Link",
-      "tempoNota": "Insert the player time"
+      "tempoNota": "Insert the player time",
+      "salvaNote": "Save the Notes"
     },
     "keys": {
       "Ctrl": "Ctrl",

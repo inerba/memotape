@@ -5,6 +5,7 @@ import { Check, CircleAlert, Copy, X } from "lucide-react";
 import {
   createContext,
   type ReactNode,
+  type RefObject,
   use,
   useCallback,
   useEffect,
@@ -15,7 +16,12 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useOutlet } from "react-router";
-import { centerView, selection, useHomeState } from "@/app/routes/home-state";
+import {
+  centerView,
+  selection,
+  tapeMostrato,
+  useHomeState,
+} from "@/app/routes/home-state";
 import {
   type AppError,
   commands,
@@ -63,8 +69,10 @@ import {
 import { useLastTape } from "@/features/library/use-last-tape";
 import { useLibrary } from "@/features/library/use-library";
 import { useTapeOperations } from "@/features/library/use-tape-operations";
+import { type BozzeAction, bozzeDi } from "@/features/notes/bozze";
 import { NotesTab } from "@/features/notes/notes-tab";
 import { quanteNote, useNote } from "@/features/notes/use-note";
+import { useUscitaProtetta } from "@/features/notes/use-uscita-protetta";
 import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
 import { RecordMenu } from "@/features/recording/record-menu";
@@ -103,6 +111,7 @@ import {
   statusText,
   transcribesSource,
 } from "@/features/status/status";
+import type { RichiestaTaglio } from "@/features/taglio/taglio";
 import { useTaglio } from "@/features/taglio/use-taglio";
 import {
   diarizationNeedsConfirmation,
@@ -198,6 +207,17 @@ export function HomePage() {
   const navigate = useNavigate();
   const { list: library, loading: libraryLoading } = useLibrary(setNotice);
   const raccolta = chosenRaccolta(settings.raccolta, library.raccolte);
+
+  // Le bozze delle Note e l'uscita protetta dal Tape mostrato.
+  const shown = centerView(state);
+  const {
+    bozze: bozzeNote,
+    dialog: noteDialog,
+    dispatch: bozzeDispatch,
+    proteggi,
+    salvaNote,
+    scarti,
+  } = useUscitaProtetta(tapeMostrato(shown));
 
   // Il Tape dell'avvio, e quelli del doppio clic con l'app aperta. Si prende dopo aver registrato
   // il listener, così uno arrivato nel frattempo non si perde.
@@ -315,29 +335,34 @@ export function HomePage() {
     [consult, dispatch, openTape, remember, state.view, status]
   );
 
-  const pickFile = useCallback(async () => {
-    const picked = await commands.pickSource(t("source.filter"));
-    if (picked) {
-      requestOpen(picked);
-    }
-  }, [requestOpen, t]);
+  const pickFile = useCallback(
+    () =>
+      proteggi(async () => {
+        const picked = await commands.pickSource(t("source.filter"));
+        if (picked) {
+          requestOpen(picked);
+        }
+      }),
+    [proteggi, requestOpen, t]
+  );
 
   const openFromLibrary = useCallback(
-    (path: string, phrase?: Trovato) => requestOpen(path, phrase, true),
-    [requestOpen]
+    (path: string, phrase?: Trovato) =>
+      proteggi(() => requestOpen(path, phrase, true), path),
+    [proteggi, requestOpen]
   );
 
   const showActivity = useCallback(
-    () => dispatch({ type: "activityShown" }),
-    [dispatch]
+    () => proteggi(() => dispatch({ type: "activityShown" })),
+    [dispatch, proteggi]
   );
   const showAll = useCallback(
-    () => dispatch({ type: "libraryShown" }),
-    [dispatch]
+    () => proteggi(() => dispatch({ type: "libraryShown" })),
+    [dispatch, proteggi]
   );
   const showHome = useCallback(
-    () => dispatch({ type: "homeShown" }),
-    [dispatch]
+    () => proteggi(() => dispatch({ type: "homeShown" })),
+    [dispatch, proteggi]
   );
 
   const chooseRaccolta = useCallback(
@@ -355,8 +380,9 @@ export function HomePage() {
     (from: string, to: string) => {
       moveLastTape(from, to);
       dispatch({ from, to, type: "tapeMoved" });
+      bozzeDispatch({ from, to, type: "tapeMoved" });
     },
-    [dispatch, moveLastTape]
+    [bozzeDispatch, dispatch, moveLastTape]
   );
 
   // Il Tape che non c'è più (nel Cestino o sparito dal disco), se era aperto, si chiude; la vista
@@ -365,8 +391,9 @@ export function HomePage() {
     (path: string) => {
       forget(path);
       dispatch({ path, type: "tapeGone" });
+      bozzeDispatch({ path, type: "tapeGone" });
     },
-    [dispatch, forget]
+    [bozzeDispatch, dispatch, forget]
   );
 
   const { dialog, moveTape, renameTape, requestTrash, reveal } =
@@ -379,21 +406,30 @@ export function HomePage() {
   // Un Tape arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
   // intanto è disabilitata) e che si chiuda la conferma di Trascrivi. Si apre sulla finestra
   // principale, anche se c'era Impostazioni sopra.
+  // Con le bozze delle Note chiede una volta: Annulla lo lascia in attesa.
   const tapeToOpen = pendingTape(state.view, status, confirmationOpen);
+  const openPending = useEffectEvent((path: string) =>
+    proteggi(() => {
+      navigate("/");
+      requestOpen(path);
+    }, path)
+  );
   useEffect(() => {
     if (tapeToOpen) {
-      navigate("/");
-      requestOpen(tapeToOpen);
+      openPending(tapeToOpen);
     }
-  }, [navigate, requestOpen, tapeToOpen]);
+  }, [tapeToOpen]);
 
   // Un file rilasciato si apre come con Apri file, anche da Impostazioni; durante un'Attività solo
   // un Tape, in consultazione. Con la conferma di Trascrivi aperta il rilascio non conta.
   const dropped = useEffectEvent((paths: string[]) => {
     const verdict = dropVerdict(paths, busy);
     if (verdict.accepted && !confirmationOpen) {
-      navigate("/");
-      requestOpen(verdict.path);
+      const { path } = verdict;
+      proteggi(() => {
+        navigate("/");
+        requestOpen(path);
+      }, path);
     }
   });
 
@@ -497,12 +533,21 @@ export function HomePage() {
     if (busy || !conversation.phrases.length) {
       return;
     }
-    if (diarizationNeedsConfirmation(info, conversation.parlanti)) {
-      setConfirmDiarize(true);
-    } else {
-      diarize();
-    }
-  }, [busy, conversation.parlanti, conversation.phrases.length, diarize, info]);
+    proteggi(() => {
+      if (diarizationNeedsConfirmation(info, conversation.parlanti)) {
+        setConfirmDiarize(true);
+      } else {
+        diarize();
+      }
+    });
+  }, [
+    busy,
+    conversation.parlanti,
+    conversation.phrases.length,
+    diarize,
+    info,
+    proteggi,
+  ]);
 
   const closeDiarizationConfirm = useCallback((opened: boolean) => {
     if (!opened) {
@@ -621,9 +666,10 @@ export function HomePage() {
   );
 
   const requestTranscription = useCallback(
-    () => setConfirmTranscribe(true),
-    []
+    () => proteggi(() => setConfirmTranscribe(true)),
+    [proteggi]
   );
+  const newRecording = useCallback(() => proteggi(record), [proteggi, record]);
   let transcribeTarget: TranscribeTarget = { kind: "tape" };
   if (source && !isTape(source)) {
     transcribeTarget = { kind: "file", name: fileName(source) };
@@ -912,11 +958,12 @@ export function HomePage() {
 
   // La Raccolta di un Tape dal suo percorso nella barra in alto: apre la Libreria lì.
   const openRaccolta = useCallback(
-    (value: string) => {
-      chooseRaccolta(value);
-      dispatch({ type: "libraryShown" });
-    },
-    [chooseRaccolta, dispatch]
+    (value: string) =>
+      proteggi(() => {
+        chooseRaccolta(value);
+        dispatch({ type: "libraryShown" });
+      }),
+    [chooseRaccolta, dispatch, proteggi]
   );
 
   // L'avviso in cima: l'errore di un'operazione, un messaggio o l'esito dell'Attività.
@@ -961,6 +1008,7 @@ export function HomePage() {
   // La vista di un Tape; `isSource`: è la Sorgente, che Trascrivi trascrive.
   const tapePane = (view: TapeView, isSource: boolean) => (
     <TapePane
+      bozze={bozzeDi(bozzeNote, view.path)}
       busy={busy}
       copied={copied}
       // Non ci lavora l'Attività in corso.
@@ -969,6 +1017,7 @@ export function HomePage() {
       isSource={isSource}
       key={`${view.path}:${revision}`}
       library={library}
+      onBozze={bozzeDispatch}
       onCopy={copy}
       onCreato={changeCreato}
       onDiarize={requestDiarization}
@@ -979,6 +1028,7 @@ export function HomePage() {
       onMessage={setMessage}
       onMove={moveTape}
       onNoteSalvate={noteSalvate}
+      onProteggi={proteggi}
       onRaccolta={openRaccolta}
       onRenameParlante={rename}
       onRenameTitle={renameTape}
@@ -989,6 +1039,8 @@ export function HomePage() {
       processing={isSource && transcribesSource(status)}
       recording={recording}
       running={running}
+      salvaNote={salvaNote}
+      scarti={scarti}
       view={view}
     />
   );
@@ -997,7 +1049,7 @@ export function HomePage() {
     <BannerView banner={banner} key={banner.text} onDismiss={dismiss} />
   ) : null;
 
-  const center = centerView(state);
+  const center = shown;
   const selected = selection(state);
   const renderMainView = () => {
     switch (center.kind) {
@@ -1038,7 +1090,7 @@ export function HomePage() {
             loading={libraryLoading}
             onImport={pickFile}
             onOpen={openFromLibrary}
-            onRecord={record}
+            onRecord={newRecording}
             onShowAll={showAll}
             tapes={library.tapes}
           />
@@ -1106,12 +1158,16 @@ export function HomePage() {
           onHome={showHome}
           onImport={pickFile}
           onOpen={openFromLibrary}
-          onRecord={record}
+          onRecord={newRecording}
           onShowAll={showAll}
           onToggle={barra.alterna}
           operations={tapeOperations}
           record={
-            <RecordMenu disabled={busy} onError={failed} onRecord={record} />
+            <RecordMenu
+              disabled={busy}
+              onError={failed}
+              onRecord={newRecording}
+            />
           }
           selected={selected.tape}
           showingAll={selected.library}
@@ -1157,6 +1213,7 @@ export function HomePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {noteDialog}
       {dialog}
       {settingsPage}
       <WindowControls />
@@ -1504,6 +1561,7 @@ function BannerView({
  * Trascrivi trascrive; `recording`: il player è disabilitato.
  */
 function TapePane({
+  bozze: bozzeDelTape,
   busy,
   copied,
   editable,
@@ -1517,8 +1575,10 @@ function TapePane({
   onError,
   onExported,
   onMessage,
+  onBozze,
   onMove,
   onNoteSalvate,
+  onProteggi,
   onRaccolta,
   onRenameParlante,
   onRenameTitle,
@@ -1530,8 +1590,12 @@ function TapePane({
   processing,
   recording,
   running,
+  salvaNote,
+  scarti,
   view: { conversation, info, path },
 }: {
+  /** Le bozze delle Note del Tape, per nome. */
+  bozze: Record<string, string>;
   busy: boolean;
   copied: boolean;
   editable: boolean;
@@ -1550,8 +1614,11 @@ function TapePane({
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
   onMessage: (text: string) => void;
+  onBozze: (action: BozzeAction) => void;
   onMove: (path: string, raccolta: string) => void;
   onNoteSalvate: (path: string, modificato: number | null) => void;
+  /** Fa `vai` dopo aver salvato o scartato le bozze delle Note, se ce ne sono. */
+  onProteggi: (vai: () => void) => void;
   onRaccolta: (raccolta: string) => void;
   onRenameParlante: (path: string, voce: Parlante, nome: string) => void;
   onRenameTitle: (path: string, titolo: string) => void;
@@ -1564,6 +1631,9 @@ function TapePane({
   processing: boolean;
   recording: boolean;
   running: boolean;
+  /** Qui la vista registra come salvare le bozze delle sue Note. */
+  salvaNote: RefObject<(() => Promise<boolean>) | null>;
+  scarti: number;
   view: TapeView;
 }) {
   const { t } = useTranslation();
@@ -1638,20 +1708,38 @@ function TapePane({
     path,
     player,
   });
+  const { chiedi } = taglio;
   const forbici = useMemo(
     () =>
-      taglio.chiedi
-        ? { durataMs: taglio.durataMs, onTaglia: taglio.chiedi }
+      chiedi
+        ? {
+            durataMs: taglio.durataMs,
+            onTaglia: (r: RichiestaTaglio) => onProteggi(() => chiedi(r)),
+          }
         : null,
-    [taglio.chiedi, taglio.durataMs]
+    [chiedi, onProteggi, taglio.durataMs]
   );
   const editingActions = editable ? { onEdit: edit, onMerge: merge } : {};
   const note = useNote({
+    bozze: bozzeDelTape,
+    onBozze,
     onError,
     onSaved: onNoteSalvate,
     path,
     scelta: nota,
   });
+  const salvaTutte = note?.salvaTutte;
+  useEffect(() => {
+    if (!salvaTutte) {
+      return;
+    }
+    salvaNote.current = salvaTutte;
+    return () => {
+      if (salvaNote.current === salvaTutte) {
+        salvaNote.current = null;
+      }
+    };
+  }, [salvaNote, salvaTutte]);
 
   const header = (
     <>
@@ -1749,6 +1837,7 @@ function TapePane({
                 onMessage={onMessage}
                 player={listening}
                 readOnly={!editable}
+                scarti={scarti}
               />
             ) : (
               <ParlantiTab

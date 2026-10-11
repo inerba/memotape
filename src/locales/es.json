@@ -256,7 +256,9 @@
       },
       "nomeMicrofono": "Tu nombre",
       "nomeMicrofonoDescription": "Se usa para el Micrófono cuando no reconoces varios hablantes: cada Tape nuevo grabado desde Ambos lo nombra así. Los Tapes existentes no cambian.",
-      "nomeMicrofonoPlaceholder": "Micrófono"
+      "nomeMicrofonoPlaceholder": "Micrófono",
+      "noteSalvaDaSolo": "Guardar las Notas automáticamente",
+      "noteSalvaDaSoloDescription": "Las Notas se guardan tras una breve pausa al escribir y al salir del campo. Desactivado, se guardan con Guardar o Ctrl+S."
     },
     "assistants": {
       "title": "Asistentes",
@@ -571,6 +573,16 @@
       "description": "La nota desaparece del Tape y no se podrá recuperar.",
       "keep": "Cancelar",
       "confirm": "Eliminar"
+    },
+    "save": "Guardar",
+    "autosave": "Guardar automáticamente",
+    "unsaved": "Cambios sin guardar",
+    "leave": {
+      "title": "¿Guardar los cambios en las Notas?",
+      "description": "Algunas Notas de este Tape tienen cambios sin guardar. Si no las guardas, se perderán.",
+      "save": "Guardar",
+      "discard": "No guardar",
+      "cancel": "Cancelar"
     }
   },
   "parlantiTab": {
@@ -625,7 +637,8 @@
       "grassetto": "Negrita",
       "corsivo": "Cursiva",
       "link": "Enlace",
-      "tempoNota": "Insertar el tiempo del reproductor"
+      "tempoNota": "Insertar el tiempo del reproductor",
+      "salvaNote": "Guardar las Notas"
     },
     "keys": {
       "Ctrl": "Ctrl",

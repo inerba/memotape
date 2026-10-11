@@ -22,6 +22,7 @@ import {
   type RefObject,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -40,9 +41,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { MenuItem } from "@/features/library/tape-actions";
 import { keepFocus, type PlayerState } from "@/features/player/player";
-import { type Azione, conTasti } from "@/features/shortcuts/shortcuts";
+import { SWITCH_CLASS } from "@/features/settings/setting-switch";
+import { useSettings } from "@/features/settings/settings-context";
+import {
+  type Azione,
+  ariaTasti,
+  conTasti,
+} from "@/features/shortcuts/shortcuts";
 import { useScorciatoia } from "@/features/shortcuts/shortcuts-provider";
 import { errorText } from "@/features/status/status";
 import { applica, ibrido, type Tempi } from "./ibrido";
@@ -113,13 +121,16 @@ interface NotesTabProps {
   /** Manca durante la Registrazione e mentre si trascrive il Tape: niente salti. */
   player?: Pick<PlayerState, "move" | "positionMs">;
   readOnly: boolean;
+  /** Cresce con Non salvare: l'editor riparte dal testo su disco. */
+  scarti: number;
 }
 
 /**
- * La scheda Note di un Tape (ADR-0032): la riga dei nomi delle Note, con «+ Nuova nota», e sotto la
- * Nota aperta nell'editor ibrido. Doppio clic sul nome o F2 rinomina; il «…» rinomina, copia ed
- * elimina. In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota finché le Note non
- * sono lette.
+ * La scheda Note di un Tape (ADR-0032): la riga dei nomi delle Note, con «+ Nuova nota» e, a
+ * destra, Salva e l'interruttore Salva da solo; sotto la Nota aperta nell'editor ibrido. Doppio
+ * clic sul nome o F2 rinomina; il «…» rinomina, copia ed elimina. Senza Salva da solo una Nota con
+ * modifiche ha un pallino. In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota
+ * finché le Note non sono lette.
  */
 export function NotesTab({
   note,
@@ -135,14 +146,36 @@ function NoteLette({
   onMessage,
   player,
   readOnly,
+  scarti,
 }: NotesTabProps & { note: NoteDelTape }) {
   const { t } = useTranslation();
+  const { save, settings } = useSettings();
+  const salvaDaSolo = settings.noteSalvaDaSolo ?? true;
+  const interruttore = useId();
   const [rinominando, setRinominando] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
-  const [salvate, setSalvate] = useState(false);
   const view = useRef<EditorView | null>(null);
-  const { aperta, crea, elimina, rinomina } = note;
+  const { aperta, bozze, crea, elimina, rinomina, salvaTutte } = note;
   const nota = note.note.find((n) => n.nome === aperta) ?? note.note[0];
+  const modificate = Object.keys(bozze).length > 0;
+  const salvate = salvaDaSolo && !modificate && nota.salvato !== null;
+  useScorciatoia("salvaNote", readOnly ? null : salvaTutte);
+  const salvaSubito = useCallback(() => salvaTutte(), [salvaTutte]);
+  // Accesa, le bozze in sospeso si salvano subito.
+  const cambiaSalvaDaSolo = useCallback(
+    async (acceso: boolean) => {
+      const error = await save(
+        (current) => ({ ...current, noteSalvaDaSolo: acceso }),
+        "noteSalvaDaSolo"
+      );
+      if (error) {
+        onError(error);
+      } else if (acceso) {
+        salvaTutte();
+      }
+    },
+    [onError, salvaTutte, save]
+  );
 
   const nuova = useCallback(() => setRinominando(crea()), [crea]);
   const fineRinomina = useCallback(() => setRinominando(null), []);
@@ -199,6 +232,7 @@ function NoteLette({
             ) : (
               <NomeNota
                 key={n.nome}
+                modificata={!salvaDaSolo && n.nome in bozze}
                 nome={n.nome}
                 onOpen={note.apri}
                 onRename={readOnly ? undefined : setRinominando}
@@ -218,14 +252,41 @@ function NoteLette({
             {t("notes.new")}
           </Button>
         )}
+        <div className="ml-auto flex items-center gap-3 text-muted-foreground text-xs">
+          {salvaDaSolo ? null : (
+            <Button
+              aria-keyshortcuts={ariaTasti("salvaNote")}
+              className="h-7 bg-card"
+              disabled={readOnly || !modificate}
+              onClick={salvaSubito}
+              size="sm"
+              title={conTasti(t, t("notes.save"), "salvaNote")}
+              variant="outline"
+            >
+              {t("notes.save")}
+            </Button>
+          )}
+          {salvate ? (
+            <span className="flex items-center gap-1">
+              <Check className="size-3.5 text-play" />
+              {t("notes.saved")}
+            </span>
+          ) : null}
+          <label
+            className="flex cursor-pointer items-center gap-2 whitespace-nowrap"
+            htmlFor={interruttore}
+          >
+            <Switch
+              checked={salvaDaSolo}
+              className={SWITCH_CLASS}
+              id={interruttore}
+              onCheckedChange={cambiaSalvaDaSolo}
+            />
+            {t("notes.autosave")}
+          </label>
+        </div>
       </div>
-      <div className="flex h-8 items-center gap-1 pb-3.5 text-muted-foreground text-xs">
-        {salvate ? (
-          <>
-            <Check className="size-3.5 text-play" />
-            {t("notes.saved")}
-          </>
-        ) : null}
+      <div className="flex h-8 items-center gap-1 pb-3.5">
         <PopoverMenu
           className="ml-auto size-7"
           icon={<Ellipsis />}
@@ -256,14 +317,16 @@ function NoteLette({
         </PopoverMenu>
       </div>
       <NotaEditor
+        bozza={bozze[nota.nome]}
         durataMs={durataMs}
-        key={nota.nome}
+        key={`${nota.nome}:${scarti}`}
         nota={nota}
         onError={onError}
-        onSalvate={setSalvate}
         player={player}
         readOnly={readOnly}
         salva={note.salva}
+        salvaDaSolo={salvaDaSolo}
+        scrivi={note.scrivi}
         view={view}
       />
       <AlertDialog onOpenChange={chiudiElimina} open={eliminando !== null}>
@@ -288,13 +351,18 @@ function NoteLette({
   );
 }
 
-/** Il nome di una Nota nella riga: un clic la apre, doppio clic o F2 la rinominano. */
+/**
+ * Il nome di una Nota nella riga: un clic la apre, doppio clic o F2 la rinominano. `modificata`:
+ * il pallino delle modifiche non salvate.
+ */
 function NomeNota({
+  modificata,
   nome,
   onOpen,
   onRename,
   selected,
 }: {
+  modificata: boolean;
   nome: string;
   onOpen: (nome: string) => void;
   onRename?: (nome: string) => void;
@@ -311,10 +379,11 @@ function NomeNota({
     },
     [nome, onRename]
   );
+  const { t } = useTranslation();
   return (
     <button
       aria-selected={selected}
-      className="h-[30px] max-w-[22ch] truncate rounded-lg px-2.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-selected:bg-accent aria-selected:text-foreground"
+      className="flex h-[30px] max-w-[22ch] items-center gap-1.5 rounded-lg px-2.5 font-medium text-muted-foreground text-sm transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 aria-selected:bg-accent aria-selected:text-foreground"
       onClick={open}
       onDoubleClick={rename}
       onKeyDown={keyDown}
@@ -322,7 +391,15 @@ function NomeNota({
       title={nome}
       type="button"
     >
-      {nome}
+      <span className="truncate">{nome}</span>
+      {modificata ? (
+        <span
+          aria-label={t("notes.unsaved")}
+          className="size-1.5 shrink-0 rounded-full bg-foreground"
+          role="img"
+          title={t("notes.unsaved")}
+        />
+      ) : null}
     </button>
   );
 }
@@ -392,28 +469,32 @@ function NomeInModifica({
 
 /**
  * L'editor ibrido della Nota `nota` (ADR-0032), Markdown impaginato fuori dalla riga del cursore,
- * con la barretta del formato sulla selezione; nasce con il testo su disco. Si salva dopo
- * `PAUSA_MS` di pausa, uscendo dal campo e lasciando la Nota o la scheda. I Tempi nella Nota sono
- * pillole che portano lì il `player`; Ctrl+T scrive al cursore il suo tempo.
+ * con la barretta del formato sulla selezione; nasce con la `bozza`, se c'è, o con il testo su
+ * disco. Ogni modifica va a `scrivi`; con `salvaDaSolo` si salva dopo `PAUSA_MS` di pausa, uscendo
+ * dal campo e lasciando la Nota o la scheda. I Tempi nella Nota sono pillole che portano lì il
+ * `player`; Ctrl+T scrive al cursore il suo tempo.
  */
 function NotaEditor({
+  bozza,
   durataMs,
   nota,
   onError,
-  onSalvate,
   player,
   readOnly,
   salva,
+  salvaDaSolo,
+  scrivi,
   view,
 }: {
+  bozza?: string;
   durataMs: number;
   nota: NotaAperta;
   onError: (error: AppError) => void;
-  /** Se su disco c'è il testo dell'editor. */
-  onSalvate: (salvate: boolean) => void;
   player?: Pick<PlayerState, "move" | "positionMs">;
   readOnly: boolean;
   salva: (nome: string, bozza: string) => Promise<boolean>;
+  salvaDaSolo: boolean;
+  scrivi: (nome: string, testo: string) => void;
   view: RefObject<EditorView | null>;
 }) {
   const { t } = useTranslation();
@@ -432,9 +513,9 @@ function NotaEditor({
     [view]
   );
 
-  // Le pillole leggono durata, player e lingua quando si ridisegnano.
-  const attuali = useRef({ durataMs, player, t });
-  attuali.current = { durataMs, player, t };
+  // Le pillole leggono durata, player e lingua quando si ridisegnano; l'editor Salva da solo.
+  const attuali = useRef({ durataMs, player, salvaDaSolo, t });
+  attuali.current = { durataMs, player, salvaDaSolo, t };
   const tempi = useRef<Tempi>({
     durataMs: () => attuali.current.durataMs,
     etichetta: (time) => attuali.current.t("notes.jump", { time }),
@@ -457,7 +538,7 @@ function NotaEditor({
         }
   );
 
-  // L'editor vive quanto la Nota aperta: uscendo salva la bozza.
+  // L'editor vive quanto la Nota aperta: con Salva da solo uscendo salva la bozza.
   // biome-ignore lint/correctness/useExhaustiveDependencies: testo e readOnly iniziali; readOnly cambia con il Compartment
   useEffect(() => {
     if (!host.current) {
@@ -465,18 +546,14 @@ function NotaEditor({
     }
     const salvaBozza = () => {
       clearTimeout(timer.current);
-      const bozza = editor.state.doc.toString();
-      salva(nome, bozza).then((ok) => {
-        // Lasciata la Nota, l'esito non riguarda più l'editor mostrato.
-        if (view.current === editor) {
-          onSalvate(ok && editor.state.doc.toString() === bozza);
-        }
-      });
+      if (attuali.current.salvaDaSolo) {
+        salva(nome, editor.state.doc.toString());
+      }
     };
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
-        doc: salvato ?? "",
+        doc: bozza ?? salvato ?? "",
         extensions: [
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -507,7 +584,7 @@ function NotaEditor({
               misuraBarretta(update.view, host.current, setBarretta);
             }
             if (update.docChanged) {
-              onSalvate(false);
+              scrivi(nome, update.state.doc.toString());
               clearTimeout(timer.current);
               timer.current = setTimeout(salvaBozza, PAUSA_MS);
             }
@@ -517,7 +594,6 @@ function NotaEditor({
       }),
     });
     view.current = editor;
-    onSalvate(salvato !== null);
     return () => {
       salvaBozza();
       if (view.current === editor) {
