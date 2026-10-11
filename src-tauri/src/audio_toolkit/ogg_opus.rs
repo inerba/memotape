@@ -469,6 +469,35 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn un_ogg_senza_fine_per_un_crash_si_taglia_e_si_rilegge() {
+        let dir = temp_dir("ogg-opus-taglio-crash");
+        let path = dir.join("interrotto.ogg");
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(&path).unwrap(), 48_000, 1, 32).unwrap();
+        writer.write(&sine(48_000, 1, 3.0)).unwrap();
+        // Senza `finish`: niente pagina con EOS, solo le pagine chiuse ogni secondo.
+        drop(writer);
+        let out = dir.join("tagliato.ogg");
+
+        let durata = taglia(
+            std::fs::File::open(&path).unwrap(),
+            std::fs::File::create(&out).unwrap(),
+            &[0..25],
+        )
+        .unwrap();
+
+        let seconds = decoded_seconds(&out);
+        assert!(
+            (f64::from(durata) / 1000.0 - seconds).abs() < 0.001,
+            "durata {durata} ms, riletti {seconds} s"
+        );
+    }
+
+    #[test]
     fn durante_la_scrittura_il_file_e_gia_leggibile_fino_a_circa_un_secondo_prima() {
         let dir = temp_dir("ogg-opus-parziale");
         let path = dir.join("in-corso.ogg");

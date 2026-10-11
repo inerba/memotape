@@ -726,9 +726,18 @@ pub fn set_creato(path: &Path, local: &str) -> Result<String, AppError> {
 /// si toccano, dentro la durata e ai 20 ms di un pacchetto Opus.
 pub fn tagli_applicabili(tagli: &[Range<u32>], durata_ms: u32) -> Vec<Range<u32>> {
     let pacchetto = |ms: u32| (ms.min(durata_ms) + 10) / 20 * 20;
+    // Un tratto che arriva alla fine toglie tutta la coda: anche l'ultimo pacchetto, che va oltre
+    // la durata, e l'audio di un Ingresso più lungo del mix.
+    let fine = |ms: u32| {
+        if ms >= durata_ms {
+            u32::MAX
+        } else {
+            pacchetto(ms)
+        }
+    };
     let mut tagli: Vec<_> = tagli
         .iter()
-        .map(|r| pacchetto(r.start)..pacchetto(r.end))
+        .map(|r| pacchetto(r.start)..fine(r.end))
         .filter(|r| !r.is_empty())
         .collect();
     tagli.sort_by_key(|r| r.start);
@@ -876,6 +885,9 @@ pub fn taglia(
         drop(file);
         drop(old);
         scarta(path)?;
+        // L'originale non c'è più al suo posto: se il rename non riesce, il Tape tagliato resta
+        // accanto invece di sparire.
+        created = false;
         std::fs::rename(&temp, path).map_err(|e| unwritable(path, &e))
     })();
     if written.is_err() && created {
@@ -1424,6 +1436,130 @@ mod tests {
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
     }
 
+    /// Un Tape con il mix e il Microfono, lunghi `mix_s` e `microfono_s`.
+    fn tape_da_tagliare(dir: &Path, mix_s: f64, microfono_s: f64) -> PathBuf {
+        let mix = ogg_named(dir, "mix.ogg", mix_s);
+        let microfono = ogg_named(dir, "microfono.ogg", microfono_s);
+        let path = dir.join("Riunione.tape");
+        let mut written = document(&["Uno.", "Due."]);
+        written.durata_ms = (mix_s * 1000.0) as u32;
+        write(
+            &path,
+            &[(Ingresso::Mix, &mix), (Ingresso::Microfono, &microfono)],
+            &written,
+            None,
+        )
+        .unwrap();
+        path
+    }
+
+    fn secondi_di(path: &Path, ingresso: Ingresso, dir: &Path) -> f64 {
+        let mut audio = Vec::new();
+        Mix::open_ingresso(path, ingresso)
+            .unwrap()
+            .read_to_end(&mut audio)
+            .unwrap();
+        let ogg = dir.join(format!("{ingresso:?}-riletto.ogg"));
+        std::fs::write(&ogg, audio).unwrap();
+        decoded_seconds(&ogg)
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn un_taglio_fino_alla_fine_toglie_tutta_la_coda_anche_degli_ingressi_piu_lunghi() {
+        let dir = temp_dir("tape-taglio-coda");
+        // Il Microfono ha mezzo secondo in più del mix; la durata del Tape cade su un pacchetto.
+        let path = tape_da_tagliare(&dir, 10.0, 10.5);
+
+        taglia(&path, &[8_000..10_000], |_| Ok(())).unwrap();
+
+        let secondi = (
+            secondi_di(&path, Ingresso::Mix, &dir),
+            secondi_di(&path, Ingresso::Microfono, &dir),
+        );
+        assert!(
+            (secondi.0 - 7.9935).abs() < 0.001 && (secondi.1 - 7.9935).abs() < 0.001,
+            "mix e Microfono dopo il taglio: {secondi:?}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn un_taglio_che_toglierebbe_tutto_si_rifiuta_e_lascia_il_tape_com_era() {
+        let dir = temp_dir("tape-taglio-tutto");
+        let path = tape_da_tagliare(&dir, 3.0, 3.0);
+        let prima = std::fs::read(&path).unwrap();
+
+        let rifiuto = taglia(&path, &[0..3_000], |_| Ok(()));
+
+        assert!(
+            matches!(rifiuto, Err(AppError::Internal(_))) && std::fs::read(&path).unwrap() == prima,
+            "{rifiuto:?}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn se_il_tape_nuovo_non_prende_il_posto_dell_originale_scartato_resta_accanto() {
+        let dir = temp_dir("tape-taglio-rename");
+        let path = tape_da_tagliare(&dir, 3.0, 3.0);
+
+        // L'originale va «nel Cestino», ma al suo posto c'è una cartella: il rename non riesce.
+        let esito = taglia(&path, &[0..1_000], |p| {
+            std::fs::remove_file(p).unwrap();
+            std::fs::create_dir(p).unwrap();
+            Ok(())
+        });
+
+        let temporanei: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .filter(|n| n.ends_with(".tmp"))
+            .collect();
+        assert!(
+            esito.is_err() && temporanei.len() == 1,
+            "{esito:?}, temporanei: {temporanei:?}"
+        );
+    }
+
+    #[test]
+    #[expect(
+        clippy::single_range_in_vec_init,
+        reason = "un elenco di tratti da tagliare, anche di uno solo"
+    )]
+    fn una_frase_a_cavallo_del_taglio_resta_intera_con_i_tempi_accorciati_al_bordo() {
+        let mut documento = document(&["Ciao.", "Uno."]);
+        documento.frasi[1].tempi = vec![crate::transcript::TempoTesto {
+            inizio_byte: 0,
+            fine_byte: 4,
+            inizio_ms: 650,
+            fine_ms: 1_050,
+        }];
+
+        // La Frase 1 va da 600 a 1100: il taglio ne toglie l'inizio, non tutta.
+        documento.taglia(&[400..800], 1_100);
+
+        let frase = &documento.frasi[1];
+        assert_eq!(
+            (
+                frase.inizio_ms,
+                frase.fine_ms,
+                frase.tempi[0].inizio_ms,
+                documento.creato.as_str()
+            ),
+            (400, 700, 400, "2026-10-03T17:05:00+02:00")
+        );
+    }
+
     #[test]
     fn i_tagli_si_uniscono_e_cadono_sui_pacchetti_da_20_ms() {
         assert_eq!(
@@ -1431,7 +1567,7 @@ mod tests {
                 &[900..1_000, 0..15, 2_005..2_031, 990..1_200, 40..40],
                 2_020
             ),
-            [0..20, 900..1_200, 2_000..2_020]
+            [0..20, 900..1_200, 2_000..u32::MAX]
         );
     }
 

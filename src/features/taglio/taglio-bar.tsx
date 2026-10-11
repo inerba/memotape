@@ -267,7 +267,7 @@ export function TaglioBar({
         </Button>
         <Button
           className="h-8"
-          disabled={tagli.length === 0 || applying}
+          disabled={tagli.length === 0 || applying || tolti >= durataMs}
           onClick={chiedi}
         >
           {t("taglio.applica")}
