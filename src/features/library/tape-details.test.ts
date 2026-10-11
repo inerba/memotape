@@ -15,6 +15,7 @@ describe("Dettagli del Tape", () => {
     ingressiSeparati: false,
     linguaParlato: "it",
     modello: "Whisper Large v3 Turbo",
+    modificato: 0,
     origine: "2026-07-08 15-01-12.mp4",
   };
 

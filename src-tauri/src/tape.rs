@@ -374,6 +374,21 @@ pub fn read(path: &Path) -> Result<Document, AppError> {
     serde_json::from_slice(&json).map_err(|e| unreadable(path, &e))
 }
 
+/// La data di modifica del file del Tape, in ms dal 1970; `None` se il file non c'è più. Il
+/// frontend la confronta con quella dell'apertura per sapere se il Tape è cambiato da fuori.
+pub fn modificato(path: &Path) -> Result<Option<f64>, AppError> {
+    match std::fs::metadata(path).and_then(|m| m.modified()) {
+        Ok(time) => Ok(Some(
+            time.duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs_f64()
+                * 1000.0,
+        )),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(unreadable(path, &e)),
+    }
+}
+
 /// La Forma d'onda del mix salvata nel Tape; `None` se manca, non si legge o è vuota.
 pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
     let mut json = Vec::new();
@@ -1359,6 +1374,27 @@ mod tests {
             .collect();
         names.sort();
         assert_eq!(names, ["Registrazione.tape", "mix.ogg"]);
+    }
+
+    #[test]
+    fn la_data_di_modifica_cambia_con_una_riscrittura_e_manca_per_un_tape_sparito() {
+        let dir = temp_dir("tape-modificato");
+        let mix = ogg(&dir);
+        let path = dir.join("Registrazione.tape");
+        write(&path, &[(Ingresso::Mix, &mix)], &document(&["Uno."]), None).unwrap();
+        // Un'ora fa: la riscrittura subito dopo non cade nello stesso tick dell'orologio.
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - std::time::Duration::from_secs(3600))
+            .unwrap();
+        let aperto = modificato(&path).unwrap().unwrap();
+        assert_eq!(modificato(&path).unwrap(), Some(aperto));
+        rewrite(&path, &document(&["Uno.", "Due."])).unwrap();
+        assert_ne!(modificato(&path).unwrap(), Some(aperto));
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(modificato(&path).unwrap(), None);
     }
 
     #[test]

@@ -84,6 +84,26 @@ export function pendingTape(
   return isBusy(status) || confirming ? null : pending;
 }
 
+/**
+ * Cosa fare del Tape mostrato quando la finestra torna in primo piano (un Assistente o Esplora
+ * file possono averlo cambiato): `suDisco` è la sua data di modifica adesso, `null` se non c'è
+ * più. Si ricarica solo se è diversa da quella letta all'apertura. Il Tape su cui lavora
+ * l'Attività in corso (`occupato`) resta com'è: lo rilegge lei alla fine.
+ */
+export function alRitorno(
+  info: Pick<TapeInfo, "modificato"> | null,
+  suDisco: number | null,
+  occupato: boolean
+): "ricarica" | "chiudi" | null {
+  if (!info || occupato) {
+    return null;
+  }
+  if (suDisco === null) {
+    return "chiudi";
+  }
+  return suDisco === info.modificato ? null : "ricarica";
+}
+
 export type SourceViewAction =
   /**
    * Il file o il Tape diventa la Sorgente, con la Frase trovata; senza percorso nessuna (il

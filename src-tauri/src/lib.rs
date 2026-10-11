@@ -41,6 +41,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_transcription,
             commands::transcript_text,
             commands::open_tape,
+            commands::tape_modificato,
             commands::rename_parlante,
             commands::edit_frase,
             commands::edit_turno,

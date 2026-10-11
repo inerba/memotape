@@ -104,8 +104,10 @@ export interface ModalitaTaglio {
 /**
  * La modalità Taglio del Tape `path`: `modalita` è `null` fuori, e si chiude da sola se l'Attività
  * in corso comincia a lavorarci (`attiva` falso). `apri` (dopo `onApri`) c'è solo con il testo e
- * fuori dalla modalità. `versione` cresce a ogni Taglio applicato: chi la usa come `key` del player
- * gli fa rileggere il mix nuovo.
+ * fuori dalla modalità. `versione` cresce quando cambia la durata del Tape, cioè a ogni Taglio,
+ * applicato qui o da un Assistente (il Tape ricaricato al ritorno in primo piano): chi la usa come
+ * `key` del player gli fa rileggere il mix nuovo. I Tagli in sospeso di quel momento non valgono
+ * più per il Tape nuovo e la modalità si chiude.
  */
 export function useModalitaTaglio({
   attiva,
@@ -133,6 +135,12 @@ export function useModalitaTaglio({
     setTagli(null);
   }
   const [versione, setVersione] = useState(0);
+  const [durataLetta, setDurataLetta] = useState(info?.durataMs);
+  if (info?.durataMs !== durataLetta) {
+    setDurataLetta(info?.durataMs);
+    setVersione(versione + 1);
+    setTagli(null);
+  }
   const durataMs = info?.durataMs ?? durationMs;
   const apri = useCallback(() => {
     onApri();
@@ -149,7 +157,6 @@ export function useModalitaTaglio({
       move(0, "jump");
       onTagliato(path, result.data);
       setTagli(null);
-      setVersione((v) => v + 1);
       return null;
     },
     [audio, move, onTagliato, path, tagli]

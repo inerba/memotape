@@ -145,6 +145,14 @@ pub async fn open_tape(
     blocking(app, move |_| managers::transcription::open_tape(&path)).await
 }
 
+/// La data di modifica del Tape `path` (`modificato` delle sue informazioni); `null` se non c'è più.
+/// La finestra la chiede quando torna in primo piano, per ricaricare il Tape cambiato da fuori.
+#[tauri::command]
+#[specta::specta]
+pub fn tape_modificato(path: String) -> Result<Option<f64>, AppError> {
+    tape::modificato(&tape_path(&path)?)
+}
+
 /// `path` se è un Tape: i comandi che leggono o scrivono un Tape non toccano altri file.
 fn tape_path(path: &str) -> Result<PathBuf, AppError> {
     let path = PathBuf::from(path);

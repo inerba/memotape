@@ -43,6 +43,7 @@ const info: TapeInfo = {
   ingressiSeparati: false,
   linguaParlato: "it",
   modello: null,
+  modificato: 0,
   origine: null,
 };
 

@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { OpenedTape } from "@/bindings";
 import {
+  alRitorno,
   INITIAL_VIEW,
   opening,
   pendingTape,
@@ -109,4 +110,18 @@ test("il Tape del doppio clic consultato durante l'Attività diventa la Sorgente
     { path: "c.tape", tape: opened("C."), type: "tapeConsulted" },
   ]);
   expect(pendingTape(state, idle, false)).toBe("c.tape");
+});
+
+test("al ritorno in primo piano il Tape aperto si ricarica solo se è cambiato su disco, e si chiude se non c'è più", () => {
+  const info = { modificato: 1_760_000_000_000 };
+  expect(alRitorno(info, 1_760_000_000_000, false)).toBeNull();
+  expect(alRitorno(info, 1_760_000_500_000, false)).toBe("ricarica");
+  expect(alRitorno(info, null, false)).toBe("chiudi");
+});
+
+test("al ritorno in primo piano il Tape su cui lavora l'Attività e un Tape senza informazioni restano com'erano", () => {
+  const info = { modificato: 1_760_000_000_000 };
+  expect(alRitorno(info, 1_760_000_500_000, true)).toBeNull();
+  expect(alRitorno(info, null, true)).toBeNull();
+  expect(alRitorno(null, 1_760_000_500_000, false)).toBeNull();
 });
