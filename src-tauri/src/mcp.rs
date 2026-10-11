@@ -10,7 +10,11 @@ use std::sync::{Mutex, PoisonError};
 
 use chrono::NaiveDate;
 use rmcp::handler::server::wrapper::{Json, Parameters};
-use rmcp::{ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router};
+use rmcp::model::{PromptMessage, Role};
+use rmcp::{
+    ServerHandler, ServiceExt, prompt, prompt_handler, prompt_router, schemars, tool, tool_handler,
+    tool_router,
+};
 
 use crate::cartelle::{self, Cartelle};
 use crate::library::{self, Library, MARK_END, MARK_START};
@@ -206,6 +210,12 @@ pub struct RenameTapeParams {
     tape: String,
     /// The new title: the file name without `.tape`, unique in its folder.
     titolo: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct FixTapeParams {
+    /// The Tape to fix, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -879,6 +889,46 @@ of the Tape relative to the Library: use it from now on.",
     }
 }
 
+#[prompt_router]
+impl Server {
+    #[prompt(
+        name = "fix_tape",
+        title = "Sistema il Tape",
+        description = "Tidy up a Tape the way Memotape suggests: a light correction of its turns, \
+cut its long silences, then a title if the current one is generic."
+    )]
+    fn fix_tape(&self, Parameters(p): Parameters<FixTapeParams>) -> Vec<PromptMessage> {
+        log::info!("Assistente: prompt fix_tape {}", p.tape);
+        vec![PromptMessage::new_text(
+            Role::User,
+            fix_tape_recipe(&p.tape),
+        )]
+    }
+}
+
+/// La ricetta di «Sistema il Tape» (ADR-0031) per il Tape `tape`: il titolo per ultimo, perché
+/// cambia il percorso.
+fn fix_tape_recipe(tape: &str) -> String {
+    format!(
+        "Fix the Memotape Tape `{tape}` with the Memotape tools, in this order.\n\n\
+1. Light correction. Read its turns with read_turns (every page, following `next`) and correct a \
+turn with edit_turn only where there are evident errors: misrecognized words, proper names spelled \
+inconsistently, punctuation, capitalization, involuntary repetitions and filler words. Keep the \
+speaker's style, word order and meaning; do not rewrite, summarize or translate. Leave a turn \
+without evident errors untouched: it keeps its original text and word timings. Pass the turn's \
+text from read_turns as `expected`.\n\n\
+2. Silences. Call find_silences, then remove the silences with a single cut_tape call with all the \
+cuts it proposes; the original Tape goes to the Windows Recycle Bin, where the user can restore \
+it. If there are none, skip this step.\n\n\
+3. Title, last, because it changes the Tape's path. Only if the current title is generic (the \
+default of a Recording, a word followed by the date and time, or the name of the imported file), \
+give the Tape a new one with rename_tape: short, at most 100 characters, in the language spoken \
+in the Tape, about its subject, without a date (the Tape already has one). If the title is \
+already taken, choose another one. Otherwise keep the current title.\n\n\
+At the end, tell the user in a few lines what you changed."
+    )
+}
+
 #[tool_handler(
     name = "memotape",
     instructions = "Memotape is the user's local transcription app. Its Library is a folder of Tape \
@@ -891,8 +941,10 @@ identified by their path relative to the Library, as these tools return it. If t
 you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn, \
 merge a turn into an adjacent one with merge_turn, name a speaker with rename_speaker and change the \
 date with set_date; rename_tape changes its title, trash_tape moves it to the Recycle Bin; find its \
-long silences with find_silences and remove them with one cut_tape."
+long silences with find_silences and remove them with one cut_tape. The fix_tape prompt gives the \
+recipe to tidy up a Tape."
 )]
+#[prompt_handler]
 impl ServerHandler for Server {}
 
 impl Server {
@@ -2091,5 +2143,38 @@ mod tests {
             limit: None,
         }));
         assert!(letto.err().unwrap().contains("open Memotape"));
+    }
+
+    #[test]
+    fn il_server_offre_la_ricetta_sistema_il_tape_per_il_tape_indicato() {
+        let (_, server) = server("prompt", true);
+        assert!(server.get_info().capabilities.prompts.is_some());
+        let prompts = Server::prompt_router().list_all();
+        let names: Vec<_> = prompts.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["fix_tape"]);
+        let argomenti = prompts[0].arguments.as_deref().unwrap_or_default();
+        assert!(
+            argomenti
+                .iter()
+                .any(|a| a.name == "tape" && a.required == Some(true)),
+            "{argomenti:?}"
+        );
+        let messaggi = server.fix_tape(Parameters(FixTapeParams { tape: CALL.into() }));
+        let testo: String = messaggi
+            .iter()
+            .filter_map(|m| m.content.as_text().map(|t| t.text.clone()))
+            .collect();
+        assert!(testo.contains(CALL), "{testo}");
+        // I tre passi nel loro ordine: correzione, Silenzi, titolo per ultimo.
+        let at = |strumento: &str| {
+            testo
+                .find(strumento)
+                .unwrap_or_else(|| panic!("{strumento}"))
+        };
+        assert!(at("read_turns") < at("edit_turn"));
+        assert!(at("edit_turn") < at("find_silences"));
+        assert!(at("find_silences") < at("cut_tape"));
+        assert!(at("cut_tape") < at("rename_tape"));
+        assert!(testo.contains("100 characters"), "{testo}");
     }
 }

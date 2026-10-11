@@ -259,7 +259,7 @@
       "allow": "Allow assistants to read the Library",
       "allowDescription": "Assistants search and read the titles and text of your Tape without changing them. What they read goes to Anthropic's or OpenAI's servers: it leaves your PC.",
       "allowEdit": "Allow assistants to modify the Library",
-      "allowEditDescription": "Assistants correct the text of your Tape, even when Memotape is closed. Their corrections show as “Manually corrected”. It can be turned on only when reading is allowed.",
+      "allowEditDescription": "Assistants correct the text of your Tape, merge turns, name speakers, change title and date, cut silences and move Tape to the Windows Recycle Bin, even when Memotape is closed. Their corrections show as “Manually corrected”. It can be turned on only when reading is allowed.",
       "connect": "Connect an assistant",
       "connectDescription": "Copy the configuration into the assistant and restart it.",
       "claudeCode": "Claude Code: run the command in a terminal",

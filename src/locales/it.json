@@ -260,7 +260,7 @@
       "allow": "Consenti agli Assistenti di leggere la Libreria",
       "allowDescription": "Gli Assistenti cercano e leggono titoli e testo dei Tape, senza modificarli. Quello che leggono va ai server di Anthropic o di OpenAI: esce dal tuo PC.",
       "allowEdit": "Consenti agli Assistenti di modificare la Libreria",
-      "allowEditDescription": "Gli Assistenti correggono il testo dei Tape, anche con Memotape chiuso. Le loro correzioni risultano «Corretto a mano». Si accende solo con la lettura consentita.",
+      "allowEditDescription": "Gli Assistenti correggono il testo dei Tape, uniscono i turni, danno nomi ai Parlanti, cambiano titolo e data, tagliano i silenzi e mandano i Tape nel Cestino di Windows, anche con Memotape chiuso. Le loro correzioni risultano «Corretto a mano». Si accende solo con la lettura consentita.",
       "connect": "Collega un Assistente",
       "connectDescription": "Copia la configurazione nell'Assistente e riavvialo.",
       "claudeCode": "Claude Code: lancia il comando in un terminale",

@@ -261,7 +261,7 @@
       "allow": "Pozwól asystentom czytać Bibliotekę",
       "allowDescription": "Asystenci przeszukują i czytają tytuły oraz tekst Twoich plików Tape, nie zmieniając ich. To, co czytają, trafia na serwery Anthropic lub OpenAI: opuszcza Twój komputer.",
       "allowEdit": "Pozwól asystentom zmieniać Bibliotekę",
-      "allowEditDescription": "Asystenci poprawiają tekst Twoich plików Tape, nawet gdy aplikacja Memotape jest zamknięta. Ich poprawki są oznaczone jako „Poprawiono ręcznie”. Można to włączyć tylko przy zgodzie na czytanie.",
+      "allowEditDescription": "Asystenci poprawiają tekst Twoich plików Tape, łączą wypowiedzi, nadają nazwy mówcom, zmieniają tytuł i datę, wycinają cisze i przenoszą pliki Tape do Kosza systemu Windows, nawet gdy aplikacja Memotape jest zamknięta. Ich poprawki są oznaczone jako „Poprawiono ręcznie”. Można to włączyć tylko przy zgodzie na czytanie.",
       "connect": "Połącz asystenta",
       "connectDescription": "Skopiuj konfigurację do asystenta i uruchom go ponownie.",
       "claudeCode": "Claude Code: uruchom polecenie w terminalu",

@@ -260,7 +260,7 @@
       "allow": "Permitir que los asistentes lean la Biblioteca",
       "allowDescription": "Los asistentes buscan y leen los títulos y el texto de tus Tape sin modificarlos. Lo que leen va a los servidores de Anthropic o de OpenAI: sale de tu PC.",
       "allowEdit": "Permitir que los asistentes modifiquen la Biblioteca",
-      "allowEditDescription": "Los asistentes corrigen el texto de tus Tape, incluso con Memotape cerrado. Sus correcciones aparecen como «Corregido a mano». Solo se activa si la lectura está permitida.",
+      "allowEditDescription": "Los asistentes corrigen el texto de tus Tape, unen intervenciones, ponen nombre a los hablantes, cambian el título y la fecha, recortan los silencios y mueven Tape a la Papelera de reciclaje de Windows, incluso con Memotape cerrado. Sus correcciones aparecen como «Corregido a mano». Solo se activa si la lectura está permitida.",
       "connect": "Conectar un asistente",
       "connectDescription": "Copia la configuración en el asistente y reinícialo.",
       "claudeCode": "Claude Code: ejecuta el comando en una terminal",

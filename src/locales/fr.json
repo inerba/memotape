@@ -260,7 +260,7 @@
       "allow": "Autoriser les assistants à lire la Bibliothèque",
       "allowDescription": "Les assistants recherchent et lisent les titres et le texte de vos Tape sans les modifier. Ce qu'ils lisent part vers les serveurs d'Anthropic ou d'OpenAI : il quitte votre PC.",
       "allowEdit": "Autoriser les assistants à modifier la Bibliothèque",
-      "allowEditDescription": "Les assistants corrigent le texte de vos Tape, même quand Memotape est fermé. Leurs corrections apparaissent comme « Corrigé manuellement ». S'active seulement si la lecture est autorisée.",
+      "allowEditDescription": "Les assistants corrigent le texte de vos Tape, fusionnent les interventions, nomment les intervenants, changent le titre et la date, coupent les silences et mettent des Tape à la Corbeille de Windows, même quand Memotape est fermé. Leurs corrections apparaissent comme « Corrigé manuellement ». S'active seulement si la lecture est autorisée.",
       "connect": "Connecter un assistant",
       "connectDescription": "Copiez la configuration dans l'assistant et redémarrez-le.",
       "claudeCode": "Claude Code : lancez la commande dans un terminal",
