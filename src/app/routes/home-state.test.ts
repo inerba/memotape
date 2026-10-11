@@ -163,8 +163,8 @@ test("la Sorgente nel Cestino si chiude; un altro Tape nel Cestino non la tocca"
   const open = run([
     { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
   ]);
-  expect(home(open, { path: "b.tape", type: "tapeTrashed" })).toEqual(open);
-  const state = home(open, { path: "a.tape", type: "tapeTrashed" });
+  expect(home(open, { path: "b.tape", type: "tapeGone" })).toEqual(open);
+  const state = home(open, { path: "a.tape", type: "tapeGone" });
   expect(state.view.source).toBeNull();
   expect(texts(state)).toEqual([]);
   expect(state.activity.status).toEqual({ phase: "idle", source: null });
@@ -174,7 +174,7 @@ test("durante una Registrazione la Sorgente nel Cestino si chiude ma la vista de
   const state = run([
     { path: "a.tape", tape: tape("A."), type: "sourceOpened" },
     ...recording,
-    { path: "a.tape", type: "tapeTrashed" },
+    { path: "a.tape", type: "tapeGone" },
   ]);
   expect(state.view.source).toBeNull();
   expect(texts(state)).toEqual(["Dal vivo."]);

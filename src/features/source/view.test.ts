@@ -46,11 +46,11 @@ test("un Tape nel Cestino si chiude se era aperto, come Sorgente o come Tape con
   const consulted = run([
     { path: "a.tape", type: "sourceOpened" },
     { path: "b.tape", tape: opened("B."), type: "tapeConsulted" },
-    { path: "b.tape", type: "tapeTrashed" },
+    { path: "b.tape", type: "tapeGone" },
   ]);
   expect(consulted.source).toBe("a.tape");
   expect(consulted.consulted).toBeNull();
-  const own = sourceView(consulted, { path: "a.tape", type: "tapeTrashed" });
+  const own = sourceView(consulted, { path: "a.tape", type: "tapeGone" });
   expect(own.source).toBeNull();
 });
 

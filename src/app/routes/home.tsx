@@ -360,11 +360,12 @@ export function HomePage() {
     [dispatch, moveLastTape]
   );
 
-  // Il Tape nel Cestino, se era aperto, non lo è più; la vista di un'Attività però resta.
-  const trashed = useCallback(
+  // Il Tape che non c'è più (nel Cestino o sparito dal disco), se era aperto, si chiude; la vista
+  // di un'Attività però resta.
+  const gone = useCallback(
     (path: string) => {
       forget(path);
-      dispatch({ path, type: "tapeTrashed" });
+      dispatch({ path, type: "tapeGone" });
     },
     [dispatch, forget]
   );
@@ -373,7 +374,7 @@ export function HomePage() {
     useTapeOperations({
       onError: setNotice,
       onMoved: moved,
-      onTrashed: trashed,
+      onTrashed: gone,
     });
 
   // Un Tape arrivato con il doppio clic in Esplora file aspetta che finisca l'Attività (Apri file
@@ -766,7 +767,7 @@ export function HomePage() {
       center.isSource && busy
     );
     if (azione === "chiudi") {
-      trashed(path);
+      gone(path);
     } else if (azione === "ricarica") {
       const opened = await commands.openTape(path);
       if (opened.status === "error") {

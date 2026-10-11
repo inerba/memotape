@@ -66,8 +66,8 @@ function step(state: HomeState, action: HomeAction): HomeState {
         activity: activity(state.activity, { ...action, type: "moved" }),
         view: view(action),
       };
-    // La Sorgente nel Cestino è come nessuna Sorgente aperta.
-    case "tapeTrashed":
+    // La Sorgente che non c'è più (nel Cestino o sparita dal disco) è come nessuna Sorgente aperta.
+    case "tapeGone":
       return {
         activity:
           state.view.source === action.path

@@ -138,7 +138,7 @@ export type SourceViewAction =
   | { type: "tapeRequested"; path: string }
   | ({ type: "tapeChanged"; path: string } & TapeChange)
   | { type: "tapeMoved"; from: string; to: string }
-  | { type: "tapeTrashed"; path: string };
+  | { type: "tapeGone"; path: string };
 
 export function sourceView(
   state: SourceView,
@@ -202,7 +202,7 @@ export function sourceView(
         source: source && movedPath(source, from, to),
       };
     }
-    case "tapeTrashed":
+    case "tapeGone":
       return {
         ...state,
         consulted: consulted?.path === action.path ? null : consulted,
