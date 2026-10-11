@@ -4,10 +4,10 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `find_silences` sugli stessi casi di `taglio.test.ts`: inizio, fine, in mezzo sotto e sopra i 5 s, Ingressi che si accavallano; un Tape senza Frasi non ha Silenzi
-- [ ] `cut_tape` con i Tagli proposti accorcia il Tape e sposta le Frasi; l'originale è nel Cestino
-- [ ] Su `noRecycleBin` rifiuta e il Tape resta com'è
-- [ ] Con il permesso a modificare spento rifiutano
-- [ ] I sei controlli verdi
+- [x] `find_silences` sugli stessi casi di `taglio.test.ts`: inizio, fine, in mezzo sotto e sopra i 5 s, Ingressi che si accavallano; un Tape senza Frasi non ha Silenzi
+- [x] `cut_tape` con i Tagli proposti accorcia il Tape e sposta le Frasi; l'originale è nel Cestino
+- [x] Su `noRecycleBin` rifiuta e il Tape resta com'è
+- [x] Con il permesso a modificare spento rifiutano
+- [x] I sei controlli verdi

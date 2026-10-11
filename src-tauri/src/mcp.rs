@@ -167,6 +167,56 @@ pub struct EditTurnParams {
     text: String,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct SilencesParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct CutParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The stretches to remove, in ms on the timeline of the Tape as it is now (all of them in
+    /// one call): e.g. the `taglio` of each silence returned by find_silences.
+    tagli: Vec<CutOut>,
+}
+
+/// Un tratto da tagliare, in ms sulla linea del tempo del Tape.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CutOut {
+    inizio_ms: u32,
+    fine_ms: u32,
+}
+
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SilencesOut {
+    #[serde(flatten)]
+    tape: TapeOut,
+    /// In order of time; empty if the Tape has no long silences or no phrases.
+    silenzi: Vec<SilenceOut>,
+}
+
+/// Un Silenzio, con il Taglio che l'app propone.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SilenceOut {
+    /// "inizio" (before the first phrase), "mezzo" (between two turns) or "fine" (after the last
+    /// phrase, up to the end of the Tape).
+    dove: String,
+    /// Where the speech before it ends (0 at the start of the Tape).
+    inizio_ms: u32,
+    /// Where the speech after it starts (the duration of the Tape at its end).
+    fine_ms: u32,
+    /// The estimated silence, at least 5 s.
+    silenzio_ms: u32,
+    /// The cut Memotape proposes: the whole silence at the start and at the end, in between 1 s
+    /// left on each side. Pass it to cut_tape.
+    taglio: CutOut,
+}
+
 /// Un Tape della Libreria.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -274,12 +324,17 @@ pub struct TurnOut {
 #[derive(Clone)]
 pub struct Server {
     places: Cartelle,
+    /// Dove va l'originale di un Taglio: il Cestino di Windows; nei test, un volume senza.
+    cestino: fn(&Path) -> Result<(), AppError>,
 }
 
 #[tool_router]
 impl Server {
     pub fn new(places: Cartelle) -> Self {
-        Self { places }
+        Self {
+            places,
+            cestino: library::trash,
+        }
     }
 
     #[tool(
@@ -538,6 +593,81 @@ correct its current text.",
             "Corrected.".into()
         })
     }
+
+    #[tool(
+        description = "Find the long silences of a Tape, as Memotape's cut mode shows them: before \
+the first phrase, between two turns and after the last phrase, when at least 5 s long (estimated from \
+the phrases of all the Ingressi, not from the audio volume, so a Tape without phrases has none). \
+Each comes with the cut Memotape proposes: pass them to cut_tape in a single call.",
+        annotations(title = "Find the silences", read_only_hint = true)
+    )]
+    fn find_silences(
+        &self,
+        Parameters(p): Parameters<SilencesParams>,
+    ) -> Result<Json<SilencesOut>, String> {
+        log::info!("Assistente: find_silences {}", p.tape);
+        let (_, library) = self.allowed_library()?;
+        let path = resolve(library.root(), &p.tape)?;
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let silenzi = document
+            .silenzi()
+            .into_iter()
+            .map(|s| SilenceOut {
+                dove: match s.dove {
+                    tape::DoveSilenzio::Inizio => "inizio",
+                    tape::DoveSilenzio::Mezzo => "mezzo",
+                    tape::DoveSilenzio::Fine => "fine",
+                }
+                .into(),
+                inizio_ms: s.tratto.start,
+                fine_ms: s.tratto.end,
+                silenzio_ms: s.ms,
+                taglio: CutOut {
+                    inizio_ms: s.taglio.start,
+                    fine_ms: s.taglio.end,
+                },
+            })
+            .collect();
+        Ok(Json(SilencesOut {
+            tape: tape_of(&p.tape, &path, &document),
+            silenzi,
+        }))
+    }
+
+    #[tool(
+        description = "Cut stretches out of a Tape, with their audio and their phrases, as Memotape's \
+cut mode does: the Tape is rewritten once, shorter, and the phrases after each cut move earlier. The \
+original Tape goes to the Windows Recycle Bin, so the user can restore it; on a drive without a \
+Recycle Bin nothing is cut. Pass all the cuts in one call, in ms on the Tape as it is now (e.g. the \
+cuts proposed by find_silences); call find_silences or read_turns again afterwards for the new times.",
+        annotations(title = "Cut a Tape", read_only_hint = false, destructive_hint = true)
+    )]
+    fn cut_tape(&self, Parameters(p): Parameters<CutParams>) -> Result<String, String> {
+        log::info!("Assistente: cut_tape {} {:?}", p.tape, p.tagli);
+        let path = self.writable_tape(&p.tape)?;
+        let tagli: Vec<_> = p.tagli.iter().map(|t| t.inizio_ms..t.fine_ms).collect();
+        let prima = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        tape::taglia(&path, &tagli, self.cestino).map_err(|e| match e {
+            AppError::NoRecycleBin(_) => format!(
+                "{} is on a drive without a Recycle Bin: Memotape cuts a Tape only if the original \
+can go to the Recycle Bin, so nothing was changed.",
+                p.tape
+            ),
+            _ => format!("{} cannot be cut: {e}", p.tape),
+        })?;
+        let durata = tape::read(&path)
+            .map_err(|e| read_error(&p.tape, &e))?
+            .durata_ms;
+        Ok(if durata == prima.durata_ms {
+            "Nothing to cut: no stretch falls inside the Tape.".into()
+        } else {
+            format!(
+                "Cut: the Tape now lasts {durata} ms instead of {} ms; the original is in the \
+Recycle Bin.",
+                prima.durata_ms
+            )
+        })
+    }
 }
 
 #[tool_handler(
@@ -549,7 +679,8 @@ mix, microfono (the user's microphone) or sistema (system audio, e.g. the other 
 Raccolte are folders that group Tape. Use search to find phrases by words, then read_around for the \
 context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
 identified by their path relative to the Library, as these tools return it. If the user allows it, \
-you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn."
+you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn; \
+find its long silences with find_silences and remove them with one cut_tape."
 )]
 impl ServerHandler for Server {}
 
@@ -1268,5 +1399,265 @@ mod tests {
             assert!(scritto.is_err(), "{tape}");
         }
         assert_eq!(std::fs::read(&fuori).unwrap(), prima);
+    }
+
+    /// Il Tape `nome` nella Libreria `root`, lungo `durata_ms` con `audio_s` secondi di audio, con le
+    /// Frasi `frasi` (Ingresso, inizio, fine) in ordine di inizio.
+    fn tape_di(
+        root: &Path,
+        nome: &str,
+        durata_ms: u32,
+        audio_s: f64,
+        frasi: &[(Ingresso, u32, u32)],
+    ) -> String {
+        use crate::audio_toolkit::ogg_opus::{OggOpusWriter, tests::sine};
+        let ogg = root.parent().unwrap().join(format!("{nome}.ogg"));
+        let mut writer =
+            OggOpusWriter::new(std::fs::File::create(&ogg).unwrap(), 48_000, 2, 64).unwrap();
+        writer.write(&sine(48_000, 2, audio_s)).unwrap();
+        writer.finish().unwrap();
+        let phrases: Vec<_> = frasi
+            .iter()
+            .map(
+                |&(ingresso, inizio_ms, fine_ms)| crate::transcript::Phrase {
+                    inizio_ms,
+                    fine_ms,
+                    text: format!("Frase delle {inizio_ms}."),
+                    ingresso,
+                    parlante: None,
+                    parlante_non_determinato: false,
+                    parlante_provvisorio: false,
+                    tempi: Vec::new(),
+                },
+            )
+            .collect();
+        let document = tape::Document::new(
+            "2026-10-04T10:15:00+02:00".into(),
+            durata_ms,
+            tape::Modalita::Mix,
+            None,
+            crate::managers::settings::SpeechLanguage::from("it"),
+            true,
+            &phrases,
+        );
+        std::fs::create_dir_all(root).unwrap();
+        tape::write(&root.join(nome), &[(Ingresso::Mix, &ogg)], &document, None).unwrap();
+        nome.into()
+    }
+
+    fn find_silences(server: &Server, tape: &str) -> Result<Vec<SilenceOut>, String> {
+        server
+            .find_silences(Parameters(SilencesParams { tape: tape.into() }))
+            .map(|out| out.0.silenzi)
+    }
+
+    /// Un Silenzio come lo restituisce `find_silences`, con il suo Taglio proposto.
+    fn silenzio(dove: &str, a: u32, b: u32, ms: u32, taglio: (u32, u32)) -> SilenceOut {
+        SilenceOut {
+            dove: dove.into(),
+            inizio_ms: a,
+            fine_ms: b,
+            silenzio_ms: ms,
+            taglio: CutOut {
+                inizio_ms: taglio.0,
+                fine_ms: taglio.1,
+            },
+        }
+    }
+
+    #[test]
+    fn si_trovano_i_silenzi_della_modalita_taglio_con_il_taglio_proposto() {
+        // Basta il permesso a leggere.
+        let (root, server) = server_with("silenzi", true, false);
+        let mix = Ingresso::Mix;
+        // Saluti, la riunione, una pausa caffè di 7 minuti, la chiusura e 2 minuti di stanza vuota.
+        let riunione = tape_di(
+            &root,
+            "Riunione.tape",
+            800_000,
+            1.0,
+            &[
+                (mix, 4000, 9000),
+                (mix, 12_000, 19_000),
+                (mix, 164_000, 170_000),
+                (mix, 171_000, 180_000),
+                (mix, 645_000, 650_000),
+                (mix, 650_000, 655_000),
+            ],
+        );
+        assert_eq!(
+            find_silences(&server, &riunione).unwrap(),
+            [
+                silenzio("mezzo", 19_000, 164_000, 146_000, (20_000, 163_000)),
+                silenzio("mezzo", 180_000, 645_000, 466_000, (181_000, 644_000)),
+                silenzio("fine", 655_000, 800_000, 145_000, (656_000, 800_000)),
+            ]
+        );
+        // All'inizio dai 5 s in su, tolto tutto; in mezzo il silenzio stimato aggiunge hangover e
+        // prefill: 3,999 s fra le Frasi sono 4,999 s, 4 s sono 5 s.
+        let soglie = tape_di(
+            &root,
+            "Soglie.tape",
+            30_000,
+            1.0,
+            &[
+                (mix, 5000, 6000),
+                (mix, 9999, 11_000),
+                (mix, 15_000, 26_000),
+            ],
+        );
+        assert_eq!(
+            find_silences(&server, &soglie).unwrap(),
+            [
+                silenzio("inizio", 0, 5000, 5000, (0, 4000)),
+                silenzio("mezzo", 11_000, 15_000, 5000, (12_000, 14_000)),
+            ]
+        );
+        // Con gli Ingressi separati il silenzio si misura dalla fine più tarda: il Microfono parla
+        // sopra il Sistema e oltre.
+        let accavallati = tape_di(
+            &root,
+            "Accavallati.tape",
+            42_000,
+            1.0,
+            &[
+                (Ingresso::Microfono, 6000, 20_000),
+                (Ingresso::Sistema, 8000, 12_000),
+                (Ingresso::Microfono, 30_000, 40_000),
+            ],
+        );
+        assert_eq!(
+            find_silences(&server, &accavallati).unwrap(),
+            [
+                silenzio("inizio", 0, 6000, 6000, (0, 5000)),
+                silenzio("mezzo", 20_000, 30_000, 11_000, (21_000, 29_000)),
+            ]
+        );
+        // Un Tape senza Frasi non ha Silenzi: non si taglia tutto l'audio di un Tape non trascritto.
+        let muto = tape_di(&root, "Muto.tape", 60_000, 1.0, &[]);
+        assert_eq!(find_silences(&server, &muto).unwrap(), []);
+    }
+
+    #[test]
+    fn un_turno_corretto_non_si_divide_nei_silenzi() {
+        let (root, server) = server_with("silenzi-correzione", true, false);
+        let mix = Ingresso::Mix;
+        let tape = tape_di(
+            &root,
+            "Corretto.tape",
+            30_000,
+            1.0,
+            &[(mix, 0, 2000), (mix, 10_000, 12_000), (mix, 20_000, 30_000)],
+        );
+        let path = root.join(&tape);
+        let mut document = tape::read(&path).unwrap();
+        document.correzioni_testo.push(tape::TestoTurno {
+            ingresso: mix,
+            frasi: vec![0, 1],
+            testo: "Le prime due, corrette.".into(),
+        });
+        tape::rewrite(&path, &document).unwrap();
+        assert_eq!(
+            find_silences(&server, &tape).unwrap(),
+            [silenzio("mezzo", 12_000, 20_000, 9000, (13_000, 19_000))]
+        );
+    }
+
+    #[test]
+    fn senza_il_permesso_a_leggere_non_si_trovano_silenzi() {
+        let (_, server) = server_with("silenzi-spento", false, true);
+        assert_eq!(
+            find_silences(&server, CALL).err().as_deref(),
+            Some(DISABLED)
+        );
+    }
+
+    fn cut_tape(server: &Server, tape: &str, tagli: &[CutOut]) -> Result<String, String> {
+        server.cut_tape(Parameters(CutParams {
+            tape: tape.into(),
+            tagli: tagli.to_vec(),
+        }))
+    }
+
+    /// Il Cestino dei test: l'originale finisce accanto, con l'estensione `.nel-cestino`.
+    fn nel_cestino(path: &Path) -> Result<(), AppError> {
+        std::fs::rename(path, path.with_extension("nel-cestino"))
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Una chiamata di 30 s: 8 s di attesa, due battute fra 10 s di silenzio e 8 s di coda.
+    fn chiamata(root: &Path) -> String {
+        let mix = Ingresso::Mix;
+        tape_di(
+            root,
+            "Chiamata.tape",
+            30_000,
+            30.0,
+            &[(mix, 8000, 10_000), (mix, 20_000, 22_000)],
+        )
+    }
+
+    #[test]
+    fn i_tagli_proposti_accorciano_il_tape_e_l_originale_va_nel_cestino() {
+        let (root, mut server) = server_with("taglio", true, true);
+        server.cestino = nel_cestino;
+        let tape = chiamata(&root);
+        let indice = bytes(&root, &server, CALL).1;
+        let originale = tape::read(&root.join(&tape)).unwrap();
+        let tagli: Vec<_> = find_silences(&server, &tape)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.taglio)
+            .collect();
+        assert_eq!(tagli.len(), 3);
+        assert!(cut_tape(&server, &tape, &tagli).is_ok());
+        let tagliato = tape::read(&root.join(&tape)).unwrap();
+        // Resta 1 s di silenzio accanto a ogni Frase: 1 + 2 + 1 + 1 + 2 + 1 s, meno i 6,5 ms del
+        // pre-skip dell'Opus: con la coda tagliata restano 400 pacchetti interi (ADR-0030).
+        assert_eq!(tagliato.durata_ms, 7993);
+        let tempi: Vec<_> = tagliato
+            .frasi
+            .iter()
+            .map(|f| (f.inizio_ms, f.fine_ms))
+            .collect();
+        assert_eq!(tempi, [(1000, 3000), (5000, 7000)]);
+        assert_eq!(find_silences(&server, &tape).unwrap(), []);
+        assert_eq!(
+            tape::read(&root.join(&tape).with_extension("nel-cestino")).unwrap(),
+            originale
+        );
+        // Il server non scrive mai l'indice.
+        assert_eq!(bytes(&root, &server, CALL).1, indice);
+    }
+
+    #[test]
+    fn senza_cestino_il_taglio_si_rifiuta_e_il_tape_resta_com_e() {
+        let (root, mut server) = server_with("taglio-senza-cestino", true, true);
+        server.cestino = |path| Err(AppError::NoRecycleBin(path.display().to_string()));
+        let tape = chiamata(&root);
+        let prima = std::fs::read(root.join(&tape)).unwrap();
+        let taglio = CutOut {
+            inizio_ms: 0,
+            fine_ms: 7000,
+        };
+        let rifiuto = cut_tape(&server, &tape, &[taglio]).unwrap_err();
+        assert!(rifiuto.contains("Recycle Bin"), "{rifiuto}");
+        assert_eq!(std::fs::read(root.join(&tape)).unwrap(), prima);
+    }
+
+    #[test]
+    fn senza_il_permesso_a_modificare_non_si_taglia() {
+        for (lettura, modifica, errore) in [(true, false, READ_ONLY), (false, true, DISABLED)] {
+            let (root, server) =
+                server_with(&format!("taglio-spento-{lettura}"), lettura, modifica);
+            let prima = bytes(&root, &server, CALL);
+            let taglio = CutOut {
+                inizio_ms: 0,
+                fine_ms: 1000,
+            };
+            let tagliato = cut_tape(&server, CALL, &[taglio]);
+            assert_eq!(tagliato.err().as_deref(), Some(errore));
+            assert_eq!(bytes(&root, &server, CALL), prima);
+        }
     }
 }

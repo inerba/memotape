@@ -189,12 +189,7 @@ impl Document {
             if let Some(last) = turni.last_mut() {
                 let previous = &frasi[*last.last().expect("Turno non vuoto")];
                 let current = &frasi[index];
-                let gap = current.inizio_ms.saturating_sub(previous.fine_ms);
-                let silence = if gap == 0 {
-                    0
-                } else {
-                    gap.saturating_add(1000)
-                };
+                let silence = silenzio_stimato(previous.fine_ms, current.inizio_ms);
                 if same_voice(previous, current) && (labeled || silence <= 2000) {
                     last.push(index);
                     continue;
@@ -203,6 +198,52 @@ impl Document {
             turni.push(vec![index]);
         }
         turni
+    }
+
+    /// I Silenzi, come in modalità Taglio (`src/features/taglio/taglio.ts`): prima della prima Frase,
+    /// fra due Turni e dopo l'ultima fino alla fine, quando durano almeno `SILENZIO_MS`. Fra le Frasi
+    /// conta il silenzio stimato, dalla fine più tarda delle Frasi prima: con gli Ingressi separati
+    /// una voce parla sopra l'altra. Le Frasi di una correzione del Turno non si dividono. Senza
+    /// Frasi non ce n'è nessuno: il Silenzio si riconosce dal testo.
+    pub fn silenzi(&self) -> Vec<Silenzio> {
+        let mut frasi: Vec<&Frase> = self.frasi.iter().collect();
+        frasi.sort_by_key(|f| f.inizio_ms);
+        let Some(prima) = frasi.first() else {
+            return Vec::new();
+        };
+        let durata = self.durata_ms;
+        let mut silenzi = Vec::new();
+        let mut aggiungi = |dove, a: u32, b: u32, ms: u32| {
+            if ms >= SILENZIO_MS {
+                silenzi.push(Silenzio {
+                    dove,
+                    tratto: a..b,
+                    ms,
+                    taglio: taglio_del_silenzio(a, b, durata),
+                });
+            }
+        };
+        aggiungi(DoveSilenzio::Inizio, 0, prima.inizio_ms, prima.inizio_ms);
+        let mut fine = prima.fine_ms;
+        for coppia in frasi.windows(2) {
+            let (precedente, frase) = (coppia[0], coppia[1]);
+            let stessa_correzione = matches!(
+                (self.correzione_testo(precedente), self.correzione_testo(frase)),
+                (Some(a), Some(b)) if std::ptr::eq(a, b)
+            );
+            if !stessa_correzione {
+                let ms = silenzio_stimato(fine, frase.inizio_ms);
+                aggiungi(DoveSilenzio::Mezzo, fine, frase.inizio_ms, ms);
+            }
+            fine = fine.max(frase.fine_ms);
+        }
+        aggiungi(
+            DoveSilenzio::Fine,
+            fine,
+            durata,
+            durata.saturating_sub(fine),
+        );
+        silenzi
     }
 
     /// Gli indici del Turno fatto esattamente dalle Frasi `ids` di `ingresso`, in ordine; `None` se
@@ -312,6 +353,53 @@ impl Document {
             origine: None,
         }
     }
+}
+
+/// Da questo silenzio in su c'è un Silenzio: è `SHOWN_PAUSE_MS` della vista.
+const SILENZIO_MS: u32 = 5000;
+/// Il silenzio che il Taglio di un Silenzio in mezzo lascia da ogni lato: `MARGINE_MS` della vista.
+const MARGINE_MS: u32 = 1000;
+
+/// Dove sta un Silenzio nel Tape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DoveSilenzio {
+    Inizio,
+    Mezzo,
+    Fine,
+}
+
+/// Un Silenzio (`Document::silenzi`), in ms sulla linea del tempo del Tape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Silenzio {
+    pub dove: DoveSilenzio,
+    /// Dalla fine del parlato prima all'inizio di quello dopo (o alla fine del Tape).
+    pub tratto: Range<u32>,
+    /// Il silenzio stimato, come nel separatore della pausa.
+    pub ms: u32,
+    /// Il Taglio che propone l'app.
+    pub taglio: Range<u32>,
+}
+
+/// Il silenzio reale fra una Frase che finisce a `fine` e una che comincia a `inizio`: i tempi delle
+/// Frasi comprendono hangover e prefill (1 s insieme), come `transcript::silence_ms`; contigue, 0.
+fn silenzio_stimato(fine: u32, inizio: u32) -> u32 {
+    match inizio.saturating_sub(fine) {
+        0 => 0,
+        gap => gap.saturating_add(1000),
+    }
+}
+
+/// Il Taglio del Silenzio `[a, b]`: tutto all'inizio e alla fine del Tape, in mezzo 1 s per lato, o
+/// a metà se è più corto di 2 s.
+fn taglio_del_silenzio(a: u32, b: u32, durata_ms: u32) -> Range<u32> {
+    let margine = MARGINE_MS.min((b - a) / 2);
+    let inizio = if a == 0 { 0 } else { a + margine };
+    let fine = if b >= durata_ms {
+        durata_ms
+    } else {
+        b - margine
+    };
+    inizio..fine
 }
 
 fn same_voice(a: &Frase, b: &Frase) -> bool {

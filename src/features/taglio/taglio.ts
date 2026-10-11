@@ -16,7 +16,8 @@ export interface Silenzio {
 
 /**
  * I silenzi lunghi del testo in modalità Taglio: prima del primo turno, prima di ogni turno con una
- * pausa (`pauses`, da `pausesOf`) e dopo l'ultimo fino alla fine del Tape.
+ * pausa (`pauses`, da `pausesOf`) e dopo l'ultimo fino alla fine del Tape. Gli Assistenti usano la
+ * stessa regola in Rust (`Document::silenzi` in `tape.rs`): si cambiano insieme.
  */
 export function silenziDi(
   turns: Turn[],
