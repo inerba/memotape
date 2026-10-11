@@ -285,7 +285,7 @@ export function TranscriptView({
   return (
     <section
       aria-label={t("transcription.text")}
-      className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]"
+      className="relative min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] data-[taglio]:select-text"
       data-taglio={inTaglio ? "" : undefined}
       ref={section}
     >
