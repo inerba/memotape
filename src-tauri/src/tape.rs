@@ -394,7 +394,7 @@ pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
 /// Aggiunge al Tape la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
 #[cfg(test)]
 pub fn save_forma_onda(path: &Path, values: &[f32]) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     if forma_onda(path).is_some() {
         return Ok(());
     }
@@ -417,7 +417,7 @@ pub fn rewrite_cancellable(
     document: &Document,
     cancel: &transcribe_cpp::CancelToken,
 ) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     replace_checked(
         path,
         DOCUMENT,
@@ -439,7 +439,7 @@ pub fn replace_transcription(
     document: &Document,
     cancel: &transcribe_cpp::CancelToken,
 ) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     let check = || {
         if cancel.is_cancelled() {
             Err(AppError::Cancelled)
@@ -592,7 +592,7 @@ pub fn edit_turno(
     originale: &str,
     testo: &str,
 ) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     let mut document = read(path)?;
     let indices = document
         .turni()
@@ -827,7 +827,7 @@ pub fn taglia(
     tagli: &[Range<u32>],
     scarta: impl FnOnce(&Path) -> Result<(), AppError>,
 ) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     let mut document = read(path)?;
     let tagli = tagli_applicabili(tagli, document.durata_ms);
     if tagli.is_empty() {
@@ -916,18 +916,65 @@ fn update(
     path: &Path,
     change: impl FnOnce(&mut Document) -> Result<(), AppError>,
 ) -> Result<(), AppError> {
-    let _writing = writing();
+    let _writing = writing(path)?;
     let mut document = read(path)?;
     change(&mut document)?;
     rewrite(path, &document)
 }
 
+/// Le Librerie aperte in questo processo, per `writing`.
+static LIBRERIE: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// Da qui le riscritture dei Tape dentro `root` prendono il lock su file della Libreria.
+pub fn registra_libreria(root: &Path) {
+    let mut librerie = LIBRERIE.lock().unwrap_or_else(PoisonError::into_inner);
+    if !librerie.iter().any(|r| r == root) {
+        librerie.push(root.to_path_buf());
+    }
+}
+
+/// Il lock di una riscrittura, finché vive.
+struct Riscrittura {
+    _libreria: Option<File>,
+    _processo: Option<MutexGuard<'static, ()>>,
+}
+
 /// Il lock delle riscritture di un Tape. Due riscritture dello stesso Tape non si sovrappongono:
-/// altrimenti l'ultima cancellerebbe la prima e scriverebbero lo stesso `.tmp`.
-// ponytail: un solo lock per tutti i Tape; una mappa per percorso se le scritture diventano lente.
-fn writing() -> MutexGuard<'static, ()> {
+/// altrimenti l'ultima cancellerebbe la prima e scriverebbero lo stesso `.tmp`. Per un Tape in una
+/// Libreria registrata è un lock esclusivo su `.memotape\riscritture.lock` della Libreria, lo stesso
+/// per l'app e il server MCP in un altro processo (ADR-0031); fuori, un lock di processo.
+// ponytail: un solo lock per tutti i Tape di una Libreria; un file per Tape se le scritture
+// diventano lente. Con Librerie una dentro l'altra vale la più interna: un processo che conosce
+// solo l'esterna prenderebbe un altro lock.
+fn writing(path: &Path) -> Result<Riscrittura, AppError> {
     static WRITING: Mutex<()> = Mutex::new(());
-    WRITING.lock().unwrap_or_else(PoisonError::into_inner)
+    let root = LIBRERIE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .filter(|root| crate::library::inside(path, root))
+        .max_by_key(|root| root.as_os_str().len())
+        .cloned();
+    let Some(root) = root else {
+        return Ok(Riscrittura {
+            _libreria: None,
+            _processo: Some(WRITING.lock().unwrap_or_else(PoisonError::into_inner)),
+        });
+    };
+    let dir = root.join(crate::managers::recording::TEMP_FOLDER);
+    std::fs::create_dir_all(&dir).map_err(|e| unwritable(&dir, &e))?;
+    let lock = dir.join("riscritture.lock");
+    let file = File::options()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock)
+        .map_err(|e| unwritable(&lock, &e))?;
+    file.lock().map_err(|e| unwritable(&lock, &e))?;
+    Ok(Riscrittura {
+        _libreria: Some(file),
+        _processo: None,
+    })
 }
 
 /// Se il Tape `path` ha l'audio di ogni Ingresso: allora si trascrive per Ingresso (ADR-0015).
