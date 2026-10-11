@@ -8,6 +8,6 @@
 
 - [x] Test Rust: la bozza entra nel Tape allo Stop; senza Tape diventa file `.md` accanto all'Ogg, numerati se il nome è preso (come `la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_tape`)
 - [x] Il tempo inserito da Ctrl+T coincide con quello del Tape dopo lo Stop, anche con una Pausa nel mezzo
-- [ ] Verifica a mano con una Registrazione vera, con e senza Trascrivi dal vivo (da fare a mano: non provata con hardware reale)
+- [x] Verifica a mano con una Registrazione vera: fatta dall'utente l'11 ottobre 2026
 - [x] `docs/sviluppo/registrazione.md` descrive la bozza delle Note
 - [x] I sei controlli verdi

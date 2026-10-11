@@ -11,5 +11,5 @@
 - [x] Un link si apre nel browser di Windows e non nella WebView
 - [x] Nel campo Ctrl+B, Ctrl+I e Ctrl+K formattano e non arrivano a barra laterale e ricerca; fuori dal campo restano come prima
 - [x] Il pannello «Scorciatoie da tastiera» ha il gruppo Note
-- [ ] Cursore, selezione e focus visibili nei due temi (verifica a mano nella finestra Windows): resta da fare nell'app, vedi `docs/sviluppo/verifica-manuale.md`; provati in un browser solo il tema chiaro, le decorazioni, la casella, il link e i tasti
+- [x] Cursore, selezione e focus visibili nei due temi: verificati a mano nell'app dall'utente l'11 ottobre 2026
 - [x] I sei controlli verdi
