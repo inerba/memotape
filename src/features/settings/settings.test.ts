@@ -82,6 +82,8 @@ test("i predefiniti sono quelli di Rust", () => {
   expect(defaults.tema).toBe("sistema");
   // Gli Assistenti non leggono la Libreria finché l'utente non lo consente.
   expect(defaults.assistenti).toBe(false);
+  // E non la modificano finché l'utente non lo consente a parte.
+  expect(defaults.assistentiModifica).toBe(false);
   // Il Microfono non ha un nome finché l'utente non lo sceglie.
   expect(defaults.nomeMicrofono).toBeNull();
 });

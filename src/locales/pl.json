@@ -260,6 +260,8 @@
       "description": "Claude i Codex mogą przeszukiwać i czytać Twoje pliki Tape przez serwer MCP, nawet gdy aplikacja Memotape jest zamknięta.",
       "allow": "Pozwól asystentom czytać Bibliotekę",
       "allowDescription": "Asystenci przeszukują i czytają tytuły oraz tekst Twoich plików Tape, nie zmieniając ich. To, co czytają, trafia na serwery Anthropic lub OpenAI: opuszcza Twój komputer.",
+      "allowEdit": "Pozwól asystentom zmieniać Bibliotekę",
+      "allowEditDescription": "Asystenci poprawiają tekst Twoich plików Tape, nawet gdy aplikacja Memotape jest zamknięta. Ich poprawki są oznaczone jako „Poprawiono ręcznie”. Można to włączyć tylko przy zgodzie na czytanie.",
       "connect": "Połącz asystenta",
       "connectDescription": "Skopiuj konfigurację do asystenta i uruchom go ponownie.",
       "claudeCode": "Claude Code: uruchom polecenie w terminalu",

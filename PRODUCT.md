@@ -12,7 +12,7 @@ Memotape è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Tape con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
 - **Libreria.** La cartella in cui Memotape salva i Tape, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
 - **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Tape nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Tape si legge a turni, si corregge liberamente dentro ciascun Turno e si esporta in Markdown.
-- **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Tape della Libreria attraverso un server MCP, anche con Memotape chiuso (ADR-0012).
+- **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Tape della Libreria attraverso un server MCP, anche con Memotape chiuso (ADR-0012); con un secondo permesso li modificano come farebbe l'utente (ADR-0031).
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
 Nessun ffmpeg: la decodifica è in Rust (Symphonia), le Registrazioni sono in OGG/Opus scritte in Rust e "Estrai solo audio" non fa parte del prodotto (ADR-0002). La Trascrizione parte solo dopo Stop (ADR-0003).
@@ -487,8 +487,12 @@ l'errore con Riprova, conservando le altre scelte salvate.
 - **V15, la Libreria per gli Assistenti (ADR-0012, ricerca in `docs/research/server-mcp.md`)**:
   - Claude Code, Claude Desktop e Codex collegano Memotape come server MCP locale: lo avviano loro con `memotape.exe --mcp` e funziona anche con l'app chiusa.
   - In Impostazioni → Assistenti l'interruttore "Consenti agli Assistenti di leggere la Libreria", spento di default, con la nota che il testo letto va ai server dell'Assistente. Da spento ogni richiesta risponde con un errore che dice dove accenderlo. Sotto, "Copia" per il comando di Claude Code, la tabella per `~/.codex/config.toml` e il blocco per `claude_desktop_config.json`, con il percorso vero dell'exe.
-  - Un Assistente può: cercare nella Libreria come il campo di ricerca (titoli, Frasi, nomi dei Parlanti; tutta la Libreria o una Raccolta); elencare Raccolte e Tape con titolo, data e durata, anche tra due date; leggere le Frasi intorno a una Frase trovata, con tempi, Ingresso e Parlante; leggere il testo intero di un Tape, come Copia testo, a pagine. Nessuna risposta supera circa 10 000 token.
-  - Vede solo la Libreria: un Tape si indica con il percorso relativo alla Libreria. Non modifica nulla e non avvia Attività.
+  - Un Assistente può: cercare nella Libreria come il campo di ricerca (titoli, Frasi, nomi dei Parlanti; tutta la Libreria o una Raccolta); elencare Raccolte e Tape con titolo, data e durata, anche tra due date; leggere le Frasi intorno a una Frase trovata, con tempi, Ingresso e Parlante; leggere il testo intero di un Tape, come Copia testo, a pagine; leggere i Turni di un Tape a pagine, ciascuno con Ingresso, id delle Frasi, Parlante, inizio, fine e testo come nell'editor del Turno. Nessuna risposta supera circa 10 000 token.
+  - Vede solo la Libreria: un Tape si indica con il percorso relativo alla Libreria, anche per modificarlo. Non avvia Attività.
+- **Gli Assistenti modificano la Libreria (11 ottobre 2026, ADR-0031, `.scratch/mcp-scrittura/spec.md`)**:
+  - Sotto la lettura, il secondo interruttore "Consenti agli Assistenti di modificare la Libreria", spento di default e anche quando manca nel file delle impostazioni. Si accende solo con la lettura accesa, e spegnendo la lettura si spegne. Il server lo rilegge a ogni richiesta; da spento ogni strumento che scrive rifiuta con un errore che dice dove accenderlo, senza toccare il Tape.
+  - Un Assistente corregge il testo di un Turno intero mandando gli id delle Frasi, il testo atteso (quello letto) e il testo nuovo: se nel frattempo il Turno è cambiato la correzione si rifiuta senza scrivere; un testo uguale non riscrive il Tape. La correzione è una Correzione manuale, come quella dell'editor del Turno («Corretto a mano»).
+  - Il server scrive i Tape con il lock su file della Libreria condiviso con l'app e non scrive mai l'indice.
   - Legge l'indice che l'app tiene allineato: un Tape spostato a mano con l'app chiusa non si trova finché l'app non si riapre.
   - Ogni richiesta lascia una riga nel log di Memotape.
 - **V16, Copia turno**:
@@ -618,7 +622,7 @@ Come in Descript, si taglia dal testo: niente timeline né Forma d'onda dettagli
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.
-- Assistenti che modificano i Tape o avviano Attività, ricerca per significato, server MCP su HTTP e pacchetto `.mcpb` per Claude Desktop.
+- Assistenti che avviano Attività o spostano Tape e Raccolte, ricerca per significato, server MCP su HTTP e pacchetto `.mcpb` per Claude Desktop.
 - La scelta della GPU: `transcribe-cpp` usa Vulkan se disponibile, altrimenti la CPU.
 
 - **Nemotron 3, analisi finale delle Registrazioni (ticket 03)**: dopo Stop e lo smaltimento ASR, il modello selezionato all’avvio analizza gli Ogg salvati di ciascun Ingresso richiesto. Nemotron usa `VeryHighLatency` a blocchi, senza accumulare il PCM nella Registrazione né eseguire una nuova ASR; Sortformer conserva l’analisi offline. La fase «Analisi finale dei parlanti…» ha Annulla e resta un’Attività fino al salvataggio del Tape. Un modello assente o incompatibile dà un avviso esplicito e non interrompe audio o ASR, senza fallback.

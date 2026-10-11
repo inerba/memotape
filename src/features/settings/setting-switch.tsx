@@ -30,6 +30,7 @@ export function SettingSwitch({
   label: string;
   name:
     | "assistenti"
+    | "assistentiModifica"
     | "parlantiFile"
     | "trascrizioneDalVivo"
     | ParlantiRegistrazione;

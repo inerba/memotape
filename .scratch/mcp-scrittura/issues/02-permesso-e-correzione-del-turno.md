@@ -4,13 +4,13 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Nuovo booleano delle Impostazioni, falso di default e quando manca nel file (test in `settings.rs` e `settings.test.ts`)
-- [ ] Con lettura spenta o modifica spenta `edit_turn` rifiuta e il Tape resta identico byte per byte
-- [ ] `read_turns` restituisce per ogni Turno Ingresso, id delle Frasi, Parlante, inizio, fine e testo come l'editor del Turno, a pagine
-- [ ] `read_turns` → `edit_turn` corregge; una seconda correzione con il testo atteso vecchio è rifiutata senza scrivere; il Tape risulta corretto a mano
-- [ ] Percorsi assoluti, con `..` o fuori dalla Libreria rifiutati anche in scrittura
-- [ ] Dopo la scrittura l'indice è identico
-- [ ] `docs/sviluppo/impostazioni-e-servizi.md` e `PRODUCT.md` aggiornati
-- [ ] I sei controlli verdi
+- [x] Nuovo booleano delle Impostazioni, falso di default e quando manca nel file (test in `settings.rs` e `settings.test.ts`)
+- [x] Con lettura spenta o modifica spenta `edit_turn` rifiuta e il Tape resta identico byte per byte
+- [x] `read_turns` restituisce per ogni Turno Ingresso, id delle Frasi, Parlante, inizio, fine e testo come l'editor del Turno, a pagine
+- [x] `read_turns` → `edit_turn` corregge; una seconda correzione con il testo atteso vecchio è rifiutata senza scrivere; il Tape risulta corretto a mano
+- [x] Percorsi assoluti, con `..` o fuori dalla Libreria rifiutati anche in scrittura
+- [x] Dopo la scrittura l'indice è identico
+- [x] `docs/sviluppo/impostazioni-e-servizi.md` e `PRODUCT.md` aggiornati
+- [x] I sei controlli verdi

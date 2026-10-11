@@ -8,18 +8,23 @@ import {
   assistantConfigs,
 } from "@/features/settings/assistants";
 import { SettingSwitch } from "@/features/settings/setting-switch";
+import { useSettings } from "@/features/settings/settings-context";
 
 const CONFIGS: AssistantConfig[] = ["claudeCode", "codex", "claudeDesktop"];
 /** Quanto resta "Copiato" sul pulsante. */
 const COPIED_MS = 2000;
 
-/** Impostazioni → Assistenti: il consenso a leggere la Libreria e come collegare un Assistente. */
+/**
+ * Impostazioni → Assistenti: il consenso a leggere la Libreria, quello a modificarla (solo con la
+ * lettura accesa) e come collegare un Assistente.
+ */
 export function AssistantsSection({
   onError,
 }: {
   onError: (error: AppError) => void;
 }) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
   const [exe, setExe] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +45,13 @@ export function AssistantsSection({
           description={t("settings.assistants.allowDescription")}
           label={t("settings.assistants.allow")}
           name="assistenti"
+          onError={onError}
+        />
+        <SettingSwitch
+          description={t("settings.assistants.allowEditDescription")}
+          disabled={!settings.assistenti}
+          label={t("settings.assistants.allowEdit")}
+          name="assistentiModifica"
           onError={onError}
         />
       </div>

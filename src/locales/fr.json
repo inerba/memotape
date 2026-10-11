@@ -259,6 +259,8 @@
       "description": "Claude et Codex peuvent rechercher et lire vos Tape via un serveur MCP, même quand Memotape est fermé.",
       "allow": "Autoriser les assistants à lire la Bibliothèque",
       "allowDescription": "Les assistants recherchent et lisent les titres et le texte de vos Tape sans les modifier. Ce qu'ils lisent part vers les serveurs d'Anthropic ou d'OpenAI : il quitte votre PC.",
+      "allowEdit": "Autoriser les assistants à modifier la Bibliothèque",
+      "allowEditDescription": "Les assistants corrigent le texte de vos Tape, même quand Memotape est fermé. Leurs corrections apparaissent comme « Corrigé manuellement ». S'active seulement si la lecture est autorisée.",
       "connect": "Connecter un assistant",
       "connectDescription": "Copiez la configuration dans l'assistant et redémarrez-le.",
       "claudeCode": "Claude Code : lancez la commande dans un terminal",

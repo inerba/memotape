@@ -90,6 +90,11 @@ pub struct Settings {
     /// salvati prima che esistesse: allora è spenta.
     #[serde(default)]
     pub assistenti: bool,
+    /// Consenti agli Assistenti di modificare la Libreria (ADR-0031): vale solo con `assistenti`
+    /// acceso, e spegnendo la lettura si spegne. Manca nei file salvati prima che esistesse:
+    /// allora è spenta.
+    #[serde(default)]
+    pub assistenti_modifica: bool,
     /// Il Guadagno del microfono e dell'audio di sistema in dB, da −12 a +24 a passi di 3: vale
     /// per la prossima Registrazione e, cambiato durante una Registrazione, anche per quella.
     /// Mancano nei file salvati prima che esistessero: allora sono 0 dB.
@@ -332,6 +337,7 @@ impl Default for Settings {
             tema: Tema::Sistema,
             vista_trascrizione: VistaTrascrizione::Copione,
             assistenti: false,
+            assistenti_modifica: false,
             guadagno_microfono: 0,
             guadagno_sistema: 0,
             nome_microfono: None,
@@ -528,6 +534,7 @@ impl SettingsStore {
     /// `settings` cambia rispetto alle correnti, o risponde con l'errore se ancora non si legge.
     pub fn set(&self, mut settings: Settings) -> Result<Settings, AppError> {
         settings.vocabolario = normalize_and_validate_vocabolario(settings.vocabolario)?;
+        settings.assistenti_modifica &= settings.assistenti;
         let mut current = self.current.lock().unwrap_or_else(PoisonError::into_inner);
         let mut load_error = self
             .load_error
@@ -710,6 +717,7 @@ mod tests {
         assert_eq!(settings.tema, Tema::Sistema);
         assert_eq!(settings.vista_trascrizione, VistaTrascrizione::Copione);
         assert!(!settings.assistenti);
+        assert!(!settings.assistenti_modifica);
     }
 
     #[test]
@@ -813,6 +821,7 @@ mod tests {
         object.remove("tema");
         object.remove("vistaTrascrizione");
         object.remove("assistenti");
+        object.remove("assistentiModifica");
         std::fs::write(&path, value.to_string()).unwrap();
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
@@ -826,6 +835,7 @@ mod tests {
         assert_eq!(settings.raccolta, None);
         assert_eq!(settings.tema, Tema::Sistema);
         assert!(!settings.assistenti);
+        assert!(!settings.assistenti_modifica);
     }
 
     #[test]
@@ -925,6 +935,7 @@ mod tests {
             tema: Tema::Scuro,
             vista_trascrizione: VistaTrascrizione::Nastro,
             assistenti: true,
+            assistenti_modifica: true,
             guadagno_microfono: 6,
             guadagno_sistema: -3,
             nome_microfono: Some("Francesco".into()),
@@ -1110,6 +1121,21 @@ mod tests {
         let settings = Settings::load(&path).unwrap();
         assert_eq!(settings.bitrate_kbps, 64);
         assert!(settings.vocabolario.is_empty());
+    }
+
+    #[test]
+    fn senza_la_lettura_gli_assistenti_non_modificano() {
+        let path = temp_file("assistenti-modifica");
+        let store = SettingsStore::load(path.clone());
+        store
+            .set(Settings {
+                assistenti: false,
+                assistenti_modifica: true,
+                ..Settings::default()
+            })
+            .unwrap();
+        assert!(!store.get().assistenti_modifica);
+        assert!(!Settings::load(&path).unwrap().assistenti_modifica);
     }
 
     #[test]

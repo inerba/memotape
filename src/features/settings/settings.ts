@@ -51,6 +51,7 @@ export const GUADAGNI = Array.from({ length: 13 }, (_, i) => i * 3 - 12);
 /** I predefiniti, come `Settings::default` in Rust: valgono se all'avvio non si leggono. */
 export const DEFAULT_SETTINGS: Settings = {
   assistenti: false,
+  assistentiModifica: false,
   audioFileMisto: { pulizia: false, sensibilita: "bilanciato" },
   audioMicrofono: { pulizia: false, sensibilita: "bilanciato" },
   audioSistema: { pulizia: false, sensibilita: "bilanciato" },
@@ -92,6 +93,7 @@ const oneOf = (values: number[]) =>
 export const settingsSchema = z.object({
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   assistenti: z.boolean().optional(),
+  assistentiModifica: z.boolean().optional(),
   audioFileMisto: z
     .object({
       pulizia: z.boolean().optional(),

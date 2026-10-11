@@ -1,7 +1,7 @@
-//! Il server MCP degli Assistenti (ADR-0012): `memotape.exe --mcp`, lanciato da Claude o Codex, parla
-//! in stdio e legge la Libreria senza scrivere nulla. Non usa Tauri: le cartelle dell'app vengono da
-//! `dirs`, come le risolve Tauri, e le impostazioni si rileggono a ogni chiamata, così l'interruttore
-//! di Impostazioni vale subito.
+//! Il server MCP degli Assistenti (ADR-0012, ADR-0031): `memotape.exe --mcp`, lanciato da Claude o
+//! Codex, parla in stdio, legge la Libreria e, con il secondo permesso, scrive i Tape (mai l'indice).
+//! Non usa Tauri: le cartelle dell'app vengono da `dirs`, come le risolve Tauri, e le impostazioni
+//! si rileggono a ogni chiamata, così gli interruttori di Impostazioni valgono subito.
 
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
@@ -33,9 +33,15 @@ const AROUND_MAX: u32 = 25;
 // I massimi tengono ogni risposta sotto i 10 000 token a cui Codex taglia.
 /// I byte di una pagina del testo: circa 7 000 token, sotto i 10 000 a cui Codex taglia.
 const PAGE_BYTES: usize = 24_000;
+/// I Turni di una pagina di read_turns, se l'Assistente non ne chiede un altro numero, e al massimo;
+/// la pagina si ferma prima anche quando il testo supera `PAGE_BYTES`.
+const TURNS_LIMIT: u32 = 50;
+const TURNS_MAX: u32 = 200;
 
 const DISABLED: &str = "Memotape does not allow assistants to read its Library. Ask the user to turn on \
 \"Allow assistants to read the Library\" in Memotape → Settings → Assistants.";
+const READ_ONLY: &str = "Memotape does not allow assistants to modify its Library. Ask the user to \
+turn on \"Allow assistants to modify the Library\" in Memotape → Settings → Assistants.";
 const NOT_INDEXED: &str =
     "Memotape has not indexed this Library yet: ask the user to open Memotape once.";
 
@@ -136,6 +142,31 @@ pub struct TranscriptParams {
     from: Option<u32>,
 }
 
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct TurnsParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The index of the first turn to read: the `next` of the previous page. Omit to start.
+    from: Option<u32>,
+    /// How many turns to read at most (default 50, at most 200); a page also stops earlier when its
+    /// text gets long.
+    limit: Option<u32>,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct EditTurnParams {
+    /// The Tape, as its path relative to the Library returned by search or list_tapes.
+    tape: String,
+    /// The Ingresso of the turn, as returned by read_turns.
+    ingresso: String,
+    /// All the phrase ids of the turn (`phraseIds`), as returned by read_turns.
+    phrase_ids: Vec<u32>,
+    /// The current text of the turn, exactly as returned by read_turns.
+    expected: String,
+    /// The corrected text of the whole turn; it may contain line breaks, and may be empty.
+    text: String,
+}
+
 /// Un Tape della Libreria.
 #[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -208,6 +239,35 @@ pub struct FraseOut {
     fine_ms: u32,
     /// The speaker's name, or the numbered label; null if not attributed.
     parlante: Option<String>,
+    testo: String,
+}
+
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnsOut {
+    #[serde(flatten)]
+    tape: TapeOut,
+    /// In order of time.
+    turni: Vec<TurnOut>,
+    /// How many turns the Tape has.
+    total: u32,
+    /// The `from` of the next page; null if this is the last one.
+    next: Option<u32>,
+}
+
+/// Un Turno come lo mostra l'editor del Turno.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnOut {
+    ingresso: String,
+    /// The phrases of the turn: pass them all to edit_turn.
+    phrase_ids: Vec<u32>,
+    /// The speaker's name, or the numbered label; null if not attributed.
+    parlante: Option<String>,
+    inizio_ms: u32,
+    fine_ms: u32,
+    /// The text of the turn, its phrases separated by line breaks: pass it to edit_turn as
+    /// `expected`.
     testo: String,
 }
 
@@ -313,12 +373,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
         let (settings, library) = self.allowed_library()?;
         let path = resolve(library.root(), &p.tape)?;
         let labels = transcription::labels(&settings);
-        let ingresso = Ingresso::from_key(&p.ingresso).ok_or_else(|| {
-            format!(
-                "Unknown ingresso {:?}: use mix, microfono or sistema.",
-                p.ingresso
-            )
-        })?;
+        let ingresso = ingresso(&p.ingresso)?;
         let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
         let mut frasi: Vec<FraseOut> = document
             .frasi_visibili()
@@ -355,13 +410,7 @@ use it to read the context of a search hit. Phrases of all the Ingressi are in o
             bounded(p.after, AROUND, AROUND_MAX),
         );
         Ok(Json(AroundOut {
-            tape: TapeOut {
-                tape: p.tape.clone(),
-                titolo: transcription::title_of(&path),
-                raccolta: library::raccolta_of(&p.tape),
-                creato: document.creato.clone(),
-                durata_ms: Some(document.durata_ms),
-            },
+            tape: tape_of(&p.tape, &path, &document),
             frasi: window.to_vec(),
             more_before,
             more_after,
@@ -393,6 +442,102 @@ ends with the `from` to pass to read the next page.",
             None => page.to_string(),
         })
     }
+
+    #[tool(
+        description = "Read the turns of a Tape, one page at a time: each turn is the consecutive \
+phrases of one speaker, with its Ingresso, phrase ids, speaker, start and end, and its text exactly \
+as Memotape's turn editor shows it. Use it before edit_turn.",
+        annotations(title = "Read the turns", read_only_hint = true)
+    )]
+    fn read_turns(&self, Parameters(p): Parameters<TurnsParams>) -> Result<Json<TurnsOut>, String> {
+        log::info!("Assistente: read_turns {} da {:?}", p.tape, p.from);
+        let (settings, library) = self.allowed_library()?;
+        let path = resolve(library.root(), &p.tape)?;
+        let labels = transcription::labels(&settings);
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let visibili = document.frasi_visibili();
+        let turni = document.turni();
+        let from = p.from.unwrap_or(0) as usize;
+        let limit = bounded(p.limit, TURNS_LIMIT, TURNS_MAX);
+        let mut page = Vec::new();
+        let mut bytes = 0;
+        for indices in turni.iter().skip(from).take(limit) {
+            let testo = document.testo_del_turno(indices, "\n");
+            bytes += testo.len();
+            if !page.is_empty() && bytes > PAGE_BYTES {
+                break;
+            }
+            let first = &visibili[indices[0]];
+            page.push(TurnOut {
+                ingresso: first.ingresso.key().into(),
+                phrase_ids: indices.iter().map(|&i| visibili[i].id).collect(),
+                parlante: labels.assigned_name(
+                    &document.parlanti,
+                    first.ingresso,
+                    first.parlante,
+                    first.parlante_non_determinato,
+                    first.parlante_provvisorio,
+                ),
+                inizio_ms: first.inizio_ms,
+                fine_ms: indices
+                    .iter()
+                    .map(|&i| visibili[i].fine_ms)
+                    .max()
+                    .unwrap_or(0),
+                testo,
+            });
+        }
+        let end = from + page.len();
+        Ok(Json(TurnsOut {
+            tape: tape_of(&p.tape, &path, &document),
+            turni: page,
+            total: u32::try_from(turni.len()).unwrap_or(u32::MAX),
+            next: (end < turni.len()).then(|| u32::try_from(end).unwrap_or(u32::MAX)),
+        }))
+    }
+
+    #[tool(
+        description = "Correct the text of a whole turn of a Tape, as the user does in Memotape's \
+turn editor: the correction is marked as made by hand. Pass the turn as read_turns returns it \
+(Ingresso, all its phrase ids, and its current text as `expected`); if the turn changed since, \
+nothing is written and you must read it again.",
+        annotations(
+            title = "Correct a turn",
+            read_only_hint = false,
+            destructive_hint = false
+        )
+    )]
+    fn edit_turn(&self, Parameters(p): Parameters<EditTurnParams>) -> Result<String, String> {
+        log::info!(
+            "Assistente: edit_turn {} {}:{:?}",
+            p.tape,
+            p.ingresso,
+            p.phrase_ids
+        );
+        let path = self.writable_tape(&p.tape)?;
+        let ingresso = ingresso(&p.ingresso)?;
+        let stale = || {
+            format!(
+                "The turn {} {:?} of {} changed since you read it: call read_turns again and \
+correct its current text.",
+                p.ingresso, p.phrase_ids, p.tape
+            )
+        };
+        // Lo stesso controllo lo rifà `edit_turno` sotto il lock: qui dà all'Assistente l'errore
+        // giusto, senza scrivere.
+        let document = tape::read(&path).map_err(|e| read_error(&p.tape, &e))?;
+        let indices = document.turno(ingresso, &p.phrase_ids).ok_or_else(stale)?;
+        if document.testo_del_turno(&indices, "\n") != p.expected {
+            return Err(stale());
+        }
+        tape::edit_turno(&path, ingresso, &p.phrase_ids, &p.expected, &p.text)
+            .map_err(|e| format!("{} cannot be written: {e}", p.tape))?;
+        Ok(if p.expected == p.text {
+            "Nothing to change: the text is the same.".into()
+        } else {
+            "Corrected.".into()
+        })
+    }
 }
 
 #[tool_handler(
@@ -403,7 +548,8 @@ into phrases (start and end in ms), optionally attributed to speakers (Parlanti)
 mix, microfono (the user's microphone) or sistema (system audio, e.g. the other people in a call). \
 Raccolte are folders that group Tape. Use search to find phrases by words, then read_around for the \
 context of a hit or read_transcript for a whole Tape; list_tapes lists Tapes by date. Tapes are \
-identified by their path relative to the Library, as these tools return it. Everything is read-only."
+identified by their path relative to the Library, as these tools return it. If the user allows it, \
+you can also correct a Tape: read its turns with read_turns, then correct a turn with edit_turn."
 )]
 impl ServerHandler for Server {}
 
@@ -431,6 +577,34 @@ impl Server {
         let library = Library::open_read_only(&root, &db)
             .map_err(|e| format!("Ask the user to open Memotape to update its index ({e})."))?;
         Ok((settings, library))
+    }
+
+    /// Il Tape `tape` da scrivere, se l'utente consente agli Assistenti di leggere e di modificare
+    /// la Libreria: ogni strumento che scrive passa da qui. Aprire la Libreria registra la sua
+    /// cartella, così le riscritture prendono il lock su file condiviso con l'app (ADR-0031).
+    fn writable_tape(&self, tape: &str) -> Result<PathBuf, String> {
+        let (settings, library) = self.allowed_library()?;
+        if !settings.assistenti_modifica {
+            return Err(READ_ONLY.into());
+        }
+        resolve(library.root(), tape)
+    }
+}
+
+/// L'Ingresso di nome `key`, come lo restituiscono gli strumenti.
+fn ingresso(key: &str) -> Result<Ingresso, String> {
+    Ingresso::from_key(key)
+        .ok_or_else(|| format!("Unknown ingresso {key:?}: use mix, microfono or sistema."))
+}
+
+/// Il Tape `tape`, in `path`, con il suo documento.
+fn tape_of(tape: &str, path: &Path, document: &tape::Document) -> TapeOut {
+    TapeOut {
+        tape: tape.to_owned(),
+        titolo: transcription::title_of(path),
+        raccolta: library::raccolta_of(tape),
+        creato: document.creato.clone(),
+        durata_ms: Some(document.durata_ms),
     }
 }
 
@@ -666,6 +840,11 @@ mod tests {
 
     /// Una Libreria di prova già indicizzata, con le impostazioni che consentono o no di leggerla.
     fn server(name: &str, assistenti: bool) -> (PathBuf, Server) {
+        server_with(name, assistenti, false)
+    }
+
+    /// Come `server`, con il permesso a modificare scritto così nel file delle impostazioni.
+    fn server_with(name: &str, assistenti: bool, assistenti_modifica: bool) -> (PathBuf, Server) {
         let dir = temp_dir(&format!("mcp-{name}"));
         let root = dir.join("Memotape");
         let places = Cartelle {
@@ -677,6 +856,7 @@ mod tests {
         Settings {
             recordings_folder: Some(root.display().to_string()),
             assistenti,
+            assistenti_modifica,
             ..Settings::default()
         }
         .save(&places.settings)
@@ -949,5 +1129,144 @@ mod tests {
         assert!(text.starts_with("# Call di lunedì"), "{text}");
         assert!(text.contains("**Giulia Ferrara:**"), "{text}");
         assert!(!text.contains("read_transcript with from="), "{text}");
+    }
+
+    const CALL: &str = r"Ferrara Quarzi\Call di lunedì.tape";
+
+    fn read_turns(server: &Server, tape: &str, from: Option<u32>, limit: Option<u32>) -> TurnsOut {
+        server
+            .read_turns(Parameters(TurnsParams {
+                tape: tape.into(),
+                from,
+                limit,
+            }))
+            .unwrap()
+            .0
+    }
+
+    fn edit_turn(
+        server: &Server,
+        tape: &str,
+        ids: &[u32],
+        expected: &str,
+        text: &str,
+    ) -> Result<String, String> {
+        server.edit_turn(Parameters(EditTurnParams {
+            tape: tape.into(),
+            ingresso: "mix".into(),
+            phrase_ids: ids.to_vec(),
+            expected: expected.into(),
+            text: text.into(),
+        }))
+    }
+
+    /// I byte del Tape e dell'indice: il server non tocca l'uno quando rifiuta, l'altro mai.
+    fn bytes(root: &Path, server: &Server, tape: &str) -> (Vec<u8>, Vec<u8>) {
+        (
+            std::fs::read(root.join(tape)).unwrap(),
+            std::fs::read(library::db_path(&server.places.indice, root)).unwrap(),
+        )
+    }
+
+    #[test]
+    fn senza_il_permesso_a_modificare_non_si_corregge_nulla() {
+        for (lettura, modifica, errore) in [(true, false, READ_ONLY), (false, true, DISABLED)] {
+            let (root, server) = server_with(&format!("sola-lettura-{lettura}"), lettura, modifica);
+            let prima = bytes(&root, &server, CALL);
+            let corretto = edit_turn(
+                &server,
+                CALL,
+                &[0],
+                "Buongiorno a tutti.",
+                "Buonasera a tutti.",
+            );
+            assert_eq!(corretto.err().as_deref(), Some(errore));
+            assert_eq!(bytes(&root, &server, CALL), prima);
+        }
+    }
+
+    #[test]
+    fn si_leggono_i_turni_e_se_ne_corregge_uno_a_mano() {
+        let (root, server) = server_with("corregge", true, true);
+        let indice = bytes(&root, &server, CALL).1;
+        let turni = read_turns(&server, CALL, None, None);
+        assert_eq!((turni.total, turni.next), (4, None));
+        assert_eq!(turni.tape.titolo, "Call di lunedì");
+        assert_eq!(
+            turni.turni[1],
+            TurnOut {
+                ingresso: "mix".into(),
+                phrase_ids: vec![1],
+                parlante: Some("Giulia Ferrara".into()),
+                inizio_ms: 1000,
+                fine_ms: 1900,
+                testo: "Parliamo del preventivo per l'impianto.".into(),
+            }
+        );
+        let vecchio = turni.turni[1].testo.clone();
+        let nuovo = "Parliamo del preventivo per l'impianto elettrico.";
+        assert!(edit_turn(&server, CALL, &[1], &vecchio, nuovo).is_ok());
+        assert_eq!(read_turns(&server, CALL, None, None).turni[1].testo, nuovo);
+        // Una seconda correzione sul testo di prima è obsoleta: si rifiuta senza scrivere.
+        let prima = bytes(&root, &server, CALL);
+        let obsoleta = edit_turn(&server, CALL, &[1], &vecchio, "Altro.");
+        assert!(obsoleta.unwrap_err().contains("read_turns"));
+        assert_eq!(bytes(&root, &server, CALL), prima);
+        let document = tape::read(&root.join(CALL)).unwrap();
+        assert!(document.corretto_a_mano());
+        assert!(document.frasi[1].testo_corretto);
+        // Il server non scrive mai l'indice.
+        assert_eq!(bytes(&root, &server, CALL).1, indice);
+    }
+
+    #[test]
+    fn i_turni_si_leggono_a_pagine_e_un_turno_di_piu_frasi_si_corregge_intero() {
+        let (root, server) = server_with("pagine", true, true);
+        tape_with(
+            &root.join("Lungo.tape"),
+            &[
+                ("Prima.", Some(1)),
+                ("Seconda.", Some(1)),
+                ("Terza.", Some(2)),
+                ("Quarta.", Some(1)),
+            ],
+            &[],
+        );
+        let pagina = read_turns(&server, "Lungo.tape", None, Some(2));
+        assert_eq!((pagina.total, pagina.next), (3, Some(2)));
+        let primo = &pagina.turni[0];
+        assert_eq!(primo.phrase_ids, [0, 1]);
+        assert_eq!(primo.testo, "Prima.\nSeconda.");
+        assert_eq!(primo.parlante.as_deref(), Some("Parlante 1"));
+        assert_eq!((primo.inizio_ms, primo.fine_ms), (0, 1900));
+        let resto = read_turns(&server, "Lungo.tape", Some(2), Some(2));
+        assert_eq!(resto.next, None);
+        assert_eq!(resto.turni.len(), 1);
+        assert_eq!(resto.turni[0].testo, "Quarta.");
+        let unito = "Prima e seconda.";
+        assert!(edit_turn(&server, "Lungo.tape", &[0, 1], "Prima.\nSeconda.", unito).is_ok());
+        let turni = read_turns(&server, "Lungo.tape", None, None);
+        assert_eq!(turni.turni[0].phrase_ids, [0, 1]);
+        assert_eq!(turni.turni[0].testo, unito);
+        // Una parte di un Turno, o Frasi di due Turni, non sono un Turno.
+        assert!(edit_turn(&server, "Lungo.tape", &[0], unito, "x").is_err());
+        assert!(edit_turn(&server, "Lungo.tape", &[2, 3], "Terza.", "x").is_err());
+    }
+
+    #[test]
+    fn non_si_scrive_fuori_dalla_libreria() {
+        let (root, server) = server_with("fuori", true, true);
+        let fuori = root.parent().unwrap().join("Fuori.tape");
+        tape_with(&fuori, &[("Fuori.", Some(1))], &[]);
+        let prima = std::fs::read(&fuori).unwrap();
+        for tape in [
+            fuori.display().to_string(),
+            r"..\Fuori.tape".into(),
+            r"Acme\..\..\Fuori.tape".into(),
+        ] {
+            let scritto = edit_turn(&server, &tape, &[0], "Fuori.", "Dentro.");
+            assert!(scritto.is_err(), "{tape}");
+        }
+        assert_eq!(std::fs::read(&fuori).unwrap(), prima);
     }
 }

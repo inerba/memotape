@@ -611,6 +611,12 @@ export type Settings = {
 	 */
 	assistenti?: boolean,
 	/**
+	 *  Consenti agli Assistenti di modificare la Libreria (ADR-0031): vale solo con `assistenti`
+	 *  acceso, e spegnendo la lettura si spegne. Manca nei file salvati prima che esistesse:
+	 *  allora è spenta.
+	 */
+	assistentiModifica?: boolean,
+	/**
 	 *  Il Guadagno del microfono e dell'audio di sistema in dB, da −12 a +24 a passi di 3: vale
 	 *  per la prossima Registrazione e, cambiato durante una Registrazione, anche per quella.
 	 *  Mancano nei file salvati prima che esistessero: allora sono 0 dB.

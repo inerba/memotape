@@ -205,6 +205,18 @@ impl Document {
         turni
     }
 
+    /// Gli indici del Turno fatto esattamente dalle Frasi `ids` di `ingresso`, in ordine; `None` se
+    /// quelle Frasi non sono (più) un Turno intero.
+    pub fn turno(&self, ingresso: Ingresso, ids: &[u32]) -> Option<Vec<usize>> {
+        self.turni().into_iter().find(|indices| {
+            indices.len() == ids.len()
+                && indices
+                    .iter()
+                    .zip(ids)
+                    .all(|(&i, &id)| self.frasi[i].ingresso == ingresso && self.frasi[i].id == id)
+        })
+    }
+
     pub fn testo_del_turno(&self, indices: &[usize], separator: &str) -> String {
         indices
             .iter()
@@ -580,14 +592,7 @@ pub fn edit_turno(
     let _writing = writing(path)?;
     let mut document = read(path)?;
     let indices = document
-        .turni()
-        .into_iter()
-        .find(|indices| {
-            indices.len() == ids.len()
-                && indices.iter().zip(ids).all(|(&i, &id)| {
-                    document.frasi[i].ingresso == ingresso && document.frasi[i].id == id
-                })
-        })
+        .turno(ingresso, ids)
         .ok_or_else(|| AppError::Internal("il Turno non è più disponibile".into()))?;
     if document.testo_del_turno(&indices, "\n") != originale {
         return Err(AppError::Internal(
