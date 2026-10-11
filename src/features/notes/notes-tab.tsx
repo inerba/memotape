@@ -112,14 +112,26 @@ interface Posizione {
   top: number;
 }
 
+/** Il tempo di Ctrl+T e, se c'è `move`, il salto delle pillole. */
+type Ascolto = Pick<PlayerState, "positionMs"> &
+  Partial<Pick<PlayerState, "move">>;
+
 interface NotesTabProps {
+  /**
+   * Le Note della Registrazione: si salvano sempre da sole, senza Salva né interruttore, e
+   * «Salvate» dice che entrano nel Tape allo Stop.
+   */
+  bozza?: boolean;
   /** La durata del Tape: un tempo da lì in poi resta testo. */
   durataMs: number;
   onError: (error: AppError) => void;
   /** Un avviso, come «Nota copiata». */
   onMessage: (text: string) => void;
-  /** Manca durante la Registrazione e mentre si trascrive il Tape: niente salti. */
-  player?: Pick<PlayerState, "move" | "positionMs">;
+  /**
+   * Manca mentre si trascrive il Tape: niente salti né Ctrl+T. Durante la Registrazione ha solo il
+   * suo tempo, pause escluse.
+   */
+  player?: Ascolto;
   readOnly: boolean;
   /** Cresce con Non salvare: l'editor riparte dal testo su disco. */
   scarti: number;
@@ -140,6 +152,7 @@ export function NotesTab({
 }
 
 function NoteLette({
+  bozza,
   durataMs,
   note,
   onError,
@@ -150,7 +163,8 @@ function NoteLette({
 }: NotesTabProps & { note: NoteDelTape }) {
   const { t } = useTranslation();
   const { save, settings } = useSettings();
-  const salvaDaSolo = settings.noteSalvaDaSolo ?? true;
+  // Le Note della Registrazione si salvano sempre da sole.
+  const salvaDaSolo = bozza || (settings.noteSalvaDaSolo ?? true);
   const interruttore = useId();
   const [rinominando, setRinominando] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
@@ -269,21 +283,23 @@ function NoteLette({
           {salvate ? (
             <span className="flex items-center gap-1">
               <Check className="size-3.5 text-play" />
-              {t("notes.saved")}
+              {t(bozza ? "notes.savedDraft" : "notes.saved")}
             </span>
           ) : null}
-          <label
-            className="flex cursor-pointer items-center gap-2 whitespace-nowrap"
-            htmlFor={interruttore}
-          >
-            <Switch
-              checked={salvaDaSolo}
-              className={SWITCH_CLASS}
-              id={interruttore}
-              onCheckedChange={cambiaSalvaDaSolo}
-            />
-            {t("notes.autosave")}
-          </label>
+          {bozza ? null : (
+            <label
+              className="flex cursor-pointer items-center gap-2 whitespace-nowrap"
+              htmlFor={interruttore}
+            >
+              <Switch
+                checked={salvaDaSolo}
+                className={SWITCH_CLASS}
+                id={interruttore}
+                onCheckedChange={cambiaSalvaDaSolo}
+              />
+              {t("notes.autosave")}
+            </label>
+          )}
         </div>
       </div>
       <div className="flex h-8 items-center gap-1 pb-3.5">
@@ -490,7 +506,7 @@ function NotaEditor({
   durataMs: number;
   nota: NotaAperta;
   onError: (error: AppError) => void;
-  player?: Pick<PlayerState, "move" | "positionMs">;
+  player?: Ascolto;
   readOnly: boolean;
   salva: (nome: string, bozza: string) => Promise<boolean>;
   salvaDaSolo: boolean;
@@ -501,6 +517,7 @@ function NotaEditor({
   const host = useRef<HTMLDivElement>(null);
   const sola = useRef(new Compartment());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const salvaOra = useRef<() => void>(() => undefined);
   const { nome, salvato } = nota;
   const [barretta, setBarretta] = useState<Posizione | null>(null);
   const formatta = useCallback(
@@ -519,7 +536,7 @@ function NotaEditor({
   const tempi = useRef<Tempi>({
     durataMs: () => attuali.current.durataMs,
     etichetta: (time) => attuali.current.t("notes.jump", { time }),
-    salta: (ms) => attuali.current.player?.move(ms, "jump"),
+    salta: (ms) => attuali.current.player?.move?.(ms, "jump"),
   });
   useScorciatoia(
     "tempoNota",
@@ -594,6 +611,7 @@ function NotaEditor({
       }),
     });
     view.current = editor;
+    salvaOra.current = salvaBozza;
     return () => {
       salvaBozza();
       if (view.current === editor) {
@@ -603,10 +621,14 @@ function NotaEditor({
     };
   }, [nome]);
 
+  // Diventando di sola lettura (lo Stop della Registrazione) salva subito, senza aspettare la pausa.
   useEffect(() => {
     view.current?.dispatch({
       effects: sola.current.reconfigure(soloLettura(readOnly)),
     });
+    if (readOnly) {
+      salvaOra.current();
+    }
   }, [readOnly, view]);
 
   return (

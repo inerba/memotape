@@ -4,10 +4,10 @@
 
 **Blocked by:** 03, 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Test Rust: la bozza entra nel Tape allo Stop; senza Tape diventa file `.md` accanto all'Ogg, numerati se il nome è preso (come `la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_tape`)
-- [ ] Il tempo inserito da Ctrl+T coincide con quello del Tape dopo lo Stop, anche con una Pausa nel mezzo
-- [ ] Verifica a mano con una Registrazione vera, con e senza Trascrivi dal vivo
-- [ ] `docs/sviluppo/registrazione.md` descrive la bozza delle Note
-- [ ] I sei controlli verdi
+- [x] Test Rust: la bozza entra nel Tape allo Stop; senza Tape diventa file `.md` accanto all'Ogg, numerati se il nome è preso (come `la_trascrizione_dal_vivo_salva_il_markdown_solo_senza_tape`)
+- [x] Il tempo inserito da Ctrl+T coincide con quello del Tape dopo lo Stop, anche con una Pausa nel mezzo
+- [ ] Verifica a mano con una Registrazione vera, con e senza Trascrivi dal vivo (da fare a mano: non provata con hardware reale)
+- [x] `docs/sviluppo/registrazione.md` descrive la bozza delle Note
+- [x] I sei controlli verdi

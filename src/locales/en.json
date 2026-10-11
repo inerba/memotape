@@ -547,6 +547,7 @@
     "label": "Tape notes",
     "placeholder": "Write your notes: decisions, to-dos, links. In Markdown, like **bold** or - lists.",
     "saved": "Saved in the Tape",
+    "savedDraft": "Saved, they go into the Tape on Stop",
     "jump": "Listen from {{time}}",
     "format": {
       "label": "Format",
