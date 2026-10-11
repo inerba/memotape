@@ -1027,7 +1027,7 @@ pub fn registra_libreria(root: &Path) {
 }
 
 /// Il lock di una riscrittura, finché vive.
-struct Riscrittura {
+pub(crate) struct Riscrittura {
     _libreria: Option<File>,
     _processo: Option<MutexGuard<'static, ()>>,
 }
@@ -1039,7 +1039,7 @@ struct Riscrittura {
 // ponytail: un solo lock per tutti i Tape di una Libreria; un file per Tape se le scritture
 // diventano lente. Con Librerie una dentro l'altra vale la più interna: un processo che conosce
 // solo l'esterna prenderebbe un altro lock.
-fn writing(path: &Path) -> Result<Riscrittura, AppError> {
+pub(crate) fn writing(path: &Path) -> Result<Riscrittura, AppError> {
     static WRITING: Mutex<()> = Mutex::new(());
     let Some(root) = libreria_di(path) else {
         return Ok(Riscrittura {

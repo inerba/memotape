@@ -489,8 +489,10 @@ impl Library {
 }
 
 /// Rinomina il file del Tape in `<titolo>.tape`, con la sua estensione, senza toccare l'indice: così
-/// fa il server MCP, che non lo scrive mai (ADR-0031). Restituisce il percorso nuovo.
+/// fa il server MCP, che non lo scrive mai (ADR-0031). Aspetta una riscrittura in corso, che
+/// altrimenti ricreerebbe il Tape al nome vecchio. Restituisce il percorso nuovo.
 pub fn rename_tape(path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
+    let _writing = tape::writing(path)?;
     existing_tape(path)?;
     validate_name(titolo)?;
     let mut name = std::ffi::OsString::from(titolo);
@@ -511,8 +513,10 @@ pub fn rename_tape(path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
     Ok(to)
 }
 
-/// Manda il Tape nel Cestino senza toccare l'indice, come `rename_tape`.
+/// Manda il Tape nel Cestino senza toccare l'indice e dopo una riscrittura in corso, come
+/// `rename_tape`.
 pub fn trash_tape(path: &Path) -> Result<(), AppError> {
+    let _writing = tape::writing(path)?;
     existing_tape(path)?;
     trash(path)
 }
@@ -1222,6 +1226,36 @@ pub(crate) mod tests {
         trash_tape(&altra).unwrap();
         assert!(!altra.exists());
         assert_eq!(library.list().unwrap().tapes, before);
+    }
+
+    #[test]
+    fn rinomina_e_cestino_aspettano_la_riscrittura_in_corso() {
+        let (root, _library) = library("dopo-la-riscrittura");
+        let call = root.join("Call.tape");
+        let altra = root.join("Altra.tape");
+        tape_at(&call, 1000);
+        tape_at(&altra, 1000);
+        // Una riscrittura in corso dei due Tape, come quella di un altro processo: finisce con il
+        // Tape nuovo rinominato sopra il percorso originale. Il lock è uno per Libreria.
+        let writing = tape::writing(&call).unwrap();
+        std::thread::scope(|scope| {
+            let renamed = scope.spawn(|| rename_tape(&call, "Preventivo").unwrap());
+            let trashed = scope.spawn(|| trash_tape(&altra).unwrap());
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            assert!(call.is_file() && altra.is_file(), "non hanno aspettato");
+            for path in [&call, &altra] {
+                let mut document = tape::read(path).unwrap();
+                document.parlanti.insert("mix:1".into(), "Lucia".into());
+                tape::rewrite(path, &document).unwrap();
+            }
+            drop(writing);
+            assert_eq!(renamed.join().unwrap(), root.join("Preventivo.tape"));
+            trashed.join().unwrap();
+        });
+        // Il vecchio nome non ricompare e il Tape rinominato ha la riscrittura.
+        assert!(!call.exists() && !altra.exists());
+        let renamed = tape::read(&root.join("Preventivo.tape")).unwrap();
+        assert_eq!(renamed.parlanti["mix:1"], "Lucia");
     }
 
     /// Un Tape vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
