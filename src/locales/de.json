@@ -541,7 +541,15 @@
     "defaultName": "Notizen",
     "label": "Notizen des Tapes",
     "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
-    "saved": "Im Tape gespeichert"
+    "saved": "Im Tape gespeichert",
+    "format": {
+      "label": "Format",
+      "bold": "Fett",
+      "italic": "Kursiv",
+      "link": "Link",
+      "list": "Liste",
+      "task": "Aufgabe"
+    }
   },
   "parlantiTab": {
     "empty": "Keine Sprecher erkannt",
@@ -572,7 +580,8 @@
       "ascolto": "Wiedergabe",
       "testo": "Text",
       "registrazione": "Aufnahme",
-      "libreria": "Bibliothek"
+      "libreria": "Bibliothek",
+      "note": "Notizen"
     },
     "lines": {
       "nuovaRegistrazione": "Neue Aufnahme",
@@ -589,7 +598,10 @@
       "pausaRegistrazione": "Pausieren oder fortsetzen",
       "apriTape": "Tape öffnen",
       "rinominaTape": "Tape umbenennen",
-      "cestinaTape": "In den Papierkorb"
+      "cestinaTape": "In den Papierkorb",
+      "grassetto": "Fett",
+      "corsivo": "Kursiv",
+      "link": "Link"
     },
     "keys": {
       "Ctrl": "Strg",

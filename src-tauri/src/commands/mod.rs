@@ -130,6 +130,27 @@ pub fn open_update(app: AppHandle, url: String) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 
+/// Il link di una Nota da aprire nel browser, normalizzato: solo `http(s)` e `mailto`, perché un
+/// altro schema (`file:`, `ms-settings:`…) aprirebbe un programma.
+fn link_esterno(url: &str) -> Option<String> {
+    let url = tauri::Url::parse(url).ok()?;
+    matches!(url.scheme(), "http" | "https" | "mailto").then(|| url.to_string())
+}
+
+/// Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView.
+#[tauri::command]
+#[specta::specta]
+pub fn open_link(app: AppHandle, url: String) -> Result<(), AppError> {
+    let Some(link) = link_esterno(&url) else {
+        return Err(AppError::Internal(format!(
+            "indirizzo non accettato: {url}"
+        )));
+    };
+    app.opener()
+        .open_url(link, None::<&str>)
+        .map_err(|e| AppError::Internal(e.to_string()))
+}
+
 /// Apre un Tape scelto come Sorgente: restituisce le sue Frasi, i nomi dei Parlanti e le
 /// informazioni. `unsupportedTape` se viene da una versione più nuova dell'app.
 #[tauri::command]
@@ -813,7 +834,27 @@ fn raccolta_path(app: &AppHandle, nome: &str) -> Result<PathBuf, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::SOURCE_EXTENSIONS;
+    use super::{SOURCE_EXTENSIONS, link_esterno};
+
+    #[test]
+    fn un_link_delle_note_si_apre_solo_se_e_web_o_email() {
+        assert_eq!(
+            link_esterno("https://studioferri.it/a b").as_deref(),
+            Some("https://studioferri.it/a%20b")
+        );
+        assert!(link_esterno("HTTP://esempio.it").is_some());
+        assert!(link_esterno("mailto:sara@esempio.it").is_some());
+        for rifiutato in [
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "ms-settings:privacy",
+            "C:\\Windows\\notepad.exe",
+            "www.esempio.it",
+            "",
+        ] {
+            assert_eq!(link_esterno(rifiutato), None, "{rifiutato}");
+        }
+    }
 
     #[test]
     fn il_drop_accetta_le_estensioni_di_apri_file() {

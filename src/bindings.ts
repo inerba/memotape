@@ -32,6 +32,8 @@ export const commands = {
 } | null>("check_update"),
 	/**  Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro. */
 	openUpdate: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_update", { url })),
+	/**  Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView. */
+	openLink: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_link", { url })),
 	/**
 	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
 	 *  Tape nella Raccolta `raccolta` (`null` o `""`: la radice della Libreria), di un Tape si

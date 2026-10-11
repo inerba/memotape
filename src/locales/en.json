@@ -541,7 +541,15 @@
     "defaultName": "Notes",
     "label": "Tape notes",
     "placeholder": "Write your notes: decisions, to-dos, links. In Markdown, like **bold** or - lists.",
-    "saved": "Saved in the Tape"
+    "saved": "Saved in the Tape",
+    "format": {
+      "label": "Format",
+      "bold": "Bold",
+      "italic": "Italic",
+      "link": "Link",
+      "list": "List",
+      "task": "To-do"
+    }
   },
   "parlantiTab": {
     "empty": "No speakers recognized",
@@ -572,7 +580,8 @@
       "ascolto": "Listening",
       "testo": "Text",
       "registrazione": "Recording",
-      "libreria": "Library"
+      "libreria": "Library",
+      "note": "Notes"
     },
     "lines": {
       "nuovaRegistrazione": "New recording",
@@ -589,7 +598,10 @@
       "pausaRegistrazione": "Pause or resume",
       "apriTape": "Open the Tape",
       "rinominaTape": "Rename the Tape",
-      "cestinaTape": "Move to Recycle Bin"
+      "cestinaTape": "Move to Recycle Bin",
+      "grassetto": "Bold",
+      "corsivo": "Italic",
+      "link": "Link"
     },
     "keys": {
       "Ctrl": "Ctrl",

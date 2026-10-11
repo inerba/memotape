@@ -547,7 +547,15 @@
     "defaultName": "Notatki",
     "label": "Notatki Tape’a",
     "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
-    "saved": "Zapisane w Tape"
+    "saved": "Zapisane w Tape",
+    "format": {
+      "label": "Formatowanie",
+      "bold": "Pogrubienie",
+      "italic": "Kursywa",
+      "link": "Link",
+      "list": "Lista",
+      "task": "Do zrobienia"
+    }
   },
   "parlantiTab": {
     "empty": "Nie rozpoznano mówców",
@@ -580,7 +588,8 @@
       "ascolto": "Odsłuch",
       "testo": "Tekst",
       "registrazione": "Nagrywanie",
-      "libreria": "Biblioteka"
+      "libreria": "Biblioteka",
+      "note": "Notatki"
     },
     "lines": {
       "nuovaRegistrazione": "Nowe nagranie",
@@ -597,7 +606,10 @@
       "pausaRegistrazione": "Wstrzymaj lub wznów",
       "apriTape": "Otwórz Tape",
       "rinominaTape": "Zmień nazwę Tape",
-      "cestinaTape": "Przenieś do Kosza"
+      "cestinaTape": "Przenieś do Kosza",
+      "grassetto": "Pogrubienie",
+      "corsivo": "Kursywa",
+      "link": "Link"
     },
     "keys": {
       "Ctrl": "Ctrl",

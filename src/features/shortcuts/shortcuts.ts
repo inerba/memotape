@@ -22,20 +22,25 @@ export type Azione =
   | "pannello"
   | "apriTape"
   | "rinominaTape"
-  | "cestinaTape";
+  | "cestinaTape"
+  | "grassetto"
+  | "corsivo"
+  | "link";
 
 export type Gruppo =
   | "generale"
   | "ascolto"
   | "testo"
   | "registrazione"
-  | "libreria";
+  | "libreria"
+  | "note";
 
 /**
- * Dove sta il focus: in un campo di `testo` (si scrive), su un `pulsante` o un link (Spazio lo
- * attiva), su un `cursore` (le frecce lo spostano), o altrove.
+ * Dove sta il focus: in un campo di `testo` (si scrive), nel campo di una `nota` (un campo di
+ * testo con i suoi tasti di formato), su un `pulsante` o un link (Spazio lo attiva), su un
+ * `cursore` (le frecce lo spostano), o altrove.
  */
-export type Campo = "testo" | "pulsante" | "cursore" | null;
+export type Campo = "testo" | "nota" | "pulsante" | "cursore" | null;
 
 export interface Stato {
   /** Un'Attività in corso: niente Nuova registrazione né Importa un file. */
@@ -59,6 +64,8 @@ export interface Tasto {
 export interface Scorciatoia {
   azione: Azione;
   gruppo: Gruppo;
+  /** Formatta nel campo di una Nota, che la gestisce da sé: sta solo nel pannello. */
+  nellaNota?: true;
   /** Agisce sul Tape con il focus nella tabella della Libreria, non sulla finestra. */
   nellaTabella?: true;
   quando?: (stato: Stato) => boolean;
@@ -79,6 +86,7 @@ export interface Scorciatoia {
 }
 
 const NEL_TESTO = ["testo"] as const;
+const NELLA_NOTA = ["nota"] as const;
 const LIBERA = (s: Stato) => !s.attivita;
 const ASCOLTO = (s: Stato) => !s.registrazione;
 
@@ -97,12 +105,19 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     riga: "importa",
     tasti: ["Ctrl", "O"],
   },
-  { azione: "cerca", gruppo: "generale", riga: "cerca", tasti: ["Ctrl", "K"] },
+  {
+    azione: "cerca",
+    gruppo: "generale",
+    riga: "cerca",
+    tasti: ["Ctrl", "K"],
+    trattenutaDa: NELLA_NOTA,
+  },
   {
     azione: "barraLaterale",
     gruppo: "generale",
     riga: "barraLaterale",
     tasti: ["Ctrl", "B"],
+    trattenutaDa: NELLA_NOTA,
   },
   {
     azione: "impostazioni",
@@ -199,6 +214,27 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     riga: "cestinaTape",
     tasti: ["Delete"],
   },
+  {
+    azione: "grassetto",
+    gruppo: "note",
+    nellaNota: true,
+    riga: "grassetto",
+    tasti: ["Ctrl", "B"],
+  },
+  {
+    azione: "corsivo",
+    gruppo: "note",
+    nellaNota: true,
+    riga: "corsivo",
+    tasti: ["Ctrl", "I"],
+  },
+  {
+    azione: "link",
+    gruppo: "note",
+    nellaNota: true,
+    riga: "link",
+    tasti: ["Ctrl", "K"],
+  },
 ];
 
 const KEYS: Record<string, string> = { Space: " " };
@@ -222,9 +258,13 @@ function corrisponde(s: Scorciatoia, t: Tasto): boolean {
   return !LETTERA.test(key) || t.shiftKey === s.tasti.includes("Shift");
 }
 
-/** Il campo con il focus tiene il tasto per sé. */
+/** Il campo con il focus tiene il tasto per sé; quello di una Nota anche i tasti del testo. */
 function trattenuto(s: Scorciatoia, campo: Campo): boolean {
-  return campo !== null && (s.trattenutaDa?.includes(campo) ?? false);
+  const da = s.trattenutaDa ?? [];
+  return (
+    campo !== null &&
+    (da.includes(campo) || (campo === "nota" && da.includes("testo")))
+  );
 }
 
 /**
@@ -237,7 +277,9 @@ export function scorciatoia(
   stato: Stato
 ): { azione: Azione; esegui: boolean; riservata: boolean } | null {
   const s = SCORCIATOIE.find(
-    (candidata) => !candidata.nellaTabella && corrisponde(candidata, tasto)
+    (candidata) =>
+      !(candidata.nellaTabella || candidata.nellaNota) &&
+      corrisponde(candidata, tasto)
   );
   if (!s || trattenuto(s, campo)) {
     return null;

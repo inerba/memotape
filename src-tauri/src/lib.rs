@@ -36,6 +36,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::open_source,
             commands::check_update,
             commands::open_update,
+            commands::open_link,
             commands::transcribe,
             commands::diarize,
             commands::cancel_transcription,

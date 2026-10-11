@@ -544,7 +544,15 @@
     "defaultName": "Notas",
     "label": "Notas del Tape",
     "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
-    "saved": "Guardadas en el Tape"
+    "saved": "Guardadas en el Tape",
+    "format": {
+      "label": "Formato",
+      "bold": "Negrita",
+      "italic": "Cursiva",
+      "link": "Enlace",
+      "list": "Lista",
+      "task": "Tarea"
+    }
   },
   "parlantiTab": {
     "empty": "Ningún hablante reconocido",
@@ -576,7 +584,8 @@
       "ascolto": "Escucha",
       "testo": "Texto",
       "registrazione": "Grabación",
-      "libreria": "Biblioteca"
+      "libreria": "Biblioteca",
+      "note": "Notas"
     },
     "lines": {
       "nuovaRegistrazione": "Nueva grabación",
@@ -593,7 +602,10 @@
       "pausaRegistrazione": "Pausar o reanudar",
       "apriTape": "Abrir el Tape",
       "rinominaTape": "Cambiar el nombre del Tape",
-      "cestinaTape": "Mover a la Papelera"
+      "cestinaTape": "Mover a la Papelera",
+      "grassetto": "Negrita",
+      "corsivo": "Cursiva",
+      "link": "Enlace"
     },
     "keys": {
       "Ctrl": "Ctrl",

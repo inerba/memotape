@@ -544,7 +544,15 @@
     "defaultName": "Note",
     "label": "Note del Tape",
     "placeholder": "Scrivi le note: decisioni, cose da fare, link. In Markdown, come **grassetto** o - elenchi.",
-    "saved": "Salvate nel Tape"
+    "saved": "Salvate nel Tape",
+    "format": {
+      "label": "Formato",
+      "bold": "Grassetto",
+      "italic": "Corsivo",
+      "link": "Link",
+      "list": "Elenco",
+      "task": "Da fare"
+    }
   },
   "parlantiTab": {
     "empty": "Nessun Parlante riconosciuto",
@@ -576,7 +584,8 @@
       "ascolto": "Ascolto",
       "testo": "Testo",
       "registrazione": "Registrazione",
-      "libreria": "Libreria"
+      "libreria": "Libreria",
+      "note": "Note"
     },
     "lines": {
       "nuovaRegistrazione": "Nuova registrazione",
@@ -593,7 +602,10 @@
       "pausaRegistrazione": "Pausa o riprendi",
       "apriTape": "Apri il Tape",
       "rinominaTape": "Rinomina il Tape",
-      "cestinaTape": "Sposta nel Cestino"
+      "cestinaTape": "Sposta nel Cestino",
+      "grassetto": "Grassetto",
+      "corsivo": "Corsivo",
+      "link": "Link"
     },
     "keys": {
       "Ctrl": "Ctrl",
