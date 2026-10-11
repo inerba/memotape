@@ -53,7 +53,8 @@ src-tauri/src/
   tape.rs                il Tape: scrittura, lettura, riscrittura atomica, audio del mix e Forma d'onda dentro lo zip
   library.rs             la Libreria: Raccolte, Tape, indice SQLite, operazioni sui file e Cestino
   player.rs              il protocollo `tape` del player (il `mix.ogg` di un Tape con le richieste `Range`) e la Forma d'onda
-  mcp.rs                 il server MCP degli Assistenti (`memotape.exe --mcp`, ADR-0012): stdio, sola lettura
+  mcp.rs                 il server MCP degli Assistenti (`memotape.exe --mcp`, ADR-0012): stdio; legge la Libreria
+                         e, con il permesso, modifica i Tape (ADR-0031), mai l'indice
   updates.rs             il controllo aggiornamenti: l'ultima release di GitHub contro la versione in esecuzione
 docs/brand/              il logo: SVG, PNG e `LINEE-GUIDA.md`; `genera.py` li rigenera, con `src-tauri/icons/`
 src-tauri/resources/     risorse del bundle (`silero_vad.onnx`, `licenses/` con i testi delle licenze)
