@@ -69,9 +69,9 @@ test("una Frase in mezzo si taglia con i silenzi intorno, a metà se sono corti"
   expect(taglioDelleFrasi(riunione, new Set(), DURATA)).toBeNull();
 });
 
-test("una Frase di un altro Ingresso che parla sopra non viene tagliata", () => {
+test("una Frase di un altro Ingresso accavallata di poco resta intera, con il suo parlato", () => {
   const phrases = [
-    frase(0, 0, 10_000, { ingresso: "microfono" }),
+    frase(0, 0, 8400, { ingresso: "microfono" }),
     frase(0, 8000, 20_000, { ingresso: "sistema" }),
     frase(1, 30_000, 40_000, { ingresso: "microfono" }),
   ];
@@ -79,6 +79,30 @@ test("una Frase di un altro Ingresso che parla sopra non viene tagliata", () => 
   expect(taglio).toEqual({ fineMs: 29_000, inizioMs: 8000 });
   expect(tagliato(taglio ? [taglio] : [], phrases[0] as TranscriptPhrase)).toBe(
     false
+  );
+});
+
+test("la Frase dopo che comincia prima della fine della scelta non perde il suo audio", () => {
+  // Le parti di una Frase divisa al cambio di Parlante hanno i tempi ASR e possono accavallarsi.
+  const phrases = [
+    frase(0, 5000, 10_200, { parlante: 1 }),
+    frase(1, 10_000, 14_000, { parlante: 2 }),
+    frase(2, 18_000, 20_000, { parlante: 1 }),
+  ];
+  const taglio = taglioDelleFrasi(phrases, new Set(["mix:0"]), 30_000);
+  expect(taglio).toEqual({ fineMs: 10_200, inizioMs: 0 });
+});
+
+test("una voce che parla sopra la scelta per più di mezzo secondo si taglia con lei, barrata", () => {
+  const phrases = [
+    frase(0, 5000, 10_000, { ingresso: "microfono" }),
+    frase(0, 7000, 12_000, { ingresso: "sistema" }),
+    frase(1, 20_000, 25_000, { ingresso: "microfono" }),
+  ];
+  const taglio = taglioDelleFrasi(phrases, new Set(["microfono:0"]), 30_000);
+  expect(taglio).toEqual({ fineMs: 19_000, inizioMs: 0 });
+  expect(tagliato(taglio ? [taglio] : [], phrases[1] as TranscriptPhrase)).toBe(
+    true
   );
 });
 

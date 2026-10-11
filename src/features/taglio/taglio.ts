@@ -62,6 +62,11 @@ export interface Taglio {
 
 /** Il silenzio che resta da ogni lato di una giunzione. */
 const MARGINE_MS = 1000;
+/**
+ * Oltre questo accavallamento due Frasi sono parlato insieme; sotto, sono i margini dei tempi
+ * (prefill, hangover, tempi ASR delle parti divise al cambio di Parlante).
+ */
+const SOVRAPPOSIZIONE_MS = 500;
 
 /** Il bordo d'inizio di un Taglio nel silenzio `[a, b]`: 1 s dopo il parlato, a metà se è corto. */
 function dopo(a: number, b: number): number {
@@ -105,21 +110,39 @@ export function taglioDelleFrasi(
   durataMs: number
 ): Taglio | null {
   const chiavi = conCorrezioni(phrases, scelte);
-  const scelteFrasi = phrases.filter((p) => chiavi.has(phraseKey(p)));
-  if (scelteFrasi.length === 0) {
+  if (!phrases.some((p) => chiavi.has(phraseKey(p)))) {
     return null;
   }
-  const inizio = Math.min(...scelteFrasi.map((p) => p.inizioMs));
-  const fine = Math.max(...scelteFrasi.map((p) => p.fineMs));
+  // Il tratto si toglie a tutti gli Ingressi: chi parla sopra la scelta si taglia con lei (e si
+  // vede barrato); sotto mezzo secondo è il margine dei tempi, non parlato insieme.
+  let inizio = 0;
+  let fine = 0;
+  let cresciuta = true;
+  while (cresciuta) {
+    const scelteFrasi = phrases.filter((p) => chiavi.has(phraseKey(p)));
+    inizio = Math.min(...scelteFrasi.map((p) => p.inizioMs));
+    fine = Math.max(...scelteFrasi.map((p) => p.fineMs));
+    const sopra = phrases.filter(
+      (p) =>
+        !chiavi.has(phraseKey(p)) &&
+        Math.min(fine, p.fineMs) - Math.max(inizio, p.inizioMs) >
+          SOVRAPPOSIZIONE_MS
+    );
+    for (const p of sopra) {
+      chiavi.add(phraseKey(p));
+    }
+    cresciuta = sopra.length > 0;
+  }
   const altre = phrases.filter((p) => !chiavi.has(phraseKey(p)));
+  // Ogni altra Frase comincia prima o dopo l'inizio della scelta: nessuna resta fuori dal conto.
   const precedenti = altre
     .filter((p) => p.inizioMs < inizio)
     .map((p) => p.fineMs);
   const seguenti = altre
-    .filter((p) => p.inizioMs >= fine)
+    .filter((p) => p.inizioMs >= inizio)
     .map((p) => p.inizioMs);
   return {
-    // Una Frase di un altro Ingresso che parla sopra resta: il bordo non entra nel suo parlato.
+    // Se la Frase dopo si accavalla alla scelta, il bordo resta alla fine della scelta.
     fineMs:
       seguenti.length === 0
         ? durataMs
