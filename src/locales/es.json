@@ -144,7 +144,8 @@
       "noteChanged": "La nota «{{detail}}» se ha cambiado en otro sitio, por ejemplo por un asistente: vuelve a abrir el Tape para ver el texto nuevo",
       "noteNotFound": "La nota «{{detail}}» ya no está en el Tape: vuelve a abrir el Tape para ver las notas actuales",
       "noteNameTaken": "El Tape ya tiene una nota «{{detail}}»: elige otro nombre",
-      "noteNameInvalid": "El nombre de una nota no puede estar vacío ni superar los 60 caracteres"
+      "noteNameInvalid": "El nombre de una nota no puede estar vacío ni superar los 60 caracteres",
+      "linkNotAllowed": "El enlace «{{detail}}» no se abre: Memotape solo abre direcciones web (http, https) y correo (mailto)"
     },
     "app": {
       "title": "Algo ha salido mal",
@@ -550,7 +551,7 @@
     "label": "Notas del Tape",
     "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
     "saved": "Guardadas en el Tape",
-    "savedDraft": "Guardadas, al detener entran en el Tape",
+    "savedRecording": "Guardadas, al detener entran en el Tape",
     "jump": "Escuchar desde {{time}}",
     "format": {
       "label": "Formato",
@@ -584,13 +585,15 @@
       "assistantClient": "Asistente ({{client}}) · {{time}}"
     },
     "conflict": {
+      "mark": "Cambiada por un asistente mientras la editabas",
       "text": "Un asistente cambió «{{nome}}» mientras la editabas.",
       "keep": "Conservar las mías",
       "theirs": "Usar las suyas"
     },
     "leave": {
       "title": "¿Guardar los cambios en las Notas?",
-      "description": "Algunas Notas de este Tape tienen cambios sin guardar. Si no las guardas, se perderán.",
+      "description": "Algunas notas tienen cambios sin guardar. Si no los guardas, se perderán.",
+      "failed": "No se han guardado: {{motivo}}",
       "save": "Guardar",
       "discard": "No guardar",
       "cancel": "Cancelar"

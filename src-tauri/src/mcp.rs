@@ -369,23 +369,31 @@ pub struct NoteOut {
 #[serde(rename_all = "camelCase")]
 pub struct NotaInfoOut {
     nome: String,
-    /// Who wrote it last: "user" or "assistant".
-    autore: String,
+    /// Who wrote it last.
+    autore: AutoreOut,
     /// The name of the assistant's client, if it gave one.
     client: Option<String>,
     /// When it was written last, local time with UTC offset.
     modificata: String,
 }
 
+/// Chi ha scritto una Nota l'ultima volta, come `tape::Autore` senza il client.
+#[derive(Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum AutoreOut {
+    User,
+    Assistant,
+}
+
 impl From<&tape::Nota> for NotaInfoOut {
     fn from(nota: &tape::Nota) -> Self {
         let (autore, client) = match &nota.autore {
-            tape::Autore::Utente => ("user", None),
-            tape::Autore::Assistente { client } => ("assistant", client.clone()),
+            tape::Autore::Utente => (AutoreOut::User, None),
+            tape::Autore::Assistente { client } => (AutoreOut::Assistant, client.clone()),
         };
         Self {
             nome: nota.nome.clone(),
-            autore: autore.into(),
+            autore,
             client,
             modificata: nota.modificata.clone(),
         }
@@ -2616,17 +2624,17 @@ mod tests {
             elenco
                 .note
                 .iter()
-                .map(|n| (n.nome.as_str(), n.autore.as_str(), n.client.as_deref()))
+                .map(|n| (n.nome.as_str(), &n.autore, n.client.as_deref()))
                 .collect::<Vec<_>>(),
             [
-                ("Riepilogo", "assistant", Some("Claude")),
-                ("Mie note", "user", None)
+                ("Riepilogo", &AutoreOut::Assistant, Some("Claude")),
+                ("Mie note", &AutoreOut::User, None)
             ]
         );
         assert!(elenco.note[0].modificata.starts_with("20"), "{elenco:?}");
         let nota = read_note(&server, "Mie note").unwrap();
         assert_eq!(nota.testo, "Chiamare Sara");
-        assert_eq!(nota.info.autore, "user");
+        assert_eq!(nota.info.autore, AutoreOut::User);
         let manca = read_note(&server, "Domande").unwrap_err();
         assert!(manca.contains("list_notes"), "{manca}");
         // Un Tape senza Note ne ha zero.

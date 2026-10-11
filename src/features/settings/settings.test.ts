@@ -6,6 +6,7 @@ import {
   guadagnoText,
   languageOf,
   nomeMicrofonoRegistrazione,
+  noteSalvaDaSolo,
   parlantiRegistrazione,
   settingsSchema,
   speechLanguageChoice,
@@ -277,4 +278,10 @@ test("sensibilita distinta dalla pulizia e livelli validati", () => {
       }).success
     ).toBe(false);
   }
+});
+
+test("Salva da solo delle Note è acceso di partenza, anche quando manca nel file", () => {
+  const { noteSalvaDaSolo: _, ...senza } = defaults;
+  expect(noteSalvaDaSolo(senza)).toBe(true);
+  expect(noteSalvaDaSolo({ ...defaults, noteSalvaDaSolo: false })).toBe(false);
 });

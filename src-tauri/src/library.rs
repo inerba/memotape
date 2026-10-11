@@ -570,11 +570,15 @@ pub fn db_path(dir: &Path, root: &Path) -> PathBuf {
     dir.join(format!("{name}.sqlite"))
 }
 
+/// Un carattere che Windows non ammette nel nome di un file o di una cartella.
+pub fn vietato_da_windows(c: char) -> bool {
+    c.is_control() || r#"<>:"/\|?*"#.contains(c)
+}
+
 /// Un nome valido per una Raccolta o il titolo di un Tape: non vuoto, senza i caratteri che Windows
 /// non ammette, non un nome riservato (`CON`, `NUL`, `COM1`…), senza punto o spazio in fondo e senza
 /// punto in testa (le cartelle con il punto non sono Raccolte).
 pub fn validate_name(name: &str) -> Result<(), AppError> {
-    let forbidden = |c: char| c.is_control() || r#"<>:"/\|?*"#.contains(c);
     let base = name
         .split('.')
         .next()
@@ -586,7 +590,7 @@ pub fn validate_name(name: &str) -> Result<(), AppError> {
             && (base.starts_with("COM") || base.starts_with("LPT"))
             && matches!(base.as_bytes()[3], b'1'..=b'9'));
     if name.is_empty()
-        || name.contains(forbidden)
+        || name.contains(vietato_da_windows)
         || name.ends_with(['.', ' '])
         || name.starts_with('.')
         || device

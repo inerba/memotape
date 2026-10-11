@@ -145,28 +145,30 @@ pub struct RecordingSaved {
 
 /// Una Nota scritta durante la Registrazione, come la manda il frontend.
 #[derive(Debug, Clone, serde::Deserialize, specta::Type)]
-pub struct BozzaNota {
+pub struct NotaInRegistrazione {
     pub nome: String,
     pub testo: String,
 }
 
-/// Le Note della Registrazione e la bozza `<Ogg del mix>.note.json` in cui sopravvivono a un guasto.
+/// Le Note della Registrazione e il file delle Note della Registrazione in corso,
+/// `<Ogg del mix>.note.json`, in cui sopravvivono a un guasto.
 #[derive(Default)]
 struct NoteInCorso {
     /// Manca finché l'Ogg non esiste.
-    bozza: Option<PathBuf>,
+    file: Option<PathBuf>,
     note: Vec<tape::Nota>,
     /// Allo Stop, quando le Note passano al Tape.
     chiuse: bool,
 }
 
 impl NoteInCorso {
-    /// Riscrive la bozza, se c'è, con un file accanto rinominato sopra: a metà resta la precedente.
+    /// Riscrive il file delle Note, se c'è, con un file accanto rinominato sopra: a metà resta il
+    /// precedente.
     fn scrivi(&self) -> Result<(), AppError> {
-        let Some(path) = &self.bozza else {
+        let Some(path) = &self.file else {
             return Ok(());
         };
-        let json = serde_json::to_vec_pretty(&serde_json::json!({ "note": self.note }))
+        let json = serde_json::to_vec_pretty(&tape::NoteJson { note: &self.note })
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let temp = path.with_extension("tmp");
         std::fs::write(&temp, json).map_err(|e| unwritable(&temp, &e))?;
@@ -174,8 +176,8 @@ impl NoteInCorso {
     }
 }
 
-/// La bozza delle Note accanto all'Ogg del mix `mix`.
-fn bozza_di(mix: &Path) -> PathBuf {
+/// Il file delle Note della Registrazione in corso, accanto all'Ogg del mix `mix`.
+fn file_delle_note(mix: &Path) -> PathBuf {
     mix.with_extension("note.json")
 }
 
@@ -248,9 +250,9 @@ impl Controls {
         self.note.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Le Note della Registrazione, tutte, riscritte nella bozza se l'Ogg esiste già. `false` se
+    /// Le Note della Registrazione, tutte, riscritte nel loro file se l'Ogg esiste già. `false` se
     /// sono già passate al Tape. Rifiuta un nome che il Tape non ammetterebbe.
-    fn salva_note(&self, scritte: Vec<BozzaNota>) -> Result<bool, AppError> {
+    fn salva_note(&self, scritte: Vec<NotaInRegistrazione>) -> Result<bool, AppError> {
         let mut stato = self.note();
         if stato.chiuse {
             return Ok(false);
@@ -281,10 +283,10 @@ impl Controls {
         Ok(true)
     }
 
-    /// L'Ogg del mix esiste: da qui le Note vivono anche nella bozza `path`.
-    fn apri_bozza(&self, path: PathBuf) -> Result<(), AppError> {
+    /// L'Ogg del mix esiste: da qui le Note vivono anche nel file `path`.
+    fn apri_file_delle_note(&self, path: PathBuf) -> Result<(), AppError> {
         let mut stato = self.note();
-        stato.bozza = Some(path);
+        stato.file = Some(path);
         if stato.note.is_empty() {
             Ok(())
         } else {
@@ -292,7 +294,7 @@ impl Controls {
         }
     }
 
-    /// Le Note per il Tape: da qui un salvataggio non riscrive più la bozza.
+    /// Le Note per il Tape: da qui un salvataggio non riscrive più il loro file.
     fn chiudi_note(&self) -> Vec<tape::Nota> {
         let mut stato = self.note();
         stato.chiuse = true;
@@ -367,7 +369,11 @@ impl Recorder {
 
     /// Le Note scritte durante la Registrazione `session_id`, che allo Stop entrano nel Tape.
     /// `false` se la Registrazione non c'è più o le Note sono già nel Tape.
-    pub fn salva_note(&self, session_id: &str, note: Vec<BozzaNota>) -> Result<bool, AppError> {
+    pub fn salva_note(
+        &self,
+        session_id: &str,
+        note: Vec<NotaInRegistrazione>,
+    ) -> Result<bool, AppError> {
         let controls = self.current().clone();
         match controls {
             Some(controls) if controls.session_id == session_id => controls.salva_note(note),
@@ -722,7 +728,7 @@ pub async fn record(
     );
     let diarizzazione = document.diarizzazione.clone();
     let mut error = recorded.error.clone();
-    // Fino a qui le Note si salvano anche dopo Stop: il frontend manda l'ultima bozza.
+    // Fino a qui le Note si salvano anche dopo Stop: il frontend manda il testo ultimo.
     let note = controls.chiudi_note();
     drop(registration);
     let path = save_tape(&folder, &destination, &prefix, &recorded, &document, &note)
@@ -778,10 +784,10 @@ fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded, note: &[tape::Nota
             mix.to_path_buf()
         }
     };
-    // Se un Markdown non si scrive la bozza resta nella cartella nascosta.
+    // Se un Markdown non si scrive il file delle Note resta nella cartella nascosta.
     match note_in_markdown(&ogg, note) {
         Ok(()) => {
-            let _ = std::fs::remove_file(bozza_di(mix));
+            let _ = std::fs::remove_file(file_delle_note(mix));
         }
         Err(e) => log::warn!("Note non salvate accanto alla Registrazione: {e}"),
     }
@@ -800,7 +806,7 @@ fn note_in_markdown(ogg: &Path, note: &[tape::Nota]) -> Result<(), AppError> {
             .nome
             .chars()
             .map(|c| {
-                if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
+                if crate::library::vietato_da_windows(c) {
                     '-'
                 } else {
                     c
@@ -864,7 +870,7 @@ impl Recorded {
 
 /// Scrive il Tape `<prefisso> <data ora>.tape` nella cartella `destination` (una Raccolta della
 /// Libreria `folder`, o la radice se nel frattempo è sparita) con le Note `note`, e cancella gli Ogg
-/// temporanei e la bozza delle Note, e con loro la cartella nascosta se resta vuota.
+/// temporanei e il file delle Note, e con loro la cartella nascosta se resta vuota.
 fn save_tape(
     folder: &Path,
     destination: &Path,
@@ -895,7 +901,7 @@ fn save_tape(
             log::warn!("{} non cancellato: {e}", ogg.display());
         }
     }
-    let _ = std::fs::remove_file(bozza_di(recorded.mix()));
+    let _ = std::fs::remove_file(file_delle_note(recorded.mix()));
     // Fallisce se ci sono altri Ogg (una Registrazione interrotta da un crash): restano lì.
     let _ = std::fs::remove_dir(folder.join(TEMP_FOLDER));
     Ok(path)
@@ -1174,9 +1180,9 @@ fn run(
         let _ = std::fs::remove_dir(&temp);
         return Err(error);
     }
-    // Le Note scritte finora, e da qui ogni salvataggio, vanno nella bozza accanto all'Ogg.
-    if let Err(e) = controls.apri_bozza(bozza_di(&path)) {
-        log::warn!("bozza delle Note non scritta: {e}");
+    // Le Note scritte finora, e da qui ogni salvataggio, vanno nel loro file accanto all'Ogg.
+    if let Err(e) = controls.apri_file_delle_note(file_delle_note(&path)) {
+        log::warn!("file delle Note non scritto: {e}");
     }
     log::info!(
         "sessione {session_id}: dispositivi e writer {:?}, avvio audio {:?}",
@@ -1873,9 +1879,9 @@ mod tests {
         }
     }
 
-    fn scritte(note: &[(&str, &str)]) -> Vec<BozzaNota> {
+    fn scritte(note: &[(&str, &str)]) -> Vec<NotaInRegistrazione> {
         note.iter()
-            .map(|(nome, testo)| BozzaNota {
+            .map(|(nome, testo)| NotaInRegistrazione {
                 nome: (*nome).into(),
                 testo: (*testo).into(),
             })
@@ -1883,9 +1889,9 @@ mod tests {
     }
 
     #[test]
-    fn le_note_scritte_durante_la_registrazione_restano_nella_bozza_accanto_all_ogg() {
+    fn le_note_scritte_durante_la_registrazione_restano_nel_file_accanto_all_ogg() {
         use crate::audio_toolkit::ogg_opus::tests::temp_dir;
-        let folder = temp_dir("registrazione-bozza-note");
+        let folder = temp_dir("registrazione-file-note");
         let controls = Controls::default();
         // Prima che l'Ogg esista restano in memoria.
         assert!(
@@ -1893,22 +1899,22 @@ mod tests {
                 .salva_note(scritte(&[("Note", "Prima [0:01]")]))
                 .unwrap()
         );
-        let bozza = temp_folder(&folder)
+        let file = temp_folder(&folder)
             .unwrap()
             .join("Registrazione.note.json");
-        controls.apri_bozza(bozza.clone()).unwrap();
+        controls.apri_file_delle_note(file.clone()).unwrap();
         let letta = |path: &Path| -> Vec<tape::Nota> {
             let json: serde_json::Value =
                 serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
             serde_json::from_value(json["note"].clone()).unwrap()
         };
-        assert_eq!(letta(&bozza)[0].testo, "Prima [0:01]");
+        assert_eq!(letta(&file)[0].testo, "Prima [0:01]");
         assert!(
             controls
                 .salva_note(scritte(&[("Note", "Prima [0:01]"), ("Domande", "Chi?")]))
                 .unwrap()
         );
-        let note = letta(&bozza);
+        let note = letta(&file);
         assert_eq!(
             note.iter()
                 .map(|n| (n.nome.as_str(), n.testo.as_str()))
@@ -1916,7 +1922,7 @@ mod tests {
             [("Note", "Prima [0:01]"), ("Domande", "Chi?")]
         );
         assert_eq!(note[0].autore, tape::Autore::Utente);
-        // Un nome che il Tape rifiuterebbe non entra nella bozza.
+        // Un nome che il Tape rifiuterebbe non entra nel file.
         assert_eq!(
             controls.salva_note(scritte(&[(" ", "x")])),
             Err(AppError::NoteNameInvalid(" ".into()))
@@ -1924,20 +1930,22 @@ mod tests {
         // Chiusa allo Stop, quando entra nel Tape: un salvataggio dopo non la riscrive.
         assert_eq!(controls.chiudi_note().len(), 2);
         assert!(!controls.salva_note(scritte(&[("Note", "tardi")])).unwrap());
-        assert_eq!(letta(&bozza)[0].testo, "Prima [0:01]");
+        assert_eq!(letta(&file)[0].testo, "Prima [0:01]");
     }
 
     #[test]
-    fn la_bozza_delle_note_entra_nel_tape_allo_stop() {
+    fn il_file_delle_note_entra_nel_tape_allo_stop() {
         use crate::audio_toolkit::ogg_opus::tests::temp_dir;
         let folder = temp_dir("registrazione-note-tape");
         let recorded = registrata(&folder, "Registrazione.ogg");
         let controls = Controls::default();
-        controls.apri_bozza(bozza_di(recorded.mix())).unwrap();
+        controls
+            .apri_file_delle_note(file_delle_note(recorded.mix()))
+            .unwrap();
         controls
             .salva_note(scritte(&[("Note", "Decidere [0:00]"), ("Vuota", "")]))
             .unwrap();
-        assert!(bozza_di(recorded.mix()).exists());
+        assert!(file_delle_note(recorded.mix()).exists());
         let document = tape::Document::new(
             tape::creato(recorded.start),
             100,
@@ -1959,7 +1967,7 @@ mod tests {
         .unwrap();
         assert_eq!(tape::note(&path).unwrap(), note);
         assert_eq!(tape::read(&path).unwrap(), document);
-        // Bozza e Ogg se ne vanno, e con loro la cartella nascosta.
+        // File delle Note e Ogg se ne vanno, e con loro la cartella nascosta.
         assert!(!folder.join(TEMP_FOLDER).exists());
         // Senza Note il Tape non ha `note.json`.
         let recorded = registrata(&folder, "Senza.ogg");
@@ -1973,7 +1981,9 @@ mod tests {
         let folder = temp_dir("registrazione-note-markdown");
         let recorded = registrata(&folder, "mix.ogg");
         let controls = Controls::default();
-        controls.apri_bozza(bozza_di(recorded.mix())).unwrap();
+        controls
+            .apri_file_delle_note(file_delle_note(recorded.mix()))
+            .unwrap();
         controls
             .salva_note(scritte(&[
                 ("Note", "Uno"),

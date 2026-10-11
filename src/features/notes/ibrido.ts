@@ -220,7 +220,7 @@ const TEMA = EditorView.theme({
   },
   ".cm-attiva .cm-link": { cursor: "text" },
   ".cm-casella": {
-    accentColor: "var(--play)",
+    accentColor: "var(--foreground)",
     cursor: "pointer",
     margin: "0 0.3em 0 0",
     transform: "translateY(1px)",

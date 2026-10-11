@@ -144,7 +144,8 @@
       "noteChanged": "Notatka „{{detail}}” została zmieniona gdzie indziej, np. przez asystenta: otwórz Tape ponownie, aby zobaczyć nowy tekst",
       "noteNotFound": "Notatki „{{detail}}” nie ma już w Tape: otwórz Tape ponownie, aby zobaczyć aktualne notatki",
       "noteNameTaken": "Tape ma już notatkę „{{detail}}”: wybierz inną nazwę",
-      "noteNameInvalid": "Nazwa notatki nie może być pusta ani dłuższa niż 60 znaków"
+      "noteNameInvalid": "Nazwa notatki nie może być pusta ani dłuższa niż 60 znaków",
+      "linkNotAllowed": "Linku „{{detail}}” nie można otworzyć: Memotape otwiera tylko adresy internetowe (http, https) i e-mail (mailto)"
     },
     "app": {
       "title": "Coś poszło nie tak",
@@ -553,7 +554,7 @@
     "label": "Notatki Tape’a",
     "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
     "saved": "Zapisane w Tape",
-    "savedDraft": "Zapisane, po zatrzymaniu trafią do Tape",
+    "savedRecording": "Zapisane, po zatrzymaniu trafią do Tape",
     "jump": "Słuchaj od {{time}}",
     "format": {
       "label": "Formatowanie",
@@ -587,13 +588,15 @@
       "assistantClient": "Asystent ({{client}}) · {{time}}"
     },
     "conflict": {
+      "mark": "Zmieniona przez asystenta podczas twojej edycji",
       "text": "Asystent zmienił „{{nome}}”, gdy ją edytowałeś.",
       "keep": "Zachowaj moje",
       "theirs": "Użyj jego"
     },
     "leave": {
       "title": "Zapisać zmiany w Notatkach?",
-      "description": "Niektóre Notatki tego Tape mają niezapisane zmiany. Bez zapisania zostaną utracone.",
+      "description": "Niektóre notatki mają niezapisane zmiany. Bez zapisania zostaną utracone.",
+      "failed": "Nie zostały zapisane: {{motivo}}",
       "save": "Zapisz",
       "discard": "Nie zapisuj",
       "cancel": "Anuluj"

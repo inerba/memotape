@@ -144,7 +144,8 @@
       "noteChanged": "The note “{{detail}}” was changed elsewhere, for example by an assistant: reopen the Tape to see the new text",
       "noteNotFound": "The note “{{detail}}” is no longer in the Tape: reopen the Tape to see the current notes",
       "noteNameTaken": "The Tape already has a note “{{detail}}”: choose another name",
-      "noteNameInvalid": "A note name can’t be empty or longer than 60 characters"
+      "noteNameInvalid": "A note name can’t be empty or longer than 60 characters",
+      "linkNotAllowed": "The link “{{detail}}” can’t be opened: Memotape opens only web addresses (http, https) and email (mailto)"
     },
     "app": {
       "title": "Something went wrong",
@@ -547,7 +548,7 @@
     "label": "Tape notes",
     "placeholder": "Write your notes: decisions, to-dos, links. In Markdown, like **bold** or - lists.",
     "saved": "Saved in the Tape",
-    "savedDraft": "Saved, they go into the Tape on Stop",
+    "savedRecording": "Saved, they go into the Tape on Stop",
     "jump": "Listen from {{time}}",
     "format": {
       "label": "Format",
@@ -581,13 +582,15 @@
       "assistantClient": "Assistant ({{client}}) · {{time}}"
     },
     "conflict": {
+      "mark": "Changed by an assistant while you were editing it",
       "text": "An assistant changed “{{nome}}” while you were editing it.",
       "keep": "Keep mine",
       "theirs": "Use theirs"
     },
     "leave": {
       "title": "Save changes to the Notes?",
-      "description": "Some Notes in this Tape have unsaved changes. If you don't save them, they will be lost.",
+      "description": "Some notes have unsaved changes. If you don’t save them, they’ll be lost.",
+      "failed": "They weren’t saved: {{motivo}}",
       "save": "Save",
       "discard": "Don't save",
       "cancel": "Cancel"

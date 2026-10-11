@@ -2,12 +2,17 @@ import { expect, test } from "bun:test";
 import type { Nota } from "@/bindings";
 import {
   apertaIniziale,
-  bozzaNote,
+  conNome,
+  conNotaNuova,
+  conTesto,
   nomeNuovo,
   nomeRifiutato,
   noteIniziali,
+  noteInRegistrazione,
   oraDellaFirma,
   rilette,
+  rinominaRifiutata,
+  salvaOgni,
   salvataggio,
   senzaNota,
 } from "@/features/notes/notes";
@@ -70,18 +75,73 @@ test("eliminata la Nota aperta si apre la seguente, o la precedente se era l'ult
     { nome: "B", salvato: "b" },
     { nome: "C", salvato: "c" },
   ];
-  expect(senzaNota(note, "B", "Note")).toEqual({
+  expect(senzaNota({ aperta: "B", note }, "B", "Note")).toEqual({
     aperta: "C",
     note: [note[0], note[2]],
   });
-  expect(senzaNota(note, "C", "Note")).toEqual({
+  expect(senzaNota({ aperta: "C", note }, "C", "Note")).toEqual({
     aperta: "B",
     note: [note[0], note[1]],
   });
+  // Eliminata un'altra Nota, quella aperta resta.
+  expect(senzaNota({ aperta: "A", note }, "C", "Note")).toEqual({
+    aperta: "A",
+    note: [note[0], note[1]],
+  });
   // Senza più Note torna la Nota nuova con il nome predefinito.
-  expect(senzaNota([note[0]], "A", "Note")).toEqual({
+  expect(senzaNota({ aperta: "A", note: [note[0]] }, "A", "Note")).toEqual({
     aperta: "Note",
     note: [{ nome: "Note", salvato: null }],
+  });
+});
+
+test("una Nota nuova si aggiunge in fondo, aperta, e non c'è ancora su disco", () => {
+  const riga = { aperta: "Note", note: [{ nome: "Note", salvato: "x" }] };
+  expect(conNotaNuova(riga, (n) => `Nota ${n}`)).toEqual({
+    aperta: "Nota 2",
+    note: [riga.note[0], { nome: "Nota 2", salvato: null }],
+  });
+});
+
+test("rinominare rifiuta il nome di un'altra Nota e sposta la Nota aperta con il suo nome", () => {
+  const note = [
+    { nome: "Note", salvato: "x" },
+    { nome: "Riepilogo", salvato: "y" },
+  ];
+  expect(rinominaRifiutata(note, "Note", "Riepilogo")).toEqual({
+    code: "noteNameTaken",
+    detail: "Riepilogo",
+  });
+  expect(rinominaRifiutata(note, "Note", " ")).toEqual({
+    code: "noteNameInvalid",
+    detail: " ",
+  });
+  expect(rinominaRifiutata(note, "Note", "Mie note")).toBeNull();
+  expect(conNome({ aperta: "Note", note }, "Note", "Mie note")).toEqual({
+    aperta: "Mie note",
+    note: [{ nome: "Mie note", salvato: "x" }, note[1]],
+  });
+  expect(conNome({ aperta: "Riepilogo", note }, "Note", "Mie").aperta).toBe(
+    "Riepilogo"
+  );
+});
+
+test("salvata, la Nota ha su disco il testo e la firma nuovi", () => {
+  const riga = {
+    aperta: "Note",
+    note: [
+      { nome: "Note", salvato: null },
+      { firma, nome: "Altra", salvato: "z" },
+    ],
+  };
+  expect(conTesto(riga, "Note", "Uno", firma)).toEqual({
+    aperta: "Note",
+    note: [{ firma, nome: "Note", salvato: "Uno" }, riga.note[1]],
+  });
+  // Senza firma (la Registrazione) cambia solo il testo.
+  expect(conTesto(riga, "Note", "Uno").note[0]).toEqual({
+    nome: "Note",
+    salvato: "Uno",
   });
 });
 
@@ -186,7 +246,7 @@ test("la firma dice l'ora per oggi, giorno e ora per gli altri giorni", () => {
 
 test("la bozza della Registrazione ha le Note scritte, in ordine, anche svuotate, non quelle nuove mai scritte", () => {
   expect(
-    bozzaNote([
+    noteInRegistrazione([
       { nome: "Note", salvato: "Decidere [1:05]" },
       { nome: "Nota 2", salvato: null },
       { nome: "Domande", salvato: "" },
@@ -195,5 +255,14 @@ test("la bozza della Registrazione ha le Note scritte, in ordine, anche svuotate
     { nome: "Note", testo: "Decidere [1:05]" },
     { nome: "Domande", testo: "" },
   ]);
-  expect(bozzaNote([{ nome: "Note", salvato: null }])).toEqual([]);
+  expect(noteInRegistrazione([{ nome: "Note", salvato: null }])).toEqual([]);
+});
+
+test("salvare tutte le bozze dice il primo motivo per cui una non si è salvata", async () => {
+  const cambiata = { code: "noteChanged", detail: "B" } as const;
+  const salva = (nome: string) =>
+    Promise.resolve(nome === "B" ? cambiata : null);
+  expect(await salvaOgni({ A: "a", B: "b", C: "c" }, salva)).toEqual(cambiata);
+  expect(await salvaOgni({ A: "a" }, salva)).toBeNull();
+  expect(await salvaOgni({}, salva)).toBeNull();
 });

@@ -313,7 +313,9 @@ fn render_with_note(
     }
     let note: Vec<_> = note.iter().filter(|n| !n.testo.trim().is_empty()).collect();
     for nota in &note {
-        let _ = writeln!(out, "\n## {}\n\n{}", nota.nome, nota.testo.trim_end());
+        // Il testo com'è, chiuso da un a capo se non l'ha.
+        let fine = if nota.testo.ends_with('\n') { "" } else { "\n" };
+        let _ = write!(out, "\n## {}\n\n{}{fine}", nota.nome, nota.testo);
     }
     if !note.is_empty() {
         let _ = writeln!(out, "\n## {}", labels.get("/tabs/transcript"));
@@ -465,7 +467,8 @@ mod tests {
         };
         let document = transcript(vec![phrase(0, 3000, "Buongiorno.")]);
         let note = [
-            nota("Riepilogo", "### Da fare\n\n- [ ] Preventivo [12:40]\n"),
+            // I due spazi in fondo sono un a capo del Markdown: il testo resta com'è.
+            nota("Riepilogo", "### Da fare\n\n- [ ] Preventivo [12:40]  \n"),
             nota("Vuota", "  \n"),
             nota("Mie note", "Chiamare **Sara**"),
         ];
@@ -478,7 +481,7 @@ mod tests {
              - **Lingua del parlato:** Italiano\n\
              \n## Riepilogo\n\
              \n### Da fare\n\
-             \n- [ ] Preventivo [12:40]\n\
+             \n- [ ] Preventivo [12:40]  \n\
              \n## Mie note\n\
              \nChiamare **Sara**\n\
              \n## Trascrizione\n\

@@ -32,7 +32,10 @@ export const commands = {
 } | null>("check_update"),
 	/**  Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro. */
 	openUpdate: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_update", { url })),
-	/**  Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView. */
+	/**
+	 *  Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView.
+	 *  Rifiuta con `linkNotAllowed` un indirizzo che non è web o email.
+	 */
 	openLink: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_link", { url })),
 	/**
 	 *  Trascrive la Sorgente: progresso e Frasi arrivano come eventi. Un file audio o video diventa un
@@ -183,10 +186,10 @@ export const commands = {
 	 */
 	stopRecording: () => __TAURI_INVOKE<boolean>("stop_recording"),
 	/**
-	 *  Le Note scritte durante la Registrazione `session_id`, tutte: vanno nella bozza accanto all'Ogg
-	 *  e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
+	 *  Le Note scritte durante la Registrazione `session_id`, tutte: vanno nel file delle Note accanto
+	 *  all'Ogg e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
 	 */
-	saveRecordingNotes: (sessionId: string, note: BozzaNota[]) => typedError<boolean, AppError>(__TAURI_INVOKE("save_recording_notes", { sessionId, note })),
+	saveRecordingNotes: (sessionId: string, note: NotaInRegistrazione[]) => typedError<boolean, AppError>(__TAURI_INVOKE("save_recording_notes", { sessionId, note })),
 	/**  Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop. */
 	cancelRecordingStart: (sessionId: string) => __TAURI_INVOKE<void>("cancel_recording_start", { sessionId }),
 	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`. */
@@ -299,7 +302,9 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
 /**  Il Tape ha già una Nota con questo nome. */
 { code: "noteNameTaken"; detail: string } | 
 /**  Il nome di una Nota è vuoto o supera `tape::NOME_NOTA_MAX` caratteri. */
-{ code: "noteNameInvalid"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "noteNameInvalid"; detail: string } | 
+/**  Il link di una Nota non è un indirizzo web o email, l'unico che si apre: porta il link. */
+{ code: "linkNotAllowed"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -321,12 +326,6 @@ export type Autore_Deserialize = ({ tipo: "utente" }) & { client?: never } |
 export type Autore_Serialize = ({ tipo: "utente" }) & { client?: never } | 
 /**  Un Assistente, con il nome del client MCP se lo dice. */
 { tipo: "assistente"; client?: string | null };
-
-/**  Una Nota scritta durante la Registrazione, come la manda il frontend. */
-export type BozzaNota = {
-	nome: string,
-	testo: string,
-};
 
 export type Channels = "mono" | "stereo";
 
@@ -505,6 +504,12 @@ export type ModelStateChanged = {
 
 /**  Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando. */
 export type Nota = Nota_Serialize | Nota_Deserialize;
+
+/**  Una Nota scritta durante la Registrazione, come la manda il frontend. */
+export type NotaInRegistrazione = {
+	nome: string,
+	testo: string,
+};
 
 /**  Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando. */
 export type Nota_Deserialize = {

@@ -87,6 +87,9 @@ pub enum AppError {
     /// Il nome di una Nota è vuoto o supera `tape::NOME_NOTA_MAX` caratteri.
     #[error("nome di Nota non valido: {0}")]
     NoteNameInvalid(String),
+    /// Il link di una Nota non è un indirizzo web o email, l'unico che si apre: porta il link.
+    #[error("link non apribile: {0}")]
+    LinkNotAllowed(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

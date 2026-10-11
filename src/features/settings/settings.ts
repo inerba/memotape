@@ -91,6 +91,11 @@ const oneOf = (values: number[]) =>
   z.number().refine((value) => values.includes(value));
 
 /** Le stesse regole che Rust applica al file impostazioni. */
+/** Salva da solo delle Note, uguale per tutti i Tape: il predefinito, acceso, se manca nel file. */
+export function noteSalvaDaSolo(settings: Settings): boolean {
+  return settings.noteSalvaDaSolo ?? DEFAULT_SETTINGS.noteSalvaDaSolo === true;
+}
+
 export const settingsSchema = z.object({
   // Facoltativa come nei bindings: i file salvati prima che esistesse non ce l'hanno.
   assistenti: z.boolean().optional(),

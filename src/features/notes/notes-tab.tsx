@@ -46,6 +46,7 @@ import { Switch } from "@/components/ui/switch";
 import { MenuItem } from "@/features/library/tape-actions";
 import { keepFocus, type PlayerState } from "@/features/player/player";
 import { SWITCH_CLASS } from "@/features/settings/setting-switch";
+import { noteSalvaDaSolo } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import {
   type Azione,
@@ -123,11 +124,6 @@ type Ascolto = Pick<PlayerState, "positionMs"> &
   Partial<Pick<PlayerState, "move">>;
 
 interface NotesTabProps {
-  /**
-   * Le Note della Registrazione: si salvano sempre da sole, senza Salva né interruttore, e
-   * «Salvate» dice che entrano nel Tape allo Stop.
-   */
-  bozza?: boolean;
   /** La durata del Tape: un tempo da lì in poi resta testo. */
   durataMs: number;
   onError: (error: AppError) => void;
@@ -139,6 +135,11 @@ interface NotesTabProps {
    */
   player?: Ascolto;
   readOnly: boolean;
+  /**
+   * Le Note della Registrazione in corso: si salvano sempre da sole, senza Salva né interruttore,
+   * e «Salvate» dice che entrano nel Tape allo Stop.
+   */
+  registrazione?: boolean;
   /** Cresce con Non salvare: l'editor riparte dal testo su disco. */
   scarti: number;
 }
@@ -148,9 +149,9 @@ interface NotesTabProps {
  * destra, Salva e l'interruttore Salva da solo; sotto la Nota aperta nell'editor ibrido. Doppio
  * clic sul nome o F2 rinomina; il «…» rinomina, copia ed elimina. Senza Salva da solo una Nota con
  * modifiche ha un pallino. Sotto la riga, chi ha scritto la Nota l'ultima volta e quando; se un
- * Assistente l'ha cambiata mentre aveva modifiche, un avviso che resta offre «Tieni le mie» e «Usa
- * le sue». In sola lettura (un'Attività sul Tape) si leggono e si copiano. Vuota finché le Note
- * non sono lette.
+ * Assistente l'ha cambiata mentre aveva modifiche, il suo nome ha un segno e, aperta, un avviso
+ * che resta offre «Tieni le mie» e «Usa le sue». In sola lettura (un'Attività sul Tape) si leggono
+ * e si copiano. Vuota finché le Note non sono lette.
  */
 export function NotesTab({
   note,
@@ -160,19 +161,19 @@ export function NotesTab({
 }
 
 function NoteLette({
-  bozza,
   durataMs,
   note,
   onError,
   onMessage,
   player,
   readOnly,
+  registrazione = false,
   scarti,
 }: NotesTabProps & { note: NoteDelTape }) {
   const { t } = useTranslation();
   const { save, settings } = useSettings();
   // Le Note della Registrazione si salvano sempre da sole.
-  const salvaDaSolo = bozza || (settings.noteSalvaDaSolo ?? true);
+  const salvaDaSolo = registrazione || noteSalvaDaSolo(settings);
   const interruttore = useId();
   const [rinominando, setRinominando] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
@@ -191,8 +192,10 @@ function NoteLette({
     () => note.usaLeSue(nota.nome),
     [note, nota.nome]
   );
-  useScorciatoia("salvaNote", readOnly ? null : salvaTutte);
   const salvaSubito = useCallback(() => salvaTutte(), [salvaTutte]);
+  // Salva c'è solo senza Salva da solo, e si preme solo con modifiche: Ctrl+S lo segue.
+  const salvabile = !(salvaDaSolo || readOnly || !modificate);
+  useScorciatoia("salvaNote", salvabile ? salvaSubito : null);
   // Accesa, le bozze in sospeso si salvano subito.
   const cambiaSalvaDaSolo = useCallback(
     async (acceso: boolean) => {
@@ -263,6 +266,7 @@ function NoteLette({
               />
             ) : (
               <NomeNota
+                conflitto={n.nome in note.conflitti}
                 key={n.nome}
                 modificata={!salvaDaSolo && n.nome in bozze}
                 nome={n.nome}
@@ -289,7 +293,7 @@ function NoteLette({
             <Button
               aria-keyshortcuts={ariaTasti("salvaNote")}
               className="h-7 bg-card"
-              disabled={readOnly || !modificate}
+              disabled={!salvabile}
               onClick={salvaSubito}
               size="sm"
               title={conTasti(t, t("notes.save"), "salvaNote")}
@@ -301,10 +305,10 @@ function NoteLette({
           {salvate ? (
             <span className="flex items-center gap-1">
               <Check className="size-3.5 text-play" />
-              {t(bozza ? "notes.savedDraft" : "notes.saved")}
+              {t(registrazione ? "notes.savedRecording" : "notes.saved")}
             </span>
           ) : null}
-          {bozza ? null : (
+          {registrazione ? null : (
             <label
               className="flex cursor-pointer items-center gap-2 whitespace-nowrap"
               htmlFor={interruttore}
@@ -421,15 +425,18 @@ function FirmaNota({ firma: { autore, modificata } }: { firma: Firma }) {
 
 /**
  * Il nome di una Nota nella riga: un clic la apre, doppio clic o F2 la rinominano. `modificata`:
- * il pallino delle modifiche non salvate.
+ * il pallino delle modifiche non salvate; `conflitto`: un Assistente l'ha cambiata mentre aveva
+ * modifiche, e aspetta «Tieni le mie» o «Usa le sue».
  */
 function NomeNota({
+  conflitto,
   modificata,
   nome,
   onOpen,
   onRename,
   selected,
 }: {
+  conflitto: boolean;
   modificata: boolean;
   nome: string;
   onOpen: (nome: string) => void;
@@ -460,6 +467,16 @@ function NomeNota({
       type="button"
     >
       <span className="truncate">{nome}</span>
+      {conflitto ? (
+        <span
+          aria-label={t("notes.conflict.mark")}
+          className="flex shrink-0 text-destructive"
+          role="img"
+          title={t("notes.conflict.mark")}
+        >
+          <CircleAlert aria-hidden className="size-3.5" />
+        </span>
+      ) : null}
       {modificata ? (
         <span
           aria-label={t("notes.unsaved")}
@@ -560,7 +577,7 @@ function NotaEditor({
   onError: (error: AppError) => void;
   player?: Ascolto;
   readOnly: boolean;
-  salva: (nome: string, bozza: string) => Promise<boolean>;
+  salva: (nome: string, bozza: string) => Promise<AppError | null>;
   salvaDaSolo: boolean;
   scrivi: (nome: string, testo: string) => void;
   view: RefObject<EditorView | null>;

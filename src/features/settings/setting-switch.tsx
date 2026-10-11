@@ -2,7 +2,10 @@ import { useCallback, useId } from "react";
 import type { AppError } from "@/bindings";
 import { FieldHelp } from "@/components/field-help";
 import { Switch } from "@/components/ui/switch";
-import type { ParlantiRegistrazione } from "@/features/settings/settings";
+import {
+  DEFAULT_SETTINGS,
+  type ParlantiRegistrazione,
+} from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
 import { cn } from "@/lib/utils";
 import { SaveTick, SettingFeedback } from "./setting-feedback";
@@ -23,7 +26,6 @@ export function SettingSwitch({
   note,
   onError,
   inlineFeedback = true,
-  predefinito = false,
 }: {
   description?: string;
   disabled?: boolean;
@@ -39,8 +41,6 @@ export function SettingSwitch({
   note?: string;
   onError: (error: AppError) => void;
   inlineFeedback?: boolean;
-  /** Il valore quando il campo manca nel file delle Impostazioni. */
-  predefinito?: boolean;
 }) {
   const id = useId();
   const { save, settings } = useSettings();
@@ -63,7 +63,8 @@ export function SettingSwitch({
   const control = (
     <Switch
       aria-describedby={description ? `${id}-description` : undefined}
-      checked={settings[name] ?? predefinito}
+      // Un campo che manca nel file vale il predefinito (Salva da solo delle Note è acceso).
+      checked={settings[name] ?? DEFAULT_SETTINGS[name] ?? false}
       className={SWITCH_CLASS}
       disabled={disabled}
       id={id}

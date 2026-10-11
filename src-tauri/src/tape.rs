@@ -529,9 +529,10 @@ pub enum Autore {
     },
 }
 
+/// La voce `note.json`; `N` è `&[Nota]` per scriverla senza copiare le Note.
 #[derive(Default, serde::Serialize, serde::Deserialize)]
-struct NoteJson {
-    note: Vec<Nota>,
+pub struct NoteJson<N = Vec<Nota>> {
+    pub note: N,
 }
 
 /// Le Note del Tape in ordine di creazione: nessuna se manca `note.json`.

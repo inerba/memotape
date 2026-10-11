@@ -1,4 +1,4 @@
-import type { AppError, BozzaNota, Nota } from "@/bindings";
+import type { AppError, Nota, NotaInRegistrazione } from "@/bindings";
 
 /** Chi ha scritto una Nota l'ultima volta e quando. */
 export type Firma = Pick<Nota, "autore" | "modificata">;
@@ -123,21 +123,99 @@ export function nomeRifiutato(nome: string, altre: string[]): AppError | null {
   return altre.includes(nome) ? { code: "noteNameTaken", detail: nome } : null;
 }
 
-/**
- * Le Note senza `nome` e la Nota da aprire: la seguente, o la precedente se era l'ultima. Senza più
- * Note torna la Nota nuova con il nome `predefinito`.
- */
-export function senzaNota(
+/** Le Note della riga dei nomi, in ordine di creazione, e il nome di quella aperta. */
+export interface RigaDelleNote {
+  aperta: string;
+  note: NotaAperta[];
+}
+
+/** `riga` con una Nota nuova in fondo, aperta, di nome `nome(n)` («Nota 2», «Nota 3»…). */
+export function conNotaNuova(
+  riga: RigaDelleNote,
+  nome: (n: number) => string
+): RigaDelleNote {
+  const nuova = nomeNuovo(
+    riga.note.map((n) => n.nome),
+    nome
+  );
+  return {
+    aperta: nuova,
+    note: [...riga.note, { nome: nuova, salvato: null }],
+  };
+}
+
+/** Perché la Nota `nome` non si può chiamare `nuovo` tra le `note` del Tape; `null` se si può. */
+export function rinominaRifiutata(
   note: NotaAperta[],
   nome: string,
+  nuovo: string
+): AppError | null {
+  return nomeRifiutato(
+    nuovo,
+    note.filter((n) => n.nome !== nome).map((n) => n.nome)
+  );
+}
+
+/** `riga` con la Nota `nome` chiamata `nuovo`; resta aperta se lo era. */
+export function conNome(
+  riga: RigaDelleNote,
+  nome: string,
+  nuovo: string
+): RigaDelleNote {
+  return {
+    aperta: riga.aperta === nome ? nuovo : riga.aperta,
+    note: riga.note.map((n) => (n.nome === nome ? { ...n, nome: nuovo } : n)),
+  };
+}
+
+/** `riga` con `salvato` su disco per la Nota `nome`, e la `firma` della scrittura se c'è. */
+export function conTesto(
+  riga: RigaDelleNote,
+  nome: string,
+  salvato: string,
+  firma?: Firma
+): RigaDelleNote {
+  return {
+    ...riga,
+    note: riga.note.map((n) =>
+      n.nome === nome ? { ...n, ...(firma && { firma }), salvato } : n
+    ),
+  };
+}
+
+/**
+ * `riga` senza la Nota `nome`. Se era aperta si apre la seguente, o la precedente se era l'ultima;
+ * senza più Note torna la Nota nuova con il nome `predefinito`.
+ */
+export function senzaNota(
+  riga: RigaDelleNote,
+  nome: string,
   predefinito: string
-): { aperta: string; note: NotaAperta[] } {
-  const i = note.findIndex((n) => n.nome === nome);
-  const resto = note.filter((n) => n.nome !== nome);
+): RigaDelleNote {
+  const i = riga.note.findIndex((n) => n.nome === nome);
+  const resto = riga.note.filter((n) => n.nome !== nome);
   if (resto.length === 0) {
     return { aperta: predefinito, note: noteIniziali([], predefinito) };
   }
-  return { aperta: resto[Math.min(i, resto.length - 1)].nome, note: resto };
+  const aperta =
+    riga.aperta === nome
+      ? resto[Math.min(i, resto.length - 1)].nome
+      : riga.aperta;
+  return { aperta, note: resto };
+}
+
+/**
+ * Salva con `salva` ogni bozza di `bozze` (per nome): `null` se ora sono tutte su disco, se no il
+ * primo motivo per cui una non lo è.
+ */
+export async function salvaOgni(
+  bozze: Readonly<Record<string, string>>,
+  salva: (nome: string, bozza: string) => Promise<AppError | null>
+): Promise<AppError | null> {
+  const esiti = await Promise.all(
+    Object.entries(bozze).map(([nome, bozza]) => salva(nome, bozza))
+  );
+  return esiti.find((e) => e !== null) ?? null;
 }
 
 /**
@@ -154,10 +232,10 @@ export function salvataggio(
 }
 
 /**
- * Le Note della Registrazione da mettere nella bozza: quelle scritte almeno una volta, anche se
- * ora vuote, in ordine. Una Nota nuova mai scritta non c'è.
+ * Le Note della Registrazione da mandare al backend, che le tiene nel file accanto all'Ogg: quelle
+ * scritte almeno una volta, anche se ora vuote, in ordine. Una Nota nuova mai scritta non c'è.
  */
-export function bozzaNote(note: NotaAperta[]): BozzaNota[] {
+export function noteInRegistrazione(note: NotaAperta[]): NotaInRegistrazione[] {
   return note.flatMap((n) =>
     n.salvato === null ? [] : [{ nome: n.nome, testo: n.salvato }]
   );

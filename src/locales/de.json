@@ -144,7 +144,8 @@
       "noteChanged": "Die Notiz „{{detail}}“ wurde anderswo geändert, etwa von einem Assistenten: öffne das Tape erneut, um den neuen Text zu sehen",
       "noteNotFound": "Die Notiz „{{detail}}“ ist nicht mehr im Tape: öffne das Tape erneut, um die aktuellen Notizen zu sehen",
       "noteNameTaken": "Das Tape hat schon eine Notiz „{{detail}}“: wähle einen anderen Namen",
-      "noteNameInvalid": "Der Name einer Notiz darf nicht leer und nicht länger als 60 Zeichen sein"
+      "noteNameInvalid": "Der Name einer Notiz darf nicht leer und nicht länger als 60 Zeichen sein",
+      "linkNotAllowed": "Der Link „{{detail}}“ lässt sich nicht öffnen: Memotape öffnet nur Webadressen (http, https) und E-Mail (mailto)"
     },
     "app": {
       "title": "Etwas ist schiefgelaufen",
@@ -547,7 +548,7 @@
     "label": "Notizen des Tapes",
     "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
     "saved": "Im Tape gespeichert",
-    "savedDraft": "Gespeichert, beim Stopp kommen sie ins Tape",
+    "savedRecording": "Gespeichert, beim Stopp kommen sie ins Tape",
     "jump": "Ab {{time}} anhören",
     "format": {
       "label": "Format",
@@ -581,13 +582,15 @@
       "assistantClient": "Assistent ({{client}}) · {{time}}"
     },
     "conflict": {
+      "mark": "Von einem Assistenten geändert, während du sie bearbeitet hast",
       "text": "Ein Assistent hat „{{nome}}“ geändert, während du sie bearbeitet hast.",
       "keep": "Meine behalten",
       "theirs": "Seine übernehmen"
     },
     "leave": {
       "title": "Änderungen an den Notizen speichern?",
-      "description": "Einige Notizen dieses Tapes haben nicht gespeicherte Änderungen. Ohne Speichern gehen sie verloren.",
+      "description": "Einige Notizen haben ungespeicherte Änderungen. Ohne Speichern gehen sie verloren.",
+      "failed": "Sie wurden nicht gespeichert: {{motivo}}",
       "save": "Speichern",
       "discard": "Nicht speichern",
       "cancel": "Abbrechen"

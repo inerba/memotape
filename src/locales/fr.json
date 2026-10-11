@@ -144,7 +144,8 @@
       "noteChanged": "La note « {{detail}} » a été modifiée ailleurs, par exemple par un assistant : rouvrez le Tape pour voir le nouveau texte",
       "noteNotFound": "La note « {{detail}} » n’est plus dans le Tape : rouvrez le Tape pour voir les notes actuelles",
       "noteNameTaken": "Le Tape a déjà une note « {{detail}} » : choisissez un autre nom",
-      "noteNameInvalid": "Le nom d’une note ne peut pas être vide ni dépasser 60 caractères"
+      "noteNameInvalid": "Le nom d’une note ne peut pas être vide ni dépasser 60 caractères",
+      "linkNotAllowed": "Le lien « {{detail}} » ne s’ouvre pas : Memotape n’ouvre que les adresses web (http, https) et e-mail (mailto)"
     },
     "app": {
       "title": "Un problème est survenu",
@@ -550,7 +551,7 @@
     "label": "Notes du Tape",
     "placeholder": "Écrivez vos notes : décisions, choses à faire, liens. En Markdown, comme **gras** ou - listes.",
     "saved": "Enregistrées dans le Tape",
-    "savedDraft": "Enregistrées, elles entrent dans le Tape à l'arrêt",
+    "savedRecording": "Enregistrées, elles entrent dans le Tape à l'arrêt",
     "jump": "Écouter à partir de {{time}}",
     "format": {
       "label": "Format",
@@ -584,13 +585,15 @@
       "assistantClient": "Assistant ({{client}}) · {{time}}"
     },
     "conflict": {
+      "mark": "Modifiée par un assistant pendant que vous la modifiiez",
       "text": "Un assistant a modifié « {{nome}} » pendant que vous la modifiiez.",
       "keep": "Garder les miennes",
       "theirs": "Utiliser les siennes"
     },
     "leave": {
       "title": "Enregistrer les modifications des Notes ?",
-      "description": "Certaines Notes de ce Tape ont des modifications non enregistrées. Sans les enregistrer, elles seront perdues.",
+      "description": "Certaines notes ont des modifications non enregistrées. Sans les enregistrer, elles seront perdues.",
+      "failed": "Elles n’ont pas été enregistrées : {{motivo}}",
       "save": "Enregistrer",
       "discard": "Ne pas enregistrer",
       "cancel": "Annuler"

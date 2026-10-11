@@ -238,11 +238,13 @@ export const SCORCIATOIE: readonly Scorciatoia[] = [
     tasti: ["Ctrl", "K"],
   },
   {
-    // La registra la scheda Note: scrive nella Nota anche con il focus sul player.
+    // La registra la scheda Note: scrive nella Nota anche con il focus sul player, non da un
+    // altro campo di testo (il nome di una Nota che si rinomina).
     azione: "tempoNota",
     gruppo: "note",
     riga: "tempoNota",
     tasti: ["Ctrl", "T"],
+    trattenutaDa: NEL_TESTO,
   },
   {
     // La registra la scheda Note: salva le bozze di tutte le Note del Tape.
@@ -274,12 +276,16 @@ function corrisponde(s: Scorciatoia, t: Tasto): boolean {
   return !LETTERA.test(key) || t.shiftKey === s.tasti.includes("Shift");
 }
 
-/** Il campo con il focus tiene il tasto per sé; quello di una Nota anche i tasti del testo. */
+/**
+ * Il campo con il focus tiene il tasto per sé; quello di una Nota anche i tasti che scrivono nel
+ * testo, quelli senza Ctrl.
+ */
 function trattenuto(s: Scorciatoia, campo: Campo): boolean {
   const da = s.trattenutaDa ?? [];
+  const scrive = !s.tasti.includes("Ctrl");
   return (
     campo !== null &&
-    (da.includes(campo) || (campo === "nota" && da.includes("testo")))
+    (da.includes(campo) || (campo === "nota" && scrive && da.includes("testo")))
   );
 }
 

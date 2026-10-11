@@ -604,7 +604,6 @@ export function SettingsPage() {
                     label={t("settings.general.noteSalvaDaSolo")}
                     name="noteSalvaDaSolo"
                     onError={setError}
-                    predefinito
                   />
                   <Field
                     description={t("settings.general.nomeMicrofonoDescription")}

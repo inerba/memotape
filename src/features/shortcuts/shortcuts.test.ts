@@ -234,3 +234,7 @@ test("Ctrl+T scrive il tempo del player anche con il focus nel campo della Nota"
     expect(scorciatoia(ctrl("t"), campo, LIBERO)?.azione).toBe("tempoNota");
   }
 });
+
+test("Ctrl+T non scrive nella Nota mentre si rinomina una Nota o si scrive in un altro campo", () => {
+  expect(scorciatoia(ctrl("t"), "testo", LIBERO)).toBeNull();
+});

@@ -956,6 +956,16 @@ export function HomePage() {
     [dispatch]
   );
 
+  // Il Taglio sposta i tempi delle Note: si rileggono. Le bozze le ha già salvate o scartate
+  // l'uscita protetta, prima del Taglio.
+  const tagliato = useCallback(
+    (path: string, opened: OpenedTape) => {
+      applyOpenedTape(path, opened);
+      setRicariche((n) => n + 1);
+    },
+    [applyOpenedTape]
+  );
+
   // Una Nota salvata riscrive il Tape: la data nuova non lo fa ricaricare al ritorno in primo piano.
   const noteSalvate = useCallback(
     (path: string, modificato: number | null) =>
@@ -1046,7 +1056,7 @@ export function HomePage() {
       onRenameParlante={rename}
       onRenameTitle={renameTape}
       onReveal={reveal}
-      onTagliato={applyOpenedTape}
+      onTagliato={tagliato}
       onTranscribe={requestTranscription}
       onTrash={requestTrash}
       processing={isSource && transcribesSource(status)}
@@ -1332,13 +1342,13 @@ function LiveView({
             {header}
             {/* I tempi restano testo finché la Registrazione non è un Tape. */}
             <NotesTab
-              bozza
               durataMs={0}
               note={note}
               onError={onError}
               onMessage={onMessage}
               player={{ positionMs: elapsedMs }}
               readOnly={!recording}
+              registrazione
               scarti={0}
             />
           </div>
@@ -1690,8 +1700,8 @@ function TapePane({
   processing: boolean;
   recording: boolean;
   running: boolean;
-  /** Qui la vista registra come salvare le bozze delle sue Note. */
-  salvaNote: RefObject<(() => Promise<boolean>) | null>;
+  /** Qui la vista registra come salvare le bozze delle sue Note: `null` o il motivo. */
+  salvaNote: RefObject<(() => Promise<AppError | null>) | null>;
   scarti: number;
   view: TapeView;
 }) {

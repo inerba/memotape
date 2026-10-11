@@ -11,11 +11,14 @@ import { type AppError, commands } from "@/bindings";
 import type { Session } from "@/features/activity/activity";
 import { bozzeDi, bozze as riduciBozze } from "./bozze";
 import {
-  bozzaNote,
-  type NotaAperta,
-  nomeNuovo,
-  nomeRifiutato,
+  conNome,
+  conNotaNuova,
+  conTesto,
   noteIniziali,
+  noteInRegistrazione,
+  type RigaDelleNote,
+  rinominaRifiutata,
+  salvaOgni,
   salvataggio,
   senzaNota,
 } from "./notes";
@@ -28,17 +31,13 @@ function nulla() {
   // Niente da scegliere: le Note di una Registrazione non vanno in conflitto.
 }
 
-interface Stato {
-  aperta: string;
-  note: NotaAperta[];
-}
-
 /**
  * Le Note scritte durante la Registrazione della `session` (ADR-0032), con le stesse operazioni di
- * quelle di un Tape. Vivono qui finché la sessione dura, e ogni modifica manda tutte le Note scritte
- * al backend, che le tiene nella bozza accanto all'Ogg e allo Stop le mette nel Tape: si salvano
- * sempre da sole. Gli invii vanno uno dopo l'altro e mandano le Note di quel momento. Una sessione
- * nuova riparte con una sola Nota, nuova.
+ * quelle di un Tape e le stesse transizioni (`notes.ts`). Vivono qui finché la sessione dura, e
+ * ogni modifica manda tutte le Note scritte al backend, che le tiene nel file delle Note della
+ * Registrazione in corso, accanto all'Ogg, e allo Stop le mette nel Tape: si salvano sempre da
+ * sole. Gli invii vanno uno dopo l'altro e mandano le Note di quel momento. Una sessione nuova
+ * riparte con una sola Nota, nuova.
  */
 export function useNoteRegistrazione({
   onError,
@@ -51,13 +50,13 @@ export function useNoteRegistrazione({
   const { t } = useTranslation();
   const predefinito = t("notes.defaultName");
   const nuove = useCallback(
-    (): Stato => ({
+    (): RigaDelleNote => ({
       aperta: predefinito,
       note: noteIniziali([], predefinito),
     }),
     [predefinito]
   );
-  const [stato, setStato] = useState<Stato>(nuove);
+  const [stato, setStato] = useState<RigaDelleNote>(nuove);
   const attuale = useRef(stato);
   const coda = useRef<Promise<unknown>>(Promise.resolve());
   // Il testo dell'editor non ancora inviato, come per le Note di un Tape.
@@ -73,25 +72,31 @@ export function useNoteRegistrazione({
     bozzeDispatch({ path: REGISTRAZIONE, type: "scartate" });
   }, [sessionId]);
 
-  const aggiorna = useCallback((cambia: (stato: Stato) => Stato) => {
-    attuale.current = cambia(attuale.current);
-    setStato(attuale.current);
-  }, []);
-  /** Manda le Note scritte: `true` se ora sono nella bozza. */
+  const aggiorna = useCallback(
+    (cambia: (stato: RigaDelleNote) => RigaDelleNote) => {
+      attuale.current = cambia(attuale.current);
+      setStato(attuale.current);
+    },
+    []
+  );
+  /**
+   * Manda le Note scritte: `null` se ora sono nel loro file, o già nel Tape (la Registrazione è
+   * finita); se no il motivo.
+   */
   const invia = useCallback(() => {
-    const fatto = coda.current.then(async () => {
+    const fatto = coda.current.then(async (): Promise<AppError | null> => {
       if (sessionId === null) {
-        return false;
+        return null;
       }
       const result = await commands.saveRecordingNotes(
         sessionId,
-        bozzaNote(attuale.current.note)
+        noteInRegistrazione(attuale.current.note)
       );
       if (result.status === "error") {
         onError(result.error);
-        return false;
+        return result.error;
       }
-      return result.data;
+      return null;
     });
     coda.current = fatto.catch(() => undefined);
     return fatto;
@@ -103,31 +108,18 @@ export function useNoteRegistrazione({
   );
 
   const crea = useCallback(() => {
-    const nomi = attuale.current.note.map((n) => n.nome);
-    const nome = nomeNuovo(nomi, (n) => t("notes.newName", { n }));
-    aggiorna((s) => ({
-      aperta: nome,
-      note: [...s.note, { nome, salvato: null }],
-    }));
-    return nome;
+    aggiorna((s) => conNotaNuova(s, (n) => t("notes.newName", { n })));
+    return attuale.current.aperta;
   }, [aggiorna, t]);
 
   const salva = useCallback(
     (nome: string, bozza: string) => {
       const nota = attuale.current.note.find((n) => n.nome === nome);
       // Rinominata o eliminata nel frattempo: la bozza era già salvata uscendo dal campo.
-      if (!nota) {
-        return Promise.resolve(false);
+      if (!(nota && salvataggio(nome, nota.salvato, bozza))) {
+        return Promise.resolve(null);
       }
-      if (!salvataggio(nome, nota.salvato, bozza)) {
-        return Promise.resolve(nota.salvato !== null);
-      }
-      aggiorna((s) => ({
-        ...s,
-        note: s.note.map((n) =>
-          n.nome === nome ? { ...n, salvato: bozza } : n
-        ),
-      }));
+      aggiorna((s) => conTesto(s, nome, bozza));
       bozzeDispatch({
         nome,
         path: REGISTRAZIONE,
@@ -139,14 +131,10 @@ export function useNoteRegistrazione({
     [aggiorna, invia]
   );
 
-  const salvaTutte = useCallback(async () => {
-    const esiti = await Promise.all(
-      Object.entries(bozzeAttuali.current).map(([nome, bozza]) =>
-        salva(nome, bozza)
-      )
-    );
-    return esiti.every(Boolean);
-  }, [salva]);
+  const salvaTutte = useCallback(
+    () => salvaOgni(bozzeAttuali.current, salva),
+    [salva]
+  );
 
   const scrivi = useCallback((nome: string, testo: string) => {
     const nota = attuale.current.note.find((n) => n.nome === nome);
@@ -168,19 +156,13 @@ export function useNoteRegistrazione({
       if (!nota || nuovo === nome) {
         return;
       }
-      const rifiuto = nomeRifiutato(
-        nuovo,
-        note.filter((n) => n !== nota).map((n) => n.nome)
-      );
+      const rifiuto = rinominaRifiutata(note, nome, nuovo);
       if (rifiuto) {
         onError(rifiuto);
         return;
       }
       bozzeDispatch({ nome, nuovo, path: REGISTRAZIONE, type: "rinominata" });
-      aggiorna((s) => ({
-        aperta: s.aperta === nome ? nuovo : s.aperta,
-        note: s.note.map((n) => (n.nome === nome ? { ...n, nome: nuovo } : n)),
-      }));
+      aggiorna((s) => conNome(s, nome, nuovo));
       if (nota.salvato !== null) {
         invia();
       }
@@ -195,13 +177,7 @@ export function useNoteRegistrazione({
         return;
       }
       bozzeDispatch({ nome, path: REGISTRAZIONE, type: "eliminata" });
-      aggiorna((s) => {
-        const resto = senzaNota(s.note, nome, predefinito);
-        return {
-          aperta: s.aperta === nome ? resto.aperta : s.aperta,
-          note: resto.note,
-        };
-      });
+      aggiorna((s) => senzaNota(s, nome, predefinito));
       if (nota.salvato !== null) {
         invia();
       }

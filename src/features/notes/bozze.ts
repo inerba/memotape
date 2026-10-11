@@ -1,9 +1,17 @@
 /**
- * Le bozze delle Note: per Tape, il testo non ancora su disco di ogni Nota che ne ha uno. Vivono
- * nella route, non nella vista del Tape, che si rimonta: restano passando da una Nota o da una
- * scheda all'altra, e un'uscita dal Tape con bozze passa da «Salvare le modifiche alle Note?».
+ * Le bozze delle Note: per Tape, il testo non ancora su disco di ogni Nota che ne ha uno, con il
+ * testo su disco da cui parte. Vivono nella route, non nella vista del Tape, che si rimonta:
+ * restano passando da una Nota o da una scheda all'altra, e un'uscita dal Tape con bozze passa da
+ * «Salvare le modifiche alle Note?».
  */
-export type Bozze = Readonly<Record<string, Readonly<Record<string, string>>>>;
+export interface BozzeDelTape {
+  /** Il testo su disco da cui parte ogni bozza (`""` se la Nota non c'è): l'atteso del salvataggio. */
+  readonly attesi: Readonly<Record<string, string>>;
+  /** Il testo non ancora su disco, per nome. */
+  readonly testi: Readonly<Record<string, string>>;
+}
+
+export type Bozze = Readonly<Record<string, BozzeDelTape>>;
 
 export type BozzeAction =
   /** L'editor della Nota `nome` ha `testo`; su disco c'è `salvato` (`null`: la Nota non c'è). */
@@ -25,47 +33,71 @@ export type BozzeAction =
   | { type: "tapeGone"; path: string };
 
 const NESSUNA: Readonly<Record<string, string>> = {};
+const VUOTO: BozzeDelTape = { attesi: NESSUNA, testi: NESSUNA };
 
 /** Le bozze delle Note del Tape `path`, per nome: sempre lo stesso oggetto se non ce ne sono. */
 export function bozzeDi(stato: Bozze, path: string): Record<string, string> {
-  return stato[path] ?? NESSUNA;
+  return stato[path]?.testi ?? NESSUNA;
 }
 
 export function bozze(stato: Bozze, action: BozzeAction): Bozze {
   switch (action.type) {
     case "scritta": {
       const { nome, path, salvato, testo } = action;
-      const { [nome]: _, ...altre } = bozzeDi(stato, path);
-      return conBozze(
+      const del = stato[path] ?? VUOTO;
+      const atteso = salvato ?? "";
+      return conTape(
         stato,
         path,
-        testo === (salvato ?? "") ? altre : { ...altre, [nome]: testo }
+        testo === atteso
+          ? senza(del, nome)
+          : {
+              attesi: { ...del.attesi, [nome]: atteso },
+              testi: { ...del.testi, [nome]: testo },
+            }
       );
     }
     case "salvata": {
       const { nome, path, testo } = action;
-      const { [nome]: bozza, ...altre } = bozzeDi(stato, path);
-      return bozza === testo ? conBozze(stato, path, altre) : stato;
+      const del = stato[path];
+      if (del?.testi[nome] === undefined) {
+        return stato;
+      }
+      // Il testo scritto intanto resta, e ora parte da quello salvato.
+      return conTape(
+        stato,
+        path,
+        del.testi[nome] === testo
+          ? senza(del, nome)
+          : { ...del, attesi: { ...del.attesi, [nome]: testo } }
+      );
     }
     case "rinominata": {
       const { nome, nuovo, path } = action;
-      const { [nome]: bozza, ...altre } = bozzeDi(stato, path);
-      return bozza === undefined
-        ? stato
-        : conBozze(stato, path, { ...altre, [nuovo]: bozza });
+      const del = stato[path];
+      if (del?.testi[nome] === undefined) {
+        return stato;
+      }
+      const resto = senza(del, nome);
+      return conTape(stato, path, {
+        attesi: { ...resto.attesi, [nuovo]: del.attesi[nome] ?? "" },
+        testi: { ...resto.testi, [nuovo]: del.testi[nome] },
+      });
     }
-    case "eliminata": {
-      const { [action.nome]: _, ...altre } = bozzeDi(stato, action.path);
-      return conBozze(stato, action.path, altre);
-    }
+    case "eliminata":
+      return conTape(
+        stato,
+        action.path,
+        senza(stato[action.path] ?? VUOTO, action.nome)
+      );
     case "scartate":
     case "tapeGone":
-      return conBozze(stato, action.path, NESSUNA);
+      return conTape(stato, action.path, VUOTO);
     case "tapeMoved":
-      return conBozze(
-        conBozze(stato, action.from, NESSUNA),
+      return conTape(
+        conTape(stato, action.from, VUOTO),
         action.to,
-        bozzeDi(stato, action.from)
+        stato[action.from] ?? VUOTO
       );
     default:
       return action satisfies never;
@@ -74,30 +106,71 @@ export function bozze(stato: Bozze, action: BozzeAction): Bozze {
 
 /**
  * Cosa fare prima di lasciare il Tape `mostrato` (`null`: non c'è un Tape al centro) per `verso`,
- * un altro Tape, o per un'altra vista, un'Attività, un Taglio o la chiusura della finestra: `vai`
- * senza bozze o riaprendo lo stesso Tape; con bozze `salva` con Salva da solo acceso, altrimenti
- * `chiedi` «Salvare le modifiche alle Note?».
+ * un altro Tape, o per un'altra vista, un'Attività o un Taglio: `vai` senza bozze o riaprendo lo
+ * stesso Tape; con bozze `salva` con Salva da solo acceso, altrimenti `chiedi` «Salvare le modifiche
+ * alle Note?». La `chiusura` della finestra guarda le bozze di ogni Tape, anche di quelli non più
+ * mostrati (il Tape consultato che un'Attività finita ha chiuso).
  */
 export function uscita(
   stato: Bozze,
   {
+    chiusura = false,
     mostrato,
     salvaDaSolo,
     verso,
-  }: { mostrato: string | null; salvaDaSolo: boolean; verso?: string }
+  }: {
+    chiusura?: boolean;
+    mostrato: string | null;
+    salvaDaSolo: boolean;
+    verso?: string;
+  }
 ): "vai" | "salva" | "chiedi" {
-  if (mostrato === null || verso === mostrato || !(mostrato in stato)) {
+  const conBozze = chiusura
+    ? Object.keys(stato).length > 0
+    : mostrato !== null && verso !== mostrato && mostrato in stato;
+  if (!conBozze) {
     return "vai";
   }
   return salvaDaSolo ? "salva" : "chiedi";
 }
 
-/** `stato` con `di` come bozze del Tape `path`; senza bozze il Tape sparisce. */
-function conBozze(
+/** Una bozza da salvare senza la vista del suo Tape. */
+export interface BozzaDaSalvare {
+  atteso: string;
+  nome: string;
+  path: string;
+  testo: string;
+}
+
+/**
+ * Le bozze di ogni Tape tranne `tranne` (quello mostrato, la cui vista le salva da sé), con il testo
+ * su disco da cui partono: la route le salva da sé chiudendo la finestra.
+ */
+export function bozzeDaSalvare(
   stato: Bozze,
-  path: string,
-  di: Record<string, string>
-): Bozze {
+  tranne: string | null
+): BozzaDaSalvare[] {
+  return Object.entries(stato).flatMap(([path, { attesi, testi }]) =>
+    path === tranne
+      ? []
+      : Object.entries(testi).map(([nome, testo]) => ({
+          atteso: attesi[nome] ?? "",
+          nome,
+          path,
+          testo,
+        }))
+  );
+}
+
+/** `del` senza la bozza della Nota `nome`. */
+function senza(del: BozzeDelTape, nome: string): BozzeDelTape {
+  const { [nome]: _, ...testi } = del.testi;
+  const { [nome]: __, ...attesi } = del.attesi;
+  return { attesi, testi };
+}
+
+/** `stato` con `del` come bozze del Tape `path`; senza bozze il Tape sparisce. */
+function conTape(stato: Bozze, path: string, del: BozzeDelTape): Bozze {
   const { [path]: _, ...altri } = stato;
-  return Object.keys(di).length > 0 ? { ...altri, [path]: di } : altri;
+  return Object.keys(del.testi).length > 0 ? { ...altri, [path]: del } : altri;
 }

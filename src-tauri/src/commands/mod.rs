@@ -14,7 +14,7 @@ use crate::managers;
 use crate::managers::activity::Activity;
 use crate::managers::models::{ModelInfo, Models};
 use crate::managers::pending_tape::PendingTape;
-use crate::managers::recording::{BozzaNota, Recorder, RecordingSaved};
+use crate::managers::recording::{NotaInRegistrazione, Recorder, RecordingSaved};
 use crate::managers::settings::{Language, Settings, SettingsStore};
 use crate::tape;
 use crate::transcript::Ingresso;
@@ -131,21 +131,21 @@ pub fn open_update(app: AppHandle, url: String) -> Result<(), AppError> {
 }
 
 /// Il link di una Nota da aprire nel browser, normalizzato: solo `http(s)` e `mailto`, perché un
-/// altro schema (`file:`, `ms-settings:`…) aprirebbe un programma.
-fn link_esterno(url: &str) -> Option<String> {
-    let url = tauri::Url::parse(url).ok()?;
-    matches!(url.scheme(), "http" | "https" | "mailto").then(|| url.to_string())
+/// altro schema (`file:`, `ms-settings:`…) aprirebbe un programma. Gli altri: `linkNotAllowed`.
+fn link_esterno(url: &str) -> Result<String, AppError> {
+    tauri::Url::parse(url)
+        .ok()
+        .filter(|u| matches!(u.scheme(), "http" | "https" | "mailto"))
+        .map(|u| u.to_string())
+        .ok_or_else(|| AppError::LinkNotAllowed(url.into()))
 }
 
 /// Apre il link di una Nota nel browser (o nel programma di posta) di Windows, non nella WebView.
+/// Rifiuta con `linkNotAllowed` un indirizzo che non è web o email.
 #[tauri::command]
 #[specta::specta]
 pub fn open_link(app: AppHandle, url: String) -> Result<(), AppError> {
-    let Some(link) = link_esterno(&url) else {
-        return Err(AppError::Internal(format!(
-            "indirizzo non accettato: {url}"
-        )));
-    };
+    let link = link_esterno(&url)?;
     app.opener()
         .open_url(link, None::<&str>)
         .map_err(|e| AppError::Internal(e.to_string()))
@@ -384,9 +384,8 @@ pub async fn save_nota(
     testo: String,
     atteso: String,
 ) -> Result<f64, AppError> {
-    write_tape(app, &activity, tape_path(&path)?, move |path| {
-        tape::salva_nota(path, &nome, &testo, &atteso, &tape::Autore::Utente)?;
-        Ok(tape::modificato(path)?.unwrap_or_default())
+    write_note(app, &activity, &path, move |path| {
+        tape::salva_nota(path, &nome, &testo, &atteso, &tape::Autore::Utente)
     })
     .await
 }
@@ -402,9 +401,8 @@ pub async fn rename_nota(
     nome: String,
     nuovo: String,
 ) -> Result<f64, AppError> {
-    write_tape(app, &activity, tape_path(&path)?, move |path| {
-        tape::rinomina_nota(path, &nome, &nuovo)?;
-        Ok(tape::modificato(path)?.unwrap_or_default())
+    write_note(app, &activity, &path, move |path| {
+        tape::rinomina_nota(path, &nome, &nuovo)
     })
     .await
 }
@@ -419,8 +417,22 @@ pub async fn delete_nota(
     path: String,
     nome: String,
 ) -> Result<f64, AppError> {
-    write_tape(app, &activity, tape_path(&path)?, move |path| {
-        tape::elimina_nota(path, &nome)?;
+    write_note(app, &activity, &path, move |path| {
+        tape::elimina_nota(path, &nome)
+    })
+    .await
+}
+
+/// Una scrittura delle Note del Tape `path` con `write_tape`: restituisce la data di modifica del
+/// Tape riscritto (`modificato` delle sue informazioni).
+async fn write_note(
+    app: AppHandle,
+    activity: &Activity,
+    path: &str,
+    write: impl FnOnce(&std::path::Path) -> Result<(), AppError> + Send + 'static,
+) -> Result<f64, AppError> {
+    write_tape(app, activity, tape_path(path)?, move |path| {
+        write(path)?;
         Ok(tape::modificato(path)?.unwrap_or_default())
     })
     .await
@@ -651,8 +663,7 @@ pub async fn record(
     prefix: String,
     raccolta: Option<String>,
 ) -> Result<RecordingSaved, AppError> {
-    let reserved = |c: char| c.is_control() || r#"<>:"/\|?*"#.contains(c);
-    if prefix.trim().is_empty() || prefix.contains(reserved) {
+    if prefix.trim().is_empty() || prefix.contains(crate::library::vietato_da_windows) {
         return Err(AppError::Internal(format!("prefisso non valido: {prefix}")));
     }
     let saved = managers::recording::record(
@@ -697,14 +708,14 @@ pub fn stop_recording(recorder: State<'_, Recorder>) -> bool {
     recorder.stop()
 }
 
-/// Le Note scritte durante la Registrazione `session_id`, tutte: vanno nella bozza accanto all'Ogg
-/// e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
+/// Le Note scritte durante la Registrazione `session_id`, tutte: vanno nel file delle Note accanto
+/// all'Ogg e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
 #[tauri::command]
 #[specta::specta]
 pub fn save_recording_notes(
     recorder: State<'_, Recorder>,
     session_id: String,
-    note: Vec<BozzaNota>,
+    note: Vec<NotaInRegistrazione>,
 ) -> Result<bool, AppError> {
     recorder.salva_note(&session_id, note)
 }
@@ -879,15 +890,16 @@ fn raccolta_path(app: &AppHandle, nome: &str) -> Result<PathBuf, AppError> {
 #[cfg(test)]
 mod tests {
     use super::{SOURCE_EXTENSIONS, link_esterno};
+    use crate::error::AppError;
 
     #[test]
     fn un_link_delle_note_si_apre_solo_se_e_web_o_email() {
         assert_eq!(
             link_esterno("https://studioferri.it/a b").as_deref(),
-            Some("https://studioferri.it/a%20b")
+            Ok("https://studioferri.it/a%20b")
         );
-        assert!(link_esterno("HTTP://esempio.it").is_some());
-        assert!(link_esterno("mailto:sara@esempio.it").is_some());
+        assert!(link_esterno("HTTP://esempio.it").is_ok());
+        assert!(link_esterno("mailto:sara@esempio.it").is_ok());
         for rifiutato in [
             "file:///C:/Windows/System32/calc.exe",
             "javascript:alert(1)",
@@ -896,7 +908,11 @@ mod tests {
             "www.esempio.it",
             "",
         ] {
-            assert_eq!(link_esterno(rifiutato), None, "{rifiutato}");
+            assert_eq!(
+                link_esterno(rifiutato),
+                Err(AppError::LinkNotAllowed(rifiutato.into())),
+                "{rifiutato}"
+            );
         }
     }
 

@@ -4,20 +4,21 @@ import { type AppError, commands, type Nota } from "@/bindings";
 import type { BozzeAction } from "./bozze";
 import {
   apertaIniziale,
-  type NotaAperta,
-  nomeNuovo,
-  nomeRifiutato,
+  conNome,
+  conNotaNuova,
+  conTesto,
   noteIniziali,
+  type RigaDelleNote,
   rilette,
+  rinominaRifiutata,
+  salvaOgni,
   salvataggio,
   senzaNota,
 } from "./notes";
 
-interface Stato {
-  aperta: string;
+interface Stato extends RigaDelleNote {
   /** Le Note con bozza cambiate da fuori, con la Nota su disco: aspettano la scelta dell'utente. */
   conflitti: Record<string, Nota>;
-  note: NotaAperta[];
   /** Cresce quando la Nota aperta prende un testo da fuori: il suo editor riparte da lì. */
   versione: number;
 }
@@ -32,10 +33,10 @@ export interface NoteDelTape extends Stato {
   elimina: (nome: string) => void;
   /** Rinomina la Nota; un nome rifiutato va a `onError`. */
   rinomina: (nome: string, nuovo: string) => void;
-  /** Salva la bozza della Nota: `true` se ora su disco c'è la bozza. */
-  salva: (nome: string, bozza: string) => Promise<boolean>;
-  /** Salva le bozze di tutte le Note: `true` se ora sono tutte su disco. */
-  salvaTutte: () => Promise<boolean>;
+  /** Salva la bozza della Nota: `null` se ora non c'è niente da perdere, se no il motivo. */
+  salva: (nome: string, bozza: string) => Promise<AppError | null>;
+  /** Salva le bozze di tutte le Note: `null` se ora sono tutte su disco, se no il primo motivo. */
+  salvaTutte: () => Promise<AppError | null>;
   /** L'editor della Nota `nome` ha `testo`: la bozza va nella route. */
   scrivi: (nome: string, testo: string) => void;
   /** «Tieni le mie»: la bozza della Nota in conflitto si salva sopra il testo nuovo. */
@@ -176,62 +177,57 @@ export function useNote({
   }, [apri, scelta]);
 
   const crea = useCallback(() => {
-    const nomi = attuale.current?.note.map((n) => n.nome) ?? [];
-    const nome = nomeNuovo(nomi, (n) => t("notes.newName", { n }));
     aggiorna((s) => ({
       ...s,
-      aperta: nome,
-      note: [...s.note, { nome, salvato: null }],
+      ...conNotaNuova(s, (n) => t("notes.newName", { n })),
     }));
-    return nome;
+    return attuale.current?.aperta ?? "";
   }, [aggiorna, t]);
 
   const salva = useCallback(
     (nome: string, bozza: string) =>
       inCoda(async () => {
         const nota = attuale.current?.note.find((n) => n.nome === nome);
-        // Rinominata o eliminata nel frattempo: la bozza era già salvata uscendo dal campo. Una
-        // Nota in conflitto aspetta «Tieni le mie» o «Usa le sue».
-        if (!nota || nome in (attuale.current?.conflitti ?? {})) {
-          return false;
+        // Rinominata o eliminata nel frattempo: la bozza era già salvata uscendo dal campo.
+        if (!nota) {
+          return bozzeAttuali.current[nome] === undefined
+            ? null
+            : { code: "noteNotFound" as const, detail: nome };
+        }
+        // Una Nota in conflitto aspetta «Tieni le mie» o «Usa le sue»: lo dicono l'avviso e il
+        // segno sul nome, il motivo lo riceve chi ha chiesto di salvare.
+        if (nome in (attuale.current?.conflitti ?? {})) {
+          return { code: "noteChanged" as const, detail: nome };
         }
         // Senza bozza non c'è niente da salvare: l'editor che si chiude dopo un testo arrivato da
         // fuori non lo riscrive con il suo.
-        if (bozzeAttuali.current[nome] === undefined) {
-          return nota.salvato !== null;
-        }
-        const da = salvataggio(nome, nota.salvato, bozza);
+        const da =
+          bozzeAttuali.current[nome] === undefined
+            ? null
+            : salvataggio(nome, nota.salvato, bozza);
         if (!da) {
-          return nota.salvato !== null;
+          return null;
         }
         const result = await commands.saveNota(path, nome, da.testo, da.atteso);
         if (result.status === "error") {
           onError(result.error);
-          return false;
+          return result.error;
         }
         aggiorna((s) => ({
           ...s,
-          note: s.note.map((n) =>
-            n.nome === nome
-              ? { ...n, firma: firmaDellUtente(), salvato: da.testo }
-              : n
-          ),
+          ...conTesto(s, nome, da.testo, firmaDellUtente()),
         }));
         onBozze({ nome, path, testo: da.testo, type: "salvata" });
         onSaved(path, result.data);
-        return true;
+        return null;
       }),
     [aggiorna, inCoda, onBozze, onError, onSaved, path]
   );
 
-  const salvaTutte = useCallback(async () => {
-    const esiti = await Promise.all(
-      Object.entries(bozzeAttuali.current).map(([nome, bozza]) =>
-        salva(nome, bozza)
-      )
-    );
-    return esiti.every(Boolean);
-  }, [salva]);
+  const salvaTutte = useCallback(
+    () => salvaOgni(bozzeAttuali.current, salva),
+    [salva]
+  );
 
   const scrivi = useCallback(
     (nome: string, testo: string) => {
@@ -251,10 +247,7 @@ export function useNote({
         if (!nota || nuovo === nome) {
           return;
         }
-        const rifiuto = nomeRifiutato(
-          nuovo,
-          note.filter((n) => n !== nota).map((n) => n.nome)
-        );
+        const rifiuto = rinominaRifiutata(note, nome, nuovo);
         if (rifiuto) {
           onError(rifiuto);
           return;
@@ -269,13 +262,7 @@ export function useNote({
           onSaved(path, result.data);
         }
         onBozze({ nome, nuovo, path, type: "rinominata" });
-        aggiorna((s) => ({
-          ...s,
-          aperta: s.aperta === nome ? nuovo : s.aperta,
-          note: s.note.map((n) =>
-            n.nome === nome ? { ...n, nome: nuovo } : n
-          ),
-        }));
+        aggiorna((s) => ({ ...s, ...conNome(s, nome, nuovo) }));
       }),
     [aggiorna, inCoda, onBozze, onError, onSaved, path]
   );
@@ -296,14 +283,7 @@ export function useNote({
           onSaved(path, result.data);
         }
         onBozze({ nome, path, type: "eliminata" });
-        aggiorna((s) => {
-          const resto = senzaNota(s.note, nome, predefinito);
-          return {
-            ...s,
-            aperta: s.aperta === nome ? resto.aperta : s.aperta,
-            note: resto.note,
-          };
-        });
+        aggiorna((s) => ({ ...s, ...senzaNota(s, nome, predefinito) }));
       }),
     [aggiorna, inCoda, onBozze, onError, onSaved, path, predefinito]
   );
@@ -323,12 +303,8 @@ export function useNote({
         }
         aggiorna((s) => ({
           ...s,
+          ...conTesto(s, nome, bozza, firmaDellUtente()),
           conflitti: senza(s.conflitti, nome),
-          note: s.note.map((n) =>
-            n.nome === nome
-              ? { ...n, firma: firmaDellUtente(), salvato: bozza }
-              : n
-          ),
         }));
         onBozze({ nome, path, testo: bozza, type: "salvata" });
         onSaved(path, result.data);
@@ -351,17 +327,11 @@ export function useNote({
         type: "scritta",
       });
       aggiorna((s) => ({
-        aperta: s.aperta,
+        ...conTesto(s, nome, sua.testo, {
+          autore: sua.autore,
+          modificata: sua.modificata,
+        }),
         conflitti: senza(s.conflitti, nome),
-        note: s.note.map((n) =>
-          n.nome === nome
-            ? {
-                firma: { autore: sua.autore, modificata: sua.modificata },
-                nome,
-                salvato: sua.testo,
-              }
-            : n
-        ),
         versione: s.versione + (s.aperta === nome ? 1 : 0),
       }));
     },
