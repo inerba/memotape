@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Ogni riscrittura del Tape (correzioni, unione, nomi, data, Taglio, ritrascrizione, Forma d'onda) prende il lock su file quando il Tape sta nella Libreria
-- [ ] Un test prova che due riscritture concorrenti dello stesso Tape non perdono nessuna delle due modifiche (come `correzioni_contemporanee_dello_stesso_tape_restano_tutte`) anche passando dal lock su file
-- [ ] Rinomina e Cestino del Tape esistono anche senza `sync`; i comandi dell'app continuano a fare `sync` come prima
-- [ ] I sei controlli verdi
+- [x] Ogni riscrittura del Tape (correzioni, unione, nomi, data, Taglio, ritrascrizione, Forma d'onda) prende il lock su file quando il Tape sta nella Libreria
+- [x] Un test prova che due riscritture concorrenti dello stesso Tape non perdono nessuna delle due modifiche (come `correzioni_contemporanee_dello_stesso_tape_restano_tutte`) anche passando dal lock su file
+- [x] Rinomina e Cestino del Tape esistono anche senza `sync`; i comandi dell'app continuano a fare `sync` come prima
+- [x] I sei controlli verdi

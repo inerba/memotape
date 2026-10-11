@@ -114,6 +114,7 @@ impl Library {
             }
             connect(db).map_err(|e| AppError::Internal(format!("{}: {e}", db.display())))
         })?;
+        tape::registra_libreria(root);
         Ok(Self {
             root: root.to_path_buf(),
             db,
@@ -136,6 +137,7 @@ impl Library {
                 "indice della Libreria alla versione {version} invece di {SCHEMA}"
             )));
         }
+        tape::registra_libreria(root);
         Ok(Self {
             root: root.to_path_buf(),
             db,
@@ -439,26 +441,9 @@ impl Library {
         self.sync().map(drop)
     }
 
-    /// Rinomina il file del Tape in `<titolo>.tape`, con la sua estensione. Restituisce il percorso
-    /// nuovo.
+    /// Rinomina il file del Tape (`rename_tape`) e allinea l'indice. Restituisce il percorso nuovo.
     pub fn rename_tape(&mut self, path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
-        existing_tape(path)?;
-        validate_name(titolo)?;
-        let mut name = std::ffi::OsString::from(titolo);
-        if let Some(extension) = path.extension() {
-            name.push(".");
-            name.push(extension);
-        }
-        let to = path.with_file_name(name);
-        let same = path.file_stem().is_some_and(|stem| {
-            stem.to_string_lossy()
-                .to_lowercase()
-                .eq(&titolo.to_lowercase())
-        });
-        if to.exists() && !same {
-            return Err(AppError::NameTaken(titolo.into()));
-        }
-        std::fs::rename(path, &to).map_err(|e| unwritable(path, &e))?;
+        let to = rename_tape(path, titolo)?;
         self.sync()?;
         Ok(to)
     }
@@ -486,10 +471,9 @@ impl Library {
         Ok(to)
     }
 
-    /// Manda il Tape nel Cestino.
+    /// Manda il Tape nel Cestino (`trash_tape`) e allinea l'indice.
     pub fn trash_tape(&mut self, path: &Path) -> Result<(), AppError> {
-        existing_tape(path)?;
-        trash(path)?;
+        trash_tape(path)?;
         self.sync().map(drop)
     }
 
@@ -502,6 +486,35 @@ impl Library {
             Err(AppError::UnreadableFile(dir.display().to_string()))
         }
     }
+}
+
+/// Rinomina il file del Tape in `<titolo>.tape`, con la sua estensione, senza toccare l'indice: così
+/// fa il server MCP, che non lo scrive mai (ADR-0031). Restituisce il percorso nuovo.
+pub fn rename_tape(path: &Path, titolo: &str) -> Result<PathBuf, AppError> {
+    existing_tape(path)?;
+    validate_name(titolo)?;
+    let mut name = std::ffi::OsString::from(titolo);
+    if let Some(extension) = path.extension() {
+        name.push(".");
+        name.push(extension);
+    }
+    let to = path.with_file_name(name);
+    let same = path.file_stem().is_some_and(|stem| {
+        stem.to_string_lossy()
+            .to_lowercase()
+            .eq(&titolo.to_lowercase())
+    });
+    if to.exists() && !same {
+        return Err(AppError::NameTaken(titolo.into()));
+    }
+    std::fs::rename(path, &to).map_err(|e| unwritable(path, &e))?;
+    Ok(to)
+}
+
+/// Manda il Tape nel Cestino senza toccare l'indice, come `rename_tape`.
+pub fn trash_tape(path: &Path) -> Result<(), AppError> {
+    existing_tape(path)?;
+    trash(path)
 }
 
 /// Il file dell'indice per la Libreria `root`, in `dir`: uno per cartella, con il nome ricavato dal
@@ -1137,6 +1150,78 @@ pub(crate) mod tests {
             library.trash_tape(&path).unwrap_err(),
             AppError::TapeNotFound(_)
         ));
+    }
+
+    #[test]
+    fn una_riscrittura_di_un_tape_della_libreria_aspetta_il_lock_di_un_altro_processo() {
+        let (root, _library) = library("lock-altro-processo");
+        let path = root.join("Call.tape");
+        tape_at(&path, 1000);
+        // Il server MCP che riscrive un Tape, da un altro processo (ADR-0031).
+        let dir = root.join(".memotape");
+        std::fs::create_dir_all(&dir).unwrap();
+        let altro = File::options()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(dir.join("riscritture.lock"))
+            .unwrap();
+        altro.lock().unwrap();
+        let prima = std::thread::scope(|scope| {
+            let correzione =
+                scope.spawn(|| tape::edit_frase(&path, Ingresso::Mix, 0, "Buonasera."));
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let prima = tape::read(&path).unwrap().frasi[0].testo.clone();
+            altro.unlock().unwrap();
+            correzione.join().unwrap().unwrap();
+            prima
+        });
+        assert_eq!(prima, "Buongiorno.");
+        assert_eq!(tape::read(&path).unwrap().frasi[0].testo, "Buonasera.");
+    }
+
+    #[test]
+    fn correzioni_contemporanee_di_un_tape_della_libreria_restano_tutte() {
+        let (root, _library) = library("correzioni-contemporanee");
+        let path = root.join("Call.tape");
+        let testi: Vec<String> = (0..8).map(|i| format!("Frase {i}.")).collect();
+        let frasi: Vec<_> = testi.iter().map(|t| (t.as_str(), Some(2))).collect();
+        tape_with(&path, &frasi, &[]);
+        std::thread::scope(|scope| {
+            for id in 0..8 {
+                let path = &path;
+                scope.spawn(move || {
+                    tape::edit_frase(path, Ingresso::Mix, id, "corretta").unwrap();
+                });
+            }
+            scope.spawn(|| tape::rename_parlante(&path, Ingresso::Mix, Some(2), "Lucia").unwrap());
+        });
+        let after = tape::read(&path).unwrap();
+        assert!(
+            after.frasi.iter().all(|f| f.testo == "corretta"),
+            "{after:?}"
+        );
+        assert_eq!(
+            after.parlanti.get("mix:2").map(String::as_str),
+            Some("Lucia")
+        );
+    }
+
+    #[test]
+    fn rinomina_e_cestino_del_tape_senza_toccare_l_indice() {
+        let (root, mut library) = library("senza-indice");
+        let call = root.join("Call.tape");
+        let altra = root.join("Altra.tape");
+        tape_at(&call, 1000);
+        tape_at(&altra, 1000);
+        library.sync().unwrap();
+        let before = library.list().unwrap().tapes;
+        let renamed = rename_tape(&call, "Preventivo").unwrap();
+        assert_eq!(renamed, root.join("Preventivo.tape"));
+        assert!(!call.exists() && renamed.is_file());
+        trash_tape(&altra).unwrap();
+        assert!(!altra.exists());
+        assert_eq!(library.list().unwrap().tapes, before);
     }
 
     /// Un Tape vero in `path` con le Frasi `frasi` (testo e Parlante) e i nomi `parlanti`.
