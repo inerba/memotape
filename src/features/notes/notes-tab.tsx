@@ -34,12 +34,15 @@ export function NotesTab({
   onSaved,
   path,
   readOnly,
+  scelta,
 }: {
   onError: (error: AppError) => void;
   /** Il Tape `path` riscritto, con la sua nuova data di modifica. */
   onSaved: (path: string, modificato: number | null) => void;
   path: string;
   readOnly: boolean;
+  /** La Nota da aprire, per nome: quella di un risultato della ricerca. */
+  scelta?: string;
 }) {
   const { t } = useTranslation();
   const [nota, setNota] = useState<NotaAperta | null>(null);
@@ -62,7 +65,7 @@ export function NotesTab({
         onError(result.error);
         return;
       }
-      const aperta = notaAperta(result.data, t("notes.defaultName"));
+      const aperta = notaAperta(result.data, t("notes.defaultName"), scelta);
       salvato.current = aperta.salvato;
       setSalvate(aperta.salvato !== null);
       setNota(aperta);
@@ -70,7 +73,7 @@ export function NotesTab({
     return () => {
       attuale = false;
     };
-  }, [onError, path, t]);
+  }, [onError, path, scelta, t]);
 
   const salva = useCallback(() => {
     clearTimeout(timer.current);

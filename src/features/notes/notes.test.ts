@@ -16,6 +16,18 @@ test("un Tape senza Note apre una Nota nuova con il nome predefinito, che non c'
   ).toEqual({ nome: "Riepilogo", salvato: "## Decisioni" });
 });
 
+test("un risultato della ricerca apre la sua Nota, la prima se non c'è più", () => {
+  const note = [nota("Mie note", "Uno"), nota("Riepilogo", "## Decisioni")];
+  expect(notaAperta(note, "Note", "Riepilogo")).toEqual({
+    nome: "Riepilogo",
+    salvato: "## Decisioni",
+  });
+  expect(notaAperta(note, "Note", "Rinominata")).toEqual({
+    nome: "Mie note",
+    salvato: "Uno",
+  });
+});
+
 test("si salva solo una bozza diversa dal testo su disco, che diventa l'atteso", () => {
   // Il primo carattere crea la Nota: l'atteso è vuoto.
   expect(salvataggio("Note", null, "D")).toEqual({

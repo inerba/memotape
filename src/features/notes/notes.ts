@@ -14,11 +14,16 @@ export interface Salvataggio {
 }
 
 /**
- * La Nota da mostrare: la prima del Tape o, in un Tape senza Note, una nuova con il nome
- * `predefinito`, che nasce con il primo carattere.
+ * La Nota da mostrare: quella di nome `scelta` (un risultato della ricerca) se c'è, se no la prima
+ * del Tape o, in un Tape senza Note, una nuova con il nome `predefinito`, che nasce con il primo
+ * carattere.
  */
-export function notaAperta(note: Nota[], predefinito: string): NotaAperta {
-  const [prima] = note;
+export function notaAperta(
+  note: Nota[],
+  predefinito: string,
+  scelta?: string
+): NotaAperta {
+  const prima = note.find((n) => n.nome === scelta) ?? note[0];
   return prima
     ? { nome: prima.nome, salvato: prima.testo }
     : { nome: predefinito, salvato: null };

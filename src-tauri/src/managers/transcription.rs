@@ -301,6 +301,17 @@ pub fn tape_text(path: &Path, settings: &Settings, format: CopiaCome) -> Result<
     Ok(transcript::render(&transcript, &labels(settings), format))
 }
 
+/// Il Markdown di Esporta Markdown… del Tape `path`: come quello di Copia testo, con le Note prima
+/// della Trascrizione.
+pub fn export_markdown(path: &Path, settings: &Settings) -> Result<String, AppError> {
+    let transcript = tape_transcript(title_of(path), tape::read(path)?);
+    Ok(transcript::export_markdown(
+        &transcript,
+        &tape::note(path)?,
+        &labels(settings),
+    ))
+}
+
 /// I testi del documento nella Lingua dell'interfaccia.
 pub fn labels(settings: &Settings) -> Labels {
     Labels::of(settings.interface_language.unwrap_or_else(Language::system))
