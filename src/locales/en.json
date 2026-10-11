@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
       "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop.",
-      "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin"
+      "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin",
+      "noteChanged": "The note “{{detail}}” was changed elsewhere, for example by an assistant: reopen the Tape to see the new text"
     },
     "app": {
       "title": "Something went wrong",
@@ -533,7 +534,14 @@
   "tabs": {
     "label": "Tape views",
     "transcript": "Transcript",
-    "parlanti": "Speakers"
+    "parlanti": "Speakers",
+    "note": "Notes"
+  },
+  "notes": {
+    "defaultName": "Notes",
+    "label": "Tape notes",
+    "placeholder": "Write your notes: decisions, to-dos, links. In Markdown, like **bold** or - lists.",
+    "saved": "Saved in the Tape"
   },
   "parlantiTab": {
     "empty": "No speakers recognized",

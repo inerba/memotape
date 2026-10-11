@@ -1,7 +1,7 @@
 //! Il Tape: lo zip di una Registrazione con l'audio del mix (`mix.ogg`) e, con gli Ingressi separati,
 //! di ogni Ingresso (`microfono.ogg`, `sistema.ogg`), salvati senza ricompressione, e il testo con i
-//! suoi metadati (`trascrizione.json`, schema v1), e la Forma d'onda del mix (`forma-onda.json`,
-//! ADR-0010). Senza Tauri.
+//! suoi metadati (`trascrizione.json`, schema v1), la Forma d'onda del mix (`forma-onda.json`,
+//! ADR-0010) e le Note (`note.json`, ADR-0032). Senza Tauri.
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -24,6 +24,8 @@ pub const VERSION: u32 = 1;
 const DOCUMENT: &str = "trascrizione.json";
 /// La Forma d'onda del mix: facoltativa, un Tape scritto prima di lei non ce l'ha.
 const FORMA_ONDA: &str = "forma-onda.json";
+/// Le Note del Tape (ADR-0032): facoltative, manca in un Tape senza Note.
+const NOTE: &str = "note.json";
 
 pub(crate) fn temporary_id() -> u64 {
     use std::hash::{BuildHasher, RandomState};
@@ -489,6 +491,83 @@ pub fn forma_onda(path: &Path) -> Option<Vec<f32>> {
     serde_json::from_slice::<Vec<f32>>(&json)
         .ok()
         .filter(|values| !values.is_empty())
+}
+
+/// Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct Nota {
+    pub nome: String,
+    pub testo: String,
+    pub autore: Autore,
+    /// Ora dell'ultima scrittura, come `creato`.
+    pub modificata: String,
+}
+
+/// Chi ha scritto una Nota l'ultima volta.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "tipo", rename_all = "snake_case")]
+pub enum Autore {
+    Utente,
+    /// Un Assistente, con il nome del client MCP se lo dice.
+    Assistente {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client: Option<String>,
+    },
+}
+
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+struct NoteJson {
+    note: Vec<Nota>,
+}
+
+/// Le Note del Tape in ordine di creazione: nessuna se manca `note.json`.
+pub fn note(path: &Path) -> Result<Vec<Nota>, AppError> {
+    let mut zip = open(path)?;
+    let mut json = Vec::new();
+    match zip.by_name(NOTE) {
+        Ok(mut entry) => entry
+            .read_to_end(&mut json)
+            .map_err(|e| unreadable(path, &e))?,
+        Err(zip::result::ZipError::FileNotFound) => return Ok(Vec::new()),
+        Err(e) => return Err(unreadable(path, &e)),
+    };
+    serde_json::from_slice::<NoteJson>(&json)
+        .map(|n| n.note)
+        .map_err(|e| unreadable(path, &e))
+}
+
+/// Salva il testo della Nota `nome`, creandola se non c'è, e riscrive solo `note.json`. `atteso` è
+/// il testo da cui parte la modifica (vuoto per una Nota nuova): se su disco è un altro, rifiuta con
+/// `NoteChanged` senza scrivere. Una Nota nuova e vuota non si crea.
+pub fn salva_nota(
+    path: &Path,
+    nome: &str,
+    testo: &str,
+    atteso: &str,
+    autore: &Autore,
+) -> Result<(), AppError> {
+    let _writing = writing(path)?;
+    let mut note = note(path)?;
+    let nota = Nota {
+        nome: nome.to_string(),
+        testo: testo.to_string(),
+        autore: autore.clone(),
+        modificata: creato(Local::now()),
+    };
+    match note.iter_mut().find(|n| n.nome == nome) {
+        Some(n) if n.testo != atteso => return Err(AppError::NoteChanged(nome.into())),
+        Some(n) if n.testo == testo => return Ok(()),
+        Some(n) => *n = nota,
+        None if !atteso.is_empty() => return Err(AppError::NoteChanged(nome.into())),
+        None if testo.is_empty() => return Ok(()),
+        None => note.push(nota),
+    }
+    replace(path, NOTE, |zip, temp| {
+        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        zip.start_file(NOTE, options)
+            .map_err(|e| unwritable(temp, &e))?;
+        serde_json::to_writer_pretty(zip, &NoteJson { note }).map_err(|e| unwritable(temp, &e))
+    })
 }
 
 /// Aggiunge al Tape la Forma d'onda `values`, se non ce l'ha già, riscrivendolo come `rewrite`.
@@ -2231,6 +2310,117 @@ mod tests {
                 (entry.name().to_string(), bytes)
             })
             .collect()
+    }
+
+    #[test]
+    fn una_nota_salvata_riscrive_solo_note_json_e_si_rilegge() {
+        let dir = temp_dir("tape-note");
+        let path = dir.join("Call.tape");
+        let doc = document(&["Ciao."]);
+        write(&path, &[(Ingresso::Mix, &ogg(&dir))], &doc, Some(&[0.5])).unwrap();
+        assert_eq!(note(&path).unwrap(), []);
+        let before = entries(&path);
+
+        salva_nota(&path, "Note", "- [ ] preventivo", "", &Autore::Utente).unwrap();
+        let mut after = entries(&path);
+        let json: serde_json::Value = serde_json::from_slice(&after.remove(NOTE).unwrap()).unwrap();
+        assert_eq!(json["note"][0]["nome"], "Note");
+        assert_eq!(json["note"][0]["testo"], "- [ ] preventivo");
+        assert_eq!(
+            json["note"][0]["autore"],
+            serde_json::json!({ "tipo": "utente" })
+        );
+        assert!(
+            json["note"][0]["modificata"]
+                .as_str()
+                .unwrap()
+                .starts_with("20")
+        );
+        // `trascrizione.json` resta com'era: le Note non accendono «Corretto a mano».
+        assert_eq!(after, before);
+
+        salva_nota(
+            &path,
+            "Note",
+            "- [x] preventivo",
+            "- [ ] preventivo",
+            &Autore::Utente,
+        )
+        .unwrap();
+        let note = note(&path).unwrap();
+        assert_eq!(note.len(), 1);
+        assert_eq!(note[0].testo, "- [x] preventivo");
+        assert!(!path.with_extension("tape.tmp").exists());
+    }
+
+    #[test]
+    fn una_nota_cambiata_da_fuori_non_si_sovrascrive() {
+        let dir = temp_dir("tape-note-atteso");
+        let path = dir.join("Call.tape");
+        write(
+            &path,
+            &[(Ingresso::Mix, &ogg(&dir))],
+            &document(&["Ciao."]),
+            None,
+        )
+        .unwrap();
+        // Una Nota che non c'è si crea solo con il testo atteso vuoto.
+        let before = std::fs::read(&path).unwrap();
+        assert_eq!(
+            salva_nota(&path, "Note", "Bozza", "Vecchio", &Autore::Utente),
+            Err(AppError::NoteChanged("Note".into()))
+        );
+        // Una Nota vuota che non c'è non si scrive.
+        salva_nota(&path, "Note", "", "", &Autore::Utente).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+
+        salva_nota(&path, "Note", "Uno", "", &Autore::Utente).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        assert_eq!(
+            salva_nota(&path, "Note", "Bozza", "", &Autore::Utente),
+            Err(AppError::NoteChanged("Note".into()))
+        );
+        // Lo stesso testo non riscrive il Tape.
+        salva_nota(&path, "Note", "Uno", "Uno", &Autore::Utente).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+
+    #[test]
+    fn correzioni_parlanti_e_ritrascrizione_conservano_le_note() {
+        let dir = temp_dir("tape-note-conservate");
+        let path = dir.join("Call.tape");
+        write(
+            &path,
+            &[(Ingresso::Mix, &ogg(&dir))],
+            &document(&["Prima.", "Seconda."]),
+            None,
+        )
+        .unwrap();
+        salva_nota(
+            &path,
+            "Note",
+            "## Decisioni\n\n- **14 novembre**",
+            "",
+            &Autore::Utente,
+        )
+        .unwrap();
+        let salvate = note(&path).unwrap();
+        edit_turno(
+            &path,
+            Ingresso::Mix,
+            &[0, 1],
+            "Prima.\nSeconda.",
+            "Corretta.",
+        )
+        .unwrap();
+        rename_parlante(&path, Ingresso::Mix, Some(1), "Lucia").unwrap();
+        replace_transcription(
+            &path,
+            &document(&["Nuova."]),
+            &transcribe_cpp::CancelToken::new(),
+        )
+        .unwrap();
+        assert_eq!(note(&path).unwrap(), salvate);
     }
 
     #[test]

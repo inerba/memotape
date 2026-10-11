@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
       "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
       "liveTranscriptionLagging": "La Trascrizione dal vivo è troppo indietro ed è stata interrotta. L’audio continua a essere registrato; potrai trascriverlo dopo Stop.",
-      "noRecycleBin": "Il disco di {{detail}} non ha un Cestino di Windows"
+      "noRecycleBin": "Il disco di {{detail}} non ha un Cestino di Windows",
+      "noteChanged": "La Nota «{{detail}}» è cambiata fuori da qui, per esempio da un Assistente: riapri il Tape per vedere il testo nuovo"
     },
     "app": {
       "title": "Qualcosa è andato storto",
@@ -536,7 +537,14 @@
   "tabs": {
     "label": "Viste del Tape",
     "transcript": "Trascrizione",
-    "parlanti": "Parlanti"
+    "parlanti": "Parlanti",
+    "note": "Note"
+  },
+  "notes": {
+    "defaultName": "Note",
+    "label": "Note del Tape",
+    "placeholder": "Scrivi le note: decisioni, cose da fare, link. In Markdown, come **grassetto** o - elenchi.",
+    "saved": "Salvate nel Tape"
   },
   "parlantiTab": {
     "empty": "Nessun Parlante riconosciuto",

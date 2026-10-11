@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "Le modèle DeepFilterNet3 fourni est incompatible : {{detail}}",
       "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré : {{detail}}",
       "liveTranscriptionLagging": "La transcription en direct a pris trop de retard et a été arrêtée. L’audio continue d’être enregistré ; vous pourrez le transcrire après Arrêter.",
-      "noRecycleBin": "Le disque de {{detail}} n'a pas de Corbeille Windows"
+      "noRecycleBin": "Le disque de {{detail}} n'a pas de Corbeille Windows",
+      "noteChanged": "La note « {{detail}} » a été modifiée ailleurs, par exemple par un assistant : rouvrez le Tape pour voir le nouveau texte"
     },
     "app": {
       "title": "Un problème est survenu",
@@ -536,7 +537,14 @@
   "tabs": {
     "label": "Vues du Tape",
     "transcript": "Transcription",
-    "parlanti": "Intervenants"
+    "parlanti": "Intervenants",
+    "note": "Notes"
+  },
+  "notes": {
+    "defaultName": "Notes",
+    "label": "Notes du Tape",
+    "placeholder": "Écrivez vos notes : décisions, choses à faire, liens. En Markdown, comme **gras** ou - listes.",
+    "saved": "Enregistrées dans le Tape"
   },
   "parlantiTab": {
     "empty": "Aucun intervenant reconnu",

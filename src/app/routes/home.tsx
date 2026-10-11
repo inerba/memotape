@@ -63,6 +63,7 @@ import {
 import { useLastTape } from "@/features/library/use-last-tape";
 import { useLibrary } from "@/features/library/use-library";
 import { useTapeOperations } from "@/features/library/use-tape-operations";
+import { NotesTab } from "@/features/notes/notes-tab";
 import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
 import { RecordMenu } from "@/features/recording/record-menu";
@@ -893,6 +894,17 @@ export function HomePage() {
     [dispatch]
   );
 
+  // Una Nota salvata riscrive il Tape: la data nuova non lo fa ricaricare al ritorno in primo piano.
+  const noteSalvate = useCallback(
+    (path: string, modificato: number | null) =>
+      dispatch({
+        info: (current) => current && { ...current, modificato },
+        path,
+        type: "tapeChanged",
+      }),
+    [dispatch]
+  );
+
   const copyActivity = useCallback(() => copy(null), [copy]);
 
   // La Raccolta di un Tape dal suo percorso nella barra in alto: apre la Libreria lì.
@@ -962,6 +974,7 @@ export function HomePage() {
       onExported={exported}
       onMerge={merge}
       onMove={moveTape}
+      onNoteSalvate={noteSalvate}
       onRaccolta={openRaccolta}
       onRenameParlante={rename}
       onRenameTitle={renameTape}
@@ -1500,6 +1513,7 @@ function TapePane({
   onError,
   onExported,
   onMove,
+  onNoteSalvate,
   onRaccolta,
   onRenameParlante,
   onRenameTitle,
@@ -1531,6 +1545,7 @@ function TapePane({
   onError: (error: AppError) => void;
   onExported: (path: string) => void;
   onMove: (path: string, raccolta: string) => void;
+  onNoteSalvate: (path: string, modificato: number | null) => void;
   onRaccolta: (raccolta: string) => void;
   onRenameParlante: (path: string, voce: Parlante, nome: string) => void;
   onRenameTitle: (path: string, titolo: string) => void;
@@ -1546,7 +1561,7 @@ function TapePane({
   view: TapeView;
 }) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<"transcript" | "parlanti">("transcript");
+  const [tab, setTab] = useState<DocumentTab>("transcript");
   // Il Parlante di cui si sta scrivendo il nome nuovo; si annulla quando ci lavora un'Attività.
   const [renaming, setRenaming] = useState<Parlante | null>(null);
   if (renaming && !editable) {
@@ -1631,9 +1646,12 @@ function TapePane({
         parlanti={allParlanti.length}
         path={path}
       />
-      {hasText ? (
-        <DocumentToolbar onTab={setTab} parlanti={parlanti.length} tab={tab} />
-      ) : null}
+      <DocumentToolbar
+        hasText={hasText}
+        onTab={setTab}
+        parlanti={parlanti.length}
+        tab={tab}
+      />
     </>
   );
 
@@ -1686,21 +1704,7 @@ function TapePane({
           </>
         }
       />
-      {tab === "parlanti" && hasText ? (
-        <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
-            {header}
-            <ParlantiTab
-              conversation={conversation}
-              list={parlanti}
-              onPlay={listening?.playFrom}
-              onRename={rename}
-              onRenaming={setRenaming}
-              renaming={renaming}
-            />
-          </div>
-        </section>
-      ) : (
+      {tab === "transcript" ? (
         <TranscriptView
           conversation={conversation}
           empty={empty}
@@ -1714,6 +1718,29 @@ function TapePane({
           renaming={renaming}
           taglio={forbici}
         />
+      ) : (
+        <section className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+          <div className="mx-auto flex w-full max-w-[46rem] flex-col px-10 pb-12">
+            {header}
+            {tab === "note" ? (
+              <NotesTab
+                onError={onError}
+                onSaved={onNoteSalvate}
+                path={path}
+                readOnly={!editable}
+              />
+            ) : (
+              <ParlantiTab
+                conversation={conversation}
+                list={parlanti}
+                onPlay={listening?.playFrom}
+                onRename={rename}
+                onRenaming={setRenaming}
+                renaming={renaming}
+              />
+            )}
+          </div>
+        </section>
       )}
       <TapePlayer
         disabled={recording}
@@ -1785,32 +1812,42 @@ function TapeEmpty({
   );
 }
 
-/** Le schede Trascrizione e Parlanti. */
+type DocumentTab = "transcript" | "parlanti" | "note";
+
+/** Le schede Trascrizione, Parlanti (se il Tape ha Frasi) e Note. */
 function DocumentToolbar({
+  hasText,
   onTab,
   parlanti,
   tab,
 }: {
-  onTab: (tab: "transcript" | "parlanti") => void;
+  hasText: boolean;
+  onTab: (tab: DocumentTab) => void;
   parlanti: number;
-  tab: "transcript" | "parlanti";
+  tab: DocumentTab;
 }) {
   const { t } = useTranslation();
   const toTranscript = useCallback(() => onTab("transcript"), [onTab]);
   const toParlanti = useCallback(() => onTab("parlanti"), [onTab]);
+  const toNote = useCallback(() => onTab("note"), [onTab]);
   return (
     <div className="sticky top-0 z-10 mb-3 flex items-center gap-6 border-b bg-background">
       <div aria-label={t("tabs.label")} className="flex gap-6" role="tablist">
         <TabButton onClick={toTranscript} selected={tab === "transcript"}>
           {t("tabs.transcript")}
         </TabButton>
-        <TabButton onClick={toParlanti} selected={tab === "parlanti"}>
-          {t("tabs.parlanti")}
-          {parlanti > 0 ? (
-            <span className="ml-1.5 text-muted-foreground tabular-nums">
-              {parlanti}
-            </span>
-          ) : null}
+        {hasText ? (
+          <TabButton onClick={toParlanti} selected={tab === "parlanti"}>
+            {t("tabs.parlanti")}
+            {parlanti > 0 ? (
+              <span className="ml-1.5 text-muted-foreground tabular-nums">
+                {parlanti}
+              </span>
+            ) : null}
+          </TabButton>
+        ) : null}
+        <TabButton onClick={toNote} selected={tab === "note"}>
+          {t("tabs.note")}
         </TabButton>
       </div>
     </div>

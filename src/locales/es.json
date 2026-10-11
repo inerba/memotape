@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "El modelo DeepFilterNet3 incluido es incompatible: {{detail}}",
       "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo: {{detail}}",
       "liveTranscriptionLagging": "La transcripción en vivo se ha retrasado demasiado y se ha detenido. El audio sigue grabándose; podrás transcribirlo después de Detener.",
-      "noRecycleBin": "El disco de {{detail}} no tiene Papelera de reciclaje de Windows"
+      "noRecycleBin": "El disco de {{detail}} no tiene Papelera de reciclaje de Windows",
+      "noteChanged": "La nota «{{detail}}» se ha cambiado en otro sitio, por ejemplo por un asistente: vuelve a abrir el Tape para ver el texto nuevo"
     },
     "app": {
       "title": "Algo ha salido mal",
@@ -536,7 +537,14 @@
   "tabs": {
     "label": "Vistas del Tape",
     "transcript": "Transcripción",
-    "parlanti": "Hablantes"
+    "parlanti": "Hablantes",
+    "note": "Notas"
+  },
+  "notes": {
+    "defaultName": "Notas",
+    "label": "Notas del Tape",
+    "placeholder": "Escribe tus notas: decisiones, tareas, enlaces. En Markdown, como **negrita** o - listas.",
+    "saved": "Guardadas en el Tape"
   },
   "parlantiTab": {
     "empty": "Ningún hablante reconocido",

@@ -74,6 +74,10 @@ pub enum AppError {
     /// Il volume del Tape non ha un Cestino: l'originale non si potrebbe recuperare.
     #[error("il volume non ha un Cestino: {0}")]
     NoRecycleBin(String),
+    /// La Nota, di cui porta il nome, non ha più il testo da cui partiva la modifica: l'ha cambiata
+    /// qualcun altro (un Assistente, un'altra finestra).
+    #[error("Nota cambiata da fuori: {0}")]
+    NoteChanged(String),
     #[error("Attività in corso")]
     ActivityInProgress,
     // L'utente ha premuto Annulla (Trascrizione o download): non è un guasto.

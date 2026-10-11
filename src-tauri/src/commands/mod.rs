@@ -344,6 +344,35 @@ pub async fn edit_turno(
     .await
 }
 
+/// Le Note del Tape `path` in ordine di creazione (ADR-0032).
+#[tauri::command]
+#[specta::specta]
+pub async fn tape_note(app: AppHandle, path: String) -> Result<Vec<tape::Nota>, AppError> {
+    let path = tape_path(&path)?;
+    blocking(app, move |_| tape::note(&path)).await
+}
+
+/// Salva il testo della Nota `nome` del Tape `path`, creandola se non c'è; `atteso` è il testo da
+/// cui parte la modifica (vuoto per una Nota nuova). Restituisce la data di modifica del Tape
+/// riscritto (`modificato` delle sue informazioni). Rifiuta con `noteChanged` una Nota cambiata da
+/// fuori e con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_nota(
+    app: AppHandle,
+    activity: State<'_, Activity>,
+    path: String,
+    nome: String,
+    testo: String,
+    atteso: String,
+) -> Result<f64, AppError> {
+    write_tape(app, &activity, tape_path(&path)?, move |path| {
+        tape::salva_nota(path, &nome, &testo, &atteso, &tape::Autore::Utente)?;
+        Ok(tape::modificato(path)?.unwrap_or_default())
+    })
+    .await
+}
+
 /// Un tratto da tagliare, in ms sulla linea del tempo del Tape.
 #[derive(Debug, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "Dołączony model DeepFilterNet3 jest niezgodny: {{detail}}",
       "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
       "liveTranscriptionLagging": "Transkrypcja na żywo ma zbyt duże opóźnienie i została zatrzymana. Dźwięk jest nadal nagrywany; możesz go transkrybować po zatrzymaniu.",
-      "noRecycleBin": "Dysk z {{detail}} nie ma Kosza systemu Windows"
+      "noRecycleBin": "Dysk z {{detail}} nie ma Kosza systemu Windows",
+      "noteChanged": "Notatka „{{detail}}” została zmieniona gdzie indziej, np. przez asystenta: otwórz Tape ponownie, aby zobaczyć nowy tekst"
     },
     "app": {
       "title": "Coś poszło nie tak",
@@ -539,7 +540,14 @@
   "tabs": {
     "label": "Widoki pliku Tape",
     "transcript": "Transkrypcja",
-    "parlanti": "Mówcy"
+    "parlanti": "Mówcy",
+    "note": "Notatki"
+  },
+  "notes": {
+    "defaultName": "Notatki",
+    "label": "Notatki Tape’a",
+    "placeholder": "Pisz notatki: decyzje, zadania, linki. W Markdownie, np. **pogrubienie** lub - listy.",
+    "saved": "Zapisane w Tape"
   },
   "parlantiTab": {
     "empty": "Nie rozpoznano mówców",

@@ -75,6 +75,15 @@ export const commands = {
 	editFrase: (path: string, ingresso: Ingresso, phraseId: number, testo: string) => typedError<null, AppError>(__TAURI_INVOKE("edit_frase", { path, ingresso, phraseId, testo })),
 	/**  Salva il testo continuo di un Turno e restituisce il documento realmente scritto. */
 	editTurno: (path: string, ingresso: Ingresso, phraseIds: number[], originale: string, testo: string) => typedError<OpenedTape_Serialize, AppError>(__TAURI_INVOKE("edit_turno", { path, ingresso, phraseIds, originale, testo })),
+	/**  Le Note del Tape `path` in ordine di creazione (ADR-0032). */
+	tapeNote: (path: string) => typedError<Nota_Serialize[], AppError>(__TAURI_INVOKE("tape_note", { path })),
+	/**
+	 *  Salva il testo della Nota `nome` del Tape `path`, creandola se non c'è; `atteso` è il testo da
+	 *  cui parte la modifica (vuoto per una Nota nuova). Restituisce la data di modifica del Tape
+	 *  riscritto (`modificato` delle sue informazioni). Rifiuta con `noteChanged` una Nota cambiata da
+	 *  fuori e con `activityInProgress` il Tape su cui lavora l'Attività in corso.
+	 */
+	saveNota: (path: string, nome: string, testo: string, atteso: string) => typedError<number | null, AppError>(__TAURI_INVOKE("save_nota", { path, nome, testo, atteso })),
 	/**  Corregge l'attribuzione del solo Turno selezionato, verso il Turno adiacente. */
 	unisciTurno: (path: string, ingresso: Ingresso, phraseIds: number[], destinazione: number) => typedError<null, AppError>(__TAURI_INVOKE("unisci_turno", { path, ingresso, phraseIds, destinazione })),
 	/**
@@ -261,7 +270,12 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
 /**  Il Tape non è più dov'era: spostato, rinominato o cancellato fuori dall'app. */
 { code: "tapeNotFound"; detail: string } | 
 /**  Il volume del Tape non ha un Cestino: l'originale non si potrebbe recuperare. */
-{ code: "noRecycleBin"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
+{ code: "noRecycleBin"; detail: string } | 
+/**
+ *  La Nota, di cui porta il nome, non ha più il testo da cui partiva la modifica: l'ha cambiata
+ *  qualcun altro (un Assistente, un'altra finestra).
+ */
+{ code: "noteChanged"; detail: string } | { code: "activityInProgress" } | { code: "cancelled" } | { code: "internal"; detail: string };
 
 /**  Un microfono o un dispositivo di uscita, per la scelta in Impostazioni. */
 export type AudioDevice = {
@@ -270,6 +284,19 @@ export type AudioDevice = {
 	name: string,
 	isDefault: boolean,
 };
+
+/**  Chi ha scritto una Nota l'ultima volta. */
+export type Autore = Autore_Serialize | Autore_Deserialize;
+
+/**  Chi ha scritto una Nota l'ultima volta. */
+export type Autore_Deserialize = ({ tipo: "utente" }) & { client?: never } | 
+/**  Un Assistente, con il nome del client MCP se lo dice. */
+{ tipo: "assistente"; client?: string | null };
+
+/**  Chi ha scritto una Nota l'ultima volta. */
+export type Autore_Serialize = ({ tipo: "utente" }) & { client?: never } | 
+/**  Un Assistente, con il nome del client MCP se lo dice. */
+{ tipo: "assistente"; client?: string | null };
 
 export type Channels = "mono" | "stereo";
 
@@ -444,6 +471,27 @@ export type ModelStateChanged = {
 	modelId: string,
 	state: ModelState,
 	error: AppError | null,
+};
+
+/**  Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando. */
+export type Nota = Nota_Serialize | Nota_Deserialize;
+
+/**  Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando. */
+export type Nota_Deserialize = {
+	nome: string,
+	testo: string,
+	autore: Autore_Deserialize,
+	/**  Ora dell'ultima scrittura, come `creato`. */
+	modificata: string,
+};
+
+/**  Una Nota del Tape (ADR-0032): Markdown così com'è, con chi l'ha scritta l'ultima volta e quando. */
+export type Nota_Serialize = {
+	nome: string,
+	testo: string,
+	autore: Autore_Serialize,
+	/**  Ora dell'ultima scrittura, come `creato`. */
+	modificata: string,
 };
 
 /**  Un Tape aperto come Sorgente: le Frasi, i nomi dei Parlanti e le informazioni. */

@@ -38,7 +38,7 @@ src/                     frontend React, struttura bulletproof-react, alias @/ �
   app/                   router, provider, routes/, global.css con i token shadcn
   components/ui/         componenti shadcn (solo `shadcn add`, mai modificati a mano)
   components/            componenti condivisi scritti qui (`popover-menu.tsx`, `brand-mark.tsx`)
-  features/<feature>/    source, transcription, recording, library, player, models, settings, status, about
+  features/<feature>/    source, transcription, notes, recording, library, player, models, settings, status, about
   lib/                   utilità condivise, i18n
   locales/               traduzioni delle sei lingue; it.json è il riferimento
   bindings.ts            generato da tauri-specta, committato, non si modifica a mano

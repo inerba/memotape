@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Un Tape senza `note.json` ha zero Note; salvare una Nota riscrive solo `note.json` e lascia le altre voci byte-identiche
-- [ ] Il salvataggio con un testo atteso diverso da quello su disco è rifiutato con un codice di `AppError` dedicato, mappato a un messaggio tradotto
-- [ ] Correzione di un Turno, nome di un Parlante e ritrascrizione conservano `note.json`; le Note non accendono «Corretto a mano»
-- [ ] La scheda «Note» c'è nel Tape aperto, con il testo nella colonna da lettura e i token di `DESIGN.md`; «Salvate» sotto la scheda dopo il salvataggio
-- [ ] Testi nelle sei lingue di `src/locales/`
-- [ ] `docs/sviluppo/tape-e-libreria.md` descrive `note.json`
-- [ ] I sei controlli verdi
+- [x] Un Tape senza `note.json` ha zero Note; salvare una Nota riscrive solo `note.json` e lascia le altre voci byte-identiche
+- [x] Il salvataggio con un testo atteso diverso da quello su disco è rifiutato con un codice di `AppError` dedicato, mappato a un messaggio tradotto
+- [x] Correzione di un Turno, nome di un Parlante e ritrascrizione conservano `note.json`; le Note non accendono «Corretto a mano»
+- [x] La scheda «Note» c'è nel Tape aperto, con il testo nella colonna da lettura e i token di `DESIGN.md`; «Salvate» sotto la scheda dopo il salvataggio
+- [x] Testi nelle sei lingue di `src/locales/`
+- [x] `docs/sviluppo/tape-e-libreria.md` descrive `note.json`
+- [x] I sei controlli verdi

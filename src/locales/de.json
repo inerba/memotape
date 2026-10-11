@@ -140,7 +140,8 @@
       "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
       "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren.",
-      "noRecycleBin": "Das Laufwerk von {{detail}} hat keinen Windows-Papierkorb"
+      "noRecycleBin": "Das Laufwerk von {{detail}} hat keinen Windows-Papierkorb",
+      "noteChanged": "Die Notiz „{{detail}}“ wurde anderswo geändert, etwa von einem Assistenten: öffne das Tape erneut, um den neuen Text zu sehen"
     },
     "app": {
       "title": "Etwas ist schiefgelaufen",
@@ -533,7 +534,14 @@
   "tabs": {
     "label": "Ansichten des Tape",
     "transcript": "Transkript",
-    "parlanti": "Sprecher"
+    "parlanti": "Sprecher",
+    "note": "Notizen"
+  },
+  "notes": {
+    "defaultName": "Notizen",
+    "label": "Notizen des Tapes",
+    "placeholder": "Schreib deine Notizen: Entscheidungen, Aufgaben, Links. In Markdown, etwa **fett** oder - Listen.",
+    "saved": "Im Tape gespeichert"
   },
   "parlantiTab": {
     "empty": "Keine Sprecher erkannt",
