@@ -1015,15 +1015,16 @@ fn update(
     rewrite(path, &document)
 }
 
-/// Le Librerie aperte in questo processo, per `writing`.
+/// Le Librerie aperte in questo processo, per i lock: l'ultima è quella corrente.
 static LIBRERIE: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
-/// Da qui le riscritture dei Tape dentro `root` prendono il lock su file della Libreria.
+/// `root` diventa la Libreria corrente: da qui i Tape al suo interno prendono i lock su file nella
+/// sua `.memotape`. L'app e il server MCP la registrano dalla Cartella della Libreria delle
+/// Impostazioni, quindi anche con Librerie una dentro l'altra ricavano gli stessi file di lock.
 pub fn registra_libreria(root: &Path) {
     let mut librerie = LIBRERIE.lock().unwrap_or_else(PoisonError::into_inner);
-    if !librerie.iter().any(|r| r == root) {
-        librerie.push(root.to_path_buf());
-    }
+    librerie.retain(|r| r != root);
+    librerie.push(root.to_path_buf());
 }
 
 /// Il lock di una riscrittura, finché vive.
@@ -1037,8 +1038,7 @@ pub(crate) struct Riscrittura {
 /// Libreria registrata è un lock esclusivo su `.memotape\riscritture.lock` della Libreria, lo stesso
 /// per l'app e il server MCP in un altro processo (ADR-0031); fuori, un lock di processo.
 // ponytail: un solo lock per tutti i Tape di una Libreria; un file per Tape se le scritture
-// diventano lente. Con Librerie una dentro l'altra vale la più interna: un processo che conosce
-// solo l'esterna prenderebbe un altro lock.
+// diventano lente.
 pub(crate) fn writing(path: &Path) -> Result<Riscrittura, AppError> {
     static WRITING: Mutex<()> = Mutex::new(());
     let Some(root) = libreria_di(path) else {
@@ -1092,14 +1092,15 @@ fn file_attivita(path: &Path) -> Result<Option<(File, PathBuf)>, AppError> {
     lock_file(&root, &format!("attivita-{}.lock", &hash[..16])).map(Some)
 }
 
-/// La Libreria registrata che contiene `path`; con Librerie una dentro l'altra, la più interna.
+/// La Libreria di `path`: la corrente, se lo contiene. Quelle registrate prima restano per i loro
+/// Tape, che il server MCP non raggiunge, e per i test in parallelo, ognuno con la sua cartella.
 fn libreria_di(path: &Path) -> Option<PathBuf> {
     LIBRERIE
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .iter()
-        .filter(|root| crate::library::inside(path, root))
-        .max_by_key(|root| root.as_os_str().len())
+        .rev()
+        .find(|root| crate::library::inside(path, root))
         .cloned()
 }
 
@@ -2309,6 +2310,24 @@ mod tests {
             ])
         );
         assert_eq!(after.frasi, before.frasi);
+    }
+
+    #[test]
+    fn con_librerie_annidate_i_lock_sono_quelli_della_libreria_corrente() {
+        let esterna = temp_dir("tape-librerie-annidate");
+        let interna = esterna.join("Interna");
+        let path = interna.join("Call.tape");
+        // L'app ha usato prima l'interna; ora le Impostazioni dicono l'esterna, come al server MCP
+        // che conosce solo quella.
+        registra_libreria(&interna);
+        registra_libreria(&esterna);
+        let lock = prova_attivita(&path).unwrap();
+        assert!(lock.is_some());
+        assert!(esterna.join(crate::managers::recording::TEMP_FOLDER).is_dir());
+        assert!(!interna.join(crate::managers::recording::TEMP_FOLDER).exists());
+        drop(writing(&path).unwrap());
+        assert!(esterna.join(crate::managers::recording::TEMP_FOLDER).join("riscritture.lock").is_file());
+        assert!(!interna.join(crate::managers::recording::TEMP_FOLDER).exists());
     }
 
     #[test]
