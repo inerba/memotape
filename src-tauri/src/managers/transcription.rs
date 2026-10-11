@@ -236,6 +236,8 @@ pub struct TapeInfo {
     pub origine: Option<String>,
     #[serde(default)]
     pub diarizzazione: Option<crate::transcript::Diarizzazione>,
+    /// La data di modifica del file quando è stato letto (`tape::modificato`).
+    pub modificato: f64,
 }
 
 /// L'ultima Trascrizione, di un file o dal vivo, anche annullata: quella che Copia testo rende
@@ -1026,7 +1028,11 @@ fn save_live(
 /// Apre il Tape `source` come Sorgente, senza ritrascrivere: le Frasi, come se arrivassero da una
 /// Trascrizione, i nomi dei Parlanti e le informazioni.
 pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
+    // Prima della lettura: un Tape cambiato in mezzo si ricarica una volta in più, non mai.
+    let modificato = tape::modificato(source)?;
     let document = tape::read(source)?;
+    // Il file sparito dopo la data di modifica: la lettura avrebbe già dato errore.
+    let modificato = modificato.unwrap_or_default();
     let phrases = document
         .frasi_visibili()
         .iter()
@@ -1058,6 +1064,7 @@ pub fn open_tape(source: &Path) -> Result<OpenedTape, AppError> {
             completa: document.completa,
             origine: document.origine,
             diarizzazione: document.diarizzazione.clone(),
+            modificato,
         },
         parlanti: document.parlanti,
     })
@@ -1833,6 +1840,7 @@ mod tests {
                 completa: false,
                 origine: Some("Call.mp4".into()),
                 diarizzazione: None,
+                modificato: tape::modificato(&path).unwrap().unwrap(),
             }
         );
         assert_eq!(opened.parlanti, document.parlanti);

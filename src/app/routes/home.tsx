@@ -1,4 +1,5 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { TFunction } from "i18next";
 import { Check, CircleAlert, Copy, X } from "lucide-react";
 import {
@@ -82,7 +83,12 @@ import {
 import { dropVerdict } from "@/features/source/drop";
 import { DropVeil } from "@/features/source/drop-veil";
 import { fileName, isTape } from "@/features/source/file-name";
-import { opening, pendingTape, type TapeView } from "@/features/source/view";
+import {
+  alRitorno,
+  opening,
+  pendingTape,
+  type TapeView,
+} from "@/features/source/view";
 import {
   afterDiarization,
   afterTranscription,
@@ -739,6 +745,47 @@ export function HomePage() {
       }),
     [dispatch]
   );
+
+  // Al ritorno in primo piano il backend riallinea l'indice; qui si ricarica il Tape mostrato se
+  // un Assistente o Esplora file l'hanno cambiato, o si chiude se non c'è più. Una bozza dell'editor
+  // del Turno resta: il suo salvataggio fallisce sul testo atteso.
+  const refocused = useEffectEvent(async () => {
+    const center = centerView(state);
+    if (center.kind !== "tape") {
+      return;
+    }
+    const { path } = center.tape;
+    const suDisco = await commands.tapeModificato(path);
+    if (suDisco.status === "error") {
+      setNotice(suDisco.error);
+      return;
+    }
+    const azione = alRitorno(
+      center.tape.info,
+      suDisco.data,
+      center.isSource && busy
+    );
+    if (azione === "chiudi") {
+      trashed(path);
+    } else if (azione === "ricarica") {
+      const opened = await commands.openTape(path);
+      if (opened.status === "error") {
+        setNotice(opened.error);
+      } else {
+        applyOpenedTape(path, opened.data);
+      }
+    }
+  });
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onFocusChanged(({ payload }) => {
+      if (payload) {
+        refocused();
+      }
+    });
+    return () => {
+      unlisten.then((stop) => stop());
+    };
+  }, []);
 
   const merge = useCallback(
     async (path: string, turn: Turn, target: PhraseRef) => {

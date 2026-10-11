@@ -58,6 +58,11 @@ export const commands = {
 	 */
 	openTape: (source: string) => typedError<OpenedTape_Serialize, AppError>(__TAURI_INVOKE("open_tape", { source })),
 	/**
+	 *  La data di modifica del Tape `path` (`modificato` delle sue informazioni); `null` se non c'è più.
+	 *  La finestra la chiede quando torna in primo piano, per ricaricare il Tape cambiato da fuori.
+	 */
+	tapeModificato: (path: string) => typedError<number | null, AppError>(__TAURI_INVOKE("tape_modificato", { path })),
+	/**
 	 *  Dà il nome `nome` al Parlante `parlante` di `ingresso` nel Tape `path`, o con `null` all'Ingresso
 	 *  senza Parlanti (il Microfono). Rifiuta un nome vuoto, e con `activityInProgress` il Tape su cui
 	 *  lavora l'Attività in corso.
@@ -683,6 +688,8 @@ export type TapeInfo_Deserialize = {
 	/**  Il nome del file audio o video da cui viene. */
 	origine: string | null,
 	diarizzazione?: Diarizzazione_Deserialize | null,
+	/**  La data di modifica del file quando è stato letto (`tape::modificato`). */
+	modificato: number | null,
 };
 
 /**  La riga di informazioni della vista di un Tape. */
@@ -699,6 +706,8 @@ export type TapeInfo_Serialize = {
 	/**  Il nome del file audio o video da cui viene. */
 	origine: string | null,
 	diarizzazione: Diarizzazione_Serialize | null,
+	/**  La data di modifica del file quando è stato letto (`tape::modificato`). */
+	modificato: number | null,
 };
 
 /**  È arrivato un Tape da aprire: la finestra lo prende con `take_pending_tape`. */
