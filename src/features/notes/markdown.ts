@@ -4,6 +4,7 @@ import {
   type ChangeSpec,
   EditorSelection,
   type EditorState,
+  type Line,
   type TransactionSpec,
 } from "@codemirror/state";
 import { elapsedText } from "@/features/recording/recording";
@@ -25,8 +26,8 @@ export const markdownDelleNote = markdown({ base: markdownLanguage });
  * del cursore, che mostra il Markdown. `tabella` prende il posto delle righe di una tabella,
  * `nascosta` toglie una riga intera (i ``` di un blocco di codice) e `rigaCodice` è una riga del
  * riquadro di un blocco di codice. `citazione` e `separatore` sono le righe di una citazione e di
- * un `---`. `voce` è la prima riga di una voce d'elenco, che rientra del suo `livello`; `numero`
- * il numero di una voce di un elenco numerato. `vuota` è una riga vuota tra due blocchi, più bassa.
+ * un `---`. `voce` è la prima riga di una voce d'elenco, che rientra come dice la sua `Voce`, e
+ * `continua` un'altra riga della stessa voce; `numero` il numero di una voce di un elenco numerato. `vuota` è una riga vuota tra due blocchi, più bassa.
  */
 export type Marcatura = { a: number; da: number } & (
   | {
@@ -47,10 +48,27 @@ export type Marcatura = { a: number; da: number } & (
   | { tipo: "link"; url: string }
   | { fatta: boolean; tipo: "casella" }
   | { ms: number; tipo: "tempo" }
-  | { allineamenti: Allineamento[]; righe: Cella[][]; tipo: "tabella" }
+  | {
+      allineamenti: Allineamento[];
+      righe: Cella[][];
+      tipo: "tabella";
+      /** La voce d'elenco in cui sta la tabella, che rientra con lei. */
+      voce: Voce | null;
+    }
   | { bordo: Bordo; tipo: "rigaCodice" }
-  | { livello: number; numerata: boolean; tipo: "voce" }
+  | (Voce & { tipo: "voce" | "continua" })
 );
+
+/**
+ * Quanto rientra una voce d'elenco: il `livello` di annidamento e la larghezza del segno, cioè le
+ * `cifre` del numero di un elenco numerato (0 nei puntati) e se dopo c'è una `casella`.
+ */
+export interface Voce {
+  casella: boolean;
+  cifre: number;
+  livello: number;
+  numerata: boolean;
+}
 
 /** Dove sta una riga nel riquadro di un blocco di codice: prima, ultima, unica o in mezzo. */
 export type Bordo = "inizio" | "fine" | "solo" | "";
@@ -176,7 +194,8 @@ export function marcature(
     enter: (ref) => {
       const nodo: Nodo = ref.node;
       const { from, name, to } = nodo;
-      if (name === "Table" && bloccoFuori(from, to)) {
+      // Una tabella in una citazione resta Markdown: i `>` stanno dentro le sue righe.
+      if (name === "Table" && aCapo(state, from) && bloccoFuori(from, to)) {
         const t = tabella(state, nodo, tempi);
         tabelle.push([t.da, t.a]);
         lista.push(t);
@@ -186,7 +205,7 @@ export function marcature(
         codici.push([from, to]);
         lista.push(...codice(state, nodo, bloccoFuori(from, to)));
       } else {
-        lista.push(...righeDelBlocco(state, nodo, fuori(from)));
+        lista.push(...righeDelBlocco(state, nodo, fuori));
       }
       const s = stile(state, nodo);
       if (s) {
@@ -219,12 +238,12 @@ export function marcature(
 
 /**
  * Le marcature di riga del nodo: titolo e righe di una citazione sempre, il separatore e il rientro
- * di una voce d'elenco solo `fuori` dalla riga del cursore.
+ * di una voce d'elenco solo sulle righe `fuori` da quella del cursore.
  */
 function righeDelBlocco(
   state: EditorState,
   nodo: Nodo,
-  fuori: boolean
+  fuori: (pos: number) => boolean
 ): Marcatura[] {
   const { from, name, parent, to } = nodo;
   const riga = state.doc.lineAt(from);
@@ -242,20 +261,75 @@ function righeDelBlocco(
     }
     return lista;
   }
-  if (name === "HorizontalRule" && fuori) {
+  if (name === "HorizontalRule" && fuori(from)) {
     return [{ a: to, da: from, tipo: "separatore" }];
   }
-  if (name === "ListItem" && fuori && aCapo(state, from)) {
-    let livello = -1;
-    for (let n = parent; n; n = n.parent) {
-      if (n.name === "BulletList" || n.name === "OrderedList") {
-        livello += 1;
+  if (name === "ListItem" && aCapo(state, from)) {
+    const voce = voceDi(state, nodo);
+    const lista: Marcatura[] = fuori(from)
+      ? [{ ...voce, a: riga.to, da: riga.from, tipo: "voce" }]
+      : [];
+    for (const r of continuazioni(state, nodo)) {
+      if (fuori(r.from)) {
+        const testo = r.from + spazi(state, r.from);
+        lista.push({ ...voce, a: r.to, da: r.from, tipo: "continua" });
+        if (testo > r.from) {
+          lista.push({ a: testo, da: r.from, tipo: "segno" });
+        }
       }
     }
-    const numerata = parent?.name === "OrderedList";
-    return [{ a: riga.to, da: riga.from, livello, numerata, tipo: "voce" }];
+    return lista;
   }
   return [];
+}
+
+/** Come rientra la voce d'elenco `nodo`. */
+function voceDi(state: EditorState, nodo: Nodo): Voce {
+  let livello = -1;
+  for (let n = nodo.parent; n; n = n.parent) {
+    if (n.name === "BulletList" || n.name === "OrderedList") {
+      livello += 1;
+    }
+  }
+  const numerata = nodo.parent?.name === "OrderedList";
+  const segno = figlio(nodo, "ListMark");
+  const cifre =
+    numerata && segno
+      ? state.doc.sliceString(segno.from, segno.to).length - 1
+      : 0;
+  const casella = segno?.nextSibling?.name === "Task";
+  return { casella, cifre, livello, numerata };
+}
+
+/**
+ * Le righe della voce `nodo` dopo la prima che sono testo suo: non vuote, non di una voce annidata,
+ * né di un blocco di codice o di una tabella.
+ */
+function continuazioni(state: EditorState, nodo: Nodo): Line[] {
+  const trovate: Line[] = [];
+  const ultima = state.doc.lineAt(nodo.to).number;
+  for (let n = state.doc.lineAt(nodo.from).number + 1; n <= ultima; n += 1) {
+    const riga = state.doc.line(n);
+    if (riga.text.trim() === "") {
+      continue;
+    }
+    let sopra: Nodo | null = syntaxTree(state).resolveInner(
+      riga.from + spazi(state, riga.from),
+      1
+    );
+    while (
+      sopra &&
+      sopra.name !== "ListItem" &&
+      sopra.name !== "FencedCode" &&
+      sopra.name !== "Table"
+    ) {
+      sopra = sopra.parent;
+    }
+    if (sopra?.name === "ListItem" && sopra.from === nodo.from) {
+      trovate.push(riga);
+    }
+  }
+  return trovate;
 }
 
 /**
@@ -266,7 +340,10 @@ function codice(state: EditorState, nodo: Nodo, fuori: boolean): Marcatura[] {
   const prima = state.doc.lineAt(nodo.from).number;
   const ultima = state.doc.lineAt(nodo.to).number;
   const chiusa = ultima > prima && nodo.lastChild?.name === "CodeMark";
-  const nascoste = new Set(fuori ? [prima, ...(chiusa ? [ultima] : [])] : []);
+  const recinti = chiusa ? [prima, ultima] : [prima];
+  // Un blocco senza righe di codice tiene i ``` per non sparire.
+  const vuoto = recinti.length === ultima - prima + 1;
+  const nascoste = new Set(fuori && !vuoto ? recinti : []);
   const lista: Marcatura[] = [];
   const visibili: number[] = [];
   for (let n = prima; n <= ultima; n += 1) {
@@ -366,7 +443,18 @@ function tabella(
     da: state.doc.lineAt(nodo.from).from,
     righe: file,
     tipo: "tabella",
+    voce: voceSopra(state, nodo),
   };
+}
+
+/** La voce d'elenco più vicina che contiene `nodo`, o `null`. */
+function voceSopra(state: EditorState, nodo: Nodo): Voce | null {
+  for (let n = nodo.parent; n; n = n.parent) {
+    if (n.name === "ListItem") {
+      return voceDi(state, n);
+    }
+  }
+  return null;
 }
 
 /** Le celle di una riga di tabella, tra i suoi `|`. */
@@ -414,6 +502,10 @@ function pezzi(
       }
       for (const m of segni(state, ref.node)) {
         nascosti.push(m);
+      }
+      // «\|» si legge «|».
+      if (ref.name === "Escape") {
+        nascosti.push({ a: ref.from + 1, da: ref.from, tipo: "segno" });
       }
     },
     from: da,

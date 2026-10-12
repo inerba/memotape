@@ -24,6 +24,7 @@ import {
   markdownDelleNote,
   type Pezzo,
   spunta,
+  type Voce,
 } from "./markdown";
 
 /**
@@ -165,6 +166,18 @@ function pezzo(p: Pezzo, tempi: Tempi): Node {
   return nodo;
 }
 
+/**
+ * Le variabili CSS del rientro di una voce: il livello, le cifre del numero e la larghezza del
+ * segno. Con le cifre tabulari una cifra è larga 1ch; 0,75 em bastano per il punto e lo spazio.
+ */
+function rientro(voce: Voce): string {
+  let segno = "1.25em";
+  if (voce.numerata) {
+    segno = `calc(${voce.cifre}ch + 0.75em${voce.casella ? " + 1.25em" : ""})`;
+  }
+  return `--livello: ${voce.livello}; --cifre: ${voce.cifre}; --segno: ${segno}`;
+}
+
 const ALLINEA: Record<NonNullable<Allineamento>, string> = {
   centro: "center",
   destra: "right",
@@ -198,6 +211,10 @@ class Tabella extends WidgetType {
     const { allineamenti, righe } = this.tabella;
     const box = document.createElement("div");
     box.className = "cm-tabella";
+    if (this.tabella.voce) {
+      box.classList.add("cm-tabella-in-voce");
+      box.setAttribute("style", rientro(this.tabella.voce));
+    }
     const table = document.createElement("table");
     const testa = document.createElement("thead");
     const corpo = document.createElement("tbody");
@@ -275,9 +292,10 @@ function decorazione(
           : "cm-riga-codice",
       }).range(m.da);
     case "voce":
+    case "continua":
       return Decoration.line({
-        attributes: { style: `--livello: ${m.livello}` },
-        class: m.numerata ? "cm-voce cm-voce-numerata" : "cm-voce",
+        attributes: { style: rientro(m) },
+        class: `cm-${m.tipo}`,
       }).range(m.da);
     case "tempo":
       return Decoration.replace({
@@ -386,9 +404,10 @@ const TEMA = EditorView.theme({
   ".cm-content > .cm-line.cm-titolo:first-child": { paddingTop: "0" },
   ".cm-corsivo": { fontStyle: "italic" },
   ".cm-grassetto": { fontWeight: "600" },
+  // Le righe toccano solo i padding che servono, per non cancellare quello di un'altra classe
+  // (un titolo dentro una citazione tiene la barretta e il suo spazio).
   ".cm-line.cm-citazione": {
     borderLeft: "3px solid var(--border)",
-    color: "var(--muted-foreground)",
     paddingLeft: "0.9em",
   },
   ".cm-line.cm-riga-codice": {
@@ -396,7 +415,8 @@ const TEMA = EditorView.theme({
     fontFamily: "var(--font-mono, ui-monospace, Consolas, monospace)",
     fontSize: "0.88em",
     lineHeight: "1.6",
-    padding: "0 0.9em",
+    paddingLeft: "0.9em",
+    paddingRight: "0.9em",
   },
   ".cm-line.cm-riga-codice-fine, .cm-line.cm-riga-codice-solo": {
     borderBottomLeftRadius: "6px",
@@ -412,7 +432,8 @@ const TEMA = EditorView.theme({
     fontSize: "1.6em",
     fontWeight: "500",
     lineHeight: "1.25",
-    padding: "0.9em 0 0.15em",
+    paddingBottom: "0.15em",
+    paddingTop: "0.9em",
   },
   ".cm-line.cm-titolo-1, .cm-line.cm-titolo-2, .cm-line.cm-titolo-3": {
     fontFamily: DISPLAY,
@@ -423,23 +444,24 @@ const TEMA = EditorView.theme({
     fontSize: "1.35em",
     fontWeight: "500",
     lineHeight: "1.3",
-    padding: "0.8em 0 0.1em",
+    paddingBottom: "0.1em",
+    paddingTop: "0.95em",
   },
+  // Spazio sopra in em del titolo: circa 1,4 righe di testo per `#`, 1,3 per `##`, 1 per gli altri.
   ".cm-line.cm-titolo-3": {
     fontSize: "1.15em",
     lineHeight: "1.35",
-    padding: "0.6em 0 0.05em",
+    paddingBottom: "0.05em",
+    paddingTop: "0.85em",
   },
   ".cm-line.cm-titolo-4, .cm-line.cm-titolo-5, .cm-line.cm-titolo-6": {
-    paddingTop: "0.5em",
+    paddingTop: "0.9em",
   },
-  ".cm-line.cm-voce": {
-    paddingLeft: "calc(var(--livello) * 1.5em + 1.25em)",
-    textIndent: "-1.25em",
-  },
-  ".cm-line.cm-voce-numerata": {
-    paddingLeft: "calc(var(--livello) * 1.5em + 2em)",
-    textIndent: "-2em",
+  ".cm-line.cm-voce": { textIndent: "calc(-1 * var(--segno))" },
+  // Il rientro di una voce: `--livello` e `--segno` (la larghezza di punto, numero o casella)
+  // arrivano dalla decorazione; la prima riga parte indietro di un segno, le altre dopo il segno.
+  ".cm-line.cm-voce, .cm-line.cm-continua, .cm-tabella.cm-tabella-in-voce": {
+    paddingLeft: "calc(var(--livello) * 1.5em + var(--segno))",
   },
   // Una riga vuota separa i blocchi: basta mezza riga.
   ".cm-line.cm-vuota": { lineHeight: "1" },
@@ -454,8 +476,8 @@ const TEMA = EditorView.theme({
     color: "var(--muted-foreground)",
     display: "inline-block",
     fontVariantNumeric: "tabular-nums",
-    minWidth: "2em",
     textIndent: "0",
+    width: "calc(var(--cifre) * 1ch + 0.75em)",
   },
   ".cm-punto": {
     color: "var(--muted-foreground)",

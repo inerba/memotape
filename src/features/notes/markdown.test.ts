@@ -333,6 +333,60 @@ test("una riga vuota tra due blocchi è più bassa, anche con il cursore, ma non
   expect(vuote(nota(doc, 4))).toEqual([2, 3]);
 });
 
+test("una tabella dentro una citazione resta Markdown, una dentro una voce rientra con lei", () => {
+  expect(
+    tabelle(nota("> | a | b |\n> |---|---|\n> | 1 | 2 |", 0), false)
+  ).toEqual([]);
+  const doc = "1. voce\n\n   | a | b |\n   |---|---|\n   | 1 | 2 |";
+  const [t] = marcature(nota(doc, 0), false).filter(
+    (m) => m.tipo === "tabella"
+  );
+  expect(t?.tipo === "tabella" ? t.voce : undefined).toEqual({
+    casella: false,
+    cifre: 1,
+    livello: 0,
+    numerata: true,
+  });
+  expect(tabelle(nota(doc, 0), false)[0]?.righe).toEqual([
+    ["a", "b"],
+    ["1", "2"],
+  ]);
+});
+
+test("in una cella un | scritto \\| si legge senza la barra", () => {
+  expect(
+    tabelle(nota("| a |\n|---|\n| x \\| y |", 0), false)[0]?.righe
+  ).toEqual([["a"], ["x | y"]]);
+});
+
+test("un blocco di codice vuoto tiene i ``` anche fuori dal cursore", () => {
+  expect(righe(nota("```\n```", 0), "nascosta", false)).toEqual([]);
+  expect(righe(nota("```\n```", 0), "rigaCodice", false)).toEqual([
+    ["```", "inizio"],
+    ["```", "fine"],
+  ]);
+});
+
+test("una voce numerata sa quante cifre ha e se ha una casella; le righe che continuano la voce rientrano con lei", () => {
+  const doc = "100. [ ] cento\n- uno\n  segue\n\n  altro paragrafo\n- due\n";
+  const state = nota(doc, 0);
+  const voci = marcature(state, false).flatMap((m) =>
+    m.tipo === "voce" || m.tipo === "continua"
+      ? [[m.tipo, state.doc.lineAt(m.da).text, m.cifre, m.casella]]
+      : []
+  );
+  expect(voci).toEqual([
+    ["voce", "100. [ ] cento", 3, true],
+    ["voce", "- uno", 0, false],
+    ["continua", "  segue", 0, false],
+    ["continua", "  altro paragrafo", 0, false],
+    ["voce", "- due", 0, false],
+  ]);
+  expect(letta(state, false)).toBe(
+    "100. ☐ cento\n• uno\nsegue\n\naltro paragrafo\n• due\n"
+  );
+});
+
 test("Ctrl+T scrive il tempo del player al cursore, al posto della selezione", () => {
   const scritto = (
     doc: string,
