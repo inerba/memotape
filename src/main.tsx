@@ -6,7 +6,7 @@ import ReactDOM from "react-dom/client";
 import App from "@/app";
 import { type AppError, commands, type Settings } from "@/bindings";
 import { DEFAULT_SETTINGS, languageOf } from "@/features/settings/settings";
-import { bloccaMenuNativo } from "@/lib/context-menu";
+import { bloccaMenuNativo, bloccaTastiDelBrowser } from "@/lib/webview";
 
 /**
  * Le impostazioni si leggono prima del primo render: nessun valore predefinito compare per un
@@ -28,6 +28,7 @@ async function loadSettings(): Promise<[Settings, AppError | null]> {
 
 async function start() {
   bloccaMenuNativo();
+  bloccaTastiDelBrowser();
   const [settings, error] = await loadSettings();
   // Senza una scelta salvata vale la lingua di Windows; se il backend non risponde, quella della
   // WebView, che la segue.
