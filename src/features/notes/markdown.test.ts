@@ -20,8 +20,8 @@ function nota(doc: string, cursore = doc.length, ancora = cursore) {
 }
 
 /**
- * Come si legge la Nota: i segni nascosti spariscono, un punto d'elenco diventa «•» e una casella
- * «☐» o «☑». Con `focus` la riga del cursore mostra il Markdown.
+ * Come si legge la Nota: i segni nascosti spariscono, un punto d'elenco diventa «• » e una casella
+ * «☐ » o «☑ », con lo spazio dopo il segno. Con `focus` la riga del cursore mostra il Markdown.
  */
 function letta(state: EditorState, focus = true, durataMs = 0): string {
   const sostituzioni = marcature(state, focus, durataMs)
@@ -38,9 +38,9 @@ function letta(state: EditorState, focus = true, durataMs = 0): string {
   for (const m of sostituzioni) {
     testo += state.doc.sliceString(pos, m.da);
     if (m.tipo === "punto") {
-      testo += "•";
+      testo += "• ";
     } else if (m.tipo === "casella") {
-      testo += m.fatta ? "☑" : "☐";
+      testo += m.fatta ? "☑ " : "☐ ";
     } else if (m.tipo === "tempo") {
       testo += `▶${m.ms / 1000}s`;
     }
@@ -52,7 +52,11 @@ function letta(state: EditorState, focus = true, durataMs = 0): string {
 /** Gli stili della Nota, come `[tipo, testo]`. */
 function stili(state: EditorState, focus = true) {
   return marcature(state, focus)
-    .filter((m) => !["segno", "punto", "casella", "attiva"].includes(m.tipo))
+    .filter((m) =>
+      ["titolo", "grassetto", "corsivo", "codice", "link", "numero"].includes(
+        m.tipo
+      )
+    )
     .map((m: Marcatura) => [
       m.tipo === "titolo" ? `titolo${m.livello}` : m.tipo,
       state.doc.sliceString(m.da, m.a),
@@ -184,6 +188,149 @@ test("fuori dalla riga del cursore un Tempo nella Nota diventa una pillola, entr
   expect(letta(nota(doc), false)).toBe(
     "Rilascio [12:40] e [1:02:05], [0:30]\nOra [0:30]"
   );
+});
+
+/** Le tabelle della Nota come le vede il lettore: allineamenti e righe di celle in testo. */
+function tabelle(state: EditorState, focus = true, durataMs = 0) {
+  return marcature(state, focus, durataMs).flatMap((m) =>
+    m.tipo === "tabella"
+      ? [
+          {
+            allineamenti: m.allineamenti,
+            righe: m.righe.map((riga) =>
+              riga.map((cella) =>
+                cella.pezzi
+                  .map((p) =>
+                    p.ms === undefined
+                      ? [...p.stili, p.url ?? ""]
+                          .filter(Boolean)
+                          .reduce((t, s) => `${s}(${t})`, p.testo)
+                      : `▶${p.ms / 1000}s`
+                  )
+                  .join("")
+              )
+            ),
+            testo: state.doc.sliceString(m.da, m.a),
+          },
+        ]
+      : []
+  );
+}
+
+test("fuori dal cursore una tabella si legge a celle, allineate come dice la riga dei trattini", () => {
+  const doc =
+    "Prima\n\n| Chi | Quando | Note |\n|:--|:-:|--:|\n| **Sara** | [12:40] | [sito](https://x.it) |\n|  | dopo\n\nDopo";
+  const state = nota(doc, 0);
+  expect(tabelle(state, true, 3_600_000)).toEqual([
+    {
+      allineamenti: ["sinistra", "centro", "destra"],
+      righe: [
+        ["Chi", "Quando", "Note"],
+        ["grassetto(Sara)", "▶760s", "https://x.it(link(sito))"],
+        // Una cella vuota resta vuota; una riga corta ha le celle che mancano vuote.
+        ["", "dopo", ""],
+      ],
+      testo: doc.slice(7, -6),
+    },
+  ]);
+  // Con il cursore nella tabella si vede il Markdown.
+  expect(tabelle(nota(doc, 10))).toEqual([]);
+  expect(tabelle(nota(doc, 10), false)).toHaveLength(1);
+});
+
+test("un clic su una cella porta il cursore all'inizio del suo testo", () => {
+  const doc = "| A | B |\n|---|---|\n| uno | due |";
+  const [tabella] = marcature(nota(doc, 0), false).filter(
+    (m) => m.tipo === "tabella"
+  );
+  const celle = tabella?.tipo === "tabella" ? tabella.righe[1] : [];
+  expect(celle?.map((c) => doc.slice(c.da, c.da + 3))).toEqual(["uno", "due"]);
+});
+
+/** Le marcature di riga di un tipo, come `[testo della riga, bordo del riquadro di codice]`. */
+function righe(state: EditorState, tipo: string, focus = true) {
+  return marcature(state, focus)
+    .filter((m) => m.tipo === tipo)
+    .map((m) => [state.doc.lineAt(m.da).text, "bordo" in m ? m.bordo : null]);
+}
+
+test("fuori dal cursore un blocco di codice perde le righe dei ``` e resta un riquadro", () => {
+  const doc = "Prima\n```js\nuno\ndue\n```\nDopo";
+  expect(righe(nota(doc, 0), "nascosta")).toEqual([
+    ["```js", null],
+    ["```", null],
+  ]);
+  expect(righe(nota(doc, 0), "rigaCodice")).toEqual([
+    ["uno", "inizio"],
+    ["due", "fine"],
+  ]);
+  // Con il cursore nel blocco i ``` tornano e fanno parte del riquadro.
+  expect(righe(nota(doc, 14), "nascosta")).toEqual([]);
+  expect(righe(nota(doc, 14), "rigaCodice")).toEqual([
+    ["```js", "inizio"],
+    ["uno", ""],
+    ["due", ""],
+    ["```", "fine"],
+  ]);
+  // Un blocco di una riga, ancora senza chiusura, ha il riquadro intero.
+  expect(righe(nota("```\nuno", 0), "rigaCodice", false)).toEqual([
+    ["uno", "solo"],
+  ]);
+});
+
+test("una citazione perde i > fuori dalla riga del cursore e ha la barretta su ogni riga", () => {
+  const doc = "> Il cliente\n> conferma\n\nDopo";
+  expect(letta(nota(doc, 0))).toBe("> Il cliente\nconferma\n\nDopo");
+  expect(righe(nota(doc, 0), "citazione")).toEqual([
+    ["> Il cliente", null],
+    ["> conferma", null],
+  ]);
+});
+
+test("un separatore --- diventa una linea fuori dalla riga del cursore", () => {
+  const doc = "Uno\n\n---\n\nDue";
+  expect(letta(nota(doc, 0))).toBe("Uno\n\n\n\nDue");
+  expect(righe(nota(doc, 0), "separatore")).toEqual([["---", null]]);
+  expect(righe(nota(doc, 6), "separatore")).toEqual([]);
+  expect(letta(nota(doc, 6))).toBe(doc);
+});
+
+test("fuori dalla riga del cursore una voce d'elenco rientra del suo livello, senza spazi scritti", () => {
+  const doc = "- uno\n  - due\n    - [ ] tre\n1. primo\n10. decimo\n";
+  const state = nota(doc, 0);
+  expect(letta(state, false)).toBe(
+    "• uno\n• due\n☐ tre\n1. primo\n10. decimo\n"
+  );
+  expect(
+    marcature(state, false).flatMap((m) =>
+      m.tipo === "voce"
+        ? [[state.doc.lineAt(m.da).text, m.livello, m.numerata]]
+        : []
+    )
+  ).toEqual([
+    ["- uno", 0, false],
+    ["  - due", 1, false],
+    ["    - [ ] tre", 2, false],
+    ["1. primo", 0, true],
+    ["10. decimo", 0, true],
+  ]);
+  // Il numero resta com'è scritto, con lo spazio che lo segue.
+  expect(stili(state, false).filter(([t]) => t === "numero")).toEqual([
+    ["numero", "1. "],
+    ["numero", "10. "],
+  ]);
+  // La riga del cursore mostra il Markdown, senza rientro.
+  expect(righe(nota(doc, 8), "voce").map(([t]) => t)).not.toContain("  - due");
+});
+
+test("una riga vuota tra due blocchi è più bassa, anche con il cursore, ma non nel codice", () => {
+  const doc = "Uno\n\n  \nDue\n```\n\n```";
+  const vuote = (state: EditorState) =>
+    marcature(state, true)
+      .filter((m) => m.tipo === "vuota")
+      .map((m) => state.doc.lineAt(m.da).number);
+  expect(vuote(nota(doc, 0))).toEqual([2, 3]);
+  expect(vuote(nota(doc, 4))).toEqual([2, 3]);
 });
 
 test("Ctrl+T scrive il tempo del player al cursore, al posto della selezione", () => {
