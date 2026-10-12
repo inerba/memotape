@@ -305,6 +305,8 @@ Requisiti concordati l'8 ottobre 2026, ispirati alle parole personalizzate di Ha
 79. Come utente, voglio scegliere per i file e i Tape Nemotron 3 Diarization sperimentale, distinto dal modello di Trascrizione, mantenendo Sortformer come scelta iniziale e alternativa. Il GGUF della prova si sceglie localmente; assenza o incompatibilità danno un avviso senza sostituzione automatica.
 80. Come utente, voglio fino a 8 Parlanti per Ingresso con Nemotron e la dicitura "Parlante non determinato" per le Frasi con più voci non separabili, mantenendo testo, audio e tempi nella vista, in Copia testo e nel Markdown. Nelle Registrazioni con Trascrivi dal vivo Nemotron esegue l’analisi finale dopo Stop sull’audio salvato. Durante la Registrazione si esegue soltanto ASR: il testo cresce senza riconoscimento dei Parlanti. Dopo Stop, Frasi e testo si dividono ai cambi di Parlante quando i tempi ASR sono affidabili. Da Entrambi si riconoscono per Ingresso: fino a 8 per ogni Ingresso diarizzato, con identità indipendenti.
 
+84. Come utente, voglio dare un nome alla Registrazione già mentre registro, con un clic sul titolo della sua vista, fino a quando il Tape non è salvato, così ritrovo subito "Riunione Acme" invece di `Registrazione <data ora>`. Il nome sostituisce tutto, data compresa (resta nella data di creazione del Tape); se c'è già nella Raccolta si aggiunge " 2", " 3"…; vuoto torna al nome automatico. Se il Tape non si scrive, l'Ogg e i Markdown accanto prendono lo stesso nome.
+
 ### Impostazioni
 
 Le spiegazioni dei campi stanno in tooltip accanto all'icona di informazione,

@@ -12,9 +12,11 @@ import { nameProblem } from "@/features/library/library";
 
 /**
  * Il campo del nome di una Raccolta o del titolo di un Tape: Invio conferma un nome valido, Esc o
- * l'uscita dal campo annullano. Sotto, perché il nome non va.
+ * l'uscita dal campo annullano. Sotto, perché il nome non va. Con `allowEmpty` il campo vuoto si
+ * conferma.
  */
 export function NameInput({
+  allowEmpty = false,
   className = "h-8",
   initial,
   label,
@@ -22,6 +24,7 @@ export function NameInput({
   onSubmit,
   taken,
 }: {
+  allowEmpty?: boolean;
   /** Le classi del campo. */
   className?: string;
   initial: string;
@@ -38,7 +41,7 @@ export function NameInput({
     input.current?.focus();
     input.current?.select();
   }, []);
-  const problem = nameProblem(name, taken);
+  const problem = allowEmpty && name === "" ? null : nameProblem(name, taken);
   const change = useCallback(
     (e: ChangeEvent<HTMLInputElement>) => setName(e.target.value),
     []

@@ -720,6 +720,19 @@ pub fn save_recording_notes(
     recorder.salva_note(&session_id, note)
 }
 
+/// Il nome del Tape della Registrazione `session_id`, che si compone allo Stop: vuoto torna a
+/// `<prefisso> <data ora>`. Rifiuta con `invalidName` un nome che Windows non ammette. `false` se
+/// la Registrazione non c'è più o il Tape ha già il suo nome.
+#[tauri::command]
+#[specta::specta]
+pub fn set_recording_name(
+    recorder: State<'_, Recorder>,
+    session_id: String,
+    nome: String,
+) -> Result<bool, AppError> {
+    recorder.imposta_nome(&session_id, &nome)
+}
+
 /// Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop.
 #[tauri::command]
 #[specta::specta]

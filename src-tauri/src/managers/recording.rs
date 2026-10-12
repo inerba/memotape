@@ -197,6 +197,8 @@ struct Controls {
     /// Il Muto del microfono e dell'audio di sistema: ogni Registrazione parte senza.
     muto: [AtomicBool; 2],
     note: Mutex<NoteInCorso>,
+    /// Il nome scelto per il Tape durante la Registrazione; `None` è quello automatico.
+    nome: Mutex<Option<String>>,
 }
 
 impl Controls {
@@ -281,6 +283,25 @@ impl Controls {
         stato.note = note;
         stato.scrivi()?;
         Ok(true)
+    }
+
+    /// Il nome del Tape, senza estensione: vuoto torna quello automatico. Rifiuta un nome che
+    /// Windows non ammetterebbe.
+    fn imposta_nome(&self, nome: &str) -> Result<(), AppError> {
+        let nome = nome.trim();
+        if !nome.is_empty() {
+            crate::library::validate_name(nome)?;
+        }
+        *self.nome.lock().unwrap_or_else(PoisonError::into_inner) =
+            (!nome.is_empty()).then(|| nome.to_string());
+        Ok(())
+    }
+
+    fn nome(&self) -> Option<String> {
+        self.nome
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// L'Ogg del mix esiste: da qui le Note vivono anche nel file `path`.
@@ -377,6 +398,17 @@ impl Recorder {
         let controls = self.current().clone();
         match controls {
             Some(controls) if controls.session_id == session_id => controls.salva_note(note),
+            _ => Ok(false),
+        }
+    }
+
+    /// Il nome del Tape della Registrazione `session_id`, che si compone allo Stop. `false` se la
+    /// Registrazione non c'è più o il Tape ha già il suo nome.
+    pub fn imposta_nome(&self, session_id: &str, nome: &str) -> Result<bool, AppError> {
+        match self.current().as_deref() {
+            Some(controls) if controls.session_id == session_id => {
+                controls.imposta_nome(nome).map(|()| true)
+            }
             _ => Ok(false),
         }
     }
@@ -731,10 +763,14 @@ pub async fn record(
     // Fino a qui le Note si salvano anche dopo Stop: il frontend manda il testo ultimo.
     let note = controls.chiudi_note();
     drop(registration);
-    let path = save_tape(&folder, &destination, &prefix, &recorded, &document, &note)
-        .unwrap_or_else(|e| {
+    // Senza Registrazione registrata il nome non cambia più: vale l'ultimo scelto.
+    let nome = controls
+        .nome()
+        .unwrap_or_else(|| base_name(&prefix, recorded.start.naive_local()));
+    let path =
+        save_tape(&folder, &destination, &nome, &recorded, &document, &note).unwrap_or_else(|e| {
             error.get_or_insert(e);
-            keep_ogg(&folder, &prefix, &recorded, &note)
+            keep_ogg(&folder, &nome, &recorded, &note)
         });
     let transcription = live.map(|(transcript, transcribed)| match transcript {
         Some(transcript) => {
@@ -759,17 +795,11 @@ fn completa(transcribed: Option<&Result<(), AppError>>, cancelled: bool) -> bool
 }
 
 /// Senza Tape, l'Ogg temporaneo del mix esce dalla cartella nascosta e va nella radice della
-/// Libreria come `<prefisso> <data ora>.ogg`: è la Sorgente, con accanto il Markdown della
+/// Libreria come `<nome>.ogg`: è la Sorgente, con accanto il Markdown della
 /// Trascrizione dal vivo e delle Note, l'unico posto in cui restano. Se nemmeno
 /// questo riesce resta dov'è. Gli Ogg degli Ingressi restano nella cartella nascosta.
-fn keep_ogg(folder: &Path, prefix: &str, recorded: &Recorded, note: &[tape::Nota]) -> PathBuf {
-    let path = recording_path(
-        folder,
-        prefix,
-        recorded.start.naive_local(),
-        "ogg",
-        Path::exists,
-    );
+fn keep_ogg(folder: &Path, nome: &str, recorded: &Recorded, note: &[tape::Nota]) -> PathBuf {
+    let path = numbered(folder, nome, "ogg", Path::exists);
     let mix = recorded.mix();
     let ogg = match std::fs::rename(mix, &path) {
         Ok(()) => {
@@ -868,25 +898,24 @@ impl Recorded {
     }
 }
 
-/// Scrive il Tape `<prefisso> <data ora>.tape` nella cartella `destination` (una Raccolta della
+/// Scrive il Tape `<nome>.tape` (" 2", " 3"… se c'è già) nella cartella `destination` (una Raccolta della
 /// Libreria `folder`, o la radice se nel frattempo è sparita) con le Note `note`, e cancella gli Ogg
 /// temporanei e il file delle Note, e con loro la cartella nascosta se resta vuota.
 fn save_tape(
     folder: &Path,
     destination: &Path,
-    prefix: &str,
+    nome: &str,
     recorded: &Recorded,
     document: &tape::Document,
     note: &[tape::Nota],
 ) -> Result<PathBuf, AppError> {
-    let path = recording_path(
+    let path = numbered(
         if destination.is_dir() {
             destination
         } else {
             folder
         },
-        prefix,
-        recorded.start.naive_local(),
+        nome,
         "tape",
         Path::exists,
     );
@@ -1350,17 +1379,6 @@ fn device_error(capture: &Capture) -> Option<cpal::Error> {
 
 fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
     AppError::UnwritableFolder(format!("{}: {e}", path.display()))
-}
-
-/// `<prefisso> AAAA-MM-GG HH-MM-SS.<extension>` in `folder`, con " 2", " 3"… se il nome esiste già.
-pub fn recording_path(
-    folder: &Path,
-    prefix: &str,
-    start: NaiveDateTime,
-    extension: &str,
-    exists: impl Fn(&Path) -> bool,
-) -> PathBuf {
-    numbered(folder, &base_name(prefix, start), extension, exists)
 }
 
 /// `<prefisso> AAAA-MM-GG HH-MM-SS`, il nome di una Registrazione senza estensione.
@@ -1997,7 +2015,7 @@ mod tests {
         );
         // Il nome è già preso: non si sovrascrive.
         std::fs::write(folder.join(format!("{base} Note.md")), "mio").unwrap();
-        let ogg = keep_ogg(&folder, "Registrazione", &recorded, &controls.chiudi_note());
+        let ogg = keep_ogg(&folder, &base, &recorded, &controls.chiudi_note());
         assert_eq!(ogg, folder.join(format!("{base}.ogg")));
         let letto = |nome: &str| std::fs::read_to_string(folder.join(nome)).unwrap();
         assert_eq!(letto(&format!("{base} Note.md")), "mio");
@@ -2006,6 +2024,69 @@ mod tests {
         assert_eq!(letto(&format!("{base} Domande- 10-11.md")), "Due");
         assert!(!folder.join(format!("{base} Vuota.md")).exists());
         assert!(!folder.join(TEMP_FOLDER).exists());
+    }
+
+    #[test]
+    fn il_nome_scelto_durante_la_registrazione_diventa_quello_del_tape() {
+        use crate::audio_toolkit::ogg_opus::tests::temp_dir;
+        let folder = temp_dir("registrazione-nome");
+        let recorder = Recorder::default();
+        // Senza Registrazione il nome non va da nessuna parte.
+        assert_eq!(recorder.imposta_nome("s1", "Riunione"), Ok(false));
+        let controls = Arc::new(Controls {
+            session_id: "s1".into(),
+            ..Controls::default()
+        });
+        let registration = recorder.register(&controls, &Settings::default());
+        assert_eq!(controls.nome(), None);
+        assert_eq!(recorder.imposta_nome("altra", "Riunione"), Ok(false));
+        assert_eq!(recorder.imposta_nome("s1", " Riunione "), Ok(true));
+        assert_eq!(controls.nome().as_deref(), Some("Riunione"));
+        // Un nome che Windows non ammette non sostituisce l'ultimo valido.
+        assert_eq!(
+            recorder.imposta_nome("s1", "a/b"),
+            Err(AppError::InvalidName("a/b".into()))
+        );
+        assert_eq!(controls.nome().as_deref(), Some("Riunione"));
+        // Vuoto torna al nome automatico.
+        recorder.imposta_nome("s1", "  ").unwrap();
+        assert_eq!(controls.nome(), None);
+        recorder.imposta_nome("s1", "Riunione").unwrap();
+        // Dopo lo Stop vale l'ultimo nome scelto, numerato se è già preso.
+        drop(registration);
+        assert_eq!(recorder.imposta_nome("s1", "Tardi"), Ok(false));
+        let document = tape::Document::new(
+            "2026-10-04T10:15:00+02:00".into(),
+            100,
+            tape::Modalita::Mix,
+            None,
+            crate::managers::settings::SpeechLanguage::auto(),
+            false,
+            &[],
+        );
+        let nome = controls.nome().unwrap();
+        let primo = save_tape(
+            &folder,
+            &folder,
+            &nome,
+            &registrata(&folder, "uno.ogg"),
+            &document,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(primo, folder.join("Riunione.tape"));
+        let secondo = save_tape(
+            &folder,
+            &folder,
+            &nome,
+            &registrata(&folder, "due.ogg"),
+            &document,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(secondo, folder.join("Riunione 2.tape"));
+        let ogg = keep_ogg(&folder, &nome, &registrata(&folder, "tre.ogg"), &[]);
+        assert_eq!(ogg, folder.join("Riunione.ogg"));
     }
 
     fn at(s: &str) -> NaiveDateTime {
@@ -2059,7 +2140,7 @@ mod tests {
         let path = save_tape(
             &folder,
             &raccolta,
-            "Registrazione",
+            &base_name("Registrazione", start.naive_local()),
             &recorded(),
             &document,
             &[],
@@ -2096,14 +2177,18 @@ mod tests {
         let taken =
             |names: &'static [&str]| move |p: &Path| names.iter().any(|n| p == folder.join(n));
         assert_eq!(
-            recording_path(folder, "Registrazione", start, "tape", taken(&[])),
+            numbered(
+                folder,
+                &base_name("Registrazione", start),
+                "tape",
+                taken(&[])
+            ),
             folder.join("Registrazione 2026-03-07 09-05-01.tape")
         );
         assert_eq!(
-            recording_path(
+            numbered(
                 folder,
-                "Recording",
-                start,
+                &base_name("Recording", start),
                 "ogg",
                 taken(&[
                     "Recording 2026-03-07 09-05-01.ogg",

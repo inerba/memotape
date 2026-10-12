@@ -190,6 +190,12 @@ export const commands = {
 	 *  all'Ogg e allo Stop nel Tape. `false` se la Registrazione non c'è più o le Note sono già nel Tape.
 	 */
 	saveRecordingNotes: (sessionId: string, note: NotaInRegistrazione[]) => typedError<boolean, AppError>(__TAURI_INVOKE("save_recording_notes", { sessionId, note })),
+	/**
+	 *  Il nome del Tape della Registrazione `session_id`, che si compone allo Stop: vuoto torna a
+	 *  `<prefisso> <data ora>`. Rifiuta con `invalidName` un nome che Windows non ammette. `false` se
+	 *  la Registrazione non c'è più o il Tape ha già il suo nome.
+	 */
+	setRecordingName: (sessionId: string, nome: string) => typedError<boolean, AppError>(__TAURI_INVOKE("set_recording_name", { sessionId, nome })),
 	/**  Annulla il preavvio della sessione; se l'audio è già partito equivale a Stop. */
 	cancelRecordingStart: (sessionId: string) => __TAURI_INVOKE<void>("cancel_recording_start", { sessionId }),
 	/**  La Cartella della Libreria in uso: quella delle impostazioni o `Documenti\Memotape`. */

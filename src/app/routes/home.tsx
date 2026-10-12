@@ -62,6 +62,7 @@ import { TapeMenu } from "@/features/library/tape-actions";
 import type { TapeOperations } from "@/features/library/tape-context-menu";
 import {
   DocumentHeader,
+  EditableTitle,
   entryOf,
   TapeHeader,
   titleOf,
@@ -194,6 +195,22 @@ export function HomePage() {
     onError: setNotice,
     session,
   });
+  // Il nome scelto per il Tape della Registrazione: vale fino a quando il Tape è composto.
+  const [nomeRegistrazione, setNomeRegistrazione] = useState<{
+    nome: string;
+    sessionId: string;
+  } | null>(null);
+  const nominaRegistrazione = useCallback(
+    async (sessionId: string, nome: string) => {
+      const result = await commands.setRecordingName(sessionId, nome);
+      if (result.status === "error") {
+        setNotice(result.error);
+      } else if (result.data) {
+        setNomeRegistrazione({ nome: nome.trim(), sessionId });
+      }
+    },
+    []
+  );
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [copied, setCopied] = useState(false);
   // L'esito o l'errore chiuso dall'utente: l'avviso torna con la fase successiva.
@@ -1127,10 +1144,16 @@ export function HomePage() {
             conversation={conversation}
             copied={copied}
             elapsedMs={elapsedMs}
+            nome={
+              "id" in session && nomeRegistrazione?.sessionId === session.id
+                ? nomeRegistrazione.nome
+                : ""
+            }
             note={noteRegistrazione}
             onCopy={copyActivity}
             onError={setNotice}
             onMessage={setMessage}
+            onNome={nominaRegistrazione}
             onPausedChange={setPaused}
             paused={paused}
             sessionId={"id" in session ? session.id : null}
@@ -1274,10 +1297,12 @@ function LiveView({
   conversation,
   copied,
   elapsedMs,
+  nome,
   note,
   onCopy,
   onError,
   onMessage,
+  onNome,
   onPausedChange,
   paused,
   sessionId,
@@ -1288,10 +1313,13 @@ function LiveView({
   conversation: Conversation;
   copied: boolean;
   elapsedMs: number;
+  /** Il nome scelto per il Tape; vuoto quello automatico. */
+  nome: string;
   note: NoteDelTape;
   onCopy: () => void;
   onError: (error: AppError) => void;
   onMessage: (text: string) => void;
+  onNome: (sessionId: string, nome: string) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
   sessionId: string | null;
@@ -1302,11 +1330,29 @@ function LiveView({
   const [tab, setTab] = useState<DocumentTab>("transcript");
   const live = settings.trascrizioneDalVivo ?? false;
   const recording = status.phase === "recording";
+  const nomina = useCallback(
+    (name: string) => {
+      if (sessionId) {
+        onNome(sessionId, name);
+      }
+    },
+    [onNome, sessionId]
+  );
   const header = (
     <>
       <DocumentHeader
         meta={live ? t("live.on") : null}
-        title={t("live.title")}
+        title={
+          // Nessun nome è preso: se c'è già nella Raccolta, allo Stop si numera.
+          <EditableTitle
+            allowEmpty
+            disabled={sessionId === null}
+            initial={nome}
+            onSubmit={nomina}
+            taken={NO_TAKEN}
+            title={nome || t("live.title")}
+          />
+        }
       />
       <DocumentToolbar
         hasText={false}
@@ -1519,6 +1565,7 @@ function UpdateNotice({
 
 /** Senza Parlanti da rinominare: sempre lo stesso array, così i turni memoizzati non cambiano. */
 const NO_PARLANTI: Parlante[] = [];
+const NO_TAKEN: string[] = [];
 
 /** L'avviso della finestra, che ogni vista mette sotto la sua barra in alto. */
 const BannerSlot = createContext<ReactNode>(null);

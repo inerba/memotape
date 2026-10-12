@@ -73,17 +73,11 @@ export function TapeHeader({
   path: string;
 }) {
   const { i18n, t } = useTranslation();
-  const [renaming, setRenaming] = useState(false);
   const entry = entryOf(library, path);
   const titolo = titleOf(library, path);
 
-  const start = useCallback(() => setRenaming(true), []);
-  const cancel = useCallback(() => setRenaming(false), []);
   const submit = useCallback(
-    (name: string) => {
-      setRenaming(false);
-      onRename(path, name);
-    },
+    (name: string) => onRename(path, name),
     [onRename, path]
   );
   const changeCreato = useCallback(
@@ -120,28 +114,69 @@ export function TapeHeader({
         ) : null
       }
       title={
-        renaming ? (
-          <NameInput
-            className="h-auto py-1 font-display text-[2rem] leading-tight md:text-[2rem]"
-            initial={titolo}
-            label={t("library.renameName")}
-            onCancel={cancel}
-            onSubmit={submit}
-            taken={siblingTitles(library, path)}
-          />
-        ) : (
-          <button
-            className="block max-w-full cursor-text text-pretty rounded-md text-left text-[2rem] decoration-2 decoration-muted-foreground/30 underline-offset-8 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
-            disabled={disabled}
-            onClick={start}
-            title={t("library.rename")}
-            type="button"
-          >
-            {titolo}
-          </button>
-        )
+        <EditableTitle
+          disabled={disabled}
+          initial={titolo}
+          onSubmit={submit}
+          taken={siblingTitles(library, path)}
+          title={titolo}
+        />
       }
     />
+  );
+}
+
+/**
+ * Il titolo grande di un documento, che un clic rinomina: Invio conferma un nome valido, Esc o
+ * l'uscita dal campo annullano. Con `allowEmpty` si conferma anche il campo vuoto.
+ */
+export function EditableTitle({
+  allowEmpty,
+  disabled,
+  initial,
+  onSubmit,
+  taken,
+  title,
+}: {
+  allowEmpty?: boolean;
+  disabled: boolean;
+  /** Il testo del campo all'apertura. */
+  initial: string;
+  onSubmit: (name: string) => void;
+  taken: string[];
+  title: string;
+}) {
+  const { t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const start = useCallback(() => setRenaming(true), []);
+  const cancel = useCallback(() => setRenaming(false), []);
+  const submit = useCallback(
+    (name: string) => {
+      setRenaming(false);
+      onSubmit(name);
+    },
+    [onSubmit]
+  );
+  return renaming ? (
+    <NameInput
+      allowEmpty={allowEmpty}
+      className="h-auto py-1 font-display text-[2rem] leading-tight md:text-[2rem]"
+      initial={initial}
+      label={t("library.renameName")}
+      onCancel={cancel}
+      onSubmit={submit}
+      taken={taken}
+    />
+  ) : (
+    <button
+      className="block max-w-full cursor-text text-pretty rounded-md text-left text-[2rem] decoration-2 decoration-muted-foreground/30 underline-offset-8 hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-default disabled:no-underline"
+      disabled={disabled}
+      onClick={start}
+      title={t("library.rename")}
+      type="button"
+    >
+      {title}
+    </button>
   );
 }
 
