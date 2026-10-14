@@ -105,7 +105,7 @@ pub fn catalog() -> &'static [Model] {
     &CATALOG.models
 }
 
-/// Il modello consigliato e predefinito (Nemotron).
+/// Il modello consigliato e predefinito (Parakeet).
 pub fn default_model() -> &'static Model {
     find(&CATALOG.default).expect("il modello predefinito è nel catalogo")
 }
@@ -762,19 +762,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn il_catalogo_ha_i_tre_modelli_con_nemotron_predefinito_e_sortformer() {
+    fn il_catalogo_ha_i_tre_modelli_con_parakeet_predefinito_e_sortformer() {
         let ids: Vec<_> = catalog().iter().map(|m| m.id.as_str()).collect();
         assert_eq!(
             ids,
             [
+                "parakeet-tdt-0.6b-v3-q5km",
                 "nemotron-3.5-streaming-0.6b-q5km",
                 "whisper-large-v3-turbo-q5km",
-                "parakeet-tdt-0.6b-v3-q5km",
                 "sortformer-4spk-v2.1-q8"
             ]
         );
-        let nemotron = default_model();
-        assert_eq!(nemotron.id, ids[0]);
+        let parakeet = default_model();
+        assert_eq!(parakeet.id, ids[0]);
+        assert_eq!(parakeet.mode, Some(Mode::Phrase));
+        assert!(!parakeet.accepts_language);
+        let nemotron = find(ids[1]).unwrap();
         assert_eq!(nemotron.mode, Some(Mode::Stream));
         assert!(ids[..3].iter().all(|id| find_transcriber(id).is_some()));
         // Sortformer non si sceglie come modello di trascrizione.

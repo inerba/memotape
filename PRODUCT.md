@@ -11,7 +11,7 @@ Chi deve sbobinare lezioni, riunioni, interviste o video oggi carica i file su s
 Memotape è un'app desktop solo Windows x64 (Tauri 2 + React).
 - **Sorgente.** L'utente apre un file audio, video o Tape con "Apri file" o dalla Libreria, oppure lo crea con una Registrazione da microfono, audio di sistema o entrambi. Il file diventa la Sorgente.
 - **Libreria.** La cartella in cui Memotape salva i Tape, sempre visibile nella barra laterale; le sue cartelle sono le Raccolte, per esempio una per cliente (ADR-0008). Un campo di ricerca trova le parole nei titoli, nelle Frasi e nei nomi dei Parlanti.
-- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Nemotron Streaming consigliato, Whisper Large v3 Turbo, Parakeet TDT v3). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Tape nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Tape si legge a turni, si corregge liberamente dentro ciascun Turno e si esporta in Markdown.
+- **Trascrizione.** Trascrivi riconosce il parlato in locale con uno di tre modelli (Parakeet TDT v3 consigliato, Nemotron Streaming, Whisper Large v3 Turbo). Il testo di un file compare tutto insieme in un'area dedicata a Trascrizione finita, mentre quello di una Registrazione con Trascrivi dal vivo compare Frase per Frase, con Nemotron anche come Parziale mentre la Frase è in corso. Un file trascritto diventa un Tape nella Raccolta scelta, con l'audio e il testo con i tempi (ADR-0009); il testo di un Tape si legge a turni, si corregge liberamente dentro ciascun Turno e si esporta in Markdown.
 - **Assistenti.** Con il permesso dell'utente, Claude o Codex cercano e leggono i Tape della Libreria attraverso un server MCP, anche con Memotape chiuso (ADR-0012); con un secondo permesso li modificano come farebbe l'utente (ADR-0031).
 - **Impostazioni.** Restano salvate tra un avvio e l'altro. L'interfaccia è disponibile in sei lingue.
 
@@ -235,7 +235,7 @@ non verificati come nel ticket 02; nessun rilascio è autorizzato.
 ### Modelli
 
 29. Come utente, voglio vedere in Impostazioni → Trascrizione i tre modelli con dimensione del download e modalità del testo (in streaming o a fine frase), così scelgo consapevolmente.
-30. Come utente, voglio che Nemotron sia indicato come consigliato e selezionato per default, così parto dalla scelta migliore.
+30. Come utente, voglio che Parakeet sia indicato come consigliato e selezionato per default, così parto dalla scelta migliore: sulle Registrazioni reali dà Frasi più accurate in italiano di Nemotron, che resta nella lista per chi vuole i Parziali (decisione del 14 ottobre 2026).
 31. Come utente, voglio scaricare un modello vedendo l'avanzamento in percentuale, così so quanto manca.
 32. Come utente, voglio che un modello diventi utilizzabile solo dopo la verifica d'integrità (dimensione e SHA-256), così non trascrivo con un file corrotto.
 33. Come utente, voglio un errore dedicato se la verifica fallisce, così riprovo il download.
@@ -367,7 +367,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
   - Scarica, Annulla (cancella il file incompleto, anche durante la verifica), Riprendi (da dove si era fermato, anche dopo la chiusura dell'app) ed Elimina, con conferma; Elimina toglie anche un file incompleto e, durante un download, vale come Annulla. Si possono scaricare più modelli insieme.
   - Il download continua mentre si usa il resto dell'app. Un download fallito o un modello corrotto (SHA-256 errato, file incompleto cancellato) mostrano un errore dedicato sulla riga del modello, che resta finché non si riprova.
 - **M3, seconda parte (ticket 06)**: storie 22–26, 30, 37, 39 e 62; della 61 restano salvati modello e Lingua del parlato, gli altri campi esistono già nel file e diventano scelte con i ticket 08 e 10.
-  - In Impostazioni → Trascrizione si sceglie il modello, Nemotron di default. Si può scegliere anche un modello non scaricato: Trascrivi mostra "modello assente" con il link a Impostazioni → Trascrizione.
+  - In Impostazioni → Trascrizione si sceglie il modello, Parakeet di default. Si può scegliere anche un modello non scaricato: Trascrivi mostra "modello assente" con il link a Impostazioni → Trascrizione.
   - Il selettore della Lingua del parlato sta accanto a Trascrivi: "Automatica" e tutte le lingue del modello scelto (32 per Nemotron, 99 per Whisper, 25 per Parakeet), con il nome nella Lingua dell'interfaccia. Finché il modello non è caricato offre solo la scelta salvata.
   - Con una Lingua del parlato scelta, una Frase con lettere di un'altra scrittura (il cirillico in una Trascrizione in italiano; il latino vale sempre) si scarta: è un'invenzione del modello su audio incomprensibile. Parakeet non usa la lingua indicata e la riconosce Frase per Frase: il menu lo dice, e la scelta serve solo a questo filtro. Whisper scarta la Frase quando la sua confidenza è bassa, invece di ritentare a temperature più alte, che producevano parole a caso in più lingue.
   - Le impostazioni stanno in `settings.json` nella cartella dati dell'app. Un file mancante, corrotto o non valido riporta ai predefiniti senza bloccare l'avvio.

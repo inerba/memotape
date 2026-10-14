@@ -61,7 +61,7 @@ test("il diarizer si sceglie separatamente e il percorso locale non va perso", (
 });
 
 test("i predefiniti sono quelli di Rust", () => {
-  expect(defaults.model).toBe("nemotron-3.5-streaming-0.6b-q5km");
+  expect(defaults.model).toBe("parakeet-tdt-0.6b-v3-q5km");
   expect([
     defaults.bitrateKbps,
     defaults.channels,

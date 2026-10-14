@@ -197,7 +197,14 @@ fn due_ingressi_nativi_release(protected: bool) {
     // Caricamenti e riscaldamento fuori dalla cattura; le istanze lavorano sugli Ingressi separati.
     let mut engines = Vec::new();
     for _ in 0..2 {
-        engines.push(TranscribeCpp::load(&models::default_model().path(&models_dir)).unwrap());
+        engines.push(
+            TranscribeCpp::load(
+                &models::find("nemotron-3.5-streaming-0.6b-q5km")
+                    .unwrap()
+                    .path(&models_dir),
+            )
+            .unwrap(),
+        );
     }
     let backlogs: Vec<_> = pairs.iter().map(|(_, frames)| frames.backlog()).collect();
     let mut feeds = Vec::new();
@@ -449,7 +456,12 @@ fn due_ingressi_nativi_release(protected: bool) {
         tape::creato(recorded.start),
         durata_ms,
         tape::Modalita::IngressiSeparati,
-        Some(models::default_model().id.clone()),
+        Some(
+            models::find("nemotron-3.5-streaming-0.6b-q5km")
+                .unwrap()
+                .id
+                .clone(),
+        ),
         SpeechLanguage::from("it"),
         true,
         &phrases,

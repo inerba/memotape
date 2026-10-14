@@ -704,7 +704,7 @@ mod tests {
     fn senza_file_valgono_i_predefiniti() {
         let settings = Settings::load(&temp_file("assente")).unwrap();
         assert_eq!(settings, Settings::default());
-        assert_eq!(settings.model, "nemotron-3.5-streaming-0.6b-q5km");
+        assert_eq!(settings.model, "parakeet-tdt-0.6b-v3-q5km");
         assert_eq!(settings.speech_language, SpeechLanguage::auto());
         assert_eq!(settings.recording_source, RecordingSource::Mic);
         assert_eq!(
