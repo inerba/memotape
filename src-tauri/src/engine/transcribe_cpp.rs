@@ -395,6 +395,17 @@ fn init_backends() -> Result<(), EngineError> {
     static BACKENDS: OnceLock<Result<(), EngineError>> = OnceLock::new();
     BACKENDS
         .get_or_init(|| {
+            // Con le matrici cooperative di NVIDIA (`NV_coopmat2`) l'encoder di Parakeet su Vulkan
+            // dà a volte un risultato guasto: la Frase diventava "tamb tamb tamb…" per tutta la sua
+            // durata, 39 volte su 60 sullo stesso audio di una Registrazione (RTX 2070 SUPER), 0 su
+            // 60 senza, e senza è anche più veloce. ggml legge `GGML_VK_DISABLE_COOPMAT2` con
+            // `getenv` all'avvio del dispositivo, dall'ambiente dell'UCRT: `std::env::set_var` (`SetEnvironmentVariableW`)
+            // non lo aggiorna, `_putenv_s` sì.
+            unsafe extern "C" {
+                fn _putenv_s(name: *const std::ffi::c_char, value: *const std::ffi::c_char) -> i32;
+            }
+            // SAFETY: stringhe C costanti; l'UCRT protegge l'ambiente con il suo lock.
+            unsafe { _putenv_s(c"GGML_VK_DISABLE_COOPMAT2".as_ptr(), c"1".as_ptr()) };
             catch_native(transcribe_cpp::init_backends_default)?;
             let devices: Vec<_> = transcribe_cpp::devices()
                 .into_iter()
