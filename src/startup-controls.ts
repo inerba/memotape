@@ -33,6 +33,10 @@ function setupWindowControls() {
   const update = async () => {
     const maximized = await win.isMaximized();
     const label = window.__MEMOTAPE_STARTUP__?.window;
+    if (maximize) {
+      // ChromeRestore o ChromeMaximize di Segoe Fluent Icons.
+      maximize.textContent = maximized ? "" : "";
+    }
     if (label && maximize) {
       maximize.setAttribute(
         "aria-label",

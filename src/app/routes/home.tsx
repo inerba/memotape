@@ -1,7 +1,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { TFunction } from "i18next";
-import { Check, CircleAlert, Copy, X } from "lucide-react";
+import { Check, CircleAlert, CircleArrowDown, Copy, X } from "lucide-react";
 import {
   createContext,
   type ReactNode,
@@ -33,6 +33,7 @@ import {
   type TapeEntry,
   type UpdateInfo,
 } from "@/bindings";
+import { AVVISO_ERRORE, AVVISO_ESITO } from "@/components/avviso";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1539,7 +1540,8 @@ function UpdateNotice({
     [update.url]
   );
   return (
-    <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-sidebar-border bg-background/60 py-2 pr-2 pl-3 text-sm">
+    <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-input bg-card py-2 pr-2 pl-3 text-sm">
+      <CircleArrowDown className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
       <p className="min-w-0 flex-1 leading-relaxed" role="status">
         {t("status.updateAvailable", { version: update.version })}{" "}
         <button
@@ -1630,8 +1632,8 @@ function BannerView({
   const error = banner.tone === "error";
   return (
     <div
-      className={`motion-safe:fade-in mx-auto mt-4 flex w-[min(46rem,calc(100%-4rem))] shrink-0 items-start gap-3 rounded-xl border bg-card px-4 py-3 text-sm motion-safe:animate-in ${
-        error ? "border-destructive/35" : ""
+      className={`motion-safe:fade-in mx-auto mt-4 flex w-[min(46rem,calc(100%-4rem))] shrink-0 items-start gap-3 rounded-xl border px-4 py-3 text-sm motion-safe:animate-in ${
+        error ? AVVISO_ERRORE : AVVISO_ESITO
       }`}
       role={error ? "alert" : "status"}
     >

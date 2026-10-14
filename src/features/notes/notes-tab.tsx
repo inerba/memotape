@@ -29,6 +29,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, commands } from "@/bindings";
+import { AVVISO_ERRORE } from "@/components/avviso";
 import { closeMenu, PopoverMenu } from "@/components/popover-menu";
 import {
   AlertDialog,
@@ -361,7 +362,7 @@ function NoteLette({
       </div>
       {sua ? (
         <div
-          className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 text-sm"
+          className={`mb-4 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${AVVISO_ERRORE}`}
           role="alert"
         >
           <CircleAlert className="size-4 shrink-0 text-destructive" />

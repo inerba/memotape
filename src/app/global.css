@@ -10,6 +10,8 @@
   /* Solo per titoli e marchio: FLAR allarga le aste alle estremità, VOLM rende le forme più piene. */
   --font-display: "Commissioner Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display--font-variation-settings: "FLAR" 100, "VOLM" 50;
+  /* I glifi dei pulsanti della finestra, gli stessi di Windows 11 (MDL2 su Windows 10). */
+  --font-caption: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
