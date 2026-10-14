@@ -389,6 +389,7 @@
     "title": "About",
     "description": "The app version and the licenses of the components it uses.",
     "version": "Version {{version}}",
+    "repo": "Source code on GitHub",
     "source": "Source: {{url}}",
     "converted": "Memotape downloads the version converted to GGUF and quantized ({{quantization}}) by handy-computer.",
     "licenseText": "License text",

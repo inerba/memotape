@@ -390,6 +390,7 @@
     "title": "Información",
     "description": "La versión de la aplicación y las licencias de los componentes que usa.",
     "version": "Versión {{version}}",
+    "repo": "Código fuente en GitHub",
     "source": "Fuente: {{url}}",
     "converted": "Memotape descarga la versión convertida a GGUF y cuantizada ({{quantization}}) por handy-computer.",
     "licenseText": "Texto de la licencia",

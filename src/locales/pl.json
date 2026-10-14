@@ -391,6 +391,7 @@
     "title": "Informacje",
     "description": "Wersja aplikacji i licencje używanych przez nią komponentów.",
     "version": "Wersja {{version}}",
+    "repo": "Kod źródłowy na GitHub",
     "source": "Źródło: {{url}}",
     "converted": "Aplikacja Memotape pobiera wersję przekonwertowaną do formatu GGUF i skwantyzowaną ({{quantization}}) przez handy-computer.",
     "licenseText": "Tekst licencji",
