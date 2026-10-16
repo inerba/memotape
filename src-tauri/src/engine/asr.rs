@@ -53,6 +53,64 @@ impl AsrResult {
         result
     }
 
+    /// La Frase fatta di questo pezzo e di `altra`, il pezzo che inizia `offset_ms` dopo: i testi
+    /// separati da uno spazio, i tempi di `altra` spostati. Basta un pezzo con testo e senza tempi
+    /// perché la Frase resti senza tempi, come in `timed`.
+    pub fn unita(mut self, altra: Self, offset_ms: u32) -> Self {
+        if altra.text.is_empty() {
+            return self;
+        }
+        if self.text.is_empty() {
+            return Self {
+                text: altra.text,
+                tempi: altra
+                    .tempi
+                    .into_iter()
+                    .map(|t| TempoTesto {
+                        inizio_ms: t.inizio_ms + offset_ms,
+                        fine_ms: t.fine_ms + offset_ms,
+                        ..t
+                    })
+                    .collect(),
+            };
+        }
+        let inizio = self.text.len() + 1;
+        let tempi = !self.tempi.is_empty() && !altra.tempi.is_empty();
+        self.text.push(' ');
+        self.text.push_str(&altra.text);
+        if !tempi {
+            self.tempi.clear();
+            return self;
+        }
+        if let Some(ultimo) = self.tempi.last_mut() {
+            ultimo.fine_byte = inizio;
+        }
+        self.tempi
+            .extend(altra.tempi.into_iter().map(|t| TempoTesto {
+                inizio_byte: t.inizio_byte + inizio,
+                fine_byte: t.fine_byte + inizio,
+                inizio_ms: t.inizio_ms + offset_ms,
+                fine_ms: t.fine_ms + offset_ms,
+            }));
+        self
+    }
+
+    /// Il parziale di un pezzo che il modello non ha finito (un loop), seguito da `segnaposto`
+    /// («[incomprensibile]») sul resto del pezzo, fino a `fine_ms`.
+    pub fn con_segnaposto(self, segnaposto: &str, fine_ms: u32) -> Self {
+        let da = self.tempi.last().map_or(0, |t| t.fine_ms).min(fine_ms);
+        let resto = Self {
+            text: segnaposto.to_owned(),
+            tempi: vec![TempoTesto {
+                inizio_byte: 0,
+                fine_byte: segnaposto.len(),
+                inizio_ms: 0,
+                fine_ms: fine_ms - da,
+            }],
+        };
+        self.unita(resto, da)
+    }
+
     /// Interseca il solo padding encoder (un passo di 80 ms nei modelli fissati) con l'audio
     /// reale, poi trasla i tempi. Un intervallo esterno più lungo non è utilizzabile.
     pub fn on_source(mut self, start: u32, end: u32) -> Self {
@@ -218,6 +276,65 @@ mod tests {
             .on_source(5000, 6000);
         assert!(result.tempi.is_empty());
         assert_eq!(result.text, "Uno due.");
+    }
+
+    fn tempo(inizio_byte: usize, fine_byte: usize, inizio_ms: u32, fine_ms: u32) -> TempoTesto {
+        TempoTesto {
+            inizio_byte,
+            fine_byte,
+            inizio_ms,
+            fine_ms,
+        }
+    }
+
+    #[test]
+    fn due_pezzi_di_una_frase_diventano_una_con_i_tempi_del_secondo_spostati() {
+        let prima = AsrResult::timed(
+            "No, no.".into(),
+            [(0, 400, "No,".into()), (500, 900, "no.".into())],
+        );
+        let seconda = AsrResult::timed(
+            "Devi farlo.".into(),
+            [(100, 600, "Devi".into()), (700, 1200, "farlo.".into())],
+        );
+        let unita = prima.clone().unita(seconda, 6255);
+        assert_eq!(unita.text, "No, no. Devi farlo.");
+        assert_eq!(
+            unita.tempi,
+            [
+                tempo(0, 4, 0, 400),
+                tempo(4, 8, 500, 900),
+                tempo(8, 13, 6355, 6855),
+                tempo(13, 19, 6955, 7455),
+            ]
+        );
+        // Un pezzo senza testo non lascia spazi; uno senza tempi toglie i tempi a tutta la Frase.
+        assert_eq!(prima.clone().unita(AsrResult::default(), 6255), prima);
+        let senza_tempi = prima.unita(AsrResult::from("Devi farlo.".to_string()), 6255);
+        assert_eq!(senza_tempi.text, "No, no. Devi farlo.");
+        assert!(senza_tempi.tempi.is_empty());
+    }
+
+    #[test]
+    fn dopo_il_parziale_il_segnaposto_copre_il_resto_del_pezzo() {
+        let parziale = AsrResult::timed(
+            "Io non so.".into(),
+            [(0, 300, "Io".into()), (300, 900, "non so.".into())],
+        );
+        let pezzo = parziale.con_segnaposto("[incomprensibile]", 5800);
+        assert_eq!(pezzo.text, "Io non so. [incomprensibile]");
+        assert_eq!(
+            pezzo.tempi,
+            [
+                tempo(0, 3, 0, 300),
+                tempo(3, 11, 300, 900),
+                tempo(11, 28, 900, 5800)
+            ]
+        );
+        // Senza parziale resta il solo segnaposto, su tutto il pezzo.
+        let vuoto = AsrResult::default().con_segnaposto("[incomprensibile]", 5800);
+        assert_eq!(vuoto.text, "[incomprensibile]");
+        assert_eq!(vuoto.tempi, [tempo(0, 17, 0, 5800)]);
     }
 
     #[test]

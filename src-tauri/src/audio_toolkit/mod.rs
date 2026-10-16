@@ -5,6 +5,7 @@ pub mod cleaning;
 pub mod decode;
 pub mod deepfilter;
 pub mod forma_onda;
+pub mod livello;
 pub mod mixer;
 pub mod ogg_opus;
 pub mod processing;

@@ -55,7 +55,8 @@
     "mergeCancel": "Abbrechen",
     "editTurn": "Text des Sprechbeitrags bearbeiten: {{name}}",
     "emptyTurn": "Block ohne Text",
-    "turnSaveFailed": "Korrektur nicht gespeichert. Ihr Text bleibt hier; verlassen Sie das Feld erneut, um es nochmals zu versuchen."
+    "turnSaveFailed": "Korrektur nicht gespeichert. Ihr Text bleibt hier; verlassen Sie das Feld erneut, um es nochmals zu versuchen.",
+    "unintelligible": "[unverständlich]"
   },
   "diarization": {
     "start": "Diarisieren",
@@ -126,7 +127,7 @@
       "liveTranscriptionUnavailable": "Live-Transkription nicht verfügbar: Das Modell {{detail}} ist nicht heruntergeladen oder lässt sich nicht laden (die Aufnahme wird trotzdem gespeichert)",
       "unsupportedTape": "Dieses Tape stammt aus einer neueren Version von Memotape: Aktualisiere die App, um es zu öffnen",
       "invalidName": "Ungültiger Name: {{detail}}. Nicht erlaubt sind < > : \" / \\ | ? *, reservierte Namen wie CON, ein Punkt am Anfang sowie ein Punkt oder Leerzeichen am Ende",
-      "invalidTermine": "Der Begriff {{detail}} enthält <| oder |>, was der Whisper-Prompt nicht zulässt",
+      "invalidTermine": "Der Begriff {{detail}} enthält <| oder |>, die den Transkriptionsmodellen vorbehalten sind",
       "nameTaken": "Der Name {{detail}} wird bereits verwendet",
       "raccoltaNotEmpty": "Die Sammlung {{detail}} ist nicht leer: Verschiebe oder lösche zuerst ihre Tape",
       "tapeNotFound": "Das Tape ist nicht mehr an seinem Platz (außerhalb der App verschoben, umbenannt oder gelöscht): {{detail}}",
@@ -174,10 +175,10 @@
       "add": "Hinzufügen",
       "remove": "{{termine}} entfernen",
       "doppione": "„{{termine}}“ ist bereits im Vokabular.",
-      "nonAmmesso": "„{{termine}}“ enthält <| oder |>, was der Whisper-Prompt nicht zulässt.",
+      "nonAmmesso": "„{{termine}}“ enthält <| oder |>, die den Transkriptionsmodellen vorbehalten sind.",
       "scartati_one": "{{count}} Zeile übersprungen: doppelt oder mit <| oder |>.",
       "scartati_other": "{{count}} Zeilen übersprungen: doppelt oder mit <| oder |>.",
-      "whisper": "Whisper und Qwen3-ASR erhalten die Begriffe und erkennen sie im Audio; bei einer langen Liste berücksichtigen sie nur die ersten. Bei anderen Modellen wird ein Wort, das einem Begriff ähnelt, zu diesem Begriff."
+      "nota": "Nach jedem Satz wird ein Wort, das einem Begriff in Schreibweise oder Aussprache ähnelt, zu diesem Begriff, mit jedem Modell."
     },
     "recording": {
       "title": "Aufnahme und Audio",

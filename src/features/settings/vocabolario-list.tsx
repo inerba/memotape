@@ -169,7 +169,7 @@ export function VocabolarioList() {
         </ul>
       ) : null}
       <p className="text-muted-foreground text-xs leading-relaxed">
-        {t("settings.vocabolario.whisper")}
+        {t("settings.vocabolario.nota")}
       </p>
     </section>
   );

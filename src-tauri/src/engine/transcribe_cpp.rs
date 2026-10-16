@@ -16,6 +16,7 @@ use transcribe_cpp::{
 use super::asr::AsrResult;
 use super::diarize::Turn;
 use super::{EngineError, TranscriptionEngine};
+use crate::audio_toolkit::livello;
 use crate::error::AppError;
 
 /// Un modello caricato, riusabile tra una Trascrizione e l'altra.
@@ -27,11 +28,11 @@ pub struct TranscribeCpp {
     streaming: bool,
     /// `Feature::TemperatureFallback`: fra i modelli del catalogo, solo Whisper.
     fallback: bool,
-    /// `Feature::Vocabulary`: fra i modelli del catalogo, Whisper e Qwen3-ASR.
-    vocabulary: bool,
     timestamps: TimestampKind,
     /// Il Vocabolario della Trascrizione in corso (`set_termini`).
     termini: Vec<String>,
+    /// Il testo al posto dell'audio che il modello non riesce a trascrivere (`set_segnaposto`).
+    segnaposto: String,
 }
 
 impl TranscribeCpp {
@@ -40,7 +41,7 @@ impl TranscribeCpp {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
         init_backends()?;
-        let (session, capabilities, fallback, vocabulary) = catch_native(|| {
+        let (session, capabilities, fallback) = catch_native(|| {
             let model = Model::load(path)?;
             if !model.supports(Feature::Cancellation) {
                 log::info!(
@@ -51,7 +52,6 @@ impl TranscribeCpp {
                 model.session()?,
                 model.capabilities()?,
                 model.supports(Feature::TemperatureFallback),
-                model.supports(Feature::Vocabulary),
             ))
         })?;
         let mut engine = Self {
@@ -59,9 +59,10 @@ impl TranscribeCpp {
             languages: capabilities.languages,
             streaming: capabilities.supports_streaming,
             fallback,
-            vocabulary,
             timestamps: capabilities.max_timestamp_kind,
             termini: Vec::new(),
+            // Fuori da `run_pipeline` (i test): lì arriva quello tradotto.
+            segnaposto: "[?]".into(),
         };
         engine.warm_up();
         Ok(engine)
@@ -85,11 +86,6 @@ impl TranscribeCpp {
         &self.languages
     }
 
-    #[cfg(test)]
-    pub fn has_vocabulary(&self) -> bool {
-        self.vocabulary
-    }
-
     /// Installa il token di Annulla della prossima Trascrizione: interrompe anche la Frase in
     /// corso se il modello supporta la cancellazione, altrimenti la pipeline si ferma alla fine
     /// della Frase.
@@ -97,10 +93,18 @@ impl TranscribeCpp {
         self.session.set_cancel_token(cancel);
     }
 
-    /// I Termini del Vocabolario della prossima Trascrizione, com'erano al suo avvio: il
-    /// vocabolario del modello o la correzione delle Frasi concluse.
+    /// I Termini del Vocabolario della prossima Trascrizione, com'erano al suo avvio: correggono le
+    /// Frasi concluse. Nessun modello li riceve nel prompt (ADR-0033): con il formato `Glossary:` di
+    /// transcribe-cpp 0.4 Whisper li ricopiava sul rumore e sostituiva Frasi vere
+    /// (docs/research/eco-e-loop-sui-tape-reali.md).
     pub fn set_termini(&mut self, termini: &[String]) {
         termini.clone_into(&mut self.termini);
+    }
+
+    /// «[incomprensibile]» nella Lingua dell'interfaccia: prende il posto dell'audio di una Frase
+    /// che va in loop anche divisa in quattro pezzi.
+    pub fn set_segnaposto(&mut self, segnaposto: &str) {
+        segnaposto.clone_into(&mut self.segnaposto);
     }
 }
 
@@ -117,24 +121,16 @@ impl TranscriptionEngine for TranscribeCpp {
             family: self
                 .fallback
                 .then(|| RunExtension::Whisper(whisper_options())),
-            vocabulary: vocabulary(self.vocabulary, &self.termini),
             ..RunOptions::default()
         };
-        // I Termini già dati al modello non si correggono una seconda volta: la correzione
-        // approssimata trasformava anche parole giuste in un Termine ("scelte" in "slide deck").
-        let termini: &[String] = if run.vocabulary.is_empty() {
-            &self.termini
-        } else {
-            &[]
-        };
-        let finish = |transcript| finish_phrase(transcript, language, termini);
+        let termini = &self.termini;
+        let finish = |result| finish_phrase(result, language, termini);
         // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
         // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
         let Some(on_partial) = on_partial.filter(|_| self.streaming) else {
             let pcm: Vec<f32> = frames.flatten().collect();
-            let session = &mut self.session;
-            let transcript = catch_native(|| session.run(&pcm, &run))?;
-            return Ok(finish(transcript));
+            let result = run_diviso(&mut self.session, &pcm, &run, &self.segnaposto, 2)?;
+            return Ok(finish(result));
         };
         // Uno stream per Frase. Senza estensione vale l'attenzione a destra predefinita del modello,
         // la prima del menu e la più accurata (`parakeet.h` di transcribe-cpp 0.2.4): per Nemotron
@@ -143,7 +139,9 @@ impl TranscriptionEngine for TranscribeCpp {
         let session = &mut self.session;
         let mut stream = catch_native(|| session.stream(&run, &StreamOptions::default()))?;
         let mut shown = AsrResult::default();
+        let mut pcm = Vec::new();
         for frame in frames {
+            pcm.extend_from_slice(&frame);
             let update = catch_native(|| stream.feed(&frame))?;
             if update.result_changed {
                 let mut snapshot = stream.snapshot();
@@ -156,24 +154,74 @@ impl TranscriptionEngine for TranscribeCpp {
             }
         }
         catch_native(|| stream.finalize())?;
-        Ok(finish(stream.snapshot()))
+        // Lo stream non si ferma sui loop (transcribe.cpp, `docs/input-limits.md`): restano le
+        // ripetizioni, che `finish_phrase` riduce. Il rumore si vede solo a fine Frase.
+        if livello::rumore(&pcm) {
+            log::info!("Frase di rumore: {} ms", ms(pcm.len()));
+            return Ok(AsrResult::default());
+        }
+        Ok(finish(timed_result(stream.snapshot())))
     }
 }
 
-/// Conclude una Frase, mai un Parziale: filtro della scrittura, tempi e correzione con il
-/// Vocabolario. Una Frase in una scrittura che la lingua scelta non usa è inventata: si scarta.
-/// Poi il testo prende i tempi del runtime e i tratti simili a un Termine diventano il Termine.
-fn finish_phrase(
-    transcript: transcribe_cpp::Transcript,
-    language: Option<&str>,
-    termini: &[String],
-) -> AsrResult {
-    let text = transcript.text.trim();
-    if language.is_some_and(|l| super::foreign_script(text, l)) {
-        log::info!("Frase scartata, scrittura estranea alla Lingua del parlato: {text}");
+/// Millisecondi di `campioni` a 16 kHz.
+fn ms(campioni: usize) -> u32 {
+    u32::try_from(campioni * 1000 / crate::audio_toolkit::resample::TARGET_RATE).unwrap_or(u32::MAX)
+}
+
+/// `run` sulla Frase `pcm`; se il modello va in loop o supera il budget di generazione la Frase si
+/// divide nel punto più silenzioso e si trascrivono i pezzi, per `livelli` volte (2: al massimo
+/// quattro pezzi). Un pezzo che fallisce ancora tiene il parziale seguito da `segnaposto`. Sui Tape
+/// reali la Frase in loop di Cohere, divisa in due, usciva intera
+/// (docs/research/eco-e-loop-sui-tape-reali.md).
+fn run_diviso(
+    session: &mut Session,
+    pcm: &[f32],
+    run: &RunOptions,
+    segnaposto: &str,
+    livelli: u8,
+) -> Result<AsrResult, EngineError> {
+    // Anche un pezzo: una Frase sopra soglia può avere una metà muta, che non è parlato.
+    if livello::rumore(pcm) {
+        log::info!("Frase di rumore, non va al modello: {} ms", ms(pcm.len()));
+        return Ok(AsrResult::default());
+    }
+    let parziale = match catch_unwind(AssertUnwindSafe(|| session.run(pcm, run)))
+        .map_err(|_| EngineError::Internal("panic in transcribe-cpp".into()))?
+    {
+        Ok(transcript) => return Ok(timed_result(transcript)),
+        Err(
+            transcribe_cpp::Error::OutputRepetition { message, partial }
+            | transcribe_cpp::Error::OutputTruncated { message, partial },
+        ) => {
+            log::warn!("Frase di {} ms incompleta: {message}", ms(pcm.len()));
+            partial.map_or_else(AsrResult::default, |p| timed_result(*p))
+        }
+        Err(e) => return Err(engine_error(e)),
+    };
+    // Sotto i due secondi un pezzo non si divide più: le metà sarebbero troppo corte per il modello.
+    if livelli == 0 || pcm.len() < 2 * crate::audio_toolkit::resample::TARGET_RATE {
+        return Ok(parziale.con_segnaposto(segnaposto, ms(pcm.len())));
+    }
+    let taglio = livello::punto_piu_silenzioso(pcm);
+    let prima = run_diviso(session, &pcm[..taglio], run, segnaposto, livelli - 1)?;
+    let seconda = run_diviso(session, &pcm[taglio..], run, segnaposto, livelli - 1)?;
+    Ok(prima.unita(seconda, ms(taglio)))
+}
+
+/// Conclude una Frase, mai un Parziale: filtro della scrittura, correzione con il Vocabolario e
+/// ripetizioni. Una Frase in una scrittura che la lingua scelta non usa è inventata: si scarta.
+/// Poi i tratti simili a un Termine diventano il Termine, e una parola ripetuta più di 4 volte di
+/// seguito resta 3 volte (Nemotron in loop non dà errore: «come» 13 volte).
+fn finish_phrase(result: AsrResult, language: Option<&str>, termini: &[String]) -> AsrResult {
+    if language.is_some_and(|l| super::foreign_script(&result.text, l)) {
+        log::info!(
+            "Frase scartata, scrittura estranea alla Lingua del parlato: {}",
+            result.text
+        );
         return AsrResult::default();
     }
-    super::vocabolario::correct(timed_result(transcript), termini)
+    super::vocabolario::riduci_ripetizioni(super::vocabolario::correct(result, termini))
 }
 
 /// Le parole del runtime includono i token della parola: non si taglia dentro un token/parola.
@@ -217,21 +265,6 @@ fn timed_result(transcript: transcribe_cpp::Transcript) -> AsrResult {
     AsrResult::timed(text, rows)
 }
 
-/// I Termini per `RunOptions::vocabulary`, solo ai modelli con `Feature::Vocabulary`: Whisper li
-/// mette nel prompt come `Glossary: a, b`, Qwen3-ASR nel messaggio di sistema; oltre il budget del
-/// prompt transcribe-cpp toglie gli ultimi. Un `<|…|>` farebbe fallire la Frase con `INVALID_ARG`:
-/// `set_settings` lo rifiuta, ma un `settings.json` scritto a mano può averlo, quindi si salta.
-fn vocabulary(supported: bool, termini: &[String]) -> Vec<String> {
-    if !supported {
-        return Vec::new();
-    }
-    termini
-        .iter()
-        .filter(|t| !super::vocabolario::has_special_token(t))
-        .cloned()
-        .collect()
-}
-
 /// Le opzioni di Whisper: soglie contro le invenzioni.
 ///
 /// Senza invenzioni: con la confidenza media sotto `logprob_thold` (−1, il predefinito) la
@@ -240,7 +273,6 @@ fn vocabulary(supported: bool, termini: &[String]) -> Vec<String> {
 /// parole a caso in più lingue. La regola di salto è `no_speech_prob > no_speech_thold` e
 /// confidenza sotto soglia, quindi con `no_speech_thold` 0 basta la confidenza. Su una
 /// Registrazione di 7 minuti (76 Frasi) ha scartato le 7 inventate e lasciato identiche le altre.
-/// Niente `initial_prompt`: transcribe-cpp lo rifiuta insieme a `RunOptions::vocabulary`.
 fn whisper_options() -> WhisperRunOptions {
     WhisperRunOptions {
         no_speech_thold: Some(0.0),
@@ -343,11 +375,15 @@ fn init_backends() -> Result<(), EngineError> {
 fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T, EngineError> {
     catch_unwind(AssertUnwindSafe(call))
         .map_err(|_| EngineError::Internal("panic in transcribe-cpp".into()))?
-        .map_err(|e| match e {
-            transcribe_cpp::Error::Aborted { .. } => EngineError::Cancelled,
-            transcribe_cpp::Error::Busy(_) => EngineError::Busy,
-            e => EngineError::Internal(format!("transcribe-cpp: {e}")),
-        })
+        .map_err(engine_error)
+}
+
+fn engine_error(e: transcribe_cpp::Error) -> EngineError {
+    match e {
+        transcribe_cpp::Error::Aborted { .. } => EngineError::Cancelled,
+        transcribe_cpp::Error::Busy(_) => EngineError::Busy,
+        e => EngineError::Internal(format!("transcribe-cpp: {e}")),
+    }
 }
 
 #[cfg(test)]
@@ -357,14 +393,6 @@ mod tests {
 
     fn termini(t: &[&str]) -> Vec<String> {
         t.iter().map(|&t| t.to_owned()).collect()
-    }
-
-    #[test]
-    fn i_termini_vanno_nel_vocabolario_solo_dei_modelli_che_lo_hanno() {
-        let termini = termini(&["ChargeBee", "<|it|>", "Niccolò", "a|>b"]);
-        assert_eq!(vocabulary(true, &termini), ["ChargeBee", "Niccolò"]);
-        assert!(vocabulary(false, &termini).is_empty());
-        assert!(vocabulary(true, &[]).is_empty());
     }
 
     fn words(rows: &[(i64, i64, &str)]) -> transcribe_cpp::Transcript {
@@ -396,7 +424,11 @@ mod tests {
     #[test]
     fn la_frase_conclusa_prende_i_termini_con_i_tempi_uniti() {
         let transcript = words(&[(0, 300, " Uso"), (300, 700, " Charge"), (700, 900, " B.")]);
-        let result = finish_phrase(transcript, Some("it"), &termini(&["ChargeBee"]));
+        let result = finish_phrase(
+            timed_result(transcript),
+            Some("it"),
+            &termini(&["ChargeBee"]),
+        );
         assert_eq!(result.text, "Uso ChargeBee.");
         assert_eq!(
             result.tempi,
@@ -407,14 +439,14 @@ mod tests {
     #[test]
     fn la_frase_in_scrittura_estranea_si_scarta_anche_con_i_termini() {
         let transcript = words(&[(0, 500, " Привет"), (500, 900, " мир")]);
-        let result = finish_phrase(transcript, Some("it"), &termini(&["Привет"]));
+        let result = finish_phrase(timed_result(transcript), Some("it"), &termini(&["Привет"]));
         assert_eq!(result, AsrResult::default());
     }
 
     #[test]
     fn senza_termini_la_frase_conclusa_resta_com_e() {
         let transcript = words(&[(0, 300, " Uso"), (300, 700, " Charge"), (700, 900, " B.")]);
-        let result = finish_phrase(transcript, None, &[]);
+        let result = finish_phrase(timed_result(transcript), None, &[]);
         assert_eq!(result.text, "Uso Charge B.");
         assert_eq!(result.tempi.len(), 3);
     }

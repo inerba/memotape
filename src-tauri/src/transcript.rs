@@ -217,6 +217,11 @@ impl Labels {
         })
     }
 
+    /// «[incomprensibile]»: prende il posto dell'audio che il modello non riesce a trascrivere.
+    pub fn segnaposto(&self) -> &str {
+        self.get("/transcription/unintelligible")
+    }
+
     fn get(&self, pointer: &str) -> &str {
         self.0
             .pointer(pointer)

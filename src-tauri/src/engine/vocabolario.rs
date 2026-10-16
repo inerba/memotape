@@ -9,8 +9,8 @@ use crate::transcript::TempoTesto;
 const SOGLIA: f64 = 0.18;
 
 /// Il testo con i tratti simili a un Termine sostituiti dal Termine.
-pub fn correct(mut result: AsrResult, termini: &[String]) -> AsrResult {
-    // I Termini in altre scritture agiscono solo nel prompt di Whisper.
+pub fn correct(result: AsrResult, termini: &[String]) -> AsrResult {
+    // I Termini in altre scritture non si confrontano: il confronto è sulle lettere latine.
     let keys: Vec<(&str, String)> = termini
         .iter()
         .map(|t| (t.as_str(), key(t)))
@@ -64,6 +64,31 @@ pub fn correct(mut result: AsrResult, termini: &[String]) -> AsrResult {
         ));
         i += n;
     }
+    sostituisci(result, swaps)
+}
+
+/// Una parola ripetuta più di 4 volte di seguito resta 3 volte: «no, no, no» detto davvero resta, il
+/// loop di un modello che non dà errore («come» 13 volte con Nemotron) sparisce. I tempi delle
+/// ripetizioni tolte si uniscono a quello della terza.
+pub fn riduci_ripetizioni(result: AsrResult) -> AsrResult {
+    let words = words(&result.text);
+    let mut swaps = Vec::new();
+    let mut i = 0;
+    while i < words.len() {
+        let uguali = words[i..]
+            .iter()
+            .take_while(|w| !w.key.is_empty() && w.key == words[i].key)
+            .count();
+        if uguali > 4 {
+            swaps.push((words[i + 2].end, words[i + uguali - 1].end, String::new()));
+        }
+        i += uguali.max(1);
+    }
+    sostituisci(result, swaps)
+}
+
+/// Sostituisce i tratti `(inizio, fine, sostituto)` del testo, in ordine e senza sovrapposizioni.
+fn sostituisci(mut result: AsrResult, swaps: Vec<(usize, usize, String)>) -> AsrResult {
     // Dall'ultimo, così gli offset dei tratti precedenti valgono ancora.
     for (a, b, sostituto) in swaps.into_iter().rev() {
         result.text.replace_range(a..b, &sostituto);
@@ -197,7 +222,8 @@ fn best_match<'a>(candidate: &str, keys: &'a [(&'a str, String)]) -> Option<Matc
     best
 }
 
-/// Se il Termine contiene `<|` o `|>`: nel prompt di Whisper farebbero fallire la Frase.
+/// Se il Termine contiene `<|` o `|>`, i segni dei token speciali dei modelli: `set_settings` lo
+/// rifiuta, anche se dall'ADR-0033 nessun modello riceve i Termini nel prompt.
 pub fn has_special_token(termine: &str) -> bool {
     termine.contains("<|") || termine.contains("|>")
 }

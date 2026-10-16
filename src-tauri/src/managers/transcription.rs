@@ -427,7 +427,7 @@ pub async fn transcribe(
                     engine,
                     &silero,
                     &cancel,
-                    &settings.vocabolario,
+                    &settings,
                     EventSource {
                         ingresso,
                         session_id: None,
@@ -811,7 +811,7 @@ pub fn transcribe_live(
                                 engine,
                                 silero,
                                 cancel,
-                                &settings.vocabolario,
+                                settings,
                                 EventSource {
                                     ingresso,
                                     session_id: Some(session_id),
@@ -1094,14 +1094,14 @@ struct EventSource<'a> {
 /// da `run_pipeline`, anche con un'istanza in più del modello.
 #[expect(
     clippy::too_many_arguments,
-    reason = "Annulla e Termini sono lo stato della Trascrizione da installare sul motore"
+    reason = "Annulla e impostazioni sono lo stato della Trascrizione da installare sul motore"
 )]
 fn run_pipeline(
     app: &AppHandle,
     engine: &mut TranscribeCpp,
     silero: &Path,
     cancel: &CancelToken,
-    termini: &[String],
+    settings: &Settings,
     source: EventSource<'_>,
     transcript: &Mutex<Transcript>,
     run: impl FnOnce(
@@ -1115,7 +1115,8 @@ fn run_pipeline(
         session_id,
     } = source;
     engine.set_cancel_token(cancel);
-    engine.set_termini(termini);
+    engine.set_termini(&settings.vocabolario);
+    engine.set_segnaposto(labels(settings).segnaposto());
     let last = app.state::<LastTranscript>();
     let update = |change: &dyn Fn(&mut Transcript)| {
         last.update(change);

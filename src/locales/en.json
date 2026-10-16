@@ -55,7 +55,8 @@
     "mergeCancel": "Cancel",
     "editTurn": "Edit turn text: {{name}}",
     "emptyTurn": "Block without text",
-    "turnSaveFailed": "Correction not saved. Your text remains here; leave the field again to retry."
+    "turnSaveFailed": "Correction not saved. Your text remains here; leave the field again to retry.",
+    "unintelligible": "[unintelligible]"
   },
   "diarization": {
     "start": "Diarize",
@@ -126,7 +127,7 @@
       "liveTranscriptionUnavailable": "Live transcription unavailable: the model {{detail}} is not downloaded or does not load (the recording is saved anyway)",
       "unsupportedTape": "This Tape comes from a newer version of Memotape: update the app to open it",
       "invalidName": "Invalid name: {{detail}}. Not allowed: < > : \" / \\ | ? *, reserved names like CON, a leading dot and a trailing dot or space",
-      "invalidTermine": "The Term {{detail}} contains <| or |>, which the Whisper prompt does not allow",
+      "invalidTermine": "The Term {{detail}} contains <| or |>, which are reserved for the transcription models",
       "nameTaken": "The name {{detail}} is already used",
       "raccoltaNotEmpty": "The Collection {{detail}} is not empty: move or delete its Tape first",
       "tapeNotFound": "The Tape is no longer where it was (moved, renamed or deleted outside the app): {{detail}}",
@@ -174,10 +175,10 @@
       "add": "Add",
       "remove": "Remove {{termine}}",
       "doppione": "“{{termine}}” is already in the Vocabulary.",
-      "nonAmmesso": "“{{termine}}” contains <| or |>, which the Whisper prompt does not allow.",
+      "nonAmmesso": "“{{termine}}” contains <| or |>, which are reserved for the transcription models.",
       "scartati_one": "{{count}} line skipped: duplicate or containing <| or |>.",
       "scartati_other": "{{count}} lines skipped: duplicates or containing <| or |>.",
-      "whisper": "Whisper and Qwen3-ASR receive the Terms and recognize them in the audio; with a long list they only consider the first ones. With other models, a word similar to a Term becomes that Term."
+      "nota": "After each sentence, a word that looks or sounds like a Term becomes that Term, with every model."
     },
     "recording": {
       "title": "Recording and audio",

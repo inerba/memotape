@@ -140,6 +140,14 @@ _Avoid_: spezzone, blocco, intervento, chat, paragrafo
 Come si impagina il testo, scelto dall'utente in Impostazioni: Copione (il nome in una colonna accanto al testo), Intervista (il nome apre il Turno) o Nastro (una linea con un nodo per Turno). Cambia solo la resa: Turni, Frasi, copie ed esportazioni restano gli stessi. «Nastro» è il nome di questa vista, scelto dall'utente, non un sinonimo di Tape.
 _Avoid_: layout, modalità di lettura, nastro (per il Tape)
 
+**Segnaposto**:
+«[incomprensibile]», nella Lingua dell'interfaccia: prende il posto dell'audio di una Frase che il modello non riesce a trascrivere nemmeno divisa in pezzi (un loop). Indica che lì c'era parlato da riascoltare.
+_Avoid_: placeholder, testo mancante
+
+**Frase di rumore**:
+Una Frase che Silero ha aperto ma il cui audio sta sotto −50 dBFS di RMS: non va al modello e non entra nella Trascrizione.
+_Avoid_: silenzio, Frase vuota
+
 **Correzione manuale**:
 Una modifica al testo della Trascrizione, all'attribuzione di un Turno o al nome di un Parlante, fatta dall'utente o da un Assistente su sua richiesta. È distinta dall'attribuzione automatica della Diarizzazione e dalle modifiche al titolo o alla data del Tape.
 _Avoid_: modifica del Tape, revisione automatica

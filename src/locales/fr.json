@@ -55,7 +55,8 @@
     "mergeCancel": "Annuler",
     "editTurn": "Modifier le texte du tour : {{name}}",
     "emptyTurn": "Bloc sans texte",
-    "turnSaveFailed": "Correction non enregistrée. Votre texte reste ici ; quittez à nouveau le champ pour réessayer."
+    "turnSaveFailed": "Correction non enregistrée. Votre texte reste ici ; quittez à nouveau le champ pour réessayer.",
+    "unintelligible": "[incompréhensible]"
   },
   "diarization": {
     "start": "Diariser",
@@ -126,7 +127,7 @@
       "liveTranscriptionUnavailable": "Transcription en direct indisponible : le modèle {{detail}} n'est pas téléchargé ou ne se charge pas (l'enregistrement est sauvegardé quand même)",
       "unsupportedTape": "Ce Tape provient d'une version plus récente de Memotape : mettez l'application à jour pour l'ouvrir",
       "invalidName": "Nom non valide : {{detail}}. Interdits : < > : \" / \\ | ? *, les noms réservés comme CON, un point au début et un point ou une espace à la fin",
-      "invalidTermine": "Le Terme {{detail}} contient <| ou |>, que le prompt de Whisper n’accepte pas",
+      "invalidTermine": "Le Terme {{detail}} contient <| ou |>, réservés aux modèles de transcription",
       "nameTaken": "Le nom {{detail}} est déjà utilisé",
       "raccoltaNotEmpty": "La Collection {{detail}} n'est pas vide : déplacez ou supprimez d'abord ses Tape",
       "tapeNotFound": "Le Tape n'est plus à sa place (déplacé, renommé ou supprimé hors de l'application) : {{detail}}",
@@ -174,11 +175,11 @@
       "add": "Ajouter",
       "remove": "Retirer {{termine}}",
       "doppione": "« {{termine}} » est déjà dans le Vocabulaire.",
-      "nonAmmesso": "« {{termine}} » contient <| ou |>, que le prompt de Whisper n’accepte pas.",
+      "nonAmmesso": "« {{termine}} » contient <| ou |>, réservés aux modèles de transcription.",
       "scartati_one": "{{count}} ligne ignorée : doublon ou avec <| ou |>.",
       "scartati_many": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
       "scartati_other": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
-      "whisper": "Whisper et Qwen3-ASR reçoivent les Termes et les reconnaissent dans l'audio ; avec une longue liste, ils ne prennent en compte que les premiers. Avec les autres modèles, un mot proche d'un Terme devient ce Terme."
+      "nota": "Après chaque phrase, un mot proche d'un Terme par l'écriture ou la prononciation devient ce Terme, avec tous les modèles."
     },
     "recording": {
       "title": "Enregistrement et audio",

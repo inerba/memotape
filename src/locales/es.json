@@ -55,7 +55,8 @@
     "mergeCancel": "Cancelar",
     "editTurn": "Editar el texto del turno: {{name}}",
     "emptyTurn": "Bloque sin texto",
-    "turnSaveFailed": "Corrección no guardada. El texto permanece aquí; sal de nuevo del campo para reintentarlo."
+    "turnSaveFailed": "Corrección no guardada. El texto permanece aquí; sal de nuevo del campo para reintentarlo.",
+    "unintelligible": "[ininteligible]"
   },
   "diarization": {
     "start": "Diarizar",
@@ -126,7 +127,7 @@
       "liveTranscriptionUnavailable": "Transcripción en directo no disponible: el modelo {{detail}} no está descargado o no se carga (la grabación se guarda igualmente)",
       "unsupportedTape": "Este Tape viene de una versión más reciente de Memotape: actualiza la aplicación para abrirlo",
       "invalidName": "Nombre no válido: {{detail}}. No se admiten < > : \" / \\ | ? *, los nombres reservados como CON, un punto al principio ni un punto o espacio al final",
-      "invalidTermine": "El Término {{detail}} contiene <| o |>, que el prompt de Whisper no admite",
+      "invalidTermine": "El Término {{detail}} contiene <| o |>, reservados a los modelos de transcripción",
       "nameTaken": "El nombre {{detail}} ya está en uso",
       "raccoltaNotEmpty": "La Colección {{detail}} no está vacía: mueve o elimina antes sus Tape",
       "tapeNotFound": "El Tape ya no está en su sitio (movido, renombrado o eliminado fuera de la aplicación): {{detail}}",
@@ -174,11 +175,11 @@
       "add": "Añadir",
       "remove": "Quitar {{termine}}",
       "doppione": "«{{termine}}» ya está en el Vocabulario.",
-      "nonAmmesso": "«{{termine}}» contiene <| o |>, que el prompt de Whisper no admite.",
+      "nonAmmesso": "«{{termine}}» contiene <| o |>, reservados a los modelos de transcripción.",
       "scartati_one": "{{count}} línea descartada: duplicada o con <| o |>.",
       "scartati_many": "{{count}} líneas descartadas: duplicadas o con <| o |>.",
       "scartati_other": "{{count}} líneas descartadas: duplicadas o con <| o |>.",
-      "whisper": "Whisper y Qwen3-ASR reciben los Términos y los reconocen en el audio; con una lista larga solo tienen en cuenta los primeros. Con los demás modelos, una palabra parecida a un Término se convierte en ese Término."
+      "nota": "Después de cada frase, una palabra parecida a un Término en la escritura o la pronunciación se convierte en ese Término, con todos los modelos."
     },
     "recording": {
       "title": "Grabación y audio",

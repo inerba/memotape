@@ -55,7 +55,8 @@
     "mergeCancel": "Anuluj",
     "editTurn": "Edytuj tekst wypowiedzi: {{name}}",
     "emptyTurn": "Blok bez tekstu",
-    "turnSaveFailed": "Nie zapisano poprawki. Tekst pozostaje tutaj; opuść pole ponownie, aby spróbować jeszcze raz."
+    "turnSaveFailed": "Nie zapisano poprawki. Tekst pozostaje tutaj; opuść pole ponownie, aby spróbować jeszcze raz.",
+    "unintelligible": "[niezrozumiałe]"
   },
   "diarization": {
     "start": "Diaryzuj",
@@ -126,7 +127,7 @@
       "liveTranscriptionUnavailable": "Transkrypcja na żywo niedostępna: model {{detail}} nie jest pobrany lub nie daje się załadować (nagranie i tak zostanie zapisane)",
       "unsupportedTape": "Ten plik Tape pochodzi z nowszej wersji aplikacji Memotape: zaktualizuj aplikację, aby go otworzyć",
       "invalidName": "Nieprawidłowa nazwa: {{detail}}. Niedozwolone są < > : \" / \\ | ? *, nazwy zastrzeżone, takie jak CON, kropka na początku oraz kropka lub spacja na końcu",
-      "invalidTermine": "Termin {{detail}} zawiera <| lub |>, czego prompt Whispera nie dopuszcza",
+      "invalidTermine": "Termin {{detail}} zawiera <| lub |>, zarezerwowane dla modeli transkrypcji",
       "nameTaken": "Nazwa {{detail}} jest już używana",
       "raccoltaNotEmpty": "Kolekcja {{detail}} nie jest pusta: najpierw przenieś lub usuń jej pliki Tape",
       "tapeNotFound": "Pliku Tape nie ma już na miejscu (przeniesiony, zmieniony lub usunięty poza aplikacją): {{detail}}",
@@ -174,12 +175,12 @@
       "add": "Dodaj",
       "remove": "Usuń {{termine}}",
       "doppione": "„{{termine}}” jest już w Słowniku.",
-      "nonAmmesso": "„{{termine}}” zawiera <| lub |>, czego prompt Whispera nie dopuszcza.",
+      "nonAmmesso": "„{{termine}}” zawiera <| lub |>, zarezerwowane dla modeli transkrypcji.",
       "scartati_one": "Pominięto {{count}} wiersz: duplikat lub z <| albo |>.",
       "scartati_few": "Pominięto {{count}} wiersze: duplikaty lub z <| albo |>.",
       "scartati_many": "Pominięto {{count}} wierszy: duplikaty lub z <| albo |>.",
       "scartati_other": "Pominięto {{count}} wiersza: duplikaty lub z <| albo |>.",
-      "whisper": "Whisper i Qwen3-ASR otrzymują Terminy i rozpoznają je w nagraniu; przy długiej liście biorą pod uwagę tylko pierwsze. W innych modelach słowo podobne do Terminu staje się tym Terminem."
+      "nota": "Po każdym zdaniu słowo podobne do Terminu w pisowni lub wymowie zmienia się w ten Termin, w każdym modelu."
     },
     "recording": {
       "title": "Nagrywanie i dźwięk",
