@@ -40,7 +40,6 @@
       "manualDescription": "This Tape contains manual corrections. A new transcription will replace the text, speaker assignments and speaker names, including your manual corrections. The audio stays as it is in the Tape, without new cleaning. Cancelling or an error leaves the existing Tape unchanged."
     },
     "parlanti": "Recognize speakers",
-    "nemotron3Note": "Experimental Nemotron 3: supports up to 8 speakers per input, but may confuse or merge voices.",
     "parlantiNote": "At most {{count}} speakers per input",
     "parlantiList": "Speakers:",
     "rename": "Click to rename: Enter confirms, Esc cancels",
@@ -134,8 +133,6 @@
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}",
-      "localDiarizerMissing": "Choose the local Nemotron Diarization model in Settings → Transcription",
-      "localDiarizerIncompatible": "The local model does not match the verified Nemotron Diarization GGUF or cannot be loaded: {{detail}}",
       "audioCleaningMissing": "The DeepFilterNet3 model bundled with the app is missing. Reinstall Memotape.",
       "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
@@ -167,15 +164,7 @@
       "title": "Transcription",
       "description": "Models transcribe on your computer: download them once, then they work offline.",
       "diarization": "Speaker recognition",
-      "diarizationDescription": "Identifies Speakers after Transcribing files and Tapes, or after Stop in Recordings. Sortformer distinguishes up to 4 Speakers.",
-      "diarizer": "Speaker model",
-      "nemotron3": "Nemotron 3 Diarization (experimental)",
-      "localModel": "Local model",
-      "experimentalDescription": "Experimental feature: speakers may be confused, especially with overlapping voices or many people.",
-      "recordingDiarizationDescription": "Speakers are identified after Stop; only live Transcription continues during Recording.",
-      "localModelDescription": "Select the compatible Nemotron 3 Diarization BF16 model. It is used for files, Tapes and recordings, including separate inputs.",
-      "localModelMissing": "No local model selected",
-      "chooseLocalModel": "Choose local model…"
+      "diarizationDescription": "Identifies Speakers after Transcribing files and Tapes, or after Stop in Recordings. Sortformer distinguishes up to 4 Speakers."
     },
     "vocabolario": {
       "title": "Vocabulary",
@@ -188,7 +177,7 @@
       "nonAmmesso": "“{{termine}}” contains <| or |>, which the Whisper prompt does not allow.",
       "scartati_one": "{{count}} line skipped: duplicate or containing <| or |>.",
       "scartati_other": "{{count}} lines skipped: duplicates or containing <| or |>.",
-      "whisper": "With Whisper the Terms also go into the initial prompt: with a long list Whisper only considers the last ones."
+      "whisper": "Whisper and Qwen3-ASR receive the Terms and recognize them in the audio; with a long list they only consider the first ones. With other models, a word similar to a Term becomes that Term."
     },
     "recording": {
       "title": "Recording and audio",

@@ -14,8 +14,6 @@ export const commands = {
 	 *  Restituisce il percorso scelto, o `null` se l'utente annulla.
 	 */
 	pickSource: (filterName: string) => __TAURI_INVOKE<string | null>("pick_source", { filterName }),
-	/**  Sceglie e verifica l'artefatto locale prima di salvare il percorso nelle impostazioni. */
-	pickDiarizerModel: () => typedError<string | null, AppError>(__TAURI_INVOKE("pick_diarizer_model")),
 	/**
 	 *  Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 	 *  estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
@@ -237,7 +235,6 @@ export const commands = {
 
 /** Events */
 export const events = {
-	diarizationProgress: makeEvent<DiarizationProgress>("diarization-progress"),
 	diarizationStarted: makeEvent<DiarizationStarted>("diarization-started"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	liveTranscriptUpdated: makeEvent<LiveTranscriptUpdated_Deserialize>("live-transcript-updated"),
@@ -256,7 +253,7 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "localDiarizerMissing" } | { code: "localDiarizerIncompatible"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
 /**
  *  Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
  *  scaricato.
@@ -339,20 +336,16 @@ export type CopiaCome =
 /**  Testo semplice, senza sintassi Markdown. */
 "testo" | "markdown";
 
-/**
- *  Quanto audio salvato la Diarizzazione ha analizzato, su tutti gli Ingressi. Solo con Nemotron 3:
- *  Sortformer non dà avanzamento.
- */
-export type DiarizationProgress = {
-	sessionId: string | null,
-	percent: number,
-};
-
 /**  Finita la Trascrizione, comincia la Diarizzazione (Riconosci i parlanti). */
 export type DiarizationStarted = {
 	sessionId: string | null,
 };
 
+/**
+ *  Il modello che ha fatto la Diarizzazione di un Tape. Nemotron 3 Diarization (sperimentale) c'è
+ *  solo nei Tape che l'hanno usata: transcribe-cpp 0.4 non la ha, e un `"diarizer": "nemotron3"`
+ *  rimasto in `settings.json` si ignora come ogni campo sconosciuto.
+ */
 export type Diarizer = "sortformer" | "nemotron3";
 
 export type Diarizzazione = Diarizzazione_Serialize | Diarizzazione_Deserialize;
@@ -658,10 +651,6 @@ export type Settings = {
 	outputDevice: string | null,
 	/**  L'id del modello nel catalogo. */
 	model: string,
-	/**  Scelta distinta dall'ASR, fissata all'avvio dell'Attività. I file precedenti usano Sortformer. */
-	diarizer?: Diarizer,
-	/**  Artefatto locale verificato: non si scarica e non si sostituisce automaticamente. */
-	nemotron3Path?: string | null,
 	speechLanguage: SpeechLanguage,
 	bitrateKbps: number,
 	channels: Channels,

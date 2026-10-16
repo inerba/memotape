@@ -87,13 +87,12 @@ mod tests {
 
     #[test]
     #[ignore = "richiede Nemotron, Parakeet e Whisper locali; eseguire in sequenza"]
-    fn tempi_asr_reali_e_divisione_del_testo_sui_tre_modelli() {
+    fn tempi_asr_reali_sui_tre_modelli() {
         use crate::audio_toolkit::decode::Decoder;
+        use crate::engine::TranscriptionEngine;
         use crate::engine::pipeline::{Feed, FileFrames};
         use crate::engine::transcribe_cpp::TranscribeCpp;
-        use crate::engine::{TranscriptionEngine, diarize};
-        use crate::managers::{models, settings::Diarizer};
-        use crate::transcript::{Ingresso, Phrase};
+        use crate::managers::models;
         use std::path::{Path, PathBuf};
 
         let directory =
@@ -160,41 +159,6 @@ mod tests {
                         assert!(timed_partials > 0, "Parziali senza tempi affidabili");
                     }
                 }
-                let at = result.tempi.len() / 2;
-                let boundary = result.tempi[at].inizio_ms;
-                let mut phrases = vec![Phrase {
-                    inizio_ms: 5000,
-                    fine_ms: 5000 + duration,
-                    text: result.text,
-                    tempi: result.tempi,
-                    ingresso: Ingresso::Mix,
-                    parlante: None,
-                    parlante_non_determinato: false,
-                    parlante_provvisorio: false,
-                }];
-                diarize::assign_configured(
-                    &mut phrases,
-                    Ingresso::Mix,
-                    &[
-                        diarize::Turn {
-                            inizio_ms: 5000,
-                            fine_ms: boundary,
-                            parlante: 7,
-                        },
-                        diarize::Turn {
-                            inizio_ms: boundary,
-                            fine_ms: 5000 + duration,
-                            parlante: 3,
-                        },
-                    ],
-                    Diarizer::Nemotron3,
-                );
-                assert!(phrases.len() >= 2, "{id}: divisione assente");
-                assert_eq!(
-                    phrases.iter().map(|p| p.text.as_str()).collect::<String>(),
-                    original
-                );
-                assert!(phrases.iter().all(|p| p.fine_ms > p.inizio_ms));
             }
         }
     }

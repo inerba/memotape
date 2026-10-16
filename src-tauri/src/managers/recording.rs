@@ -529,15 +529,14 @@ pub async fn record(
     controls.checkpoint()?;
     emit_phase(&app, &session_id, RecordingPhase::Preparing);
     let diarized = settings.parlanti_registrazione();
-    // La scelta si fissa all'avvio, inclusi errori di disponibilità: niente fallback implicito.
+    // Sortformer si prenota all'avvio, inclusi errori di disponibilità: niente fallback implicito.
     let diarizer = if diarized.is_empty() {
         None
     } else {
-        let (app, settings) = (app.clone(), settings.clone());
+        let app = app.clone();
         Some(
             tauri::async_runtime::spawn_blocking(move || {
-                app.state::<Models>()
-                    .reserve_configured_diarizer(&app, &settings)
+                app.state::<Models>().reserve_diarizer(&app)
             })
             .await
             .map_err(internal)
@@ -647,7 +646,6 @@ pub async fn record(
             if let Err(error) = diarizer {
                 crate::engine::diarize::finalize_live_ingressi(
                     transcript,
-                    settings.diarizer,
                     diarized
                         .iter()
                         .map(|&ingresso| (ingresso, Err(error.clone())))
@@ -664,15 +662,12 @@ pub async fn record(
             }
             let analyzed = tauri::async_runtime::spawn_blocking({
                 let (mut transcript, cancel) = (transcript.clone(), final_cancel.clone());
-                let (audio, modello) = (recorded.oggs.clone(), settings.diarizer);
+                let audio = recorded.oggs.clone();
                 let diarized = diarized.clone();
-                let (app, session_id) = (app.clone(), session_id.clone());
                 move || {
-                    let total = diarized.len();
                     let analyzed = diarized
                         .into_iter()
-                        .enumerate()
-                        .map(|(index, ingresso)| {
+                        .map(|ingresso| {
                             let result = (|| {
                                 let lease = diarizer.as_ref().map_err(Clone::clone)?;
                                 if cancel.is_cancelled() {
@@ -685,15 +680,7 @@ pub async fn record(
                                     .ok_or_else(|| {
                                         AppError::Internal("audio dell'Ingresso assente".into())
                                     })?;
-                                lease.diarize_saved(path, &cancel, &mut |percent| {
-                                    transcription::DiarizationProgress::emit_ingresso(
-                                        &app,
-                                        Some(&session_id),
-                                        index,
-                                        total,
-                                        percent,
-                                    );
-                                })
+                                lease.diarize_saved(path, &cancel)
                             })();
                             // Fissa l'esito quando termina questo Ingresso: Annulla nell'altro
                             // non invalida un successo già ottenuto.
@@ -705,11 +692,7 @@ pub async fn record(
                             (ingresso, result)
                         })
                         .collect();
-                    crate::engine::diarize::finalize_live_ingressi(
-                        &mut transcript,
-                        modello,
-                        analyzed,
-                    );
+                    crate::engine::diarize::finalize_live_ingressi(&mut transcript, analyzed);
                     transcript
                 }
             })
@@ -720,7 +703,6 @@ pub async fn record(
                     log::warn!("analisi finale interrotta: {error}");
                     crate::engine::diarize::finalize_live_ingressi(
                         transcript,
-                        settings.diarizer,
                         diarized
                             .iter()
                             .map(|&ingresso| (ingresso, Err(AppError::Internal(error.to_string()))))
@@ -1614,58 +1596,54 @@ mod tests {
     }
 
     #[test]
-    fn la_registrazione_avvia_solo_asr_anche_con_nemotron_e_tutti_i_parlanti_attivi() {
+    fn la_registrazione_avvia_solo_asr_con_tutti_i_parlanti_attivi() {
         use crate::engine::pipeline::Feed;
-        use crate::managers::settings::Diarizer;
-        for diarizer in [Diarizer::Sortformer, Diarizer::Nemotron3] {
-            for recording_source in [
-                RecordingSource::Mic,
-                RecordingSource::System,
-                RecordingSource::Both,
-            ] {
-                for enabled in [false, true] {
-                    let settings = Settings {
-                        diarizer,
-                        recording_source,
-                        trascrizione_dal_vivo: enabled,
-                        parlanti_mix: true,
-                        parlanti_microfono: true,
-                        parlanti_sistema: true,
-                        sample_rate: 16_000,
-                        channels: Channels::Mono,
-                        ..Settings::default()
-                    };
-                    let (feeds, sources) = live_sources(&settings).unwrap();
-                    let expected = match (enabled, recording_source) {
-                        (false, _) => vec![],
-                        (true, RecordingSource::Both) => {
-                            vec![Ingresso::Microfono, Ingresso::Sistema]
-                        }
-                        (true, _) => vec![Ingresso::Mix],
-                    };
-                    assert_eq!(
-                        sources
-                            .iter()
-                            .map(|source| source.ingresso)
-                            .collect::<Vec<_>>(),
-                        expected
-                    );
-                    for (mut feed, source) in feeds.into_iter().zip(sources) {
-                        feed.push(&[0.25; 480], false);
-                        feed.push(&[], true);
-                        feed.finish();
-                        let received = source.frames.collect::<Vec<_>>();
-                        assert!(
-                            received
-                                .iter()
-                                .any(|item| matches!(item, Ok(Feed::Frame(_))))
-                        );
-                        assert!(
-                            received
-                                .iter()
-                                .any(|item| matches!(item, Ok(Feed::ClosePhrase)))
-                        );
+        for recording_source in [
+            RecordingSource::Mic,
+            RecordingSource::System,
+            RecordingSource::Both,
+        ] {
+            for enabled in [false, true] {
+                let settings = Settings {
+                    recording_source,
+                    trascrizione_dal_vivo: enabled,
+                    parlanti_mix: true,
+                    parlanti_microfono: true,
+                    parlanti_sistema: true,
+                    sample_rate: 16_000,
+                    channels: Channels::Mono,
+                    ..Settings::default()
+                };
+                let (feeds, sources) = live_sources(&settings).unwrap();
+                let expected = match (enabled, recording_source) {
+                    (false, _) => vec![],
+                    (true, RecordingSource::Both) => {
+                        vec![Ingresso::Microfono, Ingresso::Sistema]
                     }
+                    (true, _) => vec![Ingresso::Mix],
+                };
+                assert_eq!(
+                    sources
+                        .iter()
+                        .map(|source| source.ingresso)
+                        .collect::<Vec<_>>(),
+                    expected
+                );
+                for (mut feed, source) in feeds.into_iter().zip(sources) {
+                    feed.push(&[0.25; 480], false);
+                    feed.push(&[], true);
+                    feed.finish();
+                    let received = source.frames.collect::<Vec<_>>();
+                    assert!(
+                        received
+                            .iter()
+                            .any(|item| matches!(item, Ok(Feed::Frame(_))))
+                    );
+                    assert!(
+                        received
+                            .iter()
+                            .any(|item| matches!(item, Ok(Feed::ClosePhrase)))
+                    );
                 }
             }
         }
@@ -1675,7 +1653,7 @@ mod tests {
     fn dopo_l_analisi_finale_il_tape_si_salva_anche_con_annulla_o_guasto() {
         use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
         use crate::engine::diarize::{Turn, finalize};
-        use crate::managers::settings::{Diarizer, SpeechLanguage};
+        use crate::managers::settings::SpeechLanguage;
         use crate::transcript::{EsitoDiarizzazione, Phrase};
         for esito in [
             EsitoDiarizzazione::Completata,
@@ -1709,7 +1687,6 @@ mod tests {
             }];
             let state = finalize(
                 &mut phrases,
-                Diarizer::Nemotron3,
                 &CancelToken::new(),
                 match esito {
                     EsitoDiarizzazione::Completata => Ok(vec![(
@@ -1753,129 +1730,6 @@ mod tests {
             assert_eq!(tape::forma_onda(&path), Some(vec![0.5]));
             assert!(!folder.join(TEMP_FOLDER).exists());
         }
-    }
-
-    #[test]
-    #[ignore = "richiede Nemotron ASR e MEMOTAPE_NEMOTRON3_MODEL; eseguire in sequenza"]
-    fn nemotron3_analisi_finale_salva_e_riapre_la_registrazione() {
-        use crate::audio_toolkit::decode::Decoder;
-        use crate::audio_toolkit::ogg_opus::tests::temp_dir;
-        use crate::audio_toolkit::vad::Silero;
-        use crate::engine::diarize::finalize;
-        use crate::engine::pipeline::{PipelineEvent, transcribe_file};
-        use crate::engine::transcribe_cpp::{OfflineDiarizer, TranscribeCpp};
-        use crate::managers::models;
-        use crate::managers::settings::{Diarizer, SpeechLanguage};
-        use crate::transcript::{EsitoDiarizzazione, Phrase};
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let fixture = root.join("tests/fixtures/parlato-due-voci.wav");
-        let folder = temp_dir("nemotron3-registrazione-finale");
-        let ogg = temp_folder(&folder).unwrap().join("mix.ogg");
-        let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 16_000, 1, 32).unwrap();
-        let mut decoder = Decoder::open(&fixture).unwrap();
-        while let Some(block) = decoder.next_block().unwrap() {
-            assert_eq!(block.rate, 16_000);
-            writer.write(&block.mono()).unwrap();
-        }
-        let forma_onda = writer.forma_onda();
-        writer.finish().unwrap();
-        let audio = std::fs::read(&ogg).unwrap();
-        let models_dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
-        let mut engine = TranscribeCpp::load(&models::default_model().path(&models_dir)).unwrap();
-        let mut detector = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
-        let mut phrases = Vec::new();
-        let durata_ms = transcribe_file(
-            &ogg,
-            &mut engine,
-            &mut detector,
-            Some("it"),
-            None,
-            None,
-            &CancelToken::new(),
-            &mut |event| {
-                if let PipelineEvent::Phrase {
-                    inizio_ms,
-                    fine_ms,
-                    text,
-                    tempi,
-                    ..
-                } = event
-                {
-                    phrases.push(Phrase {
-                        tempi,
-                        inizio_ms,
-                        fine_ms,
-                        text,
-                        ingresso: Ingresso::Mix,
-                        parlante: None,
-                        parlante_provvisorio: false,
-                        parlante_non_determinato: false,
-                    });
-                }
-            },
-        )
-        .unwrap();
-        drop(engine);
-        let texts: Vec<_> = phrases.iter().map(|p| p.text.clone()).collect();
-        assert!(!texts.is_empty());
-        let cancel = CancelToken::new();
-        let model = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
-        let mut diarizer = OfflineDiarizer::load_nemotron3(&model).unwrap();
-        let mut percents = Vec::new();
-        let turns = diarizer.diarize_saved(
-            Decoder::open_16k(&ogg, Ingresso::Mix).unwrap(),
-            &cancel,
-            &mut |percent| percents.push(percent),
-        );
-        assert!(
-            percents.is_sorted() && percents.last() >= Some(&99),
-            "{percents:?}"
-        );
-        let state = finalize(
-            &mut phrases,
-            Diarizer::Nemotron3,
-            &cancel,
-            turns.map(|turns| vec![(Ingresso::Mix, turns)]),
-        )
-        .unwrap();
-        assert_eq!(state.esito, EsitoDiarizzazione::Completata);
-        assert!(phrases.iter().any(|p| p.parlante == Some(1)));
-        assert!(phrases.iter().any(|p| p.parlante == Some(2)));
-        assert_eq!(
-            phrases.iter().map(|p| p.text.as_str()).collect::<String>(),
-            texts.concat()
-        );
-        let recorded = Recorded {
-            oggs: vec![(Ingresso::Mix, ogg)],
-            start: Local::now(),
-            durata_ms,
-            error: None,
-            forma_onda,
-            pulizia_audio: Vec::new(),
-        };
-        let mut document = tape::Document::new(
-            tape::creato(recorded.start),
-            durata_ms,
-            tape::Modalita::Mix,
-            Some(models::default_model().id.clone()),
-            SpeechLanguage::from("it"),
-            true,
-            &phrases,
-        );
-        document.diarizzazione = Some(state);
-        let path = save_tape(&folder, &folder, "Registrazione", &recorded, &document, &[]).unwrap();
-        assert_eq!(tape::read(&path).unwrap(), document);
-        assert_eq!(
-            transcription::open_tape(&path).unwrap().info.diarizzazione,
-            document.diarizzazione
-        );
-        let mut mix = tape::Mix::open(&path).unwrap();
-        let mut saved_audio = Vec::new();
-        std::io::Read::read_to_end(&mut mix, &mut saved_audio).unwrap();
-        assert_eq!(saved_audio, audio);
-        assert_eq!(tape::forma_onda(&path), Some(recorded.forma_onda));
-        assert!(!folder.join(TEMP_FOLDER).exists());
     }
 
     /// Una Registrazione di 0,1 s nell'Ogg `ogg` dentro la cartella nascosta di `folder`.

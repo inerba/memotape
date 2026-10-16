@@ -8,11 +8,9 @@ import {
   diarizationCompleted,
   isBusy,
   needsSettings,
-  progressPercent,
   type Status,
   statusText,
   transcribesSource,
-  withDiarizationProgress,
   withDiarizing,
   withLiveError,
   withMovedSource,
@@ -69,31 +67,14 @@ test("la Diarizzazione autonoma ha esiti propri e conserva il collegamento alle 
   );
   expect(bannerOf(cancelled, t)?.tone).toBe("info");
   const missing = afterDiarization(
-    { error: { code: "localDiarizerMissing" }, status: "error" },
+    {
+      error: { code: "diarizerMissing", detail: "Sortformer 4spk v2.1" },
+      status: "error",
+    },
     "Call.tape"
   );
   expect(bannerOf(missing, t)?.settings).toBe(true);
   expect(bannerOf(missing, t)?.tone).toBe("error");
-});
-
-test("il modello locale assente o incompatibile mostra un errore esplicito con il link alle Impostazioni", () => {
-  const absent: Status = {
-    error: { code: "localDiarizerMissing" },
-    phase: "failed",
-  };
-  expect(needsSettings(absent)).toBe(true);
-  expect(statusText(absent, t)).toBe(
-    "Scegli il modello locale Nemotron Diarization in Impostazioni → Trascrizione"
-  );
-  const invalid: Status = {
-    error: { code: "localDiarizerIncompatible", detail: "D:\\modello.gguf" },
-    phase: "failed",
-  };
-  expect(needsSettings(invalid)).toBe(true);
-  expect(statusText(invalid, t)).toContain(
-    "GGUF Nemotron Diarization verificato"
-  );
-  expect(statusText(invalid, t)).toContain("D:\\modello.gguf");
 });
 
 test("a riposo la status bar invita a scegliere un file o mostra il percorso della Sorgente", () => {
@@ -134,25 +115,6 @@ test("dopo la Trascrizione la status bar dice che riconosce i parlanti, senza pe
   // Un evento in ritardo non riapre un'Attività finita.
   const cancelled: Status = { phase: "cancelled" };
   expect(withDiarizing(cancelled)).toBe(cancelled);
-});
-
-test("la Diarizzazione con Nemotron 3 mostra la percentuale dell'audio analizzato", () => {
-  const explicit = withDiarizationProgress({ phase: "diarizing" }, 42);
-  expect(statusText(explicit, t)).toBe("Riconoscimento dei parlanti… 42%");
-  expect(progressPercent(explicit)).toBe(42);
-  const final = withDiarizationProgress(
-    withDiarizing({ percent: 100, phase: "completing" }),
-    7
-  );
-  expect(statusText(final, t)).toBe("Analisi finale dei parlanti… 7%");
-  // Un avanzamento della Trascrizione in ritardo non la sovrascrive.
-  const transcribing = withDiarizationProgress(
-    withDiarizing({ percent: 100, phase: "transcribing" }),
-    30
-  );
-  expect(withProgress(transcribing, 100)).toBe(transcribing);
-  const finished: Status = { path: "a.tape", phase: "finished" };
-  expect(withDiarizationProgress(finished, 50)).toBe(finished);
 });
 
 test("a fine Trascrizione mostra il Tape in cui è il testo", () => {

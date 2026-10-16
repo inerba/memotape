@@ -20,7 +20,6 @@ use crate::engine::diarize::Turn;
 use crate::engine::transcribe_cpp::{OfflineDiarizer, TranscribeCpp};
 use crate::error::AppError;
 use crate::managers::loaded_model::{Lease, LoadedModel};
-use crate::managers::settings::{Diarizer, Settings};
 
 /// Un modello del catalogo.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -408,32 +407,19 @@ pub struct Models {
     diarizing: AtomicBool,
 }
 
-/// Modello prenotato per una Diarizzazione: la scelta resta fissata fino al drop.
-/// Il Sortformer scaricato resta in uso e non si elimina durante l’Attività.
+/// Sortformer prenotato per una Diarizzazione: resta in uso e non si elimina durante l’Attività.
 pub struct DiarizerLease {
     app: AppHandle,
-    local_path: Option<PathBuf>,
 }
 
 impl DiarizerLease {
     fn load(&self) -> Result<OfflineDiarizer, AppError> {
-        if let Some(local) = &self.local_path {
-            Ok(OfflineDiarizer::load_nemotron3(local)?)
-        } else {
-            Ok(OfflineDiarizer::load_sortformer(
-                &diarizer().path(&self.app.state::<Models>().dir),
-            )?)
-        }
+        OfflineDiarizer::load_sortformer(&diarizer().path(&self.app.state::<Models>().dir))
     }
 
-    /// I turni dell'Ogg `path`; `on_progress` come in `OfflineDiarizer::diarize_saved`.
-    pub fn diarize_saved(
-        &self,
-        path: &Path,
-        cancel: &CancelToken,
-        on_progress: &mut dyn FnMut(u8),
-    ) -> Result<Vec<Turn>, AppError> {
-        self.diarize_ingresso(path, crate::transcript::Ingresso::Mix, cancel, on_progress)
+    /// I turni dell'Ogg `path`.
+    pub fn diarize_saved(&self, path: &Path, cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
+        self.diarize_ingresso(path, crate::transcript::Ingresso::Mix, cancel)
     }
     /// Un'analisi indipendente sull'audio salvato dell'Ingresso, senza usare il mix degli altri.
     pub fn diarize_ingresso(
@@ -441,7 +427,6 @@ impl DiarizerLease {
         path: &Path,
         ingresso: crate::transcript::Ingresso,
         cancel: &CancelToken,
-        on_progress: &mut dyn FnMut(u8),
     ) -> Result<Vec<Turn>, AppError> {
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
@@ -449,7 +434,6 @@ impl DiarizerLease {
         self.load()?.diarize_saved(
             crate::audio_toolkit::decode::Decoder::open_16k(path, ingresso)?,
             cancel,
-            on_progress,
         )
     }
     /// I turni di chi parla in `audio` (mono a 16 kHz), in ordine di inizio.
@@ -457,17 +441,10 @@ impl DiarizerLease {
     pub fn diarize(&self, audio: &[f32], cancel: &CancelToken) -> Result<Vec<Turn>, AppError> {
         Ok(self.load()?.diarize(audio, cancel)?)
     }
-
-    pub fn is_nemotron3(&self) -> bool {
-        self.local_path.is_some()
-    }
 }
 
 impl Drop for DiarizerLease {
     fn drop(&mut self) {
-        if self.local_path.is_some() {
-            return;
-        }
         let models = self.app.state::<Models>();
         models.diarizing.store(false, Ordering::SeqCst);
         models.emit_state(&self.app, diarizer());
@@ -579,32 +556,7 @@ impl Models {
             }
         }
         self.emit_state(app, model);
-        Ok(DiarizerLease {
-            app: app.clone(),
-            local_path: None,
-        })
-    }
-
-    /// Fissa la scelta della Diarizzazione dalle impostazioni dell'Attività.
-    pub fn reserve_configured_diarizer(
-        &self,
-        app: &AppHandle,
-        settings: &Settings,
-    ) -> Result<DiarizerLease, AppError> {
-        if settings.diarizer == Diarizer::Sortformer {
-            return self.reserve_diarizer(app);
-        }
-        let path = settings
-            .nemotron3_path
-            .as_deref()
-            .filter(|p| !p.is_empty())
-            .ok_or(AppError::LocalDiarizerMissing)?;
-        let path = PathBuf::from(path);
-        crate::engine::local_diarizer::validate(&path)?;
-        Ok(DiarizerLease {
-            app: app.clone(),
-            local_path: Some(path),
-        })
+        Ok(DiarizerLease { app: app.clone() })
     }
 
     /// Restituisce il motore, che resta caricato, oppure lo scarta (`keep` falso) dopo un guasto.

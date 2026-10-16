@@ -10,7 +10,6 @@ use crate::error::AppError;
 use crate::managers::activity::Activity;
 use crate::managers::models::Models;
 use crate::managers::settings::{Settings, SettingsStore};
-use crate::managers::transcription::DiarizationProgress;
 use crate::tape::{self, Document};
 use crate::transcript::{
     Diarizzazione, DiarizzazioneIngresso, EsitoDiarizzazione, Ingresso, Phrase,
@@ -27,25 +26,15 @@ pub async fn diarize(app: AppHandle, activity: &Activity, source: PathBuf) -> Re
         // Prenotazione e verifica del modello fuori dall'esecutore async, prima dell'analisi.
         check_cancel(&cancel)?;
         let mut diarizer = None;
-        let total =
-            selected_ingressi(tape::has_ingressi(&source)?, settings.parlanti_microfono).len();
-        let mut index = 0;
         diarize_tape(&source, &settings, &cancel, |ingresso| {
             // Il core rifiuta prima un Tape illeggibile o senza testo, senza caricare modelli.
             if diarizer.is_none() {
-                diarizer = Some(
-                    app.state::<Models>()
-                        .reserve_configured_diarizer(&app, &settings)?,
-                );
+                diarizer = Some(app.state::<Models>().reserve_diarizer(&app)?);
             }
-            let current = index;
-            index += 1;
             diarizer
                 .as_ref()
                 .expect("modello prenotato")
-                .diarize_ingresso(&source, ingresso, &cancel, &mut |percent| {
-                    DiarizationProgress::emit_ingresso(&app, None, current, total, percent);
-                })
+                .diarize_ingresso(&source, ingresso, &cancel)
         })
     })
     .await
@@ -118,11 +107,7 @@ fn update_document(
         })
         .collect();
     for (ingresso, found) in turns {
-        if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
-            diarize::assign_ingresso_unambiguous(&mut phrases, *ingresso, found);
-        } else {
-            diarize::assign_ingresso(&mut phrases, *ingresso, found);
-        }
+        diarize::assign_ingresso(&mut phrases, *ingresso, found);
         for phrase in phrases.iter_mut().filter(|p| p.ingresso == *ingresso) {
             phrase.parlante_provvisorio = false;
         }
@@ -137,8 +122,6 @@ fn update_document(
             phrase.parlante_provvisorio = false;
         }
     }
-    // Mantiene la provenienza di ogni parte: le identità vecchie non sono i numeri del modello.
-    let mut next_id = document.frasi.iter().map(|f| f.id).max().unwrap_or(0);
     let mut projected = Vec::new();
     for (index, (original, phrase)) in document.frasi.iter().zip(&phrases).enumerate() {
         if original.parlante_corretto {
@@ -147,44 +130,21 @@ fn update_document(
             projected.push((index, confirmed));
             continue;
         }
-        let found = turns
-            .iter()
-            .find(|(ingresso, _)| *ingresso == original.ingresso);
-        let parts = if settings.diarizer == crate::managers::settings::Diarizer::Nemotron3 {
-            found
-                .map(|(_, turns)| diarize::divide(phrase.clone(), turns))
-                .unwrap_or_else(|| vec![phrase.clone()])
-        } else {
-            vec![phrase.clone()]
-        };
-        for (part, phrase) in parts.into_iter().enumerate() {
-            let id = if part == 0 {
-                original.id
-            } else {
-                next_id += 1;
-                next_id
-            };
-            projected.push((
-                index,
-                tape::Frase {
-                    id,
-                    inizio_ms: phrase.inizio_ms,
-                    fine_ms: phrase.fine_ms,
-                    testo: phrase.text,
-                    parlante: phrase.parlante,
-                    parlante_non_determinato: phrase.parlante_non_determinato,
-                    parlante_provvisorio: false,
-                    tempi: phrase.tempi,
-                    ..original.clone()
-                },
-            ));
-        }
+        projected.push((
+            index,
+            tape::Frase {
+                parlante: phrase.parlante,
+                parlante_non_determinato: phrase.parlante_non_determinato,
+                parlante_provvisorio: false,
+                ..original.clone()
+            },
+        ));
     }
     reconcile_identities(document, &mut projected, turns, &phrases);
     projected.sort_by_key(|(_, f)| f.inizio_ms);
     document.frasi = projected.into_iter().map(|(_, f)| f).collect();
     document.diarizzazione = Some(Diarizzazione {
-        modello: settings.diarizer,
+        modello: crate::managers::settings::Diarizer::Sortformer,
         esito: EsitoDiarizzazione::Completata,
         ingressi: turns
             .iter()
@@ -305,7 +265,7 @@ mod tests {
     use crate::audio_toolkit::ogg_opus::OggOpusWriter;
     use crate::audio_toolkit::ogg_opus::tests::{sine, temp_dir};
     use crate::engine::asr::AsrResult;
-    use crate::managers::settings::{Diarizer, SpeechLanguage};
+    use crate::managers::settings::SpeechLanguage;
     use crate::tape::Modalita;
 
     fn fixture(name: &str, separate: bool) -> (PathBuf, Document) {
@@ -412,7 +372,6 @@ mod tests {
         let audio = entry(&path, "mix.ogg");
         let onda = entry(&path, "forma-onda.json");
         let settings = Settings {
-            diarizer: Diarizer::Nemotron3,
             parlanti_file: false,
             ..Default::default()
         };
@@ -425,11 +384,11 @@ mod tests {
         assert_eq!(analyzed, [Ingresso::Mix]);
         let after = tape::read(&path).unwrap();
         assert_eq!(text(&before, Ingresso::Mix), text(&after, Ingresso::Mix));
-        assert_eq!(after.frasi.len(), 3);
-        assert_eq!(after.frasi[0].parlante, Some(1));
-        assert_eq!(after.frasi[1].parlante, Some(2));
-        assert_eq!(after.frasi[2].testo, "Questa è la correzione manuale.");
-        assert!(after.frasi[2].tempi.is_empty());
+        assert_eq!(after.frasi.len(), 2);
+        // Una sola voce nuova al posto della vecchia: il 7 resta, con il suo nome.
+        assert_eq!(after.frasi[0].parlante, Some(7));
+        assert_eq!(after.frasi[1].testo, "Questa è la correzione manuale.");
+        assert!(after.frasi[1].tempi.is_empty());
         assert!(after.frasi.iter().all(|f| !f.parlante_provvisorio));
         assert_eq!(after.parlanti.get("mix:7"), before.parlanti.get("mix:7"));
         assert_eq!(audio, entry(&path, "mix.ogg"));
@@ -452,7 +411,6 @@ mod tests {
     fn ridiarizzazione_separata_usa_solo_sistema_e_conserva_nome_del_microfono_singolo() {
         let (path, before) = fixture("rediari-sistema", true);
         let settings = Settings {
-            diarizer: Diarizer::Sortformer,
             parlanti_microfono: false,
             parlanti_sistema: false,
             ..Default::default()
@@ -502,7 +460,6 @@ mod tests {
             .map(|name| (name, entry(&path, name)))
             .collect();
         let settings = Settings {
-            diarizer: Diarizer::Nemotron3,
             parlanti_microfono: true,
             ..Default::default()
         };
@@ -523,7 +480,7 @@ mod tests {
                     .find(|f| f.ingresso == ingresso)
                     .unwrap()
                     .parlante,
-                Some(1)
+                Some(7)
             );
         }
         assert_eq!(after.parlanti, before.parlanti);
@@ -597,54 +554,22 @@ mod tests {
     }
 
     #[test]
-    fn ridiarizzazione_non_riunisce_frasi_gia_divise_e_non_inventa_tempi_dopo_correzione() {
-        let (_, mut document) = fixture("rediari-confini", false);
-        document.frasi[0].tempi.clear();
-        let before = document.frasi.clone();
-        update_document(
-            &mut document,
-            &Settings {
-                diarizer: Diarizer::Nemotron3,
-                ..Default::default()
-            },
-            false,
-            &[(Ingresso::Mix, found())],
-        );
-        assert_eq!(document.frasi.len(), before.len());
-        assert!(document.frasi[0].parlante_non_determinato);
-        for (after, before) in document.frasi.iter().zip(before) {
-            assert_eq!(after.testo, before.testo);
-            assert_eq!(
-                (after.inizio_ms, after.fine_ms),
-                (before.inizio_ms, before.fine_ms)
-            );
-            assert!(after.tempi.is_empty());
-        }
-    }
-
-    #[test]
-    fn attribuzione_manuale_non_si_divide_ma_il_solo_testo_corretto_si_riattribuisce() {
+    fn attribuzione_manuale_resta_e_il_solo_testo_corretto_si_riattribuisce() {
         let (path, mut document) = fixture("rediari-manuale", false);
         document.frasi[0].parlante_corretto = true;
         document.frasi[1].testo_corretto = true;
         document.frasi[1].parlante = Some(8);
         tape::rewrite(&path, &document).unwrap();
-        diarize_tape(
-            &path,
-            &Settings {
-                diarizer: Diarizer::Nemotron3,
-                ..Default::default()
-            },
-            &CancelToken::new(),
-            |_| Ok(found()),
-        )
+        diarize_tape(&path, &Settings::default(), &CancelToken::new(), |_| {
+            Ok(found())
+        })
         .unwrap();
         let after = tape::read(&path).unwrap();
         assert_eq!(after.frasi.len(), 2);
         assert_eq!(after.frasi[0].parlante, Some(7));
         assert_eq!(after.frasi[0].tempi, document.frasi[0].tempi);
         assert!(after.frasi[0].parlante_corretto);
-        assert_eq!(after.frasi[1].parlante, Some(2));
+        assert_eq!(after.frasi[1].parlante, Some(1));
         assert!(after.frasi[1].testo_corretto);
         assert_eq!(after.frasi[1].testo, document.frasi[1].testo);
         assert_eq!(after.frasi[1].id, document.frasi[1].id);
@@ -681,15 +606,9 @@ mod tests {
             tape::edit_turno(&path, Ingresso::Mix, &[0, 1], &text, corretto).unwrap();
             let audio = entry(&path, "mix.ogg");
             let before = tape::read(&path).unwrap();
-            diarize_tape(
-                &path,
-                &Settings {
-                    diarizer: Diarizer::Nemotron3,
-                    ..Default::default()
-                },
-                &CancelToken::new(),
-                |_| Ok(found()),
-            )
+            diarize_tape(&path, &Settings::default(), &CancelToken::new(), |_| {
+                Ok(found())
+            })
             .unwrap();
             let after = tape::read(&path).unwrap();
             assert_eq!(after.correzioni_testo, before.correzioni_testo);
@@ -704,41 +623,13 @@ mod tests {
                 assert_eq!(after.frasi[0].parlante, Some(7));
                 assert!(after.frasi[0].parlante_corretto);
             }
-            assert_ne!(after.frasi[1].parlante, original.frasi[1].parlante);
+            assert!(after.frasi[1].parlante.is_some());
             let opened = crate::managers::transcription::open_tape(&path).unwrap();
             assert_eq!(opened.phrases[0].text, corretto);
             assert_eq!(opened.phrases[1].text, "");
-            assert!(opened.phrases.iter().all(|f| f.parlante_non_determinato));
             assert_eq!(entry(&path, "mix.ogg"), audio);
             assert_eq!(tape::forma_onda(&path), Some(vec![0.2, 0.4, 0.1]));
         }
-        // Un Turno non corretto pu\u00F2 ancora dividersi in parti con tempi ASR reali.
-        let (path, mut original) = fixture("editor-rediari-nuovi-confini", false);
-        original.frasi[1].parlante = Some(8);
-        tape::rewrite(&path, &original).unwrap();
-        tape::edit_turno(&path, Ingresso::Mix, &[1], &original.frasi[1].testo, "").unwrap();
-        diarize_tape(
-            &path,
-            &Settings {
-                diarizer: Diarizer::Nemotron3,
-                ..Default::default()
-            },
-            &CancelToken::new(),
-            |_| Ok(found()),
-        )
-        .unwrap();
-        let opened = crate::managers::transcription::open_tape(&path).unwrap();
-        assert_eq!(opened.phrases.len(), 3);
-        assert!(
-            opened
-                .phrases
-                .iter()
-                .find(|f| f.phrase_id == 1)
-                .unwrap()
-                .text
-                .is_empty()
-        );
-        assert!(opened.phrases.iter().any(|f| f.phrase_id > 1));
     }
 
     #[test]
@@ -779,112 +670,5 @@ mod tests {
                 .all(|f| ![Some(1), Some(2)].contains(&f.parlante))
         );
         assert_eq!(document.parlanti["mix:2"], "Anna");
-    }
-
-    #[test]
-    #[ignore = "richiede MEMOTAPE_NEMOTRON3_MODEL, eseguire senza altri test nativi in parallelo"]
-    fn ridiarizzazione_nativa_salva_e_riapre_il_tape_senza_asr() {
-        use crate::audio_toolkit::decode::Decoder;
-        use crate::engine::transcribe_cpp::OfflineDiarizer;
-
-        let model = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
-        let folder = temp_dir("rediari-nativa");
-        let wav = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parlato-due-voci.wav");
-        let ogg = folder.join("audio.ogg");
-        let mut writer = OggOpusWriter::new(File::create(&ogg).unwrap(), 16_000, 1, 32).unwrap();
-        let mut decoder = Decoder::open(&wav).unwrap();
-        let mut samples = 0;
-        while let Some(block) = decoder.next_block().unwrap() {
-            assert_eq!(block.rate, 16_000);
-            let mono = block.mono();
-            samples += mono.len();
-            writer.write(&mono).unwrap();
-        }
-        let onda = writer.forma_onda();
-        writer.finish().unwrap();
-        let duration = u32::try_from(samples * 1000 / 16_000).unwrap();
-        let cancel = CancelToken::new();
-        let settings = Settings {
-            diarizer: Diarizer::Nemotron3,
-            parlanti_microfono: true,
-            ..Default::default()
-        };
-        // Anche testo corretto senza tempi può essere analizzato: resta intero e ambiguo se
-        // più voci attraversano la Frase. Nessun modello ASR viene caricato dal test.
-        for separate in [false, true] {
-            let ingressi = if separate {
-                vec![Ingresso::Microfono, Ingresso::Sistema]
-            } else {
-                vec![Ingresso::Mix]
-            };
-            let phrases: Vec<_> = ingressi
-                .iter()
-                .map(|&ingresso| Phrase {
-                    inizio_ms: 0,
-                    fine_ms: duration,
-                    text: "Il mio testo corretto: accenti, spazi e punteggiatura!".into(),
-                    ingresso,
-                    parlante: Some(1),
-                    parlante_non_determinato: false,
-                    parlante_provvisorio: false,
-                    tempi: Vec::new(),
-                })
-                .collect();
-            let mut document = Document::new(
-                "2026-10-03T17:05:00+02:00".into(),
-                duration,
-                if separate {
-                    Modalita::IngressiSeparati
-                } else {
-                    Modalita::Mix
-                },
-                Some("nemotron".into()),
-                SpeechLanguage::from("it"),
-                true,
-                &phrases,
-            );
-            document
-                .parlanti
-                .insert(ingressi[0].parlante_key(Some(1)), "Mario".into());
-            let path = folder.join(if separate {
-                "Separato.tape"
-            } else {
-                "Mix.tape"
-            });
-            let mut audio = vec![(Ingresso::Mix, ogg.as_path())];
-            if separate {
-                audio.extend([
-                    (Ingresso::Microfono, ogg.as_path()),
-                    (Ingresso::Sistema, ogg.as_path()),
-                ]);
-            }
-            tape::write(&path, &audio, &document, Some(&onda)).unwrap();
-            let mix = entry(&path, "mix.ogg");
-            diarize_tape(&path, &settings, &cancel, |ingresso| {
-                let found = OfflineDiarizer::load_nemotron3(&model)?.diarize_saved(
-                    Decoder::open_16k(&path, ingresso)?,
-                    &cancel,
-                    &mut |_| {},
-                )?;
-                let speakers: std::collections::BTreeSet<_> =
-                    found.iter().map(|turn| turn.parlante).collect();
-                assert_eq!(speakers.len(), 2, "{ingresso:?}: {found:?}");
-                Ok(found)
-            })
-            .unwrap();
-            let after = tape::read(&path).unwrap();
-            assert!(after.parlanti.is_empty());
-            assert_eq!(after.frasi.len(), document.frasi.len());
-            for ingresso in ingressi {
-                assert_eq!(text(&after, ingresso), text(&document, ingresso));
-            }
-            assert_eq!(entry(&path, "mix.ogg"), mix);
-            let opened = crate::managers::transcription::open_tape(&path).unwrap();
-            assert!(opened.phrases.iter().all(|p| p.parlante_non_determinato));
-            assert_eq!(
-                opened.info.diarizzazione.unwrap().esito,
-                EsitoDiarizzazione::Completata
-            );
-        }
     }
 }

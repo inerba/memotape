@@ -1,5 +1,4 @@
 import type {
-  DiarizationProgress,
   DiarizationStarted,
   Ingresso,
   LiveTranscriptionFailed,
@@ -17,7 +16,6 @@ import type {
 import type { TapeChange } from "@/features/source/view";
 import {
   type Status,
-  withDiarizationProgress,
   withDiarizing,
   withLiveError,
   withMovedSource,
@@ -119,7 +117,6 @@ export type EventAction =
   | { type: "recordingPhase"; payload: RecordingPhaseChanged }
   | { type: "progress"; payload: TranscriptionProgress }
   | { type: "diarizationStarted"; payload: DiarizationStarted }
-  | { type: "diarizationProgress"; payload: DiarizationProgress }
   | { type: "tick"; payload: RecordingTick }
   | { type: "cleaningPreparing"; payload: RecordingCleaningPreparing }
   | { type: "cleaningFailed"; payload: RecordingCleaningFailed };
@@ -273,11 +270,6 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
       };
     case "diarizationStarted":
       return { ...state, status: withDiarizing(state.status) };
-    case "diarizationProgress":
-      return {
-        ...state,
-        status: withDiarizationProgress(state.status, action.payload.percent),
-      };
     // Il riepilogo mostra i secondi: lo stato cambia una volta al secondo, non a ogni tick (40 ms).
     // L'indicatore e il timer della barra ascoltano i tick da sé.
     case "tick": {

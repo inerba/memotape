@@ -278,7 +278,7 @@ Requisiti concordati l'8 ottobre 2026, ispirati alle parole personalizzate di Ha
 83. Come utente, voglio che un Termine doppione o non ammesso non si aggiunga e che un messaggio accanto al campo lo dica, così la lista resta pulita.
 
 - Vale per tutte le Trascrizioni (file, Trascrivi su un Tape, Frasi concluse dal vivo) con ogni modello e ogni Lingua del parlato; non tocca i Parziali né i Tape già trascritti. Una Trascrizione usa il Vocabolario com'era al suo avvio.
-- Con Whisper i Termini entrano anche nel prompt iniziale; con un elenco lungo Whisper ne considera solo gli ultimi, e lo dice una nota sotto la lista. Con ogni modello un tratto della Frase simile per scrittura o pronuncia a un Termine diventa quel Termine, senza distinguere maiuscole e accenti; un Termine di meno di 4 lettere si sostituisce solo se coincide. I Termini in scritture non latine agiscono solo nel prompt di Whisper.
+- Whisper e Qwen3-ASR ricevono i Termini come vocabolario del modello e li riconoscono nell'audio, senza altre sostituzioni; con un elenco lungo ne considerano solo i primi, e lo dice una nota sotto la lista. Con gli altri modelli un tratto della Frase simile per scrittura o pronuncia a un Termine diventa quel Termine, senza distinguere maiuscole e accenti; un Termine di meno di 4 lettere si sostituisce solo se coincide. I Termini in scritture non latine agiscono solo con Whisper e Qwen3-ASR.
 - Ciò che il Vocabolario scrive è testo della Trascrizione: non è una Correzione manuale, non mostra **Corretto a mano** e il Tape non ricorda la parola sostituita né il Vocabolario usato. Il Termine occupa l'intervallo audio delle parole che sostituisce.
 
 ### Registrazione
@@ -302,8 +302,8 @@ Requisiti concordati l'8 ottobre 2026, ispirati alle parole personalizzate di Ha
 76. Come utente che registra da Entrambi, voglio che il Tape contenga sempre l'audio di ogni Ingresso, anche senza Trascrivi dal vivo, così posso trascriverlo dopo per Ingresso.
 77. Come utente, voglio che con "Riconosci i parlanti" si distinguano le voci dell'Audio di sistema e che il Microfono resti una persona sola, salvo che attivi la sua casella (più persone allo stesso microfono), così la videochiamata ha i suoi Parlanti e io resto "Microfono", che rinomino col mio nome come un Parlante ("Microfono · Francesco"). Ritrascrivendo un Tape da Entrambi vale la stessa regola, con la casella del Microfono di Impostazioni → Registrazione.
 78. Come utente, voglio che una Continuazione da Entrambi su un Tape senza l'audio degli Ingressi lo aggiunga, con silenzio per la parte già registrata, così le Frasi nuove sono separate per Ingresso.
-79. Come utente, voglio scegliere per i file e i Tape Nemotron 3 Diarization sperimentale, distinto dal modello di Trascrizione, mantenendo Sortformer come scelta iniziale e alternativa. Il GGUF della prova si sceglie localmente; assenza o incompatibilità danno un avviso senza sostituzione automatica.
-80. Come utente, voglio fino a 8 Parlanti per Ingresso con Nemotron e la dicitura "Parlante non determinato" per le Frasi con più voci non separabili, mantenendo testo, audio e tempi nella vista, in Copia testo e nel Markdown. Nelle Registrazioni con Trascrivi dal vivo Nemotron esegue l’analisi finale dopo Stop sull’audio salvato. Durante la Registrazione si esegue soltanto ASR: il testo cresce senza riconoscimento dei Parlanti. Dopo Stop, Frasi e testo si dividono ai cambi di Parlante quando i tempi ASR sono affidabili. Da Entrambi si riconoscono per Ingresso: fino a 8 per ogni Ingresso diarizzato, con identità indipendenti.
+79. *Tolta il 16 ottobre 2026*: la scelta sperimentale di Nemotron 3 Diarization. transcribe-cpp 0.4 non la contiene; resta Sortformer, e una scelta salvata prima vale come Sortformer.
+80. Come utente, voglio che nelle Registrazioni con Trascrivi dal vivo i Parlanti si riconoscano dopo Stop sull’audio salvato, per Ingresso e con identità indipendenti da Entrambi. Durante la Registrazione si esegue soltanto ASR: il testo cresce senza riconoscimento dei Parlanti. Nei Tape fatti con Nemotron 3 Diarization le Frasi divise ai cambi di voce e la dicitura "Parlante non determinato" restano nella vista, in Copia testo e nel Markdown.
 
 84. Come utente, voglio dare un nome alla Registrazione già mentre registro, con un clic sul titolo della sua vista, fino a quando il Tape non è salvato, così ritrovo subito "Riunione Acme" invece di `Registrazione <data ora>`. Il nome sostituisce tutto, data compresa (resta nella data di creazione del Tape); se c'è già nella Raccolta si aggiunge " 2", " 3"…; vuoto torna al nome automatico. Se il Tape non si scrive, l'Ogg e i Markdown accanto prendono lo stesso nome.
 
@@ -345,6 +345,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
 
 ## Stato
 
+- **transcribe-cpp 0.4.0 (16 ottobre 2026)**: Whisper e Qwen3-ASR ricevono il Vocabolario come vocabolario del modello e non passano più dalla correzione approssimata, che trasformava anche parole giuste in un Termine. Nemotron 3 Diarization è tolta, con la scelta del diarizer e il modello locale: il suo port non è in transcribe-cpp 0.4. Le voci «Nemotron 3» qui sotto sono la storia di quella prova; i loro Tape restano leggibili.
 - **Nemotron 3, ticket 02**: scelta persistente del diarizer e del GGUF BF16 locale verificato (dimensione e SHA-256 del ticket 01), Trascrivi su file audio/video e Tape, numerazione per comparsa e identità per Ingresso. Le Frasi ambigue si salvano nel documento v1 con il campo facoltativo `parlante_non_determinato`; i Tape precedenti restano leggibili. Sortformer conserva l'attribuzione per sovrapposizione maggiore.
 - **Nemotron 3, divisione del testo (ticket 04)**: nei file, nei Tape e nell'analisi finale delle Registrazioni, i cambi di voce dividono le Frasi soltanto ai confini sostenuti dai tempi ASR. Nemotron e Parakeet usano parole/token; Whisper mantiene segmenti indivisibili. Testo, ordine e punteggiatura si conservano; sovrapposizioni o tempi insufficienti restano «Parlante non determinato». Il risultato salvato e riaperto è comune a Player, Turni, correzioni, ricerca, copia ed esportazione. I Tape v1 precedenti restano leggibili senza riscritture automatiche. La divisione durante la Registrazione da un solo Ingresso è implementata nel ticket 06.
 
@@ -633,7 +634,7 @@ Spec `.scratch/note/spec.md`, formato ed editor in ADR-0032, anteprime approvate
 - "Estrai solo audio" e qualsiasi conversione video. Niente ffmpeg (ADR-0002).
 - I formati AVI, WMV, FLV, TS, MTS, MPEG-PS e i codec AC-3, E-AC-3, HE-AAC, WMA, DTS.
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
-- Timestamp nel testo copiato o esportato, traduzione, prompt iniziale di Whisper (salvo i Termini del Vocabolario) e Lingue del parlato oltre le sei dell'interfaccia.
+- Timestamp nel testo copiato o esportato, traduzione, prompt di contesto dei modelli (salvo i Termini del Vocabolario) e Lingue del parlato oltre le sei dell'interfaccia.
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
 - Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
 - macOS, Linux, Windows ARM.

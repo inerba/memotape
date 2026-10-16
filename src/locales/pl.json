@@ -40,7 +40,6 @@
       "manualDescription": "Ten Tape zawiera ręczne poprawki. Nowa transkrypcja zastąpi tekst, przypisania mówców i ich nazwy, w tym ręczne poprawki. Dźwięk pozostaje taki jak w Tape, bez ponownego czyszczenia. Anulowanie lub błąd pozostawia istniejący Tape bez zmian."
     },
     "parlanti": "Rozpoznaj mówców",
-    "nemotron3Note": "Eksperymentalny Nemotron 3: obsługuje do 8 mówców na wejście, ale może mylić lub łączyć głosy.",
     "parlantiNote": "Najwyżej {{count}} mówców na wejście",
     "parlantiList": "Mówcy:",
     "rename": "Kliknij, aby zmienić nazwę: Enter zatwierdza, Esc anuluje",
@@ -134,8 +133,6 @@
       "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
       "cancelled": "Transkrypcja anulowana",
       "internal": "Błąd wewnętrzny: {{detail}}",
-      "localDiarizerMissing": "Wybierz lokalny model Nemotron Diarization w Ustawienia → Transkrypcja",
-      "localDiarizerIncompatible": "Model lokalny nie odpowiada zweryfikowanemu plikowi GGUF Nemotron Diarization lub nie można go załadować: {{detail}}",
       "audioCleaningMissing": "Brakuje modelu DeepFilterNet3 dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
       "audioCleaningIncompatible": "Dołączony model DeepFilterNet3 jest niezgodny: {{detail}}",
       "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
@@ -167,15 +164,7 @@
       "title": "Transkrypcja",
       "description": "Modele transkrybują na Twoim komputerze: pobierasz je raz, a potem działają bez internetu.",
       "diarization": "Rozpoznawanie mówców",
-      "diarizationDescription": "Rozpoznaje Mówców po Transkrypcji plików i Tape’ów lub po Stop w Nagraniach. Sortformer rozróżnia do 4 Mówców.",
-      "diarizer": "Model mówców",
-      "nemotron3": "Nemotron 3 Diarization (eksperymentalny)",
-      "localModel": "Model lokalny",
-      "experimentalDescription": "Funkcja eksperymentalna: mówcy mogą być myleni, szczególnie przy nakładających się głosach lub wielu osobach.",
-      "recordingDiarizationDescription": "Mówcy są rozpoznawani po Stop; podczas Nagrania trwa tylko Transkrypcja na żywo.",
-      "localModelDescription": "Wybierz zgodny model BF16 Nemotron 3 Diarization. Jest używany do plików, Tape i nagrań, również z oddzielnymi wejściami.",
-      "localModelMissing": "Nie wybrano modelu lokalnego",
-      "chooseLocalModel": "Wybierz model lokalny…"
+      "diarizationDescription": "Rozpoznaje Mówców po Transkrypcji plików i Tape’ów lub po Stop w Nagraniach. Sortformer rozróżnia do 4 Mówców."
     },
     "vocabolario": {
       "title": "Słownik",
@@ -190,7 +179,7 @@
       "scartati_few": "Pominięto {{count}} wiersze: duplikaty lub z <| albo |>.",
       "scartati_many": "Pominięto {{count}} wierszy: duplikaty lub z <| albo |>.",
       "scartati_other": "Pominięto {{count}} wiersza: duplikaty lub z <| albo |>.",
-      "whisper": "Z Whisperem Terminy trafiają też do początkowego promptu: przy długiej liście Whisper bierze pod uwagę tylko ostatnie."
+      "whisper": "Whisper i Qwen3-ASR otrzymują Terminy i rozpoznają je w nagraniu; przy długiej liście biorą pod uwagę tylko pierwsze. W innych modelach słowo podobne do Terminu staje się tym Terminem."
     },
     "recording": {
       "title": "Nagrywanie i dźwięk",

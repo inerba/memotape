@@ -9,10 +9,6 @@ pub enum AppError {
     AudioCleaningIncompatible(String),
     #[error("pulizia audio interrotta: {0}")]
     AudioCleaningFailed(String),
-    #[error("modello Nemotron Diarization locale assente")]
-    LocalDiarizerMissing,
-    #[error("modello Nemotron Diarization locale incompatibile: {0}")]
-    LocalDiarizerIncompatible(String),
     #[error("file illeggibile: {0}")]
     UnreadableFile(String),
     #[error("codec non supportato: {0}")]

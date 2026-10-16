@@ -137,18 +137,9 @@ export function TranscribeOptions({
         ) : null}
       </div>
       <SettingSwitch
-        description={
-          settings.diarizer === "nemotron3"
-            ? t("transcription.nemotron3Note")
-            : undefined
-        }
         label={t("transcription.parlanti")}
         name="parlantiFile"
-        note={
-          settings.diarizer === "nemotron3"
-            ? undefined
-            : t("transcription.parlantiNote", { count: 4 })
-        }
+        note={t("transcription.parlantiNote", { count: 4 })}
         onError={onError}
       />
     </div>

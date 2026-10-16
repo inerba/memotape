@@ -153,23 +153,6 @@ export function withDiarizing(status: Status): Status {
     : status;
 }
 
-/**
- * Applica `diarization-progress`: la percentuale dell'audio salvato analizzato, solo con Nemotron 3.
- * Arriva durante Riconosci i parlanti o l'analisi finale di una Registrazione.
- */
-export function withDiarizationProgress(
-  status: Status,
-  percent: number
-): Status {
-  if (status.phase === "diarizing") {
-    return { ...status, percent };
-  }
-  return (status.phase === "transcribing" || status.phase === "completing") &&
-    status.diarizing
-    ? { ...status, percent }
-    : status;
-}
-
 /** Applica `live-transcription-failed`: la Registrazione continua e la status bar lo dice. */
 export function withLiveError(status: Status, liveError: AppError): Status {
   return status.phase === "preparingRecording" ||
@@ -236,8 +219,6 @@ function needsSettingsError(error?: AppError): boolean {
   return (
     code === "modelMissing" ||
     code === "diarizerMissing" ||
-    code === "localDiarizerMissing" ||
-    code === "localDiarizerIncompatible" ||
     code === "liveTranscriptionUnavailable"
   );
 }

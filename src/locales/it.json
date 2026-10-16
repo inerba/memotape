@@ -40,7 +40,6 @@
       "manualDescription": "Questo Tape contiene correzioni manuali. Una nuova Trascrizione sostituirà il testo, le attribuzioni e i nomi dei Parlanti, comprese le correzioni fatte a mano. L’audio resta quello del Tape, senza nuova pulizia. Con Annulla o errore il Tape precedente resta invariato."
     },
     "parlanti": "Riconosci i parlanti",
-    "nemotron3Note": "Nemotron 3 sperimentale: supporta fino a 8 Parlanti per Ingresso, ma può confondere o unire le voci.",
     "parlantiNote": "Al massimo {{count}} Parlanti per Ingresso",
     "parlantiList": "Parlanti:",
     "rename": "Clic per rinominare: Invio conferma, Esc annulla",
@@ -134,8 +133,6 @@
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}",
-      "localDiarizerMissing": "Scegli il modello locale Nemotron Diarization in Impostazioni → Trascrizione",
-      "localDiarizerIncompatible": "Il modello locale non coincide con il GGUF Nemotron Diarization verificato o non si può caricare: {{detail}}",
       "audioCleaningMissing": "Il modello DeepFilterNet3 distribuito con l’app è assente. Reinstalla Memotape.",
       "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
       "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
@@ -167,15 +164,7 @@
       "title": "Trascrizione",
       "description": "I modelli trascrivono in locale: si scaricano una volta, poi funzionano senza rete.",
       "diarization": "Riconoscimento dei parlanti",
-      "diarizationDescription": "Riconosce i Parlanti dopo la Trascrizione di file e Tape, o dopo Stop nelle Registrazioni. Sortformer distingue fino a 4 Parlanti.",
-      "diarizer": "Modello dei parlanti",
-      "nemotron3": "Nemotron 3 Diarization (sperimentale)",
-      "localModel": "Modello locale",
-      "experimentalDescription": "Funzione sperimentale: i Parlanti possono essere confusi, soprattutto con voci sovrapposte o molte persone.",
-      "recordingDiarizationDescription": "I Parlanti vengono riconosciuti dopo Stop; durante la Registrazione continua solo la Trascrizione dal vivo.",
-      "localModelDescription": "Seleziona il modello BF16 compatibile di Nemotron 3 Diarization. Si usa per file, Tape e Registrazioni, anche con Ingressi separati.",
-      "localModelMissing": "Nessun modello locale scelto",
-      "chooseLocalModel": "Scegli modello locale…"
+      "diarizationDescription": "Riconosce i Parlanti dopo la Trascrizione di file e Tape, o dopo Stop nelle Registrazioni. Sortformer distingue fino a 4 Parlanti."
     },
     "vocabolario": {
       "title": "Vocabolario",
@@ -189,7 +178,7 @@
       "scartati_one": "{{count}} riga scartata: doppione o con <| o |>.",
       "scartati_many": "{{count}} righe scartate: doppioni o con <| o |>.",
       "scartati_other": "{{count}} righe scartate: doppioni o con <| o |>.",
-      "whisper": "Con Whisper i Termini entrano anche nel prompt iniziale: con un elenco lungo Whisper considera solo gli ultimi."
+      "whisper": "Whisper e Qwen3-ASR ricevono i Termini e li riconoscono nell'audio; con un elenco lungo considerano solo i primi. Con gli altri modelli una parola simile a un Termine diventa quel Termine."
     },
     "recording": {
       "title": "Registrazione e audio",

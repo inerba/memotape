@@ -40,7 +40,6 @@
       "manualDescription": "Ce Tape contient des corrections manuelles. Une nouvelle transcription remplacera le texte, les attributions et les noms des locuteurs, y compris les corrections manuelles. L’audio reste celui du Tape, sans nouveau nettoyage. Une annulation ou une erreur laisse le Tape existant inchangé."
     },
     "parlanti": "Reconnaître les intervenants",
-    "nemotron3Note": "Nemotron 3 expérimental : prend en charge jusqu’à 8 intervenants par entrée, mais peut confondre ou fusionner les voix.",
     "parlantiNote": "{{count}} intervenants au maximum par entrée",
     "parlantiList": "Intervenants :",
     "rename": "Cliquez pour renommer : Entrée valide, Échap annule",
@@ -134,8 +133,6 @@
       "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
       "cancelled": "Transcription annulée",
       "internal": "Erreur interne : {{detail}}",
-      "localDiarizerMissing": "Choisissez le modèle local Nemotron Diarization dans Paramètres → Transcription",
-      "localDiarizerIncompatible": "Le modèle local ne correspond pas au GGUF Nemotron Diarization vérifié ou ne peut pas être chargé : {{detail}}",
       "audioCleaningMissing": "Le modèle DeepFilterNet3 fourni avec l’application est absent. Réinstallez Memotape.",
       "audioCleaningIncompatible": "Le modèle DeepFilterNet3 fourni est incompatible : {{detail}}",
       "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré : {{detail}}",
@@ -167,15 +164,7 @@
       "title": "Transcription",
       "description": "Les modèles transcrivent sur votre ordinateur : téléchargés une fois, ils fonctionnent ensuite sans réseau.",
       "diarization": "Reconnaissance des intervenants",
-      "diarizationDescription": "Identifie les Locuteurs après la Transcription des fichiers et Tapes, ou après Stop pour les Enregistrements. Sortformer distingue jusqu’à 4 Locuteurs.",
-      "diarizer": "Modèle des locuteurs",
-      "nemotron3": "Nemotron 3 Diarization (expérimental)",
-      "localModel": "Modèle local",
-      "experimentalDescription": "Fonction expérimentale : les intervenants peuvent être confondus, surtout lorsque les voix se chevauchent ou que les personnes sont nombreuses.",
-      "recordingDiarizationDescription": "Les Locuteurs sont identifiés après Stop ; seule la Transcription en direct continue pendant l’Enregistrement.",
-      "localModelDescription": "Sélectionnez le modèle BF16 compatible de Nemotron 3 Diarization. Il est utilisé pour les fichiers, les Tape et les enregistrements, y compris avec des entrées séparées.",
-      "localModelMissing": "Aucun modèle local choisi",
-      "chooseLocalModel": "Choisir un modèle local…"
+      "diarizationDescription": "Identifie les Locuteurs après la Transcription des fichiers et Tapes, ou après Stop pour les Enregistrements. Sortformer distingue jusqu’à 4 Locuteurs."
     },
     "vocabolario": {
       "title": "Vocabulaire",
@@ -189,7 +178,7 @@
       "scartati_one": "{{count}} ligne ignorée : doublon ou avec <| ou |>.",
       "scartati_many": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
       "scartati_other": "{{count}} lignes ignorées : doublons ou avec <| ou |>.",
-      "whisper": "Avec Whisper, les Termes entrent aussi dans le prompt initial : avec une longue liste, Whisper ne prend en compte que les derniers."
+      "whisper": "Whisper et Qwen3-ASR reçoivent les Termes et les reconnaissent dans l'audio ; avec une longue liste, ils ne prennent en compte que les premiers. Avec les autres modèles, un mot proche d'un Terme devient ce Terme."
     },
     "recording": {
       "title": "Enregistrement et audio",

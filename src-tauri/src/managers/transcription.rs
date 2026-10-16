@@ -124,36 +124,6 @@ pub struct DiarizationStarted {
     pub session_id: Option<String>,
 }
 
-/// Quanto audio salvato la Diarizzazione ha analizzato, su tutti gli Ingressi. Solo con Nemotron 3:
-/// Sortformer non dà avanzamento.
-#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
-#[serde(rename_all = "camelCase")]
-pub struct DiarizationProgress {
-    pub session_id: Option<String>,
-    pub percent: u8,
-}
-
-impl DiarizationProgress {
-    /// Gli Ingressi si analizzano uno dopo l'altro: `index` di `total` è a `percent`.
-    pub fn emit_ingresso(
-        app: &AppHandle,
-        session_id: Option<&str>,
-        index: usize,
-        total: usize,
-        percent: u8,
-    ) {
-        let total = total.max(1);
-        let overall = (index.min(total - 1) * 100 + usize::from(percent.min(100))) / total;
-        let event = Self {
-            session_id: session_id.map(str::to_owned),
-            percent: u8::try_from(overall).unwrap_or(100),
-        };
-        if let Err(e) = event.emit(app) {
-            log::warn!("diarization-progress non emesso: {e}");
-        }
-    }
-}
-
 /// I Parlanti delle Frasi dopo la Diarizzazione: `parlante` da 1 per ordine di comparsa, `null` se
 /// nessuno parlava durante la Frase.
 #[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
@@ -380,15 +350,14 @@ pub async fn transcribe(
     let separate = ingressi != [Ingresso::Mix];
     // Gli Ingressi da diarizzare: con gli Ingressi separati il Microfono solo a richiesta.
     let diarized = settings.parlanti_trascrivi(separate);
-    // Si verifica il modello selezionato prima dell'ASR, fuori dall'esecutore async (hash del GGUF).
+    // Sortformer si prenota prima dell'ASR: se manca lo dice subito, non dopo la Trascrizione.
     let diarizer = if diarized.is_empty() {
         None
     } else {
-        let (app, settings) = (app.clone(), settings.clone());
+        let app = app.clone();
         Some(
             tauri::async_runtime::spawn_blocking(move || {
-                app.state::<Models>()
-                    .reserve_configured_diarizer(&app, &settings)
+                app.state::<Models>().reserve_diarizer(&app)
             })
             .await
             .map_err(|e| AppError::Internal(e.to_string()))??,
@@ -735,23 +704,10 @@ fn diarize_phrases(
         turns.push((*ingresso, found));
     }
     for (ingresso, found) in &turns {
-        diarize::assign_configured(
-            &mut transcript.phrases,
-            *ingresso,
-            found,
-            if diarizer.is_nemotron3() {
-                crate::managers::settings::Diarizer::Nemotron3
-            } else {
-                crate::managers::settings::Diarizer::Sortformer
-            },
-        );
+        diarize::assign_ingresso(&mut transcript.phrases, *ingresso, found);
     }
     transcript.diarizzazione = Some(crate::transcript::Diarizzazione {
-        modello: if diarizer.is_nemotron3() {
-            crate::managers::settings::Diarizer::Nemotron3
-        } else {
-            crate::managers::settings::Diarizer::Sortformer
-        },
+        modello: crate::managers::settings::Diarizer::Sortformer,
         esito: crate::transcript::EsitoDiarizzazione::Completata,
         ingressi: turns
             .iter()
@@ -1296,66 +1252,37 @@ mod tests {
     use crate::audio_toolkit::ogg_opus::tests::decoded_seconds;
     use crate::engine::pipeline::tests::{EnergyDetector, FakeEngine, fixture, wav};
     use crate::engine::pipeline::transcribe_file;
-    use crate::engine::transcribe_cpp::OfflineDiarizer;
     use crate::managers::settings::Channels;
 
     #[test]
     fn divisioni_e_identita_per_ingresso_restano_coerenti_in_tape_copia_correzioni_e_indice() {
         use crate::engine::asr::AsrResult;
-        use crate::engine::diarize::Turn;
-        use crate::managers::settings::Diarizer;
         let dir = temp_dir("memotape-test-divisioni");
         let root = dir.join("Libreria");
         std::fs::create_dir(&root).unwrap();
         let ogg = dir.join("audio.ogg");
         tone_ogg(&ogg, &[(3.0, true)]);
-        let make = |ingresso, text: &str, rows: Vec<(i64, i64, String)>| {
-            let result = AsrResult::timed(text.into(), rows);
+        let make = |ingresso, inizio_ms: u32, fine_ms: u32, text: &str, parlante| {
+            let row = (i64::from(inizio_ms), i64::from(fine_ms), text.into());
+            let result = AsrResult::timed(text.into(), [row]);
             Phrase {
-                inizio_ms: 0,
-                fine_ms: 3000,
+                inizio_ms,
+                fine_ms,
                 text: result.text,
                 tempi: result.tempi,
                 ingresso,
-                parlante: None,
+                parlante: Some(parlante),
                 parlante_non_determinato: false,
                 parlante_provvisorio: false,
             }
         };
-        let mut phrases = vec![
-            make(
-                Ingresso::Microfono,
-                "Buongiorno! Arrivederci.",
-                vec![
-                    (100, 700, "Buongiorno!".into()),
-                    (1500, 2200, "Arrivederci.".into()),
-                ],
-            ),
-            make(
-                Ingresso::Sistema,
-                "Sì. No.",
-                vec![(500, 900, "Sì.".into()), (2300, 2700, "No.".into())],
-            ),
+        // Frasi divise al cambio di voce, come nei Tape di Nemotron 3 Diarization.
+        let phrases = vec![
+            make(Ingresso::Microfono, 100, 700, "Buongiorno!", 1),
+            make(Ingresso::Sistema, 500, 900, "Sì.", 1),
+            make(Ingresso::Microfono, 1500, 2200, "Arrivederci.", 2),
+            make(Ingresso::Sistema, 2300, 2700, "No.", 2),
         ];
-        for ingresso in [Ingresso::Microfono, Ingresso::Sistema] {
-            diarize::assign_configured(
-                &mut phrases,
-                ingresso,
-                &[
-                    Turn {
-                        inizio_ms: 0,
-                        fine_ms: 1000,
-                        parlante: 7,
-                    },
-                    Turn {
-                        inizio_ms: 1000,
-                        fine_ms: 3000,
-                        parlante: 3,
-                    },
-                ],
-                Diarizer::Nemotron3,
-            );
-        }
         let document = tape::Document::new(
             "2026-10-05T12:00:00+02:00".into(),
             3000,
@@ -1944,103 +1871,6 @@ mod tests {
         let read: tape::Document = serde_json::from_value(old).unwrap();
         assert!(read.frasi.iter().all(|f| !f.parlante_non_determinato));
         assert_eq!(read.frasi[0].parlante, Some(1));
-    }
-
-    /// Prova nativa separata dalla suite del core, con l'artefatto locale del ticket 01.
-    #[test]
-    #[ignore = "richiede MEMOTAPE_NEMOTRON3_MODEL e Nemotron ASR scaricato"]
-    fn nemotron3_trascrive_un_file_e_riapre_il_tape_con_i_parlanti() {
-        use crate::engine::transcribe_cpp::TranscribeCpp;
-        let local = PathBuf::from(std::env::var("MEMOTAPE_NEMOTRON3_MODEL").unwrap());
-        let models_dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
-        let settings = Settings {
-            diarizer: crate::managers::settings::Diarizer::Nemotron3,
-            nemotron3_path: Some(local.display().to_string()),
-            parlanti_file: true,
-            ..Settings::default()
-        };
-        let mut engine = TranscribeCpp::load(&models::default_model().path(&models_dir)).unwrap();
-        let mut detector = crate::audio_toolkit::vad::Silero::new(
-            &Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/silero_vad.onnx"),
-        )
-        .unwrap();
-        let cancel = CancelToken::new();
-        let source = fixture("parlato-due-voci.wav");
-        let library = temp_dir("memotape-test-nemotron3-nativo");
-        let path = file_to_tape(&library, &library, &source, &settings, |copy| {
-            let mut audio = Vec::new();
-            let mut phrases = Vec::new();
-            let duration = transcribe_file(
-                &source,
-                &mut engine,
-                &mut detector,
-                Some("it"),
-                Some(&mut audio),
-                Some(copy),
-                &cancel,
-                &mut |event| {
-                    if let PipelineEvent::Phrase {
-                        inizio_ms,
-                        fine_ms,
-                        text,
-                        tempi,
-                        ..
-                    } = event
-                    {
-                        phrases.push(Phrase {
-                            inizio_ms,
-                            fine_ms,
-                            text,
-                            ingresso: Ingresso::Mix,
-                            parlante: None,
-                            parlante_non_determinato: false,
-                            parlante_provvisorio: false,
-                            tempi,
-                        });
-                    }
-                },
-            )?;
-            let turns = OfflineDiarizer::load_nemotron3(&local)?.diarize(&audio, &cancel)?;
-            diarize::assign_configured(
-                &mut phrases,
-                Ingresso::Mix,
-                &turns,
-                crate::managers::settings::Diarizer::Nemotron3,
-            );
-            println!("Frasi native: {phrases:?}");
-            let mut found: Vec<_> = phrases.iter().filter_map(|p| p.parlante).collect();
-            found.sort_unstable();
-            found.dedup();
-            assert_eq!(found, [1, 2]);
-            assert!(phrases.iter().any(|p| !p.text.is_empty()));
-            Ok(tape::Document::new(
-                tape::creato(chrono::Local::now()),
-                duration,
-                tape::Modalita::Mix,
-                Some(models::default_model().id.clone()),
-                SpeechLanguage::from("it"),
-                true,
-                &phrases,
-            ))
-        })
-        .unwrap()
-        .unwrap();
-        let opened = open_tape(&path).unwrap();
-        assert!(!opened.phrases.is_empty());
-        assert!(tape::forma_onda(&path).is_some());
-        assert!((decoded_seconds(&path) - decoded_seconds(&source)).abs() < 0.001);
-        let text = tape_text(
-            &path,
-            &Settings {
-                interface_language: Some(Language::It),
-                ..settings
-            },
-            CopiaCome::Markdown,
-        )
-        .unwrap();
-        assert!(text.contains("Parlante 1:"));
-        assert!(text.contains("Parlante 2:"));
     }
 
     #[test]

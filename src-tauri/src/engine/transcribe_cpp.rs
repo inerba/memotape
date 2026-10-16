@@ -1,6 +1,7 @@
 //! `TranscriptionEngine` su transcribe-cpp: `Session::stream` per i modelli in streaming
 //! (Nemotron) quando servono i Parziali (dal vivo), con un Parziale a ogni cambio del testo, e
-//! `Session::run` sulla Frase intera per gli altri (Whisper, Parakeet) e per i file.
+//! `Session::run` sulla Frase intera per gli altri (Whisper, Parakeet) e per i file. Sortformer ha
+//! il suo ruolo, DIARIZE, con `DiarizeSession`.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
@@ -8,8 +9,8 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use transcribe_cpp::{
-    CancelToken, Diarize, Feature, Model, Nemotron3DiarOptions, Nemotron3DiarPreset, RunExtension,
-    RunOptions, Session, StreamExtension, StreamOptions, TimestampKind, WhisperRunOptions,
+    CancelToken, DiarizeOptions, DiarizeSession, Feature, Model, RunExtension, RunOptions, Session,
+    SpeakerSegment, StreamOptions, TimestampKind, WhisperRunOptions,
 };
 
 use super::asr::AsrResult;
@@ -26,6 +27,8 @@ pub struct TranscribeCpp {
     streaming: bool,
     /// `Feature::TemperatureFallback`: fra i modelli del catalogo, solo Whisper.
     fallback: bool,
+    /// `Feature::Vocabulary`: fra i modelli del catalogo, Whisper e Qwen3-ASR.
+    vocabulary: bool,
     timestamps: TimestampKind,
     /// Il Vocabolario della Trascrizione in corso (`set_termini`).
     termini: Vec<String>,
@@ -37,7 +40,7 @@ impl TranscribeCpp {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
         init_backends()?;
-        let (session, capabilities, fallback) = catch_native(|| {
+        let (session, capabilities, fallback, vocabulary) = catch_native(|| {
             let model = Model::load(path)?;
             if !model.supports(Feature::Cancellation) {
                 log::info!(
@@ -46,8 +49,9 @@ impl TranscribeCpp {
             }
             Ok((
                 model.session()?,
-                model.capabilities(),
+                model.capabilities()?,
                 model.supports(Feature::TemperatureFallback),
+                model.supports(Feature::Vocabulary),
             ))
         })?;
         let mut engine = Self {
@@ -55,6 +59,7 @@ impl TranscribeCpp {
             languages: capabilities.languages,
             streaming: capabilities.supports_streaming,
             fallback,
+            vocabulary,
             timestamps: capabilities.max_timestamp_kind,
             termini: Vec::new(),
         };
@@ -80,6 +85,11 @@ impl TranscribeCpp {
         &self.languages
     }
 
+    #[cfg(test)]
+    pub fn has_vocabulary(&self) -> bool {
+        self.vocabulary
+    }
+
     /// Installa il token di Annulla della prossima Trascrizione: interrompe anche la Frase in
     /// corso se il modello supporta la cancellazione, altrimenti la pipeline si ferma alla fine
     /// della Frase.
@@ -87,8 +97,8 @@ impl TranscribeCpp {
         self.session.set_cancel_token(cancel);
     }
 
-    /// I Termini del Vocabolario della prossima Trascrizione, com'erano al suo avvio: il prompt di
-    /// Whisper e la correzione delle Frasi concluse.
+    /// I Termini del Vocabolario della prossima Trascrizione, com'erano al suo avvio: il
+    /// vocabolario del modello o la correzione delle Frasi concluse.
     pub fn set_termini(&mut self, termini: &[String]) {
         termini.clone_into(&mut self.termini);
     }
@@ -106,10 +116,17 @@ impl TranscriptionEngine for TranscribeCpp {
             language: language.and_then(|l| super::resolve_language(l, &self.languages)),
             family: self
                 .fallback
-                .then(|| RunExtension::Whisper(whisper_options(&self.termini))),
+                .then(|| RunExtension::Whisper(whisper_options())),
+            vocabulary: vocabulary(self.vocabulary, &self.termini),
             ..RunOptions::default()
         };
-        let termini = &self.termini;
+        // I Termini già dati al modello non si correggono una seconda volta: la correzione
+        // approssimata trasformava anche parole giuste in un Termine ("scelte" in "slide deck").
+        let termini: &[String] = if run.vocabulary.is_empty() {
+            &self.termini
+        } else {
+            &[]
+        };
         let finish = |transcript| finish_phrase(transcript, language, termini);
         // Senza Parziali da mostrare `run` sulla Frase intera è più veloce dello stream anche per
         // Nemotron (93 s contro 40 su 10 minuti, docs/research/trascrizione-file-veloce.md).
@@ -200,7 +217,22 @@ fn timed_result(transcript: transcribe_cpp::Transcript) -> AsrResult {
     AsrResult::timed(text, rows)
 }
 
-/// Le opzioni di Whisper: soglie contro le invenzioni e prompt iniziale con il Vocabolario.
+/// I Termini per `RunOptions::vocabulary`, solo ai modelli con `Feature::Vocabulary`: Whisper li
+/// mette nel prompt come `Glossary: a, b`, Qwen3-ASR nel messaggio di sistema; oltre il budget del
+/// prompt transcribe-cpp toglie gli ultimi. Un `<|…|>` farebbe fallire la Frase con `INVALID_ARG`:
+/// `set_settings` lo rifiuta, ma un `settings.json` scritto a mano può averlo, quindi si salta.
+fn vocabulary(supported: bool, termini: &[String]) -> Vec<String> {
+    if !supported {
+        return Vec::new();
+    }
+    termini
+        .iter()
+        .filter(|t| !super::vocabolario::has_special_token(t))
+        .cloned()
+        .collect()
+}
+
+/// Le opzioni di Whisper: soglie contro le invenzioni.
 ///
 /// Senza invenzioni: con la confidenza media sotto `logprob_thold` (−1, il predefinito) la
 /// Frase si scarta subito, invece di ritentare a temperature più alte. Se nessun tentativo supera le
@@ -208,172 +240,62 @@ fn timed_result(transcript: transcribe_cpp::Transcript) -> AsrResult {
 /// parole a caso in più lingue. La regola di salto è `no_speech_prob > no_speech_thold` e
 /// confidenza sotto soglia, quindi con `no_speech_thold` 0 basta la confidenza. Su una
 /// Registrazione di 7 minuti (76 Frasi) ha scartato le 7 inventate e lasciato identiche le altre.
-///
-/// Il prompt iniziale sono i Termini del Vocabolario uniti da `", "`; oltre circa 223 token
-/// transcribe-cpp ne toglie l'inizio. Un `<|…|>` farebbe fallire la Frase con `INVALID_ARG`:
-/// `set_settings` lo rifiuta, ma un `settings.json` scritto a mano può averlo, quindi si salta.
-fn whisper_options(termini: &[String]) -> WhisperRunOptions {
-    let prompt: Vec<&str> = termini
-        .iter()
-        .map(String::as_str)
-        .filter(|t| !super::vocabolario::has_special_token(t))
-        .collect();
+/// Niente `initial_prompt`: transcribe-cpp lo rifiuta insieme a `RunOptions::vocabulary`.
+fn whisper_options() -> WhisperRunOptions {
     WhisperRunOptions {
         no_speech_thold: Some(0.0),
-        initial_prompt: (!prompt.is_empty()).then(|| prompt.join(", ")),
         ..WhisperRunOptions::default()
     }
 }
 
-/// Diarizzazione offline: Sortformer (4 Parlanti) o Nemotron 3 (8), con sessione per Ingresso.
+/// Diarizzazione offline con Sortformer (4 Parlanti), con sessione per Ingresso.
 pub struct OfflineDiarizer {
-    session: Session,
-    nemotron3: bool,
+    session: DiarizeSession,
 }
 
 impl OfflineDiarizer {
-    /// Nemotron analizza il file a blocchi con il preset finale. Il PCM non viene accumulato:
-    /// il runtime conserva le cache del preset e i turni, non l'intero audio della Registrazione.
-    /// `on_progress` riceve la percentuale dell'audio analizzato, solo con Nemotron: Sortformer è
-    /// una sola chiamata nativa, senza avanzamento.
+    /// I turni dell'audio salvato: Sortformer ha un contratto offline, che richiede tutto il PCM.
     pub fn diarize_saved(
         &mut self,
         decoder: crate::audio_toolkit::decode::Decoder,
         cancel: &CancelToken,
-        on_progress: &mut dyn FnMut(u8),
     ) -> Result<Vec<Turn>, AppError> {
         use crate::engine::pipeline::{Feed, FileFrames};
-        let frames = FileFrames::new(decoder, None);
-        if !self.nemotron3 {
-            // Sortformer conserva il suo contratto offline, che richiede tutto il PCM.
-            let mut pcm = Vec::new();
-            for feed in frames {
-                if cancel.is_cancelled() {
-                    return Err(AppError::Cancelled);
-                }
-                if let Feed::Frame(frame) = feed? {
-                    pcm.extend(frame);
-                }
+        let mut pcm = Vec::new();
+        for feed in FileFrames::new(decoder, None) {
+            if cancel.is_cancelled() {
+                return Err(AppError::Cancelled);
             }
-            return Ok(self.diarize(&pcm, cancel)?);
-        }
-        self.session.set_cancel_token(cancel);
-        let run = RunOptions {
-            diarize: Diarize::On,
-            ..Default::default()
-        };
-        let options = StreamOptions {
-            family: Some(StreamExtension::Nemotron3Diar(Nemotron3DiarOptions {
-                preset: Some(Nemotron3DiarPreset::VeryHighLatency),
-            })),
-            ..Default::default()
-        };
-        let mut stream = catch_native(|| self.session.stream(&run, &options))?;
-        // Ogni `feed` ricalcola il mel creando un thread per frame STFT: con frame da 30 ms
-        // erano circa 40 s di thread per ora di audio. A blocchi di 10 s sono 360 chiamate l'ora.
-        const FEED_SAMPLES: usize = 16_000 * 10;
-        // La decodifica gira in un thread mentre il modello calcola: in serie era un terzo del
-        // tempo (23 s su 68 per un Tape di 2 ore). Ogni blocco porta la percentuale decodificata.
-        let (blocks, received) = std::sync::mpsc::sync_channel(2);
-        std::thread::scope(|scope| {
-            scope.spawn(move || {
-                let mut pcm = Vec::with_capacity(FEED_SAMPLES);
-                let mut percent = None;
-                for feed in frames {
-                    if cancel.is_cancelled() {
-                        return;
-                    }
-                    match feed {
-                        Ok(Feed::Frame(frame)) => pcm.extend(frame),
-                        Ok(Feed::Progress(p)) => percent = p,
-                        Ok(Feed::ClosePhrase) => {}
-                        Err(error) => {
-                            let _ = blocks.send(Err(error));
-                            return;
-                        }
-                    }
-                    if pcm.len() >= FEED_SAMPLES {
-                        let block = std::mem::replace(&mut pcm, Vec::with_capacity(FEED_SAMPLES));
-                        // Il destinatario non c'è più: un errore o Annulla l'ha già fermato.
-                        if blocks.send(Ok((block, percent))).is_err() {
-                            return;
-                        }
-                    }
-                }
-                if !pcm.is_empty() {
-                    let _ = blocks.send(Ok((pcm, percent)));
-                }
-            });
-            for block in received {
-                if cancel.is_cancelled() {
-                    return Err(AppError::Cancelled);
-                }
-                let (pcm, percent) = block?;
-                catch_native(|| stream.feed(&pcm))?;
-                if let Some(percent) = percent {
-                    on_progress(percent);
-                }
+            if let Feed::Frame(frame) = feed? {
+                pcm.extend(frame);
             }
-            Ok(())
-        })?;
-        if cancel.is_cancelled() {
-            return Err(AppError::Cancelled);
         }
-        catch_native(|| stream.finalize())?;
-        Ok(speaker_turns(&stream.snapshot()))
+        Ok(self.diarize(&pcm, cancel)?)
     }
+
     pub fn load_sortformer(path: &Path) -> Result<Self, AppError> {
         if !path.is_file() {
             return Err(AppError::ModelMissing(path.display().to_string()));
         }
         init_backends()?;
-        let session = catch_native(|| Model::load(path)?.session())?;
-        Ok(Self {
-            session,
-            nemotron3: false,
-        })
-    }
-
-    /// Stesso contratto offline, con l'artefatto fissato e il preset accurato della prova.
-    pub fn load_nemotron3(path: &Path) -> Result<Self, AppError> {
-        super::local_diarizer::validate(path)?;
-        init_backends()?;
-        let incompatible = || AppError::LocalDiarizerIncompatible(path.display().to_string());
-        let model = catch_native(|| Model::load(path)).map_err(|_| incompatible())?;
-        if model.arch() != "nemotron3_diar" {
-            return Err(incompatible());
-        }
-        let session = catch_native(|| model.session()).map_err(|_| incompatible())?;
-        Ok(Self {
-            session,
-            nemotron3: true,
-        })
+        let session = catch_native(|| Model::load(path)?.diarize_session())?;
+        Ok(Self { session })
     }
 
     /// I turni di chi parla nell'audio `pcm` (mono a 16 kHz), in ordine di inizio. `cancel` lo
-    /// interrompe tra un blocco e l'altro con `EngineError::Cancelled`.
+    /// interrompe con `EngineError::Cancelled`.
     pub fn diarize(&mut self, pcm: &[f32], cancel: &CancelToken) -> Result<Vec<Turn>, EngineError> {
         self.session.set_cancel_token(cancel);
-        let run = RunOptions {
-            diarize: Diarize::On,
-            family: self
-                .nemotron3
-                .then_some(RunExtension::Nemotron3Diar(Nemotron3DiarOptions {
-                    preset: Some(Nemotron3DiarPreset::VeryHighLatency),
-                })),
-            ..RunOptions::default()
-        };
         let session = &mut self.session;
-        let transcript = catch_native(|| session.run(pcm, &run))?;
-        // Sortformer dà i segmenti per parlante, non per tempo. Un id negativo o un tratto senza
-        // tempi non dice nulla su chi parla quando: si scarta.
-        Ok(speaker_turns(&transcript))
+        let segments = catch_native(|| session.run(pcm, &DiarizeOptions::default()))?;
+        Ok(speaker_turns(&segments))
     }
 }
 
-fn speaker_turns(transcript: &transcribe_cpp::Transcript) -> Vec<Turn> {
-    let mut turns: Vec<Turn> = transcript
-        .speaker_segments
+/// Sortformer dà i segmenti per parlante, non per tempo. Un id negativo o un tratto senza tempi
+/// non dice nulla su chi parla quando: si scarta.
+fn speaker_turns(segments: &[SpeakerSegment]) -> Vec<Turn> {
+    let mut turns: Vec<Turn> = segments
         .iter()
         .filter_map(|s| {
             Some(Turn {
@@ -438,13 +360,11 @@ mod tests {
     }
 
     #[test]
-    fn whisper_riceve_i_termini_nel_prompt_iniziale() {
-        let options = whisper_options(&termini(&["ChargeBee", "Niccolò", "Kubernetes"]));
-        assert_eq!(
-            options.initial_prompt.as_deref(),
-            Some("ChargeBee, Niccolò, Kubernetes")
-        );
-        assert_eq!(options.no_speech_thold, Some(0.0));
+    fn i_termini_vanno_nel_vocabolario_solo_dei_modelli_che_lo_hanno() {
+        let termini = termini(&["ChargeBee", "<|it|>", "Niccolò", "a|>b"]);
+        assert_eq!(vocabulary(true, &termini), ["ChargeBee", "Niccolò"]);
+        assert!(vocabulary(false, &termini).is_empty());
+        assert!(vocabulary(true, &[]).is_empty());
     }
 
     fn words(rows: &[(i64, i64, &str)]) -> transcribe_cpp::Transcript {
@@ -497,17 +417,5 @@ mod tests {
         let result = finish_phrase(transcript, None, &[]);
         assert_eq!(result.text, "Uso Charge B.");
         assert_eq!(result.tempi.len(), 3);
-    }
-
-    #[test]
-    fn senza_termini_whisper_non_ha_prompt() {
-        assert_eq!(whisper_options(&[]).initial_prompt, None);
-    }
-
-    #[test]
-    fn un_termine_con_token_speciali_non_entra_nel_prompt() {
-        let options = whisper_options(&termini(&["<|it|>", "ChargeBee", "a|>b"]));
-        assert_eq!(options.initial_prompt.as_deref(), Some("ChargeBee"));
-        assert_eq!(whisper_options(&termini(&["<|en|>"])).initial_prompt, None);
     }
 }

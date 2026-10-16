@@ -59,29 +59,6 @@ pub async fn pick_source(app: AppHandle, filter_name: String) -> Option<String> 
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
-/// Sceglie e verifica l'artefatto locale prima di salvare il percorso nelle impostazioni.
-#[tauri::command]
-#[specta::specta]
-pub async fn pick_diarizer_model(app: AppHandle) -> Result<Option<String>, AppError> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let Some(file) = app
-            .dialog()
-            .file()
-            .add_filter(crate::engine::local_diarizer::NAME, &["gguf"])
-            .blocking_pick_file()
-        else {
-            return Ok(None);
-        };
-        let path = file
-            .into_path()
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        crate::engine::local_diarizer::validate(&path)?;
-        Ok(Some(path.display().to_string()))
-    })
-    .await
-    .map_err(|e| AppError::Internal(e.to_string()))?
-}
-
 /// Apre la Sorgente con il programma associato; un Tape lo mostra nella cartella. Accetta solo le
 /// estensioni di Apri file, così non diventa un modo per lanciare eseguibili.
 #[tauri::command]

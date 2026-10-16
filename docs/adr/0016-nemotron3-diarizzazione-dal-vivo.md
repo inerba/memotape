@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded
 ---
+
+> **Superata il 16 ottobre 2026.** transcribe-cpp 0.4.0, necessario per il vocabolario nativo, non contiene il port di Nemotron 3 Diarization (PR #175, mai integrata): l'utente ha scelto di aggiornare e togliere Nemotron 3. Resta Sortformer come in ADR-0006; i Tape fatti con Nemotron 3 restano leggibili.
 
 # Nemotron 3 Diarization anche durante la Registrazione
 

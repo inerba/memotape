@@ -1672,8 +1672,10 @@ pub(crate) mod tests {
         }
     }
 
-    /// Il Vocabolario con i modelli veri: il Termine "Trascrizzione" (una z in più) prende il posto
-    /// di "trascrizione" con ogni modello, e con Whisper entra anche nel prompt senza errori.
+    /// Il Vocabolario con i modelli veri. Senza `Feature::Vocabulary` il Termine "Trascrizzione"
+    /// (una z in più) prende il posto di "trascrizione" con la correzione approssimata. Whisper e
+    /// Qwen3-ASR ricevono i Termini nel prompt, senza errori, e niente correzione: la parola giusta
+    /// resta, e il modello non ripete nel testo un Termine che non si sente ("Kubernetes").
     #[test]
     #[ignore = "richiede modelli scaricati (Impostazioni → Trascrizione o MEMOTAPE_MODELLI)"]
     fn i_modelli_scaricati_usano_il_vocabolario() {
@@ -1687,7 +1689,7 @@ pub(crate) mod tests {
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
             let cancel = CancelToken::new();
             engine.set_cancel_token(&cancel);
-            engine.set_termini(&["Trascrizzione".to_owned()]);
+            engine.set_termini(&["Trascrizzione".to_owned(), "Kubernetes".to_owned()]);
             let mut phrases = Vec::new();
             transcribe_file(
                 &fixture("parlato-it.wav"),
@@ -1705,12 +1707,20 @@ pub(crate) mod tests {
             )
             .unwrap();
             let text = phrases.join(" ");
-            println!("{}: {text}", model.id);
-            assert!(
-                text.contains("Trascrizzione") && !text.to_lowercase().contains("trascrizione"),
+            println!(
+                "{} (vocabolario {}): {text}",
+                model.id,
+                engine.has_vocabulary()
+            );
+            let corrected = text.contains("Trascrizzione");
+            assert_eq!(corrected, !engine.has_vocabulary(), "{}: {text}", model.id);
+            assert_eq!(
+                text.to_lowercase().contains("trascrizione"),
+                !corrected,
                 "{}: {text}",
                 model.id
             );
+            assert!(!text.contains("Kubernetes"), "{}: {text}", model.id);
         }
     }
 }

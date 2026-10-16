@@ -84,7 +84,7 @@ Prima di modificare o provare un'area, leggi il suo documento in `docs/sviluppo/
 |---|---|
 | Registrazione, mixer, Ogg/Opus, Trascrizione dal vivo, sessione | `registrazione.md` |
 | Pipeline, motore, Trascrizione di un file, Attività, modelli, Lingua del parlato, Parziali | `trascrizione.md` |
-| Riconosci i parlanti (Sortformer, Nemotron 3) | `diarizzazione.md` |
+| Riconosci i parlanti (Sortformer) | `diarizzazione.md` |
 | Tape, Markdown, Libreria, ricerca, vista del Tape, player | `tape-e-libreria.md` |
 | Frontend: modulo dell'Attività, drop dei file, route | `frontend.md` |
 | Impostazioni, lingua, tema, Assistenti (MCP), aggiornamenti | `impostazioni-e-servizi.md` |

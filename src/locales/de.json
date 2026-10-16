@@ -40,7 +40,6 @@
       "manualDescription": "Dieses Tape enthält manuelle Korrekturen. Eine neue Transkription ersetzt den Text, die Sprecherzuordnungen und die Sprechernamen einschließlich der manuellen Korrekturen. Das Audio bleibt das des Tape, ohne erneute Bereinigung. Bei Abbruch oder Fehler bleibt das vorhandene Tape unverändert."
     },
     "parlanti": "Sprecher erkennen",
-    "nemotron3Note": "Experimentelles Nemotron 3: unterstützt bis zu 8 Sprecher pro Eingang, kann Stimmen aber verwechseln oder zusammenfassen.",
     "parlantiNote": "Höchstens {{count}} Sprecher pro Eingang",
     "parlantiList": "Sprecher:",
     "rename": "Zum Umbenennen klicken: Eingabe bestätigt, Esc bricht ab",
@@ -134,8 +133,6 @@
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
       "internal": "Interner Fehler: {{detail}}",
-      "localDiarizerMissing": "Wählen Sie das lokale Nemotron-Diarization-Modell unter Einstellungen → Transkription",
-      "localDiarizerIncompatible": "Das lokale Modell entspricht nicht der geprüften Nemotron-Diarization-GGUF-Datei oder kann nicht geladen werden: {{detail}}",
       "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
       "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
@@ -167,15 +164,7 @@
       "title": "Transkription",
       "description": "Die Modelle transkribieren auf deinem Computer: einmal heruntergeladen, funktionieren sie auch offline.",
       "diarization": "Sprechererkennung",
-      "diarizationDescription": "Erkennt Sprecher nach der Transkription von Dateien und Tapes oder nach Stop bei Aufnahmen. Sortformer unterscheidet bis zu 4 Sprecher.",
-      "diarizer": "Sprechermodell",
-      "nemotron3": "Nemotron 3 Diarization (experimentell)",
-      "localModel": "Lokales Modell",
-      "experimentalDescription": "Experimentelle Funktion: Sprecher können verwechselt werden, besonders bei überlappenden Stimmen oder vielen Personen.",
-      "recordingDiarizationDescription": "Sprecher werden nach Stop erkannt; während der Aufnahme läuft nur die Live-Transkription weiter.",
-      "localModelDescription": "Wähle das kompatible BF16-Modell von Nemotron 3 Diarization. Es wird für Dateien, Tapes und Aufnahmen verwendet, auch mit getrennten Eingängen.",
-      "localModelMissing": "Kein lokales Modell ausgewählt",
-      "chooseLocalModel": "Lokales Modell wählen…"
+      "diarizationDescription": "Erkennt Sprecher nach der Transkription von Dateien und Tapes oder nach Stop bei Aufnahmen. Sortformer unterscheidet bis zu 4 Sprecher."
     },
     "vocabolario": {
       "title": "Vokabular",
@@ -188,7 +177,7 @@
       "nonAmmesso": "„{{termine}}“ enthält <| oder |>, was der Whisper-Prompt nicht zulässt.",
       "scartati_one": "{{count}} Zeile übersprungen: doppelt oder mit <| oder |>.",
       "scartati_other": "{{count}} Zeilen übersprungen: doppelt oder mit <| oder |>.",
-      "whisper": "Mit Whisper gehen die Begriffe auch in den Anfangsprompt: Bei einer langen Liste berücksichtigt Whisper nur die letzten."
+      "whisper": "Whisper und Qwen3-ASR erhalten die Begriffe und erkennen sie im Audio; bei einer langen Liste berücksichtigen sie nur die ersten. Bei anderen Modellen wird ein Wort, das einem Begriff ähnelt, zu diesem Begriff."
     },
     "recording": {
       "title": "Aufnahme und Audio",

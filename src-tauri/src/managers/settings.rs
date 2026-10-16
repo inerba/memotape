@@ -37,12 +37,6 @@ pub struct Settings {
     pub output_device: Option<String>,
     /// L'id del modello nel catalogo.
     pub model: String,
-    /// Scelta distinta dall'ASR, fissata all'avvio dell'Attività. I file precedenti usano Sortformer.
-    #[serde(default)]
-    pub diarizer: Diarizer,
-    /// Artefatto locale verificato: non si scarica e non si sostituisce automaticamente.
-    #[serde(default)]
-    pub nemotron3_path: Option<String>,
     pub speech_language: SpeechLanguage,
     pub bitrate_kbps: u32,
     pub channels: Channels,
@@ -190,6 +184,9 @@ pub enum CopiaCome {
     Markdown,
 }
 
+/// Il modello che ha fatto la Diarizzazione di un Tape. Nemotron 3 Diarization (sperimentale) c'è
+/// solo nei Tape che l'hanno usata: transcribe-cpp 0.4 non la ha, e un `"diarizer": "nemotron3"`
+/// rimasto in `settings.json` si ignora come ogni campo sconosciuto.
 #[derive(
     Debug, Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type,
 )]
@@ -328,8 +325,6 @@ impl Default for Settings {
             microphone: None,
             output_device: None,
             model: models::default_model().id.clone(),
-            diarizer: Diarizer::Sortformer,
-            nemotron3_path: None,
             speech_language: SpeechLanguage::auto(),
             bitrate_kbps: 16,
             channels: Channels::Mono,
@@ -689,20 +684,17 @@ mod tests {
     }
 
     #[test]
-    fn senza_scelta_del_diarizer_si_conservano_sortformer_e_le_impostazioni() {
-        let mut old = serde_json::to_value(Settings {
+    fn nemotron3_scelto_prima_si_ignora_e_si_conservano_le_impostazioni() {
+        let saved = Settings {
             parlanti_file: true,
             ..Settings::default()
-        })
-        .unwrap();
-        old.as_object_mut().unwrap().remove("diarizer");
-        old.as_object_mut().unwrap().remove("nemotron3Path");
+        };
+        let mut old = serde_json::to_value(&saved).unwrap();
+        old["diarizer"] = "nemotron3".into();
+        old["nemotron3Path"] = r"D:\modelli\Nemotron-3-Diarization-BF16.gguf".into();
         let path = temp_file("diarizer-precedente");
         std::fs::write(&path, old.to_string()).unwrap();
-        let read = Settings::load(&path).unwrap();
-        assert_eq!(read.diarizer, Diarizer::Sortformer);
-        assert_eq!(read.nemotron3_path, None);
-        assert!(read.parlanti_file);
+        assert_eq!(Settings::load(&path), Ok(saved));
     }
 
     fn temp_file(name: &str) -> PathBuf {
@@ -915,8 +907,6 @@ mod tests {
         let path = temp_file("modello-sconosciuto");
         let saved = Settings {
             model: "whisper-large-v3-turbo-q5km".into(),
-            diarizer: Diarizer::Nemotron3,
-            nemotron3_path: Some(r"D:\modelli\Nemotron-3-Diarization-BF16.gguf".into()),
             speech_language: SpeechLanguage::from("de"),
             bitrate_kbps: 64,
             ..Settings::default()
@@ -958,8 +948,6 @@ mod tests {
             microphone: Some("Microfono USB".into()),
             output_device: Some("Cuffie".into()),
             model: "whisper-large-v3-turbo-q5km".into(),
-            diarizer: Diarizer::Nemotron3,
-            nemotron3_path: Some(r"D:\modelli\Nemotron-3-Diarization-BF16.gguf".into()),
             speech_language: SpeechLanguage::from("it"),
             bitrate_kbps: 128,
             channels: Channels::Stereo,
