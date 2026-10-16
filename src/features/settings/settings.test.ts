@@ -61,7 +61,7 @@ test("il diarizer si sceglie separatamente e il percorso locale non va perso", (
 });
 
 test("i predefiniti sono quelli di Rust", () => {
-  expect(defaults.model).toBe("parakeet-tdt-0.6b-v3-q5km");
+  expect(defaults.model).toBe("nemotron-3.5-streaming-0.6b-q5km");
   expect([
     defaults.bitrateKbps,
     defaults.channels,
@@ -196,7 +196,7 @@ test("il selettore offre tutte le lingue del modello, senza regione e in ordine 
       "it",
       "it"
     )
-  ).toEqual({ options: ["zh", "ja", "en", "it"], value: "it" });
+  ).toEqual({ auto: true, options: ["zh", "ja", "en", "it"], value: "it" });
   // Whisper e Parakeet: codici, anche di tre lettere. L'ordine segue la lingua dell'interfaccia.
   expect(
     speechLanguageChoice(["de", "yue", "en"], "auto", "en").options
@@ -216,6 +216,7 @@ test("il nome della lingua è nella lingua dell'interfaccia, con la maiuscola", 
 
 test("una lingua salvata che il modello non accetta vale Automatica", () => {
   expect(speechLanguageChoice(["en-US", "it-IT"], "pl", "it")).toEqual({
+    auto: true,
     options: ["en", "it"],
     value: "auto",
   });
@@ -223,12 +224,28 @@ test("una lingua salvata che il modello non accetta vale Automatica", () => {
 
 test("finché le lingue del modello non sono note resta offerta solo la scelta salvata", () => {
   expect(speechLanguageChoice(null, "auto", "it")).toEqual({
+    auto: true,
     options: [],
     value: "auto",
   });
   expect(speechLanguageChoice(null, "ja", "it")).toEqual({
+    auto: true,
     options: ["ja"],
     value: "ja",
+  });
+});
+
+test("un modello che non riconosce la lingua non offre Automatica: vale la lingua dell'interfaccia", () => {
+  expect(speechLanguageChoice(["en", "it", "de"], "auto", "de", false)).toEqual(
+    { auto: false, options: ["de", "en", "it"], value: "de" }
+  );
+  expect(speechLanguageChoice(["en", "it"], "it", "de", false).value).toBe(
+    "it"
+  );
+  expect(speechLanguageChoice(null, "auto", "it", false)).toEqual({
+    auto: false,
+    options: ["it"],
+    value: "it",
   });
 });
 

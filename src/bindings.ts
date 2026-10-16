@@ -463,13 +463,13 @@ export type ModelDownloadProgress = {
 export type ModelInfo = {
 	id: string,
 	name: string,
-	/**  Byte da scaricare. */
-	size: number,
+	/**  Byte da scaricare (`f64`: oltre i 4 GiB, e niente `u64` nei bindings). */
+	size: number | null,
 	kind: ModelKind,
 	/**  `null` per il modello di diarizzazione. */
 	mode: Mode | null,
 	license: string,
-	/**  Consigliato e predefinito. */
+	/**  Tra i consigliati. */
 	recommended: boolean,
 	state: ModelState,
 	/**  L'errore dell'ultimo download, finché non se ne avvia un altro. */
@@ -484,6 +484,8 @@ export type ModelInfo = {
 	 *  scartare le Frasi in un'altra scrittura.
 	 */
 	acceptsLanguage: boolean,
+	/**  Il modello riconosce la lingua da solo: se no Automatica non si offre. */
+	detectsLanguage: boolean,
 	/**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 	inUse: boolean,
 };

@@ -145,7 +145,7 @@ function ModelRow({
           </div>
           <p className="text-muted-foreground text-sm">
             {[
-              t("models.size", { mb: mebibytes(model.size) }),
+              t("models.size", { mb: mebibytes(model.size ?? 0) }),
               model.mode ? t(`models.mode.${model.mode}`) : null,
               t("models.license", { license: model.license }),
             ]

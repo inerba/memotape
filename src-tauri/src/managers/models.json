@@ -1,6 +1,37 @@
 {
-  "predefinito": "parakeet-tdt-0.6b-v3-q5km",
+  "predefinito": "nemotron-3.5-streaming-0.6b-q5km",
   "modelli": [
+    {
+      "id": "nemotron-3.5-streaming-0.6b-q5km",
+      "nome": "Nemotron Streaming 3.5 0.6B",
+      "url": "https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf",
+      "sha256": "86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65",
+      "size": 559647200,
+      "modalita": "stream",
+      "consigliato": true,
+      "licenza": "OpenMDW-1.1"
+    },
+    {
+      "id": "cohere-transcribe-03-2026-q5km",
+      "nome": "Cohere Transcribe",
+      "url": "https://huggingface.co/handy-computer/cohere-transcribe-03-2026-gguf/resolve/dfa4adebb64f3076b7b6b90b721275cc069cb421/cohere-transcribe-03-2026-Q5_K_M.gguf",
+      "sha256": "14d02f1ad6dd77b3a60f82639879012c3adb4fe25c50a5a47a2c4c661daf1558",
+      "size": 1770270208,
+      "modalita": "frase",
+      "riconosceLingua": false,
+      "consigliato": true,
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "whisper-medium-q8",
+      "nome": "Whisper Medium",
+      "url": "https://huggingface.co/handy-computer/whisper-medium-gguf/resolve/ec78f06fded51aa82cde751678b78f76f78c8b7f/whisper-medium-Q8_0.gguf",
+      "sha256": "09e6a65e7de377aa5b10bae24608bc6f8ca2ed04b3993ef10d4a02bcd9a82adf",
+      "size": 831538144,
+      "modalita": "frase",
+      "consigliato": true,
+      "licenza": "MIT"
+    },
     {
       "id": "parakeet-tdt-0.6b-v3-q5km",
       "nome": "Parakeet TDT v3 0.6B",
@@ -12,13 +43,97 @@
       "licenza": "CC-BY-4.0"
     },
     {
-      "id": "nemotron-3.5-streaming-0.6b-q5km",
-      "nome": "Nemotron Streaming 3.5 0.6B",
-      "url": "https://huggingface.co/handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf/resolve/6d44e540bc31b0de1dbe174a3cea87f53a7f22fb/nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf",
-      "sha256": "86429e8c4f7fdcf9b3312269ad1ca6669478ba7805331c4aea7a2e33e9910d65",
-      "size": 559647200,
+      "id": "parakeet-primeline-q8",
+      "nome": "Parakeet TDT primeLine 0.6B",
+      "url": "https://huggingface.co/handy-computer/parakeet-primeline-gguf/resolve/90880dc372f8cc0025ae7a08d2c887278124a538/parakeet-primeline-Q8_0.gguf",
+      "sha256": "dbd1ec2985aea64d16550a0068ea9153c0bc01955bf2a5c18b74ca213546d3cd",
+      "size": 739508640,
+      "modalita": "frase",
+      "accettaLingua": false,
+      "licenza": "CC-BY-4.0"
+    },
+    {
+      "id": "canary-1b-v2-q5km",
+      "nome": "Canary 1B v2",
+      "url": "https://huggingface.co/handy-computer/canary-1b-v2-gguf/resolve/58d13c2c0102229aad45f7e19a77ddc42b41dd9a/canary-1b-v2-Q5_K_M.gguf",
+      "sha256": "9c3a893c93795438baf9b4b1c853c39b60316c3a0d259a3ba6e284712f5ddb71",
+      "size": 836664032,
+      "modalita": "frase",
+      "riconosceLingua": false,
+      "licenza": "CC-BY-4.0"
+    },
+    {
+      "id": "qwen3-asr-0.6b-q8",
+      "nome": "Qwen3-ASR 0.6B",
+      "url": "https://huggingface.co/handy-computer/Qwen3-ASR-0.6B-gguf/resolve/e4e16599b900eb0cb36e524514756bb92eb092b7/Qwen3-ASR-0.6B-Q8_0.gguf",
+      "sha256": "f081b2d5e23bd669d92cc331d722a8a0681943b8e6f34b48996fd5c319b5acd8",
+      "size": 850423456,
+      "modalita": "frase",
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "qwen3-asr-1.7b-q5km",
+      "nome": "Qwen3-ASR 1.7B",
+      "url": "https://huggingface.co/handy-computer/Qwen3-ASR-1.7B-gguf/resolve/92282af1610a2db19d66f2bef1e260f5deca782d/Qwen3-ASR-1.7B-Q5_K_M.gguf",
+      "sha256": "034c557fe92ff8fcd9a9c041cbdaad347be0a86a58d3a348f63cf3f0180879d0",
+      "size": 1517290464,
+      "modalita": "frase",
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "voxtral-mini-3b-2507-q5km",
+      "nome": "Voxtral Mini 3B",
+      "url": "https://huggingface.co/handy-computer/Voxtral-Mini-3B-2507-gguf/resolve/5690205813042c07cbaa86d2a9dcc585fcd31304/Voxtral-Mini-3B-2507-Q5_K_M.gguf",
+      "sha256": "9ea2eb85359f7771270715849dc2b0e80381a59dab09d9c5d85352ab9c53f675",
+      "size": 3464182432,
+      "modalita": "frase",
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "voxtral-mini-4b-realtime-2602-q5km",
+      "nome": "Voxtral Mini 4B Realtime",
+      "url": "https://huggingface.co/handy-computer/Voxtral-Mini-4B-Realtime-2602-gguf/resolve/b3e1c979e3775cbd0a49a65878a0ec7f06789ed7/Voxtral-Mini-4B-Realtime-2602-Q5_K_M.gguf",
+      "sha256": "e20a7582c5cf8159454c909b7f57b184b287cb3d7c3ec85744727a2cec51b08f",
+      "size": 3281439008,
       "modalita": "stream",
-      "licenza": "OpenMDW-1.1"
+      "accettaLingua": false,
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "voxtral-small-24b-2507-q5km",
+      "nome": "Voxtral Small 24B",
+      "url": "https://huggingface.co/handy-computer/Voxtral-Small-24B-2507-gguf/resolve/3b85044238d7d73b0063c54ee6d0754b5f061795/Voxtral-Small-24B-2507-Q5_K_M.gguf",
+      "sha256": "a53f73a5f63b7663fe155977616a636acac567dac898f6ef82ca519017e8b6e7",
+      "size": 17138659808,
+      "modalita": "frase",
+      "licenza": "Apache-2.0"
+    },
+    {
+      "id": "whisper-tiny-q8",
+      "nome": "Whisper Tiny",
+      "url": "https://huggingface.co/handy-computer/whisper-tiny-gguf/resolve/6687f30c99641ee265df421e582354adbc8848fc/whisper-tiny-Q8_0.gguf",
+      "sha256": "325b9c7997cd1eff81ef709d55766565e71be696130cc3a3d444713798706834",
+      "size": 45981088,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "whisper-base-q8",
+      "nome": "Whisper Base",
+      "url": "https://huggingface.co/handy-computer/whisper-base-gguf/resolve/e0f69524f648720eca44c024d1d0dbb7027d1fa0/whisper-base-Q8_0.gguf",
+      "sha256": "81c069428bc8a24551a8169cf31cf09bcfd9d4cf50389ae281323c9aa9648c81",
+      "size": 84962880,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "whisper-small-q8",
+      "nome": "Whisper Small",
+      "url": "https://huggingface.co/handy-computer/whisper-small-gguf/resolve/c0214bd34be9296695486f838e0142f900803159/whisper-small-Q8_0.gguf",
+      "sha256": "9b9c8811bbcc82a7766f0fb0925614bdacb0923b2cc630daeac17108b655b860",
+      "size": 269751136,
+      "modalita": "frase",
+      "licenza": "MIT"
     },
     {
       "id": "whisper-large-v3-turbo-q5km",
@@ -26,6 +141,33 @@
       "url": "https://huggingface.co/handy-computer/whisper-large-v3-turbo-gguf/resolve/5eaf945c7978e564bae5b28a5b1639dd93c2bfb1/whisper-large-v3-turbo-Q5_K_M.gguf",
       "sha256": "977b5db4e004349dffd1ab9caa10ba5aaba3fc3edd3ba72cadb84328a3203e36",
       "size": 619628128,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "whisper-large-q5km",
+      "nome": "Whisper Large",
+      "url": "https://huggingface.co/handy-computer/whisper-large-gguf/resolve/1b99acc257d1a605153c9e4d818a065569a3fdcd/whisper-large-Q5_K_M.gguf",
+      "sha256": "b1dfb9fa0e9b0574d8c822f51662b8e59915831e1a3ca0d191f18ff8ba742639",
+      "size": 1160366048,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "whisper-large-v2-q5km",
+      "nome": "Whisper Large v2",
+      "url": "https://huggingface.co/handy-computer/whisper-large-v2-gguf/resolve/b64d145562182428ef04ca992b182aec8c61e578/whisper-large-v2-Q5_K_M.gguf",
+      "sha256": "94fab1289a98d26bf375174a8daa00f44c7b16a9944726dde05361e5a8bd07ff",
+      "size": 1160366080,
+      "modalita": "frase",
+      "licenza": "MIT"
+    },
+    {
+      "id": "whisper-large-v3-q5km",
+      "nome": "Whisper Large v3",
+      "url": "https://huggingface.co/handy-computer/whisper-large-v3-gguf/resolve/e3e29bee6389c7da4a141406f07bb80ddac5337c/whisper-large-v3-Q5_K_M.gguf",
+      "sha256": "6053d0fd69a0fd48b8fea5ea7a52b9e0cde389343566fa30e453a1b2b258dc38",
+      "size": 1161143008,
       "modalita": "frase",
       "licenza": "MIT"
     },

@@ -746,7 +746,7 @@ pub async fn record(
         },
         live.is_some()
             .then(|| SettingsStore::model_of(&settings).id.clone()),
-        settings.speech_language.clone(),
+        settings.lingua_parlato(),
         text_complete,
         phrases,
     );

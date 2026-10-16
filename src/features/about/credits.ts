@@ -26,14 +26,16 @@ export interface Credit {
   url: string;
 }
 
-/** Nome e licenza di un modello vengono dal catalogo. */
+/** La quantizzazione nel nome del file GGUF: `…-Q5_K_M.gguf`. */
+const QUANTIZATION = /-([A-Z0-9_]+)\.gguf$/;
+
+/** Nome, licenza e quantizzazione di un modello vengono dal catalogo. */
 function model(
   id: string,
   author: string,
   file: string,
   url: string,
-  role: Credit["role"] = "model",
-  quantization = "Q5_K_M"
+  role: Credit["role"] = "model"
 ): Credit {
   const entry = catalog.modelli.find((m) => m.id === id);
   if (!entry) {
@@ -44,13 +46,23 @@ function model(
     file,
     license: entry.licenza,
     name: entry.nome,
-    quantization,
+    quantization: QUANTIZATION.exec(entry.url)?.[1],
     role,
     url,
   };
 }
 
-// Parakeet per primo: CC BY 4.0 chiede l'attribuzione.
+/** I modelli di una famiglia con lo stesso testo di licenza. */
+function models(
+  ids: string[],
+  author: string,
+  file: string,
+  url: string
+): Credit[] {
+  return ids.map((id) => model(id, author, file, url));
+}
+
+// Prima i modelli CC BY 4.0, che chiedono l'attribuzione.
 export const CREDITS: Credit[] = [
   model(
     "parakeet-tdt-0.6b-v3-q5km",
@@ -59,10 +71,44 @@ export const CREDITS: Credit[] = [
     "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
   ),
   model(
+    "parakeet-primeline-q8",
+    "primeLine",
+    "parakeet-primeline.txt",
+    "https://huggingface.co/primeline/parakeet-primeline"
+  ),
+  model(
+    "canary-1b-v2-q5km",
+    "NVIDIA",
+    "canary-1b-v2.txt",
+    "https://huggingface.co/nvidia/canary-1b-v2"
+  ),
+  model(
     "nemotron-3.5-streaming-0.6b-q5km",
     "NVIDIA",
     "nemotron-3.5-asr-streaming-0.6b.txt",
     "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b"
+  ),
+  model(
+    "cohere-transcribe-03-2026-q5km",
+    "Cohere Labs",
+    "cohere-transcribe-03-2026.txt",
+    "https://huggingface.co/CohereLabs/cohere-transcribe-03-2026"
+  ),
+  ...models(
+    ["qwen3-asr-0.6b-q8", "qwen3-asr-1.7b-q5km"],
+    "Qwen Team, Alibaba Cloud",
+    "qwen3-asr.txt",
+    "https://huggingface.co/Qwen"
+  ),
+  ...models(
+    [
+      "voxtral-mini-3b-2507-q5km",
+      "voxtral-mini-4b-realtime-2602-q5km",
+      "voxtral-small-24b-2507-q5km",
+    ],
+    "Mistral AI",
+    "voxtral.txt",
+    "https://huggingface.co/mistralai"
   ),
   model(
     "whisper-large-v3-turbo-q5km",
@@ -70,13 +116,26 @@ export const CREDITS: Credit[] = [
     "whisper-large-v3-turbo.txt",
     "https://github.com/openai/whisper"
   ),
+  ...models(
+    [
+      "whisper-tiny-q8",
+      "whisper-base-q8",
+      "whisper-small-q8",
+      "whisper-medium-q8",
+      "whisper-large-q5km",
+      "whisper-large-v2-q5km",
+      "whisper-large-v3-q5km",
+    ],
+    "OpenAI",
+    "whisper.txt",
+    "https://github.com/openai/whisper"
+  ),
   model(
     "sortformer-4spk-v2.1-q8",
     "NVIDIA",
     "diar_streaming_sortformer_4spk-v2.1.txt",
     "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1",
-    "diarization",
-    "Q8_0"
+    "diarization"
   ),
   {
     author: "Hendrik Schröter",

@@ -1601,25 +1601,38 @@ pub(crate) mod tests {
         assert!(matches!(error, AppError::Internal(_)), "{error:?}");
     }
 
-    /// Smoke test con Silero e i tre modelli veri, in `%APPDATA%\it.memotape.desktop\models`.
+    /// I modelli di trascrizione scaricati, nella cartella `MEMOTAPE_MODELLI` o in quella dell'app
+    /// (`%APPDATA%\it.memotape.desktop\models`), con la cartella: gli smoke test provano quelli.
+    fn modelli_scaricati() -> (PathBuf, Vec<&'static crate::managers::models::Model>) {
+        let dir = std::env::var_os("MEMOTAPE_MODELLI").map_or_else(
+            || PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models"),
+            PathBuf::from,
+        );
+        let models: Vec<_> = crate::managers::models::catalog()
+            .iter()
+            .filter(|m| m.mode.is_some() && m.path(&dir).is_file())
+            .collect();
+        assert!(!models.is_empty(), "nessun modello in {}", dir.display());
+        (dir, models)
+    }
+
+    /// Smoke test con Silero e i modelli veri scaricati.
     #[test]
-    #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
-    fn i_tre_modelli_trascrivono_il_parlato_italiano() {
+    #[ignore = "richiede modelli scaricati (Impostazioni → Trascrizione o MEMOTAPE_MODELLI)"]
+    fn i_modelli_scaricati_trascrivono_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
+        let (dir, models) = modelli_scaricati();
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
-        for model in crate::managers::models::catalog()
-            .iter()
-            .filter(|m| m.mode.is_some())
-        {
+        for model in models {
             let mut engine =
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
             println!("{}: lingue {:?}", model.id, engine.languages());
-            // Lo stesso parlato in WAV e nel video MP4/AAC, una volta con la lingua indicata.
-            for (name, language) in [("parlato-it.wav", Some("it")), ("parlato-it.mp4", None)] {
+            // Lo stesso parlato in WAV e nel video MP4/AAC, una volta con la lingua indicata. Senza
+            // riconoscimento della lingua (Cohere, Canary) Automatica è l'italiano dell'interfaccia.
+            let auto = (!model.detects_language).then_some("it");
+            for (name, language) in [("parlato-it.wav", Some("it")), ("parlato-it.mp4", auto)] {
                 let cancel = CancelToken::new();
                 engine.set_cancel_token(&cancel);
                 let (mut phrases, mut partials) = (Vec::new(), Vec::new());
@@ -1660,20 +1673,16 @@ pub(crate) mod tests {
     }
 
     /// Il Vocabolario con i modelli veri: il Termine "Trascrizzione" (una z in più) prende il posto
-    /// di "trascrizione" con tutti e tre, e con Whisper entra anche nel prompt senza errori.
+    /// di "trascrizione" con ogni modello, e con Whisper entra anche nel prompt senza errori.
     #[test]
-    #[ignore = "richiede i tre modelli scaricati (Impostazioni → Trascrizione)"]
-    fn i_tre_modelli_usano_il_vocabolario() {
+    #[ignore = "richiede modelli scaricati (Impostazioni → Trascrizione o MEMOTAPE_MODELLI)"]
+    fn i_modelli_scaricati_usano_il_vocabolario() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let dir =
-            PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
+        let (dir, models) = modelli_scaricati();
         let mut detector =
             crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
                 .unwrap();
-        for model in crate::managers::models::catalog()
-            .iter()
-            .filter(|m| m.mode.is_some())
-        {
+        for model in models {
             let mut engine =
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
             let cancel = CancelToken::new();

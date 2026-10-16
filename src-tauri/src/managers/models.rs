@@ -31,19 +31,27 @@ pub struct Model {
     /// Fissato a una revision di Hugging Face, quindi immutabile.
     pub url: String,
     pub sha256: String,
-    /// Byte; tutti i modelli stanno sotto i 4 GiB.
-    pub size: u32,
+    /// Byte: Voxtral Small supera i 4 GiB.
+    pub size: u64,
     /// Un modello di trascrizione, o il modello di diarizzazione (Sortformer).
     #[serde(rename = "tipo", default)]
     pub kind: ModelKind,
     /// Solo per i modelli di trascrizione.
     #[serde(rename = "modalita", default)]
     pub mode: Option<Mode>,
-    /// Il modello usa la Lingua del parlato indicata. `false` per Parakeet TDT v3, che non ha un
-    /// ingresso per la lingua: transcribe-cpp la ignora e il modello la riconosce Frase per Frase.
-    /// Non si legge dal modello: transcribe-cpp 0.2.4 non lo dice.
+    /// Il modello usa la Lingua del parlato indicata. `false` per Parakeet TDT v3 e primeLine, che
+    /// non hanno un ingresso per la lingua, e per Voxtral Realtime, che la riconosce solo da sé: il
+    /// modello la riconosce Frase per Frase. Non si legge dal modello: transcribe-cpp non lo dice.
     #[serde(rename = "accettaLingua", default = "yes")]
     pub accepts_language: bool,
+    /// Il modello riconosce la lingua da solo. `false` per Cohere Transcribe e Canary 1B v2: senza
+    /// una lingua non trascrivono, quindi Automatica diventa la Lingua dell'interfaccia
+    /// (`Settings::lingua_parlato`).
+    #[serde(rename = "riconosceLingua", default = "yes")]
+    pub detects_language: bool,
+    /// Tra i consigliati, come nel catalogo di Handy.
+    #[serde(rename = "consigliato", default)]
+    pub recommended: bool,
     #[serde(rename = "licenza")]
     pub license: String,
 }
@@ -105,7 +113,7 @@ pub fn catalog() -> &'static [Model] {
     &CATALOG.models
 }
 
-/// Il modello consigliato e predefinito (Parakeet).
+/// Il modello predefinito (Nemotron 3.5).
 pub fn default_model() -> &'static Model {
     find(&CATALOG.default).expect("il modello predefinito è nel catalogo")
 }
@@ -160,7 +168,7 @@ pub async fn download(
     on_state: &mut (dyn FnMut(ModelState) + Send),
 ) -> Result<(), AppError> {
     let partial = model.partial_path(dir);
-    let size = u64::from(model.size);
+    let size = model.size;
     std::fs::create_dir_all(dir).map_err(|e| unwritable(dir, &e))?;
     let mut offset = std::fs::metadata(&partial).map_or(0, |m| m.len());
     if offset > size {
@@ -219,7 +227,7 @@ async fn fetch(
     on_state: &mut (dyn FnMut(ModelState) + Send),
 ) -> Result<(), AppError> {
     let failed = |e: reqwest::Error| AppError::DownloadFailed(e.to_string());
-    let size = u64::from(model.size);
+    let size = model.size;
     let mut request = client.get(&model.url);
     if offset > 0 {
         request = request.header(reqwest::header::RANGE, format!("bytes={offset}-"));
@@ -276,7 +284,7 @@ async fn fetch(
 
 /// Lo stato su disco: scaricato, interrotto (c'è il `.partial`) o assente.
 pub fn disk_state(model: &Model, dir: &Path) -> ModelState {
-    let size = u64::from(model.size);
+    let size = model.size;
     if std::fs::metadata(model.path(dir)).is_ok_and(|m| m.len() == size) {
         ModelState::Downloaded
     } else if let Ok(partial) = std::fs::metadata(model.partial_path(dir)) {
@@ -339,13 +347,13 @@ fn unwritable(path: &Path, e: &std::io::Error) -> AppError {
 pub struct ModelInfo {
     pub id: String,
     pub name: String,
-    /// Byte da scaricare.
-    pub size: u32,
+    /// Byte da scaricare (`f64`: oltre i 4 GiB, e niente `u64` nei bindings).
+    pub size: f64,
     pub kind: ModelKind,
     /// `null` per il modello di diarizzazione.
     pub mode: Option<Mode>,
     pub license: String,
-    /// Consigliato e predefinito.
+    /// Tra i consigliati.
     pub recommended: bool,
     pub state: ModelState,
     /// L'errore dell'ultimo download, finché non se ne avvia un altro.
@@ -356,6 +364,8 @@ pub struct ModelInfo {
     /// Il modello usa la Lingua del parlato; se no la riconosce da solo e la scelta serve solo a
     /// scartare le Frasi in un'altra scrittura.
     pub accepts_language: bool,
+    /// Il modello riconosce la lingua da solo: se no Automatica non si offre.
+    pub detects_language: bool,
     /// Il modello si sta caricando o lo usa una Trascrizione: non si elimina.
     pub in_use: bool,
 }
@@ -495,15 +505,16 @@ impl Models {
                 ModelInfo {
                     id: model.id.clone(),
                     name: model.name.clone(),
-                    size: model.size,
+                    size: model.size as f64,
                     kind: model.kind,
                     mode: model.mode,
                     license: model.license.clone(),
-                    recommended: model.id == CATALOG.default,
+                    recommended: model.recommended,
                     state,
                     error,
                     languages: languages.get(model.id.as_str()).cloned(),
                     accepts_language: model.accepts_language,
+                    detects_language: model.detects_language,
                     in_use: in_use == Some(model.id.as_str())
                         || (model.kind == ModelKind::Diarizzazione && diarizing),
                 }
@@ -762,28 +773,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn il_catalogo_ha_i_tre_modelli_con_parakeet_predefinito_e_sortformer() {
+    fn il_catalogo_ha_diciotto_modelli_con_nemotron_predefinito_e_sortformer() {
         let ids: Vec<_> = catalog().iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids.len(), 19);
+        let nemotron = default_model();
+        assert_eq!(nemotron.id, "nemotron-3.5-streaming-0.6b-q5km");
+        assert_eq!(nemotron.mode, Some(Mode::Stream));
+        assert!(nemotron.accepts_language && nemotron.detects_language);
+        // I tre modelli di prima restano in Q5_K_M con lo stesso id: niente da riscaricare.
+        let parakeet = find("parakeet-tdt-0.6b-v3-q5km").unwrap();
+        assert!(!parakeet.accepts_language);
+        assert!(find("whisper-large-v3-turbo-q5km").is_some());
+        // Cohere e Canary vogliono una lingua.
+        let cohere = find("cohere-transcribe-03-2026-q5km").unwrap();
+        assert!(cohere.accepts_language && !cohere.detects_language);
+        assert!(!find("canary-1b-v2-q5km").unwrap().detects_language);
+        let recommended: Vec<_> = catalog()
+            .iter()
+            .filter(|m| m.recommended)
+            .map(|m| m.id.as_str())
+            .collect();
         assert_eq!(
-            ids,
+            recommended,
             [
-                "parakeet-tdt-0.6b-v3-q5km",
-                "nemotron-3.5-streaming-0.6b-q5km",
-                "whisper-large-v3-turbo-q5km",
-                "sortformer-4spk-v2.1-q8"
+                nemotron.id.as_str(),
+                cohere.id.as_str(),
+                "whisper-medium-q8"
             ]
         );
-        let parakeet = default_model();
-        assert_eq!(parakeet.id, ids[0]);
-        assert_eq!(parakeet.mode, Some(Mode::Phrase));
-        assert!(!parakeet.accepts_language);
-        let nemotron = find(ids[1]).unwrap();
-        assert_eq!(nemotron.mode, Some(Mode::Stream));
-        assert!(ids[..3].iter().all(|id| find_transcriber(id).is_some()));
+        // Voxtral Small supera i 4 GiB.
+        assert!(find("voxtral-small-24b-2507-q5km").unwrap().size > u64::from(u32::MAX));
+        assert!(ids[..18].iter().all(|id| find_transcriber(id).is_some()));
         // Sortformer non si sceglie come modello di trascrizione.
-        assert_eq!(diarizer().id, ids[3]);
+        assert_eq!(diarizer().id, ids[18]);
         assert_eq!(diarizer().mode, None);
-        assert!(find_transcriber(ids[3]).is_none());
+        assert!(find_transcriber(ids[18]).is_none());
         assert_eq!(
             nemotron.file_name(),
             "nemotron-3.5-asr-streaming-0.6b-Q5_K_M.gguf"
@@ -908,8 +932,10 @@ mod tests {
             name: "Prova".into(),
             url: server.url.clone(),
             sha256: hex(&Sha256::digest(body)),
-            size: u32::try_from(body.len()).unwrap(),
+            size: body.len() as u64,
             accepts_language: true,
+            detects_language: true,
+            recommended: false,
             kind: ModelKind::Trascrizione,
             mode: Some(Mode::Phrase),
             license: "MIT".into(),

@@ -34,7 +34,8 @@ function useSpeechLanguage() {
   const choice = speechLanguageChoice(
     model?.languages ?? null,
     settings.speechLanguage,
-    i18n.language
+    i18n.language,
+    model?.detectsLanguage
   );
   const nameOf = (code: string) =>
     code === "auto"
@@ -57,6 +58,7 @@ export function TranscribeOptions({
   const { save, settings } = useSettings();
   const models = useModels();
   const {
+    auto,
     ignoredBy,
     nameOf,
     options: languages,
@@ -119,7 +121,9 @@ export function TranscribeOptions({
           onChange={chooseLanguage}
           value={language}
         >
-          <option value="auto">{t("speechLanguage.auto")}</option>
+          {auto ? (
+            <option value="auto">{t("speechLanguage.auto")}</option>
+          ) : null}
           {languages.map((l) => (
             <option key={l} value={l}>
               {nameOf(l)}

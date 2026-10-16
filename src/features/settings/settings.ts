@@ -163,8 +163,9 @@ export const settingsSchema = z.object({
   vocabolario: z.array(z.string()).optional(),
 }) satisfies z.ZodType<Settings>;
 
-/** Cosa mostra il selettore della Lingua del parlato, oltre ad Automatica. */
+/** Cosa mostra il selettore della Lingua del parlato: Automatica (`auto`) e le lingue. */
 export interface SpeechLanguageChoice {
+  auto: boolean;
   options: SpeechLanguage[];
   value: SpeechLanguage;
 }
@@ -183,15 +184,32 @@ export function speechLanguageName(code: SpeechLanguage, locale: string) {
  * Le Lingue del parlato da offrire: tutte quelle del modello, come codice senza regione (`it-IT` di
  * Nemotron diventa `it`), in ordine di nome nella lingua `locale`. `modelLanguages` è `null` finché
  * il modello non è stato caricato: allora si offre solo la scelta salvata, per non perderla. Una
- * scelta salvata che il modello non accetta vale Automatica, come per il backend.
+ * scelta salvata che il modello non accetta vale Automatica, come per il backend. Un modello che non
+ * riconosce la lingua (`detectsLanguage` falso: Cohere, Canary) non offre Automatica, che vale la
+ * lingua dell'interfaccia come `Settings::lingua_parlato` in Rust.
  */
 export function speechLanguageChoice(
   modelLanguages: string[] | null,
   current: SpeechLanguage,
-  locale: string
+  locale: string,
+  detectsLanguage = true
 ): SpeechLanguageChoice {
+  if (!detectsLanguage) {
+    // Come il backend, che indica al modello la lingua salvata anche se non è tra le sue.
+    const chosen = current === "auto" ? languageOf(locale) : current;
+    const { options } = speechLanguageChoice(modelLanguages, chosen, locale);
+    return {
+      auto: false,
+      options: options.includes(chosen) ? options : [chosen, ...options],
+      value: chosen,
+    };
+  }
   if (modelLanguages === null) {
-    return { options: current === "auto" ? [] : [current], value: current };
+    return {
+      auto: true,
+      options: current === "auto" ? [] : [current],
+      value: current,
+    };
   }
   const codes = new Set(
     modelLanguages
@@ -204,7 +222,7 @@ export function speechLanguageChoice(
   }));
   named.sort((a, b) => a.name.localeCompare(b.name, locale));
   const options = named.map((l) => l.code);
-  return { options, value: codes.has(current) ? current : "auto" };
+  return { auto: true, options, value: codes.has(current) ? current : "auto" };
 }
 
 /** Una casella di Riconosci i parlanti delle Registrazioni. */

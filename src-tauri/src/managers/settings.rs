@@ -404,6 +404,18 @@ impl Settings {
         (separate && !nome.is_empty() && !diarizzati.contains(&Ingresso::Microfono)).then_some(nome)
     }
 
+    /// La Lingua del parlato della Trascrizione: quella scelta, ma Automatica con un modello che non
+    /// riconosce la lingua (Cohere, Canary) diventa la Lingua dell'interfaccia, che quei modelli
+    /// trascrivono tutte e sei.
+    pub fn lingua_parlato(&self) -> SpeechLanguage {
+        if self.speech_language.code().is_none() && !SettingsStore::model_of(self).detects_language
+        {
+            let interface = self.interface_language.unwrap_or_else(Language::system);
+            return SpeechLanguage::from(interface.code());
+        }
+        self.speech_language.clone()
+    }
+
     /// Se la Registrazione è a Ingressi separati: da Entrambi sempre (ADR-0015). Salva l'audio di
     /// ogni Ingresso e, dal vivo, li trascrive ognuno per conto suo.
     pub fn ingressi_separati(&self) -> bool {
@@ -704,7 +716,7 @@ mod tests {
     fn senza_file_valgono_i_predefiniti() {
         let settings = Settings::load(&temp_file("assente")).unwrap();
         assert_eq!(settings, Settings::default());
-        assert_eq!(settings.model, "parakeet-tdt-0.6b-v3-q5km");
+        assert_eq!(settings.model, "nemotron-3.5-streaming-0.6b-q5km");
         assert_eq!(settings.speech_language, SpeechLanguage::auto());
         assert_eq!(settings.recording_source, RecordingSource::Mic);
         assert_eq!(
@@ -1220,5 +1232,27 @@ mod tests {
         };
         assert!(invalid.save(&path).is_err());
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn automatica_con_un_modello_che_non_riconosce_la_lingua_vale_la_lingua_dell_interfaccia() {
+        let cohere = Settings {
+            model: "cohere-transcribe-03-2026-q5km".into(),
+            interface_language: Some(Language::De),
+            ..Settings::default()
+        };
+        assert_eq!(cohere.lingua_parlato(), SpeechLanguage::from("de"));
+        // Una lingua scelta resta quella.
+        let scelta = Settings {
+            speech_language: SpeechLanguage::from("fr"),
+            ..cohere.clone()
+        };
+        assert_eq!(scelta.lingua_parlato(), SpeechLanguage::from("fr"));
+        // Nemotron riconosce la lingua: Automatica resta Automatica.
+        let nemotron = Settings {
+            interface_language: Some(Language::De),
+            ..Settings::default()
+        };
+        assert_eq!(nemotron.lingua_parlato(), SpeechLanguage::auto());
     }
 }
