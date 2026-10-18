@@ -33,10 +33,10 @@ test("la Registrazione resta in preparazione fino alla conferma audio e conserva
     text: t("errors.codes.liveTranscriptionUnavailable", { detail: "ASR" }),
     tone: "error",
   });
-  expect(withRecordingPhase(waiting, "cleaning")).toEqual({
+  expect(withRecordingPhase(waiting, "devices")).toEqual({
     liveError: error,
     phase: "preparingRecording",
-    stage: "cleaning",
+    stage: "devices",
   });
   expect(withRecordingPhase(waiting, "recording")).toEqual({
     liveError: error,

@@ -242,7 +242,6 @@ export const events = {
 	modelDownloadProgress: makeEvent<ModelDownloadProgress>("model-download-progress"),
 	modelStateChanged: makeEvent<ModelStateChanged>("model-state-changed"),
 	recordingCleaningFailed: makeEvent<RecordingCleaningFailed>("recording-cleaning-failed"),
-	recordingCleaningPreparing: makeEvent<RecordingCleaningPreparing>("recording-cleaning-preparing"),
 	recordingPhaseChanged: makeEvent<RecordingPhaseChanged>("recording-phase-changed"),
 	recordingTick: makeEvent<RecordingTick>("recording-tick"),
 	speakersAssigned: makeEvent<SpeakersAssigned>("speakers-assigned"),
@@ -567,13 +566,7 @@ export type RecordingCleaningFailed = {
 	error: AppError,
 };
 
-export type RecordingCleaningPreparing = {
-	sessionId: string,
-	ingresso: Ingresso,
-	preparing: boolean,
-};
-
-export type RecordingPhase = "preparing" | "cleaning" | "devices" | "recording";
+export type RecordingPhase = "preparing" | "devices" | "recording";
 
 export type RecordingPhaseChanged = {
 	sessionId: string,

@@ -134,8 +134,8 @@
       "activityInProgress": "Trwa już inna czynność: poczekaj, aż się zakończy, albo ją anuluj",
       "cancelled": "Transkrypcja anulowana",
       "internal": "Błąd wewnętrzny: {{detail}}",
-      "audioCleaningMissing": "Brakuje modelu DeepFilterNet3 dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
-      "audioCleaningIncompatible": "Dołączony model DeepFilterNet3 jest niezgodny: {{detail}}",
+      "audioCleaningMissing": "Brakuje modelu RNNoise dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
+      "audioCleaningIncompatible": "Dołączony model RNNoise jest niezgodny: {{detail}}",
       "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
       "liveTranscriptionLagging": "Transkrypcja na żywo ma zbyt duże opóźnienie i została zatrzymana. Dźwięk jest nadal nagrywany; możesz go transkrybować po zatrzymaniu.",
       "noRecycleBin": "Dysk z {{detail}} nie ma Kosza systemu Windows",
@@ -270,8 +270,8 @@
     "cleaning": {
       "profile": "Pliki i dźwięk mieszany",
       "enable": "Filtruj szum",
-      "description": "DeepFilterNet3 redukuje szum w importowanych plikach audio i wideo. Tape zachowuje przetworzony dźwięk: wyłączenie czyszczenia nie przywraca oryginału.",
-      "recordingDescription": "DeepFilterNet3 redukuje nagrywany szum, także bez Transkrypcji na żywo. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu. Tape zachowuje przetworzony dźwięk: wyłączenie nie przywraca oryginału."
+      "description": "RNNoise redukuje szum w importowanych plikach audio i wideo. Tape zachowuje przetworzony dźwięk: wyłączenie czyszczenia nie przywraca oryginału.",
+      "recordingDescription": "RNNoise redukuje nagrywany szum, także bez Transkrypcji na żywo. Zmiany dotyczą kolejnego dźwięku; podczas pauzy obowiązują po wznowieniu. Tape zachowuje przetworzony dźwięk: wyłączenie nie przywraca oryginału."
     },
     "protection": {
       "label": "Czułość",
@@ -365,11 +365,9 @@
     "preparation": {
       "saving": "Zapisywanie ustawień…",
       "preparing": "Przygotowywanie nagrania…",
-      "cleaning": "Przygotowywanie oczyszczania dźwięku…",
       "devices": "Otwieranie urządzeń audio…"
     },
     "started": "Nagrywanie rozpoczęte, możesz mówić",
-    "cleaningPreparing": "Przygotowywanie oczyszczania dźwięku…",
     "mute": "Wyciszenie: {{input}}",
     "muteHint": "{{input}}: kliknij, aby wyciszyć",
     "mutedHint": "{{input}} wyciszony: kliknij, aby przywrócić",

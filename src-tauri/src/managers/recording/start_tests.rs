@@ -34,22 +34,3 @@ fn annulla_obsoleto_non_ferma_una_sessione_nuova_e_stop_dopo_avvio_salva() {
     assert!(controls.stop.load(Ordering::Acquire));
     assert!(*controls.started.lock().unwrap());
 }
-
-#[test]
-fn riaccendere_la_pulizia_ancora_in_preparazione_riemette_attesa() {
-    let controls = Controls::default();
-    let mut settings = Settings::default();
-    settings.audio_microfono.pulizia = true;
-    controls.set_audio(&settings);
-    assert!(controls.cleaning_preparing(Kind::Microphone, true));
-    assert!(!controls.cleaning_preparing(Kind::Microphone, true));
-    settings.audio_microfono.pulizia = false;
-    controls.set_audio(&settings);
-    // Anche un OFF/ON fra due blocchi PCM deve riaprire la notifica.
-    settings.audio_microfono.pulizia = true;
-    controls.set_audio(&settings);
-    assert!(controls.cleaning_preparing(Kind::Microphone, true));
-    assert!(!controls.cleaning_preparing(Kind::Microphone, true));
-    assert!(controls.cleaning_preparing(Kind::Microphone, false));
-    assert!(!controls.cleaning_preparing(Kind::Microphone, false));
-}

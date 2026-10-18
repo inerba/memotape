@@ -14,7 +14,6 @@ import {
   events,
   type Levels,
   type RecordingCleaningFailed,
-  type RecordingCleaningPreparing,
   type RecordingTick,
 } from "@/bindings";
 import { FieldHelp } from "@/components/field-help";
@@ -70,18 +69,16 @@ function savedCollapsed(): boolean {
  * mette in Muto), il livello con il suo Guadagno, Filtra rumore e Sensibilità. Ridotta, resta una
  * riga con timer, icone e livelli. L'esito arriva a chi ha chiamato `record`; `onPausedChange`
  * riceve la pausa confermata dal backend; gli esiti del salvataggio restano accanto ai controlli.
- * Preparazioni e guasti della pulizia arrivano già filtrati per la Registrazione in corso.
+ * I guasti della pulizia arrivano già filtrati per la Registrazione in corso.
  */
 export function RecordingPanel({
   cleaningFailures = [],
-  cleaningPreparing = [],
   onError,
   onPausedChange,
   paused,
   sessionId,
 }: {
   cleaningFailures?: RecordingCleaningFailed[];
-  cleaningPreparing?: RecordingCleaningPreparing[];
   onError: (error: AppError) => void;
   onPausedChange: (paused: boolean) => void;
   paused: boolean;
@@ -298,20 +295,6 @@ export function RecordingPanel({
                   </FieldHelp>
                 </div>
                 <div className="col-span-2 col-start-2 min-w-0">
-                  {settings[audio.profilo]?.pulizia &&
-                  cleaningPreparing.some(
-                    (item) => item.ingresso === audio.ingresso && item.preparing
-                  ) &&
-                  !cleaningFailures.some(
-                    (item) => item.ingresso === audio.ingresso
-                  ) ? (
-                    <p
-                      className="mb-1 text-muted-foreground text-xs"
-                      role="status"
-                    >
-                      {t("recording.cleaningPreparing")}
-                    </p>
-                  ) : null}
                   <CleaningProfile
                     bypass={cleaningFailures.some(
                       (failure) => failure.ingresso === audio.ingresso

@@ -134,8 +134,8 @@
       "activityInProgress": "Ein anderer Vorgang läuft bereits: warte, bis er fertig ist, oder brich ihn ab",
       "cancelled": "Transkription abgebrochen",
       "internal": "Interner Fehler: {{detail}}",
-      "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
-      "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
+      "audioCleaningMissing": "Das mitgelieferte RNNoise-Modell fehlt. Installiere Memotape erneut.",
+      "audioCleaningIncompatible": "Das mitgelieferte RNNoise-Modell ist inkompatibel: {{detail}}",
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
       "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren.",
       "noRecycleBin": "Das Laufwerk von {{detail}} hat keinen Windows-Papierkorb",
@@ -268,8 +268,8 @@
     "cleaning": {
       "profile": "Dateien und gemischtes Audio",
       "enable": "Rauschen filtern",
-      "description": "DeepFilterNet3 reduziert Rauschen in importierten Audio- und Videodateien. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
-      "recordingDescription": "DeepFilterNet3 reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her."
+      "description": "RNNoise reduziert Rauschen in importierten Audio- und Videodateien. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her.",
+      "recordingDescription": "RNNoise reduziert aufgenommenes Rauschen, auch ohne Live-Transkription. Änderungen gelten für das folgende Audio, bei Pause ab dem Fortsetzen. Das Tape enthält das bearbeitete Audio: Ausschalten stellt das Original nicht wieder her."
     },
     "protection": {
       "label": "Empfindlichkeit",
@@ -363,11 +363,9 @@
     "preparation": {
       "saving": "Einstellungen werden gespeichert…",
       "preparing": "Aufnahme wird vorbereitet…",
-      "cleaning": "Audiobereinigung wird vorbereitet…",
       "devices": "Audiogeräte werden geöffnet…"
     },
     "started": "Aufnahme gestartet, Sie können sprechen",
-    "cleaningPreparing": "Audiobereinigung wird vorbereitet…",
     "mute": "Stumm: {{input}}",
     "muteHint": "{{input}}: klicken zum Stummschalten",
     "mutedHint": "{{input}} stumm: klicken zum Aufheben",

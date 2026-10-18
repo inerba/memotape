@@ -2,6 +2,10 @@
 status: accepted
 ---
 
+> Superato in parte dall'ADR-0034 (18 ottobre 2026): la pulizia è RNNoise, che si carica in circa 2 ms. Non c'è più la preparazione in anticipo
+> della pulizia (`RecordingFilters`, prestito del piano Tract, fase e avviso «Preparazione
+> pulizia…»): il processore nasce al primo blocco con la pulizia accesa. Il resto vale.
+
 # Preparazione della Registrazione e riuso della Pulizia audio
 
 Decisione del 7 ottobre 2026, concordata con l'utente e implementata nel checkout

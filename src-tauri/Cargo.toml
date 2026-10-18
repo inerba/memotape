@@ -10,6 +10,7 @@ name = "memotape_lib"
 
 [build-dependencies]
 tauri-build = { version = "2.7.1", features = [] }
+cc = "1.8.0"
 
 [dependencies]
 tauri = { version = "2.12.1", features = [] }
@@ -34,14 +35,6 @@ symphonia = { version = "0.6.1", default-features = false, features = ["isomp4",
 symphonia-adapter-libopus = "0.3.0"
 rubato = "5.0.1"
 audioadapter-buffers = "5.1"
-# DFN3 standard, runtime originale; nessun default-model o decoder della CLI.
-df = { package = "deep_filter", git = "https://github.com/Rikorose/DeepFilterNet", rev = "978576aa8400552a4ce9730838c635aa30db5e61", default-features = false, features = ["tract"] }
-ndarray = "=0.15.6"
-# Il runtime 0.5.6 dichiara ^0.19: fissiamo la versione verificata anche nel manifest.
-tract-core = "=0.19.16"
-tract-onnx = "=0.19.16"
-tract-hir = "=0.19.16"
-tract-pulse = "=0.19.16"
 # Fork usato da Handy: Silero v4 su ort rc.12. Senza `helpers` (samplerate, ebur128).
 vad-rs = { git = "https://github.com/cjpais/vad-rs", rev = "2a412ed858695b9251f3f5a1a20d95b59fa7c498", default-features = false }
 # Il default è `metal`. `dynamic-backends`: CPU e Vulkan sono DLL scelte a runtime (moduli CPU per
@@ -85,17 +78,9 @@ dirs = "7"
 # Usata dalle build di produzione o quando non c'è un dev server: non rimuovere.
 custom-protocol = ["tauri/custom-protocol"]
 
-# La cattura richiede DSP più veloce del tempo reale anche in `tauri dev`.
-# Senza ottimizzazione DFN3 esaurisce il pool WASAPI e perde blocchi; il codice dell'app resta debug.
-[profile.dev.package.deep_filter]
-opt-level = 3
-
-[profile.dev.package.tract-core]
-opt-level = 3
-
-[profile.dev.package.tract-linalg]
-opt-level = 3
-
+# La cattura richiede DSP più veloce del tempo reale anche in `tauri dev`: i ricampionatori del
+# mixer e della pulizia sono ottimizzati, il codice dell'app resta debug. RNNoise è C, compilato
+# ottimizzato da `build.rs`.
 [profile.dev.package.rustfft]
 opt-level = 3
 
@@ -103,12 +88,6 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package.rubato]
-opt-level = 3
-
-[profile.dev.package.ndarray]
-opt-level = 3
-
-[profile.dev.package.tract-data]
 opt-level = 3
 
 [profile.dev.package.num-complex]

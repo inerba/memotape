@@ -1,5 +1,10 @@
 import type { TFunction } from "i18next";
-import type { AppError, commands, Diarizzazione } from "@/bindings";
+import type {
+  AppError,
+  commands,
+  Diarizzazione,
+  RecordingPhase,
+} from "@/bindings";
 import { movedPath } from "@/features/source/file-name";
 
 /** Cosa mostra la status bar: la fase dell'Attività, o l'errore. */
@@ -7,7 +12,7 @@ export type Status =
   | { phase: "idle"; source: string | null }
   | {
       phase: "preparingRecording";
-      stage: "saving" | "preparing" | "cleaning" | "devices";
+      stage: "saving" | Exclude<RecordingPhase, "recording">;
       liveError?: AppError;
     }
   | {
@@ -165,7 +170,7 @@ export function withLiveError(status: Status, liveError: AppError): Status {
 /** Solo la conferma del percorso audio conclude la preparazione. Eventi terminali restano terminali. */
 export function withRecordingPhase(
   status: Status,
-  phase: "preparing" | "cleaning" | "devices" | "recording"
+  phase: RecordingPhase
 ): Status {
   if (status.phase !== "preparingRecording") {
     return status;

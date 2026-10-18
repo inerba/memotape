@@ -4,7 +4,6 @@ import type {
   LiveTranscriptionFailed,
   LiveTranscriptUpdated,
   RecordingCleaningFailed,
-  RecordingCleaningPreparing,
   RecordingPhaseChanged,
   RecordingTick,
   SpeakersAssigned,
@@ -56,7 +55,6 @@ export interface ActivityState {
   /** I guasti della pulizia della Registrazione, uno per Ingresso, e se l'avviso è stato chiuso. */
   cleaningDismissed: boolean;
   cleaningFailures: RecordingCleaningFailed[];
-  cleaningPreparing: RecordingCleaningPreparing[];
   conversation: Conversation;
   /** Il timer della Registrazione. */
   elapsedMs: number;
@@ -71,7 +69,6 @@ export interface ActivityState {
 export const INITIAL_ACTIVITY: ActivityState = {
   cleaningDismissed: false,
   cleaningFailures: [],
-  cleaningPreparing: [],
   conversation: EMPTY_CONVERSATION,
   elapsedMs: 0,
   info: null,
@@ -99,7 +96,6 @@ type CommandAction =
   /** Uno Status fuori dalle Attività: la Sorgente aperta, o l'errore di un comando. */
   | { type: "status"; status: Status }
   | { type: "moved"; from: string; to: string }
-  | { type: "cleaningOff"; ingresso: Ingresso }
   | { type: "cleaningDismissed" }
   | {
       type: "sourceLoaded";
@@ -118,7 +114,6 @@ export type EventAction =
   | { type: "progress"; payload: TranscriptionProgress }
   | { type: "diarizationStarted"; payload: DiarizationStarted }
   | { type: "tick"; payload: RecordingTick }
-  | { type: "cleaningPreparing"; payload: RecordingCleaningPreparing }
   | { type: "cleaningFailed"; payload: RecordingCleaningFailed };
 
 export type ActivityAction = CommandAction | EventAction;
@@ -180,13 +175,6 @@ export function activity(
         ...state,
         status: withMovedSource(state.status, action.from, action.to),
       };
-    case "cleaningOff":
-      return {
-        ...state,
-        cleaningPreparing: state.cleaningPreparing.filter(
-          (item) => item.ingresso !== action.ingresso
-        ),
-      };
     case "cleaningDismissed":
       return { ...state, cleaningDismissed: true };
     default:
@@ -211,7 +199,7 @@ function started(state: ActivityState, action: StartAction): ActivityState {
       state: "open",
     },
     status: STARTED[action.kind],
-    // Ogni Registrazione parte da zero, senza preparazioni né guasti della pulizia.
+    // Ogni Registrazione parte da zero, senza guasti della pulizia.
     ...(recording ? RECORDING_START : {}),
   };
 }
@@ -225,7 +213,6 @@ const STARTED: Record<ActivityKind, Status> = {
 const RECORDING_START = {
   cleaningDismissed: false,
   cleaningFailures: [],
-  cleaningPreparing: [],
   elapsedMs: 0,
 } satisfies Partial<ActivityState>;
 
@@ -276,16 +263,6 @@ function withEvent(state: ActivityState, action: EventAction): ActivityState {
       const elapsedMs = Math.floor(action.payload.elapsedMs / 1000) * 1000;
       return elapsedMs === state.elapsedMs ? state : { ...state, elapsedMs };
     }
-    case "cleaningPreparing":
-      return {
-        ...state,
-        cleaningPreparing: [
-          ...state.cleaningPreparing.filter(
-            (item) => item.ingresso !== action.payload.ingresso
-          ),
-          action.payload,
-        ],
-      };
     // L'avviso torna a ogni guasto e resta fino alla chiusura; uno per Ingresso.
     case "cleaningFailed":
       return {

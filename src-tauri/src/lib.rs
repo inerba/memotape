@@ -19,7 +19,7 @@ pub use mcp::serve as serve_mcp;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-// Il default TRACE stampa migliaia di passaggi Tract prima della cattura.
+// Il default TRACE inonda terminale e log con i messaggi delle dipendenze.
 const APP_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
 
 /// Percorso di `bindings.ts`, relativo a `src-tauri` (la cwd di `tauri dev` e di `cargo test`).
@@ -98,7 +98,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::recording::RecordingTick,
             managers::recording::RecordingCleaningFailed,
             managers::recording::RecordingPhaseChanged,
-            managers::recording::RecordingCleaningPreparing,
             managers::library::LibraryChanged,
         ])
 }
@@ -128,7 +127,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(managers::activity::Activity::default())
         .manage(managers::recording::Recorder::default())
-        .manage(managers::recording::RecordingFilters::default())
         .manage(managers::transcription::LastTranscript::default())
         .manage(managers::pending_tape::PendingTape::default())
         .manage(managers::library::LibraryState::default())
@@ -173,7 +171,6 @@ pub fn run() {
             // Tema e lingua sono già disponibili quando la WebView legge il documento iniziale.
             startup::create_main(app)?;
             managers::transcription::preload(app.handle());
-            managers::recording::preload(app.handle());
             managers::library::sync_in_background(app.handle());
             managers::pending_tape::request(
                 app.handle(),
@@ -197,45 +194,6 @@ fn focus_main(app: &tauri::AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::{BINDINGS_PATH, specta_builder};
-
-    #[test]
-    #[ignore = "DFN3 reale e logger globale: eseguire isolatamente"]
-    fn avvio_dfn3_non_inonda_il_log_della_registrazione() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        struct Counter(AtomicUsize);
-        impl log::Log for Counter {
-            fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-                metadata.level() <= super::APP_LOG_LEVEL
-            }
-            fn log(&self, record: &log::Record<'_>) {
-                if self.enabled(record.metadata()) {
-                    self.0.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-            fn flush(&self) {}
-        }
-        static COUNTER: Counter = Counter(AtomicUsize::new(0));
-        log::set_logger(&COUNTER).unwrap();
-        log::set_max_level(super::APP_LOG_LEVEL);
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join(crate::audio_toolkit::deepfilter::MODEL_FILE);
-        let started = std::time::Instant::now();
-        let filter = crate::audio_toolkit::deepfilter::DeepFilter::new(
-            &path,
-            crate::audio_toolkit::processing::Format {
-                rate: 48_000,
-                channels: 2,
-            },
-        )
-        .unwrap();
-        drop(filter);
-        let messages = COUNTER.0.load(Ordering::Relaxed);
-        eprintln!("Avvio DFN3: {messages} messaggi in {:?}", started.elapsed());
-        assert!(
-            messages < 1000,
-            "l'avvio intasa terminale e log: {messages} messaggi"
-        );
-    }
 
     #[test]
     #[ignore = "generatore dei contratti, invocare esplicitamente dopo modifiche agli eventi"]

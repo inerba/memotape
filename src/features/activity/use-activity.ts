@@ -45,9 +45,6 @@ export function useActivityEvents(
       events.recordingTick.listen(({ payload }) =>
         dispatch({ payload, type: "tick" })
       ),
-      events.recordingCleaningPreparing.listen(({ payload }) =>
-        dispatch({ payload, type: "cleaningPreparing" })
-      ),
       events.recordingCleaningFailed.listen(({ payload }) =>
         dispatch({ payload, type: "cleaningFailed" })
       ),

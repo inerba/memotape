@@ -29,7 +29,6 @@ import {
   type LibraryList,
   type OpenedTape,
   type RecordingCleaningFailed,
-  type RecordingCleaningPreparing,
   type TapeEntry,
   type UpdateInfo,
 } from "@/bindings";
@@ -177,7 +176,6 @@ export function HomePage() {
   const {
     cleaningDismissed,
     cleaningFailures,
-    cleaningPreparing,
     conversation,
     elapsedMs,
     info,
@@ -262,18 +260,6 @@ export function HomePage() {
       tapeRequested.then((stop) => stop());
     };
   }, [dispatch]);
-
-  // Spenta la pulizia di un Ingresso, la sua preparazione non si mostra più.
-  const microfonoPulito = settings.audioMicrofono?.pulizia;
-  const sistemaPulito = settings.audioSistema?.pulizia;
-  useEffect(() => {
-    if (!microfonoPulito) {
-      dispatch({ ingresso: "microfono", type: "cleaningOff" });
-    }
-    if (!sistemaPulito) {
-      dispatch({ ingresso: "sistema", type: "cleaningOff" });
-    }
-  }, [dispatch, microfonoPulito, sistemaPulito]);
 
   useEffect(() => {
     if (!copied) {
@@ -1141,7 +1127,6 @@ export function HomePage() {
         return (
           <LiveView
             cleaningFailures={cleaningFailures}
-            cleaningPreparing={cleaningPreparing}
             conversation={conversation}
             copied={copied}
             elapsedMs={elapsedMs}
@@ -1294,7 +1279,6 @@ function shownBanner(
  */
 function LiveView({
   cleaningFailures,
-  cleaningPreparing,
   conversation,
   copied,
   elapsedMs,
@@ -1310,7 +1294,6 @@ function LiveView({
   status,
 }: {
   cleaningFailures: RecordingCleaningFailed[];
-  cleaningPreparing: RecordingCleaningPreparing[];
   conversation: Conversation;
   copied: boolean;
   elapsedMs: number;
@@ -1416,7 +1399,6 @@ function LiveView({
         <Dock>
           <RecordingPanel
             cleaningFailures={cleaningFailures}
-            cleaningPreparing={cleaningPreparing}
             key={sessionId}
             onError={onError}
             onPausedChange={onPausedChange}

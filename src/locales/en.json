@@ -134,8 +134,8 @@
       "activityInProgress": "Another activity is in progress: wait for it to finish or cancel it",
       "cancelled": "Transcription cancelled",
       "internal": "Internal error: {{detail}}",
-      "audioCleaningMissing": "The DeepFilterNet3 model bundled with the app is missing. Reinstall Memotape.",
-      "audioCleaningIncompatible": "The bundled DeepFilterNet3 model is incompatible: {{detail}}",
+      "audioCleaningMissing": "The RNNoise model bundled with the app is missing. Reinstall Memotape.",
+      "audioCleaningIncompatible": "The bundled RNNoise model is incompatible: {{detail}}",
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
       "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop.",
       "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin",
@@ -268,8 +268,8 @@
     "cleaning": {
       "profile": "Files and mixed audio",
       "enable": "Filter noise",
-      "description": "DeepFilterNet3 reduces noise in imported audio and video files. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
-      "recordingDescription": "DeepFilterNet3 reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. The Tape keeps the processed audio: turning it off cannot restore the original."
+      "description": "RNNoise reduces noise in imported audio and video files. The Tape keeps the processed audio: turning cleaning off cannot restore the original.",
+      "recordingDescription": "RNNoise reduces recorded noise, even without live Transcription. Changes apply to subsequent audio; when paused, from resume. The Tape keeps the processed audio: turning it off cannot restore the original."
     },
     "protection": {
       "label": "Sensitivity",
@@ -363,11 +363,9 @@
     "preparation": {
       "saving": "Saving settings…",
       "preparing": "Preparing recording…",
-      "cleaning": "Preparing audio cleaning…",
       "devices": "Opening audio devices…"
     },
     "started": "Recording started, you can speak",
-    "cleaningPreparing": "Preparing audio cleaning…",
     "mute": "Mute: {{input}}",
     "muteHint": "{{input}}: click to mute",
     "mutedHint": "{{input}} muted: click to unmute",

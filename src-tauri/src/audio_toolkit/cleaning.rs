@@ -4,8 +4,8 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use super::deepfilter::DeepFilter;
 use super::processing::{AudioProcessor, Boundary, Format, PcmBlock};
+use super::rnnoise::{self, RNNoise};
 use crate::error::AppError;
 use crate::transcript::Ingresso;
 
@@ -34,7 +34,6 @@ impl CleaningLog {
 }
 
 type ProcessorFactory = Box<dyn FnMut(Format) -> Result<Box<dyn AudioProcessor>, AppError> + Send>;
-type DeferredFactory = Box<dyn FnMut() -> Result<Option<Box<dyn AudioProcessor>>, AppError> + Send>;
 
 struct ActiveCleaning {
     processor: Box<dyn AudioProcessor>,
@@ -53,9 +52,8 @@ pub struct ConfiguredCleaning {
     log: CleaningLog,
     on_failure: Option<Box<dyn FnMut(AppError) + Send>>,
     failed: bool,
+    /// Il processore scaricato a un confine, riusato quando la pulizia riparte.
     prepared: Option<Box<dyn AudioProcessor>>,
-    preparation_error: Option<AppError>,
-    deferred: Option<DeferredFactory>,
 }
 
 impl ConfiguredCleaning {
@@ -69,7 +67,7 @@ impl ConfiguredCleaning {
             Box::new(enabled),
             ingresso,
             log,
-            Box::new(move |format| Ok(Box::new(DeepFilter::new(&path, format)?))),
+            Box::new(move |format| Ok(Box::new(RNNoise::new(&path, format)?))),
         )
     }
 
@@ -88,40 +86,12 @@ impl ConfiguredCleaning {
             on_failure: None,
             failed: false,
             prepared: None,
-            preparation_error: None,
-            deferred: None,
         }
     }
 
     pub(crate) fn recovering(mut self, on_failure: impl FnMut(AppError) + Send + 'static) -> Self {
         self.on_failure = Some(Box::new(on_failure));
         self
-    }
-
-    /// Nella Registrazione un modello ancora in preparazione lascia passare il PCM originale.
-    pub(crate) fn deferred(mut self, factory: DeferredFactory) -> Self {
-        self.deferred = Some(factory);
-        self
-    }
-
-    pub(crate) fn prepared(mut self, processor: Box<dyn AudioProcessor>) -> Self {
-        self.prepared = Some(processor);
-        self
-    }
-
-    pub(crate) fn preparation_failed(&mut self, error: AppError) -> Result<(), AppError> {
-        self.recover(error, &mut Vec::new())
-    }
-
-    /// Carica prima di aprire WASAPI: anche l'accensione al volo riusa il runtime preparato.
-    #[cfg(test)]
-    pub(crate) fn prepare(&mut self, format: Format) -> Result<(), AppError> {
-        match (self.factory)(format) {
-            Ok(processor) => self.prepared = Some(processor),
-            Err(error) if self.on_failure.is_some() => self.preparation_error = Some(error),
-            Err(error) => return Err(error),
-        }
-        Ok(())
     }
 
     fn record_interval(&self, interval: TrattoPulizia) {
@@ -209,31 +179,10 @@ impl ConfiguredCleaning {
         enabled: bool,
         out: &mut Vec<f32>,
     ) -> Result<(), AppError> {
-        if enabled && let Some(error) = self.preparation_error.take() {
-            self.recover(error, out)?;
-            out.extend_from_slice(block.samples);
-            return Ok(());
-        }
         if !enabled {
             self.drain(Boundary::Configuration, out)?;
         }
         if enabled && self.active.is_none() {
-            if self.prepared.is_none()
-                && let Some(factory) = &mut self.deferred
-            {
-                match factory() {
-                    Ok(Some(processor)) => self.prepared = Some(processor),
-                    Ok(None) => {
-                        out.extend_from_slice(block.samples);
-                        return Ok(());
-                    }
-                    Err(error) => {
-                        self.recover(error, out)?;
-                        out.extend_from_slice(block.samples);
-                        return Ok(());
-                    }
-                }
-            }
             let processor = match self.prepared.take() {
                 Some(processor) => Ok(processor),
                 None => (self.factory)(block.format),
@@ -252,9 +201,8 @@ impl ConfiguredCleaning {
                 channels: block.format.channels,
                 interval: TrattoPulizia {
                     ingresso: self.ingresso,
-                    algoritmo: "deepfilternet3".into(),
-                    versione: "libDF-0.5.6/978576aa8400552a4ce9730838c635aa30db5e61/tract-0.19.16/direct-v1"
-                        .into(),
+                    algoritmo: rnnoise::ALGORITMO.into(),
+                    versione: rnnoise::VERSIONE.into(),
                     frequenza: block.format.rate,
                     inizio_frame: block.start_frame,
                     fine_frame: block.start_frame,
@@ -302,79 +250,6 @@ impl AudioProcessor for ConfiguredCleaning {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn preparazione_tardiva_conserva_originale_e_pulisce_solo_il_futuro() {
-        use crate::audio_toolkit::processing::{PcmStream, tests::DelayedScale};
-        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-        let enabled = Arc::new(AtomicBool::new(true));
-        let ready = Arc::new(AtomicBool::new(false));
-        let polls = Arc::new(AtomicUsize::new(0));
-        let (control, readiness, observed) = (enabled.clone(), ready.clone(), polls.clone());
-        let log = CleaningLog::default();
-        let processor = ConfiguredCleaning::with_factory(
-            Box::new(move || control.load(Ordering::Relaxed)),
-            Ingresso::Microfono,
-            log.clone(),
-            Box::new(|_| panic!("la cattura non deve caricare il modello")),
-        )
-        .deferred(Box::new(move || {
-            observed.fetch_add(1, Ordering::Relaxed);
-            Ok(readiness
-                .load(Ordering::Relaxed)
-                .then(|| Box::new(DelayedScale::new(1)) as Box<dyn AudioProcessor>))
-        }));
-        let mut stream = PcmStream::new(
-            Format {
-                rate: 8000,
-                channels: 1,
-            },
-            Box::new(processor),
-        )
-        .unwrap();
-        assert_eq!(stream.push(&[0.8, 0.6]).unwrap().samples, [0.8, 0.6]);
-        enabled.store(false, Ordering::Relaxed);
-        ready.store(true, Ordering::Relaxed);
-        assert_eq!(stream.push(&[0.4]).unwrap().samples, [0.4]);
-        assert_eq!(polls.load(Ordering::Relaxed), 1);
-        assert!(log.intervals().is_empty());
-        enabled.store(true, Ordering::Relaxed);
-        let mut clean = stream.push(&[0.2, 0.6]).unwrap().samples;
-        clean.extend(stream.boundary(Boundary::Finish).unwrap().samples);
-        assert_eq!(clean, [0.1, 0.3]);
-        let intervals = log.intervals();
-        assert_eq!(intervals.len(), 1);
-        assert_eq!((intervals[0].inizio_frame, intervals[0].fine_frame), (3, 5));
-    }
-
-    #[test]
-    fn guasto_della_preparazione_tardiva_non_interrompe_audio_e_avvisa_una_volta() {
-        use crate::audio_toolkit::processing::PcmStream;
-        let warnings = Arc::new(Mutex::new(Vec::new()));
-        let reported = warnings.clone();
-        let log = CleaningLog::default();
-        let processor = ConfiguredCleaning::with_factory(
-            Box::new(|| true),
-            Ingresso::Sistema,
-            log.clone(),
-            Box::new(|_| panic!("nessun caricamento sincrono")),
-        )
-        .deferred(Box::new(|| Err(AppError::AudioCleaningMissing)))
-        .recovering(move |error| reported.lock().unwrap().push(error));
-        let mut stream = PcmStream::new(
-            Format {
-                rate: 8000,
-                channels: 1,
-            },
-            Box::new(processor),
-        )
-        .unwrap();
-        assert_eq!(stream.push(&[0.2]).unwrap().samples, [0.2]);
-        assert_eq!(stream.push(&[-0.4]).unwrap().samples, [-0.4]);
-        stream.boundary(Boundary::Finish).unwrap();
-        assert_eq!(*warnings.lock().unwrap(), [AppError::AudioCleaningMissing]);
-        assert!(log.intervals().is_empty());
-    }
 
     use crate::audio_toolkit::processing::{PcmStream, tests::DelayedScale};
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -471,19 +346,20 @@ mod tests {
         let control = enabled.clone();
         let warnings = Arc::new(Mutex::new(Vec::new()));
         let notified = warnings.clone();
-        let mut processor = ConfiguredCleaning::with_factory(
+        // Come nella Registrazione: il modello si carica al primo blocco con la pulizia accesa.
+        let processor = ConfiguredCleaning::with_factory(
             Box::new(move || control.load(Ordering::Relaxed)),
             Ingresso::Microfono,
             log,
             Box::new(|_| Err(AppError::AudioCleaningMissing)),
         )
         .recovering(move |error| notified.lock().unwrap().push(error));
-        processor.prepare(format).unwrap();
-        assert!(warnings.lock().unwrap().is_empty());
         let mut stream = PcmStream::new(format, Box::new(processor)).unwrap();
         assert_eq!(stream.push(&[0.2, -0.2]).unwrap().samples, [0.2, -0.2]);
+        assert!(warnings.lock().unwrap().is_empty());
         enabled.store(true, Ordering::Relaxed);
         assert_eq!(stream.push(&[0.3, -0.3]).unwrap().samples, [0.3, -0.3]);
+        assert_eq!(stream.push(&[0.4, -0.4]).unwrap().samples, [0.4, -0.4]);
         stream.boundary(Boundary::Finish).unwrap();
         assert_eq!(*warnings.lock().unwrap(), [AppError::AudioCleaningMissing]);
     }
@@ -517,6 +393,7 @@ mod tests {
         let intervals = log.intervals();
         assert_eq!(intervals.len(), 1);
         assert_eq!(intervals[0].ingresso, Ingresso::Mix);
+        assert_eq!(intervals[0].algoritmo, "rnnoise");
         assert!(intervals[0].versione.ends_with("/direct-v1"));
         assert_eq!(
             (
