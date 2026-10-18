@@ -1,8 +1,7 @@
 // Prepara un worktree di git per i sei controlli, riusando la build Rust del checkout principale.
 //   bun scripts/worktree-setup.ts [branch di base]
 // - scrive `.cargo/config.toml` (ignorato da git, quindi assente nel worktree) partendo da quello del
-//   checkout principale, senza le variabili di ONNX Runtime, con `LOCALAPPDATA` assoluto e
-//   `target-dir` sulla sua `src-tauri\target`:
+//   checkout principale, con `LOCALAPPDATA` assoluto e `target-dir` sulla sua `src-tauri\target`:
 //   transcribe-cpp non si ricompila da capo (vedi docs/sviluppo/prerequisiti.md);
 // - con un branch di base, si ferma se il worktree non ne discende;
 // - lancia `bun install`.
@@ -24,7 +23,7 @@ function git(...args: string[]): string {
   return r.stdout.trim();
 }
 
-/** La config del worktree: quella principale, senza le variabili di ONNX Runtime, con la cartella di build condivisa. */
+/** La config del worktree: quella principale con la cartella di build condivisa. */
 export function configCondivisa(principale: string, target: string): string {
   const righe = principale
     .split("\n")

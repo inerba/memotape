@@ -28,7 +28,7 @@ dist-ssr
 /.cargo/config.toml
 *.tsbuildinfo
 
-# DLL copiate da build.rs per il bundle (ONNX Runtime)
+# DLL copiate da build.rs per il bundle (transcribe.cpp, ggml, runtime VC++)
 /src-tauri/runtime-libs/
 
 # Riferimenti e materiali di design locali

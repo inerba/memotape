@@ -5,12 +5,8 @@ const PRINCIPALE = `[env]
 # transcribe-cpp-sys compila passando da una junction.
 LOCALAPPDATA = { value = "src-tauri/target", relative = true, force = true }
 VULKAN_SDK = { value = 'C:\\VulkanSDK\\1.4.357.0', force = false }
-ORT_LIB_LOCATION = 'D:\\deps\\onnxruntime\\lib'
-ORT_PREFER_DYNAMIC_LINK = "1"
 `;
 
-// ONNX Runtime non serve più (ADR-0034): le sue variabili, se la config principale le ha ancora,
-// non passano al worktree.
 test("LOCALAPPDATA diventa assoluto e la build va nella target condivisa", () => {
   expect(configCondivisa(PRINCIPALE, "D:\\repo\\src-tauri\\target")).toBe(`[env]
 LOCALAPPDATA = { value = 'D:\\repo\\src-tauri\\target', force = true }
@@ -30,4 +26,13 @@ test("una sezione [build] che c'era si sostituisce", () => {
   expect(config.match(/\[build\]/g)).toHaveLength(1);
   expect(config).toContain("target-dir = 'T'");
   expect(config).not.toContain("altrove");
+});
+
+test("le variabili di ONNX Runtime della config principale non passano al worktree", () => {
+  const config = configCondivisa(
+    `${PRINCIPALE}ORT_LIB_LOCATION = 'D:\\deps\\onnxruntime\\lib'\nORT_PREFER_DYNAMIC_LINK = "1"\n`,
+    "T"
+  );
+  expect(config).not.toContain("ORT_");
+  expect(config).toContain("VULKAN_SDK");
 });

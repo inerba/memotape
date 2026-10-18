@@ -2,7 +2,7 @@
 
 Build NSIS, cosa installa, editore, WebView2, disinstallazione e verifica sulla macchina di sviluppo. Riferimento per gli agenti, spostato da `AGENTS.md` il 10 ottobre 2026: aggiornalo quando cambia il comportamento che descrive.
 
-- `bun tauri build` compila frontend ed exe in release e produce solo l'installer NSIS (`bundle.targets: ["nsis"]`): `src-tauri/target/release/bundle/nsis/Memotape_<versione>_x64-setup.exe`, circa 15 MB (90 MB una volta installato, di cui 44 di `ggml-vulkan.dll`). La prima volta la CLI di Tauri scarica NSIS e `nsis_tauri_utils`; la prima release compila transcribe-cpp da capo (circa 6 minuti). È una build Rust come le altre: niente `tauri dev` attivo intanto.
+- `bun tauri build` compila frontend ed exe in release e produce solo l'installer NSIS (`bundle.targets: ["nsis"]`): `src-tauri/target/release/bundle/nsis/Memotape_<versione>_x64-setup.exe`, circa 26 MB (111 MB una volta installato, di cui 45 di `ggml-vulkan.dll` e 43 dell'exe). La prima volta la CLI di Tauri scarica NSIS e `nsis_tauri_utils`; la prima release compila transcribe-cpp da capo (circa 6 minuti). È una build Rust come le altre: niente `tauri dev` attivo intanto.
 - Installa per l'utente corrente (`installMode` predefinito `currentUser`) in `%LOCALAPPDATA%\Memotape`, senza UAC: `memotape.exe` con accanto le DLL di `runtime-libs/`, `resources\silero-vad-v6.2-F32.gguf` e `licenses\*.txt`. L'elenco dei file è in `src-tauri/target/release/nsis/x64/installer.nsi`; `7z l` sull'installer mostra cosa contiene davvero.
 - **Editore**: `bundle.publisher` è il segnaposto "EDITORE DA DEFINIRE" (si vede in App installate ed è nella chiave `HKCU\Software\<editore>\Memotape`). Va deciso prima della prima release pubblica: cambiarlo dopo lascia la chiave del vecchio editore sui PC già installati. L'installer non è firmato (fuori perimetro).
 - WebView2: l'installer usa il bootstrapper predefinito, quindi su un Windows 10 che non ce l'ha la scarica durante l'installazione (serve la rete). Windows 11 ce l'ha già.
@@ -21,3 +21,12 @@ Sulla macchina di sviluppo, senza toccare l'app di sviluppo:
 L'app installata usa la stessa `%APPDATA%\it.memotape.desktop` dell'app di sviluppo, quindi anche i modelli già scaricati: `app_data_dir` viene da `FOLDERID_RoamingAppData` e una variabile d'ambiente non lo sposta. Durante la prova non cambiare le impostazioni. La finestra dell'app installata compare sullo schermo dell'utente, che può usarla: un `activityInProgress` inatteso viene da lì.
 
 Esito del 2026-10-03 (Ryzen 7 3700X, RTX 2070 SUPER): tutte le DLL caricate dalla cartella d'installazione, backend Vulkan0 e CPU (modulo `ggml-cpu-haswell`), Nemotron caricato in 1,1 s, fixture trascritta in 1,3 s con il TXT salvato, Registrazione di 4 s salvata e ritrascritta, disinstallazione pulita. Manca la prova su un PC pulito (vedi «Da verificare sull'hardware reale» in `verifica-manuale.md`).
+
+Con un Memotape già installato e aperto sulla macchina (in `%LOCALAPPDATA%\Memotape`) la verifica sopra non si fa così: l'installer di prova scrive e la sua disinstallazione toglie la stessa chiave `HKCU\…\Uninstall\Memotape`, e l'istanza unica gira l'avvio all'app aperta. In quel caso si estrae l'installer con `7z x` in una cartella di prova e si controllano i file e le dipendenze dell'exe (`dumpbin /dependents`). Esito del 2026-10-18, senza ONNX Runtime (ticket 04 di alleggerire-installer):
+
+- installer: 26 048 604 byte (24,84 MiB), contro 29,6 MB della 0.5.3;
+- file installati: 111 203 644 byte più `uninstall.exe`, contro 126,5 MB;
+- nell'installer non ci sono `onnxruntime.dll` né `silero_vad.onnx`, c'è `resources\silero-vad-v6.2-F32.gguf`;
+- `memotape.exe` importa `transcribe.dll` e nessun `onnxruntime.dll`.
+
+Moduli caricati, Trascrizione e Registrazione dell'app installata non sono stati verificati: sulla macchina c'era l'app dell'utente aperta.
