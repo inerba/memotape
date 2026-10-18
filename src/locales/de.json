@@ -136,6 +136,8 @@
       "internal": "Interner Fehler: {{detail}}",
       "audioCleaningMissing": "Das mitgelieferte DeepFilterNet3-Modell fehlt. Installiere Memotape erneut.",
       "audioCleaningIncompatible": "Das mitgelieferte DeepFilterNet3-Modell ist inkompatibel: {{detail}}",
+      "vadModelMissing": "Das mitgelieferte Silero-VAD-Modell fehlt. Installiere Memotape erneut.",
+      "vadModelIncompatible": "Das mitgelieferte Silero-VAD-Modell ist inkompatibel: {{detail}}",
       "audioCleaningFailed": "Die Audiobereinigung wurde angehalten; kein neues Ergebnis wurde gespeichert: {{detail}}",
       "liveTranscriptionLagging": "Die Live-Transkription ist zu weit zurückgefallen und wurde beendet. Audio wird weiter aufgenommen; Sie können es nach Stopp transkribieren.",
       "noRecycleBin": "Das Laufwerk von {{detail}} hat keinen Windows-Papierkorb",

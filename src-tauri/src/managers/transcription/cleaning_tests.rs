@@ -203,7 +203,8 @@ fn dfn3_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
                 Ingresso::Mix,
                 log.clone(),
             );
-            let mut silero = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+            let mut silero =
+                Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
             let path = import(
                 &library,
                 &source,
@@ -335,7 +336,8 @@ fn dfn3_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
                     Box::new(Bypass)
                 };
                 let library = temp_dir(&format!("memotape-corpus-{}-{name}-{enabled}", model.id));
-                let mut silero = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+                let mut silero =
+                    Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
                 let path = import(
                     &library,
                     source,

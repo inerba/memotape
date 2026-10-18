@@ -2,8 +2,7 @@
 
 use std::collections::VecDeque;
 
-/// Durata di un frame del VAD: 480 campioni a 16 kHz.
-pub const FRAME_MS: u32 = 30;
+use super::resample::FRAME_MS;
 
 /// Parametri di partenza della spec, da calibrare sull'audio reale.
 /// Handy usa soglia 0,3, prefill 450 ms e hangover 450 ms: se la calibrazione non converge si riparte da lì.
@@ -193,7 +192,7 @@ mod tests {
 
     #[test]
     fn la_frase_include_300_ms_di_prefill_e_l_onset() {
-        // Parlato dal frame 20: onset di 2 frame, prefill di 10 frame (12-19).
+        // Parlato dal frame 20: onset di 2 frame, prefill di 10 frame da 32 ms (10-19).
         let labels = run(&seq(&[(0.0, 20), (0.9, 5), (0.0, 40)]));
         let first = &phrases(&labels)[0];
         assert_eq!(first[0], 10);
@@ -202,11 +201,11 @@ mod tests {
 
     #[test]
     fn la_frase_si_chiude_dopo_700_ms_di_silenzio() {
-        // Parlato 20-24, poi 24 frame (720 ms) di hangover: l'ultimo frame della Frase è il 48.
+        // Parlato 20-24, poi 22 frame (704 ms) di hangover: l'ultimo frame della Frase è il 46.
         let labels = run(&seq(&[(0.0, 20), (0.9, 5), (0.0, 40)]));
         let all = phrases(&labels);
         assert_eq!(all.len(), 1);
-        assert_eq!(*all[0].last().unwrap(), 48);
+        assert_eq!(*all[0].last().unwrap(), 46);
     }
 
     #[test]
@@ -223,14 +222,14 @@ mod tests {
 
     #[test]
     fn il_parlato_continuo_si_taglia_a_18_secondi_senza_perdere_frame() {
-        // 40 s di parlato: 18 s + 18 s + il resto.
-        let labels = run(&seq(&[(0.9, 1334)]));
+        // 40 s di parlato: 18 s (563 frame, per eccesso) + 18 s + il resto.
+        let labels = run(&seq(&[(0.9, 1250)]));
         let all = phrases(&labels);
         assert_eq!(all.len(), 3);
-        assert_eq!(all[0].len(), 600);
-        assert_eq!(all[1].len(), 600);
+        assert_eq!(all[0].len(), 563);
+        assert_eq!(all[1].len(), 563);
         let flat: Vec<usize> = all.concat();
-        assert_eq!(flat, (0..1334).collect::<Vec<_>>());
+        assert_eq!(flat, (0..1250).collect::<Vec<_>>());
     }
 
     #[test]

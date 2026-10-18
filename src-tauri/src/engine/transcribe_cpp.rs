@@ -345,7 +345,7 @@ fn speaker_turns(segments: &[SpeakerSegment]) -> Vec<Turn> {
 /// Con `dynamic-backends` i backend (un modulo CPU per livello di ISA, Vulkan) sono DLL accanto a
 /// `transcribe.dll`, da registrare una volta per processo prima del primo `Model::load`. Non si
 /// può riprovare nello stesso processo, quindi anche l'errore resta memorizzato.
-fn init_backends() -> Result<(), EngineError> {
+pub(crate) fn init_backends() -> Result<(), EngineError> {
     static BACKENDS: OnceLock<Result<(), EngineError>> = OnceLock::new();
     BACKENDS
         .get_or_init(|| {
@@ -372,7 +372,9 @@ fn init_backends() -> Result<(), EngineError> {
 }
 
 /// Chiamata nativa protetta: un panic non deve abbattere il thread della pipeline senza errore.
-fn catch_native<T>(call: impl FnOnce() -> transcribe_cpp::Result<T>) -> Result<T, EngineError> {
+pub(crate) fn catch_native<T>(
+    call: impl FnOnce() -> transcribe_cpp::Result<T>,
+) -> Result<T, EngineError> {
     catch_unwind(AssertUnwindSafe(call))
         .map_err(|_| EngineError::Internal("panic in transcribe-cpp".into()))?
         .map_err(engine_error)

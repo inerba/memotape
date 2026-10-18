@@ -12,7 +12,7 @@ pub fn rumore(pcm: &[f32]) -> bool {
 }
 
 /// Il campione in cui dividere una Frase che il modello non riesce a trascrivere intera: il centro
-/// del frame da 30 ms più silenzioso nella metà centrale, così nessun pezzo è solo prefill o coda.
+/// del frame più silenzioso nella metà centrale, così nessun pezzo è solo prefill o coda.
 pub fn punto_piu_silenzioso(pcm: &[f32]) -> usize {
     let frame = super::resample::FRAME_SAMPLES;
     let (da, a) = (pcm.len() / 4, pcm.len() * 3 / 4);

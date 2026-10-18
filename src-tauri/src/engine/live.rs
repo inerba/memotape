@@ -9,16 +9,16 @@ use std::sync::mpsc::{self, Receiver, SyncSender};
 
 use super::pipeline::Feed;
 use crate::audio_toolkit::protection::ProtectionTimeline;
-use crate::audio_toolkit::resample::FrameResampler;
+use crate::audio_toolkit::resample::{FRAME_MS, FrameResampler};
 use crate::error::AppError;
 
-// 2000 frame da 30 ms: al massimo 60 s, circa 3,8 MB di PCM per Ingresso.
+// Al massimo 60 s di frame, circa 3,8 MB di PCM per Ingresso.
 // Anche le chiusure di Frase occupano un posto; la cattura non aspetta mai ASR.
-const MAX_QUEUED_FEEDS: usize = 2000;
+const MAX_QUEUED_FEEDS: usize = (60_000 / FRAME_MS) as usize;
 
 /// Il progresso dello smaltimento, comune a tutti i canali di una Registrazione.
 struct Shared {
-    /// Frame da 30 ms mandati.
+    /// Frame mandati.
     sent: AtomicUsize,
     /// Frame letti dalle pipeline.
     consumed: AtomicUsize,
@@ -172,7 +172,7 @@ impl LiveFrames {
                 .sent
                 .load(Ordering::Relaxed)
                 .saturating_sub(shared.consumed.load(Ordering::Relaxed))
-                * crate::audio_toolkit::segmenter::FRAME_MS as usize
+                * FRAME_MS as usize
         }
     }
     /// La percentuale di frame consumati da tutte le pipeline, se la Registrazione è finita e supera
@@ -266,9 +266,9 @@ mod tests {
         Ok(super::channels(rate, channels, 1)?.remove(0))
     }
 
-    /// `n` frame da 30 ms di parlato (`true`) o silenzio a `rate`, con `channels` canali.
+    /// `n` frame di parlato (`true`) o silenzio a `rate`, con `channels` canali.
     fn audio(rate: u32, channels: usize, parts: &[(bool, usize)]) -> Vec<f32> {
-        let per_frame = rate as usize * 30 / 1000;
+        let per_frame = rate as usize * FRAME_MS as usize / 1000;
         parts
             .iter()
             .flat_map(|&(speech, n)| (0..n * per_frame).map(move |i| (speech, i)))
@@ -451,8 +451,8 @@ mod tests {
             phrases,
             [
                 (Ingresso::Microfono, 0),
-                (Ingresso::Sistema, 1500),
-                (Ingresso::Microfono, 3600)
+                (Ingresso::Sistema, 50 * FRAME_MS),
+                (Ingresso::Microfono, 120 * FRAME_MS)
             ]
         );
         // Il 100 arriva quando entrambe le code sono smaltite.
@@ -482,8 +482,12 @@ mod tests {
             },
         )
         .unwrap();
-        // La prima Frase finisce alla Pausa, la seconda riparte da lì senza prefill.
-        assert_eq!(phrases, [(0, 0, 1200), (1, 1200, 2820)]);
+        // La prima Frase finisce alla Pausa, la seconda riparte da lì senza prefill: 30 frame di
+        // parlato e 22 di hangover.
+        assert_eq!(
+            phrases,
+            [(0, 0, 40 * FRAME_MS), (1, 40 * FRAME_MS, 92 * FRAME_MS)]
+        );
         assert_eq!(engine.samples[0], 40 * FRAME_SAMPLES);
     }
 

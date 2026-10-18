@@ -9,6 +9,10 @@ pub enum AppError {
     AudioCleaningIncompatible(String),
     #[error("pulizia audio interrotta: {0}")]
     AudioCleaningFailed(String),
+    #[error("modello Silero VAD distribuito con l'app assente")]
+    VadModelMissing,
+    #[error("modello Silero VAD incompatibile: {0}")]
+    VadModelIncompatible(String),
     #[error("file illeggibile: {0}")]
     UnreadableFile(String),
     #[error("codec non supportato: {0}")]

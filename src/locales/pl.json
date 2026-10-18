@@ -136,6 +136,8 @@
       "internal": "Błąd wewnętrzny: {{detail}}",
       "audioCleaningMissing": "Brakuje modelu DeepFilterNet3 dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
       "audioCleaningIncompatible": "Dołączony model DeepFilterNet3 jest niezgodny: {{detail}}",
+      "vadModelMissing": "Brakuje modelu Silero VAD dołączonego do aplikacji. Zainstaluj Memotape ponownie.",
+      "vadModelIncompatible": "Dołączony model Silero VAD jest niezgodny: {{detail}}",
       "audioCleaningFailed": "Czyszczenie dźwięku zostało przerwane; nie zapisano nowego wyniku: {{detail}}",
       "liveTranscriptionLagging": "Transkrypcja na żywo ma zbyt duże opóźnienie i została zatrzymana. Dźwięk jest nadal nagrywany; możesz go transkrybować po zatrzymaniu.",
       "noRecycleBin": "Dysk z {{detail}} nie ma Kosza systemu Windows",

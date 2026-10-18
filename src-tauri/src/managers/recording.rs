@@ -1542,7 +1542,13 @@ mod tests {
             assert_eq!(engine.pcm, expected_asr.concat());
         }
         assert_eq!(phrases.len(), 2);
-        assert!(phrases.iter().all(|p| p.inizio_ms == 0 && p.fine_ms == 900));
+        // 0,9 s in frame interi: 29.
+        let fine_ms = 29 * crate::audio_toolkit::resample::FRAME_MS;
+        assert!(
+            phrases
+                .iter()
+                .all(|p| p.inizio_ms == 0 && p.fine_ms == fine_ms)
+        );
         let recorded = Recorded {
             oggs,
             start: Local::now(),

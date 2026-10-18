@@ -18,13 +18,13 @@ use crate::audio_toolkit::processing::{
     AudioProcessor, Boundary, Bypass, Format, PcmStream, ProcessedBlock,
 };
 use crate::audio_toolkit::protection::{PhraseEvidence, ProtectionTimeline};
-use crate::audio_toolkit::resample::FrameResampler;
-use crate::audio_toolkit::segmenter::{Event, FRAME_MS, Params, Segmenter};
+use crate::audio_toolkit::resample::{FRAME_MS, FRAME_SAMPLES, FrameResampler};
+use crate::audio_toolkit::segmenter::{Event, Params, Segmenter};
 use crate::audio_toolkit::vad::VoiceDetector;
 use crate::error::AppError;
 
 /// Cosa la pipeline comunica a chi la esegue. `inizio_ms` e `fine_ms` sono sulla linea del tempo
-/// della Sorgente, contati nei frame da 30 ms ricevuti dalla fonte (fine esclusa). Comprendono il
+/// della Sorgente, contati nei frame ricevuti dalla fonte (fine esclusa). Comprendono il
 /// prefill e l'hangover del segmentatore: sono l'audio dato al motore.
 #[derive(Debug, Clone, PartialEq)]
 pub enum PipelineEvent {
@@ -54,7 +54,7 @@ pub enum PipelineEvent {
 /// Quello che la fonte di frame dà alla pipeline.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Feed {
-    /// Un frame da 30 ms (`FRAME_SAMPLES` campioni) mono a 16 kHz in [-1, 1].
+    /// Un frame (`FRAME_SAMPLES` campioni) mono a 16 kHz in [-1, 1].
     Frame(Vec<f32>),
     /// Chiude la Frase in corso come a fine parlato (la Pausa): il frame successivo può solo
     /// aprirne una nuova.
@@ -340,7 +340,7 @@ fn cut_phrases(
                         observations.push_back((
                             received - 1,
                             probability,
-                            protection.level(((received - 1) * 480) as u64),
+                            protection.level(((received - 1) * FRAME_SAMPLES) as u64),
                         ));
                         if observations.len() > 612 {
                             observations.pop_front();
@@ -665,7 +665,8 @@ impl SegmentedSource<'_> {
                     self.observations.push_back((
                         self.received - 1,
                         probability,
-                        self.protection.level(((self.received - 1) * 480) as u64),
+                        self.protection
+                            .level(((self.received - 1) * FRAME_SAMPLES) as u64),
                     ));
                     // Prefill di 10 frame + onset di 2, non una seconda coda dell'audio.
                     if self.observations.len() > 12 {
@@ -977,7 +978,7 @@ pub(crate) mod tests {
     #[test]
     fn file_elaborato_ritardato_condivide_pcm_asr_ogg_e_forma_onda() {
         use crate::audio_toolkit::processing::tests::DelayedScale;
-        let path = wav("percorso-comune", 16_000, 2, &[(0.9, true)]);
+        let path = wav("percorso-comune", 16_000, 2, &[(0.96, true)]);
         let ogg = path.with_extension("ogg");
         let copy = OggCopy::new(std::fs::File::create(&ogg).unwrap(), 48_000, 2, 64).unwrap();
         let forma_onda = copy.forma_onda();
@@ -1002,8 +1003,9 @@ pub(crate) mod tests {
             &mut |event| events.push(event),
         )
         .unwrap();
-        assert_eq!(duration, 900);
-        assert_eq!(times(&events), [(0, 0, 900)]);
+        // 0,96 s: 30 frame esatti.
+        assert_eq!(duration, 30 * FRAME_MS);
+        assert_eq!(times(&events), [(0, 0, 30 * FRAME_MS)]);
         let mono: Vec<f32> = expected
             .chunks_exact(2)
             .map(|s| (s[0] + s[1]) * 0.5)
@@ -1079,7 +1081,7 @@ pub(crate) mod tests {
             phrases,
             vec![(0, "frase 1".to_string()), (1, "frase 2".to_string())]
         );
-        // Ogni Frase ha il suo parlato più prefill e hangover, in frame interi da 30 ms.
+        // Ogni Frase ha il suo parlato più prefill e hangover, in frame interi.
         let seconds: Vec<f32> = engine
             .samples
             .iter()
@@ -1178,9 +1180,13 @@ pub(crate) mod tests {
         let mut engine = FakeEngine::default();
         let phrases = run(&path, &mut engine).unwrap();
         assert_eq!(phrases.len(), 3);
-        assert_eq!(engine.samples[..2], [18 * 16_000, 18 * 16_000]);
-        // 40 s = 1333,3 frame: l'ultimo è completato con zeri.
-        assert_eq!(engine.samples.iter().sum::<usize>(), 1334 * FRAME_SAMPLES);
+        // 18 s per eccesso: 563 frame.
+        assert_eq!(
+            engine.samples[..2],
+            [563 * FRAME_SAMPLES, 563 * FRAME_SAMPLES]
+        );
+        // 40 s = 1250 frame esatti.
+        assert_eq!(engine.samples.iter().sum::<usize>(), 1250 * FRAME_SAMPLES);
     }
 
     /// Tre tratti di parlato separati da silenzio.
@@ -1476,9 +1482,15 @@ pub(crate) mod tests {
             ..FakeEngine::default()
         };
         let events = run_feed(feed, &mut engine).unwrap();
-        // Prima Frase: 300 ms di prefill prima del parlato (frame 20) e 24 frame di hangover dopo
+        // Prima Frase: 10 frame di prefill prima del parlato (frame 20) e 22 frame di hangover dopo
         // l'ultimo (49). Seconda: parlato dal frame 100 al 139.
-        assert_eq!(times(&events), [(0, 300, 2220), (1, 2700, 4920)]);
+        assert_eq!(
+            times(&events),
+            [
+                (0, 10 * FRAME_MS, 72 * FRAME_MS),
+                (1, 90 * FRAME_MS, 162 * FRAME_MS)
+            ]
+        );
         // Il primo Parziale arriva dopo 10 frame letti dal motore.
         let first_partial = events.iter().find_map(|event| match event {
             PipelineEvent::Partial {
@@ -1486,7 +1498,7 @@ pub(crate) mod tests {
             } => Some((*inizio_ms, *fine_ms)),
             _ => None,
         });
-        assert_eq!(first_partial, Some((300, 600)));
+        assert_eq!(first_partial, Some((10 * FRAME_MS, 20 * FRAME_MS)));
     }
 
     #[test]
@@ -1524,7 +1536,8 @@ pub(crate) mod tests {
             "tempi-asr",
             16_000,
             1,
-            &[(0.6, false), (0.9, true), (1.5, false)],
+            // Il parlato dal frame 20, come nella fonte dal vivo.
+            &[(0.64, false), (0.9, true), (1.5, false)],
         );
         let mut file_events = Vec::new();
         transcribe_file(
@@ -1554,8 +1567,8 @@ pub(crate) mod tests {
                 [TempoTesto {
                     inizio_byte: 0,
                     fine_byte: 5,
-                    inizio_ms: 400,
-                    fine_ms: 700
+                    inizio_ms: 10 * FRAME_MS + 100,
+                    fine_ms: 10 * FRAME_MS + 400
                 }]
             );
         }
@@ -1574,7 +1587,7 @@ pub(crate) mod tests {
             &CancelToken::new(),
             &mut drop,
         );
-        assert_eq!(durata_ms, Ok(100 * 30));
+        assert_eq!(durata_ms, Ok(100 * FRAME_MS));
     }
 
     #[test]
@@ -1585,8 +1598,12 @@ pub(crate) mod tests {
         feed.extend(frames(&[(true, 30), (false, 50)]));
         let mut engine = FakeEngine::default();
         let events = run_feed(feed, &mut engine).unwrap();
-        // La prima Frase finisce alla chiusura, la seconda riparte da lì senza prefill.
-        assert_eq!(times(&events), [(0, 0, 1200), (1, 1200, 2820)]);
+        // La prima Frase finisce alla chiusura, la seconda riparte da lì senza prefill: 30 frame di
+        // parlato e 22 di hangover.
+        assert_eq!(
+            times(&events),
+            [(0, 0, 40 * FRAME_MS), (1, 40 * FRAME_MS, 92 * FRAME_MS)]
+        );
         assert_eq!(engine.samples[0], 40 * FRAME_SAMPLES);
         // Il progresso della fonte passa com'è.
         assert!(events.contains(&PipelineEvent::Progress(Some(50))));
@@ -1622,9 +1639,10 @@ pub(crate) mod tests {
     fn i_modelli_scaricati_trascrivono_il_parlato_italiano() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let (dir, models) = modelli_scaricati();
-        let mut detector =
-            crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
-                .unwrap();
+        let mut detector = crate::audio_toolkit::vad::Silero::new(
+            &root.join(crate::audio_toolkit::vad::SILERO_FILE),
+        )
+        .unwrap();
         for model in models {
             let mut engine =
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();
@@ -1680,9 +1698,10 @@ pub(crate) mod tests {
     fn i_modelli_scaricati_usano_il_vocabolario() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let (dir, models) = modelli_scaricati();
-        let mut detector =
-            crate::audio_toolkit::vad::Silero::new(&root.join("resources/silero_vad.onnx"))
-                .unwrap();
+        let mut detector = crate::audio_toolkit::vad::Silero::new(
+            &root.join(crate::audio_toolkit::vad::SILERO_FILE),
+        )
+        .unwrap();
         for model in models {
             let mut engine =
                 super::super::transcribe_cpp::TranscribeCpp::load(&model.path(&dir)).unwrap();

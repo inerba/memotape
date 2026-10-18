@@ -19,7 +19,7 @@ use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
 use crate::audio_toolkit::decode::Decoder;
 use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::ogg_opus::OggCopy;
-use crate::audio_toolkit::vad::{Silero, VoiceDetector};
+use crate::audio_toolkit::vad::{SILERO_FILE, Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
 use crate::engine::transcribe_cpp::TranscribeCpp;
@@ -34,8 +34,6 @@ use crate::managers::recording::{
 use crate::managers::settings::{CopiaCome, Language, Settings, SettingsStore, SpeechLanguage};
 use crate::tape;
 use crate::transcript::{self, Ingresso, Labels, Phrase, Transcript};
-
-const SILERO_RESOURCE: &str = "resources/silero_vad.onnx";
 
 /// Una Frase conclusa, una per riga nell'area di testo. Sostituisce il Parziale con lo stesso id.
 /// `inizio_ms` e `fine_ms` sono sulla linea del tempo della Sorgente.
@@ -1075,7 +1073,7 @@ fn tape_transcript(title: String, document: tape::Document) -> Transcript {
 
 fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {
     app.path()
-        .resolve(SILERO_RESOURCE, BaseDirectory::Resource)
+        .resolve(SILERO_FILE, BaseDirectory::Resource)
         .map_err(|e| AppError::Internal(e.to_string()))
 }
 

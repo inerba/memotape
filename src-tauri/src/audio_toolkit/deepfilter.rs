@@ -523,7 +523,8 @@ mod tests {
             let mut resampler = FrameResampler::new(16_000).unwrap();
             let mut frames = resampler.push(samples);
             frames.extend(resampler.finish());
-            let mut silero = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+            let mut silero =
+                Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
             let probabilities: Vec<_> = frames
                 .iter()
                 .map(|frame| silero.probability(frame).unwrap())
@@ -534,7 +535,7 @@ mod tests {
                     p.iter()
                         .all(|&p| p >= crate::audio_toolkit::segmenter::Params::default().threshold)
                 })
-                .map(|frame| frame * 30)
+                .map(|frame| frame * crate::audio_toolkit::resample::FRAME_MS as usize)
         };
         let dry_onset = onset(&weak);
         let wet_onset = onset(&weak_output);

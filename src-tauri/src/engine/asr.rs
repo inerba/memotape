@@ -162,7 +162,9 @@ mod tests {
                 _ => None,
             })
             .collect();
-        let duration = u32::try_from(frames.len() * 30).unwrap();
+        let duration =
+            u32::try_from(frames.len() * crate::audio_toolkit::resample::FRAME_MS as usize)
+                .unwrap();
         println!("durata della fixture: {duration} ms");
         for id in [
             "nemotron-3.5-streaming-0.6b-q5km",
