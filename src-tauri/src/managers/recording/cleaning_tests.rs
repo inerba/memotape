@@ -1,5 +1,6 @@
 use super::*;
 use crate::audio_toolkit::ogg_opus::tests::temp_dir;
+use crate::audio_toolkit::rnnoise;
 use crate::managers::settings::ProfiloAudio;
 
 #[test]
@@ -63,23 +64,21 @@ fn i_profili_persistenti_valgono_all_avvio_al_volo_e_non_dopo_stop() {
 }
 
 #[test]
-#[ignore = "DFN3 reale: verifica il runtime riutilizzato alle transizioni del ticket 03"]
-fn dfn3_registrazione_coda_pause_e_stato_indipendente() {
+fn rnnoise_registrazione_coda_pause_e_stato_indipendente() {
     use crate::audio_toolkit::processing::{Boundary, PcmStream};
     for (rate, channels) in [(48_000, 2), (44_100, 2), (24_000, 1)] {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(deepfilter::MODEL_FILE);
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(rnnoise::WEIGHTS_FILE);
         let format = Format { rate, channels };
         let enabled = Arc::new(AtomicBool::new(true));
         let control = enabled.clone();
         let log = CleaningLog::default();
-        let mut processor = ConfiguredCleaning::dfn3(
+        let processor = ConfiguredCleaning::new(
             path.clone(),
             move || control.load(Ordering::Relaxed),
             Ingresso::Sistema,
             log.clone(),
         )
         .recovering(|error| panic!("{error}"));
-        processor.prepare(format).unwrap();
         let mut stream = PcmStream::new(format, Box::new(processor)).unwrap();
         let mut signal = Vec::new();
         for i in 0..19_213 {
@@ -102,11 +101,16 @@ fn dfn3_registrazione_coda_pause_e_stato_indipendente() {
             if channels == 2 {
                 assert!(output.chunks_exact(2).all(|frame| frame[1] == 0.0));
             }
-            assert_eq!(output[last_impulse], 0.2); // Il fade conserva l'ultimo frame utile.
+            // La coda arriva fino all'ultimo campione: l'impulso supera di molto il seno a 0,03.
+            assert!(
+                output[last_impulse] > 0.05,
+                "impulso {}",
+                output[last_impulse]
+            );
             segments.push(output);
         }
         assert_eq!(segments[0], segments[1]);
-        assert_eq!(segments[1], segments[2]); // Clone del piano vergine, nessuna voce precedente.
+        assert_eq!(segments[1], segments[2]); // Stati nuovi a ogni confine, nessuna voce precedente.
         let intervals = log.intervals();
         assert_eq!(intervals.len(), 3);
         assert_eq!(
@@ -114,21 +118,21 @@ fn dfn3_registrazione_coda_pause_e_stato_indipendente() {
             (38_426, 57_639)
         );
         println!(
-            "DFN3 ticket03: {rate}Hz {channels}ch, tre segmenti da 19.213 frame, coda/impulso finale e reset bit-identici"
+            "RNNoise: {rate}Hz {channels}ch, tre segmenti da 19.213 frame, coda/impulso finale e reset bit-identici"
         );
     }
 }
 
 #[cfg(windows)]
 #[test]
-#[ignore = "WASAPI release, due Ingressi + DFN3 + Nemotron: riproduce la fixture e registra 28 s"]
-fn dfn3_due_ingressi_nativi_release() {
+#[ignore = "WASAPI release, due Ingressi + RNNoise + Nemotron: riproduce la fixture e registra 28 s"]
+fn rnnoise_due_ingressi_nativi_release() {
     due_ingressi_nativi_release(false);
 }
 
 #[cfg(windows)]
 #[test]
-#[ignore = "WASAPI release ticket 06: due Ingressi, DFN3, protezione streaming, Tape"]
+#[ignore = "WASAPI release ticket 06: due Ingressi, RNNoise, protezione streaming, Tape"]
 fn protezione_due_ingressi_nativi_release() {
     due_ingressi_nativi_release(true);
 }
@@ -155,7 +159,7 @@ fn due_ingressi_nativi_release(protected: bool) {
     let folder = temp_dir(if protected {
         "protezione-nativo-ticket06"
     } else {
-        "dfn3-nativo-ticket03"
+        "rnnoise-nativo"
     });
     let store = SettingsStore::load(folder.join("settings.json"));
     let recorder = Recorder::default();
@@ -179,19 +183,13 @@ fn due_ingressi_nativi_release(protected: bool) {
         (Ingresso::Sistema, Kind::System),
     ] {
         let control = controls.clone();
-        let mut processor = ConfiguredCleaning::dfn3(
-            root.join(deepfilter::MODEL_FILE),
+        let processor = ConfiguredCleaning::new(
+            root.join(rnnoise::WEIGHTS_FILE),
             move || control.pulizia(kind),
             ingresso,
             log.clone(),
         )
         .recovering(|error| panic!("pulizia nativa guasta: {error}"));
-        processor
-            .prepare(Format {
-                rate: 48_000,
-                channels: 2,
-            })
-            .unwrap();
         processors.push(Box::new(processor) as Box<dyn AudioProcessor>);
     }
     // Caricamenti e riscaldamento fuori dalla cattura; le istanze lavorano sugli Ingressi separati.

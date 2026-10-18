@@ -365,11 +365,9 @@
     "preparation": {
       "saving": "Zapisywanie ustawień…",
       "preparing": "Przygotowywanie nagrania…",
-      "cleaning": "Przygotowywanie oczyszczania dźwięku…",
       "devices": "Otwieranie urządzeń audio…"
     },
     "started": "Nagrywanie rozpoczęte, możesz mówić",
-    "cleaningPreparing": "Przygotowywanie oczyszczania dźwięku…",
     "mute": "Wyciszenie: {{input}}",
     "muteHint": "{{input}}: kliknij, aby wyciszyć",
     "mutedHint": "{{input}} wyciszony: kliknij, aby przywrócić",

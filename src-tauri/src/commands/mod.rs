@@ -579,7 +579,6 @@ pub fn set_settings(
     let previous = store.set(settings)?;
     let saved = store.get();
     recorder.set_audio(&store);
-    managers::recording::preload(&app);
     if previous.model != saved.model {
         managers::transcription::preload(&app);
     }

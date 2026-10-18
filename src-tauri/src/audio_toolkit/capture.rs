@@ -285,24 +285,18 @@ fn cattura_nativa_non_diventa_silenzio_nel_mixer() {
     let mut processors: Vec<Box<dyn crate::audio_toolkit::processing::AudioProcessor>> = Vec::new();
     if cleaning {
         let model = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join(crate::audio_toolkit::deepfilter::MODEL_FILE);
+            .join(crate::audio_toolkit::rnnoise::WEIGHTS_FILE);
         for ingresso in [
             crate::transcript::Ingresso::Microfono,
             crate::transcript::Ingresso::Sistema,
         ] {
-            let mut processor = crate::audio_toolkit::cleaning::ConfiguredCleaning::dfn3(
+            let processor = crate::audio_toolkit::cleaning::ConfiguredCleaning::new(
                 model.clone(),
                 || true,
                 ingresso,
                 crate::audio_toolkit::cleaning::CleaningLog::default(),
             )
             .recovering(|error| panic!("pulizia fallita: {error}"));
-            processor
-                .prepare(crate::audio_toolkit::processing::Format {
-                    rate: 16_000,
-                    channels: 1,
-                })
-                .unwrap();
             processors.push(Box::new(processor));
         }
     }

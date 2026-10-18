@@ -364,11 +364,9 @@
     "preparation": {
       "saving": "Salvataggio impostazioni…",
       "preparing": "Preparazione registrazione…",
-      "cleaning": "Preparazione pulizia audio…",
       "devices": "Apertura dispositivi audio…"
     },
     "started": "Registrazione avviata, puoi parlare",
-    "cleaningPreparing": "Preparazione pulizia…",
     "mute": "Muto: {{input}}",
     "muteHint": "{{input}}: clic per il muto",
     "mutedHint": "{{input}} in muto: clic per togliere il muto",

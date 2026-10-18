@@ -364,11 +364,9 @@
     "preparation": {
       "saving": "Guardando ajustes…",
       "preparing": "Preparando grabación…",
-      "cleaning": "Preparando limpieza de audio…",
       "devices": "Abriendo dispositivos de audio…"
     },
     "started": "Grabación iniciada, puedes hablar",
-    "cleaningPreparing": "Preparando limpieza de audio…",
     "mute": "Silencio: {{input}}",
     "muteHint": "{{input}}: haz clic para silenciar",
     "mutedHint": "{{input}} silenciado: haz clic para reactivar",

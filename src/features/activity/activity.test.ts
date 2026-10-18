@@ -266,7 +266,7 @@ test("il guasto della Trascrizione dal vivo toglie i Parziali e lo dice la fase;
 test("fase, progresso e analisi dei Parlanti seguono solo la Registrazione in corso", () => {
   const phase = (
     sessionId: string,
-    value: "cleaning" | "recording"
+    value: "devices" | "recording"
   ): ActivityAction => ({
     payload: { phase: value, sessionId },
     type: "recordingPhase",
@@ -287,7 +287,7 @@ test("fase, progresso e analisi dei Parlanti seguono solo la Registrazione in co
   const recording = run(
     [
       phase("first", "recording"),
-      phase("second", "cleaning"),
+      phase("second", "devices"),
       phase("second", "recording"),
       progress("first", 100),
       progress(null, 100),
@@ -367,24 +367,6 @@ test("i guasti della pulizia restano uno per Ingresso; chiuso l'avviso, un nuovo
   ).toBe(false);
 });
 
-test("la preparazione della pulizia è della Registrazione in corso e sparisce con la pulizia spenta", () => {
-  const preparing = (
-    sessionId: string,
-    ingresso: Ingresso
-  ): ActivityAction => ({
-    payload: { ingresso, preparing: true, sessionId },
-    type: "cleaningPreparing",
-  });
-  const state = run([
-    ...recordingIn("live"),
-    preparing("old", "microfono"),
-    preparing("live", "microfono"),
-    preparing("live", "sistema"),
-    { ingresso: "microfono", type: "cleaningOff" },
-  ]);
-  expect(state.cleaningPreparing.map((p) => p.ingresso)).toEqual(["sistema"]);
-});
-
 test("annullare la Preparazione riporta fase, avvisi di pulizia e sessione di prima", () => {
   const before = run([
     ...recordingIn("first"),
@@ -396,7 +378,7 @@ test("annullare la Preparazione riporta fase, avvisi di pulizia e sessione di pr
     [
       record("second"),
       {
-        payload: { phase: "cleaning", sessionId: "second" },
+        payload: { phase: "devices", sessionId: "second" },
         type: "recordingPhase",
       },
     ],
@@ -404,7 +386,7 @@ test("annullare la Preparazione riporta fase, avvisi di pulizia e sessione di pr
   );
   expect(preparing.status).toEqual({
     phase: "preparingRecording",
-    stage: "cleaning",
+    stage: "devices",
   });
   expect(preparing.cleaningFailures).toEqual([]);
   const restored = activity(preparing, { type: "restore" });

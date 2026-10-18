@@ -545,13 +545,9 @@ con parlato reale resta distinto dalle prove automatiche.
 - Annulla prima dell'avvio ripristina la vista precedente senza creare un Tape
   o perdere Correzioni manuali. Dopo l'avvio, Stop conserva l'audio registrato.
   La preparazione non permette doppi avvii o altre Attività incompatibili.
-- La Pulizia audio si prepara in background e riusa le risorse compatibili
-  fra Registrazioni, accettando maggiore memoria residente. Ogni sessione e
-  Ingresso hanno stato audio nuovo. La preparazione non apre i dispositivi.
-- Se la pulizia è attiva al clic, se ne attende la disponibilità per applicarla
-  dall'inizio. Se è spenta, la sua preparazione non ritarda la Registrazione.
-  Accenderla durante una Registrazione mentre si prepara mostra «Preparazione
-  pulizia…»: l'audio continua e il filtro vale appena pronto, sull'audio successivo.
+- La Pulizia audio non ha preparazione: si carica in pochi millisecondi
+  quando serve, all'avvio o quando la si accende durante una Registrazione, e
+  vale dall'audio successivo. Ogni sessione e Ingresso hanno stato audio nuovo.
 - Un guasto a pulizia o Trascrizione dal vivo lascia registrare l'audio con
   un avviso esplicito. Dispositivi o scrittura non disponibili impediscono
   l'avvio; dopo l'avvio restano le regole di arresto e recupero già previste.

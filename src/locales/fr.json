@@ -364,11 +364,9 @@
     "preparation": {
       "saving": "Enregistrement des paramètres…",
       "preparing": "Préparation de l’enregistrement…",
-      "cleaning": "Préparation du nettoyage audio…",
       "devices": "Ouverture des périphériques audio…"
     },
     "started": "Enregistrement démarré, vous pouvez parler",
-    "cleaningPreparing": "Préparation du nettoyage audio…",
     "mute": "Muet : {{input}}",
     "muteHint": "{{input}} : cliquez pour couper le son",
     "mutedHint": "{{input}} coupé : cliquez pour rétablir le son",

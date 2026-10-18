@@ -363,11 +363,9 @@
     "preparation": {
       "saving": "Einstellungen werden gespeichert…",
       "preparing": "Aufnahme wird vorbereitet…",
-      "cleaning": "Audiobereinigung wird vorbereitet…",
       "devices": "Audiogeräte werden geöffnet…"
     },
     "started": "Aufnahme gestartet, Sie können sprechen",
-    "cleaningPreparing": "Audiobereinigung wird vorbereitet…",
     "mute": "Stumm: {{input}}",
     "muteHint": "{{input}}: klicken zum Stummschalten",
     "mutedHint": "{{input}} stumm: klicken zum Aufheben",
