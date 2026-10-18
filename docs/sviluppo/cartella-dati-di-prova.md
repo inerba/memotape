@@ -23,7 +23,7 @@ Con `MEMOTAPE_DATA_DIR=<dir>` (relativa alla cwd se non assoluta):
 
 ## Avvio e pulizia
 
-Con `target\debug\memotape.exe` compilato (`cargo build --manifest-path src-tauri/Cargo.toml`):
+Con `target\debug\memotape.exe` compilato (`cargo build --manifest-path src-tauri/Cargo.toml`). Lo script non ricompila: dopo ogni modifica del backend, o dopo aver cambiato branch, rilancia `cargo build`. `cargo test` e `cargo clippy` non aggiornano l'exe, e un exe vecchio prova il codice vecchio (all'avvio riscrive anche `src/bindings.ts` con i suoi tipi).
 
 ```
 bun run app:prova
