@@ -122,8 +122,9 @@ impl PhraseEvidence {
                 e.crossings / e.voiced as f32,
                 e.probability / e.voiced as f32,
             );
-            // Taratura sul corpus annotato del ticket 05. ZCR relativa, senza soglia energetica
-            // o durata minima. L'evidenza molto forte conserva consonanti brevi non periodiche.
+            // Taratura sul corpus annotato del ticket 05, riverificata con Silero v6.2 sullo
+            // stesso corpus (ADR-0034). ZCR relativa, senza soglia energetica o durata minima.
+            // L'evidenza molto forte conserva consonanti brevi non periodiche.
             let (limit, probability) = match level {
                 Sensibilita::Sensibile => (0.48, 0.4),
                 Sensibilita::Bilanciato => (0.40, 0.4),

@@ -340,8 +340,10 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
         serde_json::to_vec_pretty(&report).unwrap(),
     )
     .unwrap();
-    assert!(
-        false_balanced < false_off,
+    // Con Silero v4 Spento dava 2 false Frasi sul rumore intermittente, con v6.2 nessuna: il
+    // criterio è che Bilanciato non ne tenga (ADR-0034).
+    assert_eq!(
+        false_balanced, 0,
         "false Frasi: spento={false_off}, bilanciato={false_balanced}"
     );
 }
