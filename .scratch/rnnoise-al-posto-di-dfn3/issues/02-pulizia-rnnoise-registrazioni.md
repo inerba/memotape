@@ -10,7 +10,7 @@
 - [x] L'adattatore è `Send` senza thread dedicato: lo stato C di RNNoise non è legato al thread (motivo scritto accanto all'`unsafe impl`).
 - [x] Stati separati per Microfono e Audio di sistema; accensione e spegnimento valgono dall'audio successivo, in Pausa dalla ripresa; un guasto lascia passare l'originale senza fermare la Registrazione.
 - [x] I test della pulizia nella Registrazione (due Ingressi, cambio al volo, Pausa, guasto) e della protezione dal vivo nativa passano con RNNoise senza cambiare cosa verificano.
-- [ ] Una Registrazione di prova con la pulizia accesa in `bun tauri dev` funziona senza perdere blocchi WASAPI; se servono ottimizzazioni del profilo dev per RNNoise, si aggiungono.
+- [x] Una Registrazione di prova con la pulizia accesa in `bun tauri dev` funziona senza perdere blocchi WASAPI; se servono ottimizzazioni del profilo dev per RNNoise, si aggiungono.
 - [x] I sei controlli passano.
 
 ## Note dell'implementazione (18 ottobre 2026)
@@ -21,4 +21,11 @@
   - `rnnoise_registrazione_coda_pause_e_stato_indipendente` gira ora in ogni `cargo test`. L'impulso finale si verifica con `> 0.05` invece del valore esatto di DFN3.
   - La protezione dal vivo con tre ASR è verde. Per la voce a −30 dB pulita chiede che Silero apra una Frase invece dei Parziali, come deciso per il corpus prudente: la matrice verde storica era di DFN3 miscelato (`pcm-snr-v1`).
   - Il modello assente ha un test sul percorso reale (caricamento al primo blocco).
-- **Da fare**: la Registrazione di prova in `bun tauri dev` e i test WASAPI (`rnnoise_due_ingressi_nativi_release`, `protezione_due_ingressi_nativi_release`), che suonano la fixture dagli altoparlanti.
+- **Prove con l'audio vero** (18 ottobre 2026):
+  - L'utente ha registrato in `bun tauri dev`, con la pulizia accesa e cambi al volo: il Tape si salva e il rumore cala molto; con un rumore molto forte la voce si degrada un po', com'è prevedibile.
+  - Test WASAPI in release, microfono KLIM Talk e altoparlanti Focusrite, 48 kHz stereo:
+    - `rnnoise_due_ingressi_nativi_release`: 27 s, 0 frame persi su entrambi gli Ingressi, worker al 4,5% della durata, 4 Frasi.
+    - `protezione_due_ingressi_nativi_release`: 0 frame persi, 4 Frasi.
+    - `cattura_nativa_non_diventa_silenzio_nel_mixer` con la pulizia: verde.
+  - Nel Tape i tratti `rnnoise` seguono i cambi: Microfono fino a 7,02 s, poi dalla ripresa a 12,02 s; Sistema spezzato alla Pausa.
+  - Nessuna ottimizzazione del profilo dev da aggiungere.
