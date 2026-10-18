@@ -10,7 +10,7 @@
 - [x] L'adattatore è `Send` senza thread dedicato: lo stato C di RNNoise non è legato al thread (motivo scritto accanto all'`unsafe impl`).
 - [x] Stati separati per Microfono e Audio di sistema; accensione e spegnimento valgono dall'audio successivo, in Pausa dalla ripresa; un guasto lascia passare l'originale senza fermare la Registrazione.
 - [x] I test della pulizia nella Registrazione (due Ingressi, cambio al volo, Pausa, guasto) e della protezione dal vivo nativa passano con RNNoise senza cambiare cosa verificano.
-- [ ] Una Registrazione di prova con la pulizia accesa in `bun tauri dev` funziona senza perdere blocchi WASAPI; se servono ottimizzazioni del profilo dev per RNNoise, si aggiungono.
+- [x] Una Registrazione di prova con la pulizia accesa in `bun tauri dev` funziona senza perdere blocchi WASAPI; se servono ottimizzazioni del profilo dev per RNNoise, si aggiungono.
 - [x] I sei controlli passano.
 
 ## Note dell'implementazione (18 ottobre 2026)
@@ -23,6 +23,13 @@
   - Il modello assente ha un test sul percorso reale (caricamento al primo blocco).
 - **Prove con l'audio vero** (18 ottobre 2026):
   - **Correzione**: la prova a mano dell'utente con `bun run app:prova` girava su un `target/debug/memotape.exe` del 16 ottobre, cioè con DFN3. Lo script non ricompila e le istruzioni non dicevano di fare `cargo build`; l'exe di debug è stato ricompilato il 18 ottobre alle 18:11. La prova a mano con RNNoise è da rifare.
+  - Prova in debug sull'exe ricompilato (`bun run app:prova`, pilotata via CDP), con la fixture dagli altoparlanti, Microfono e Sistema a 16 kHz mono 16 kbps e la pulizia accesa:
+    - avvio audio in 49 ms;
+    - spegnimento del Microfono a 7 s, poi Pausa con riaccensione e ripresa;
+    - 20,05 s salvati, mix senza silenzi digitali di 10 ms o più;
+    - tratti `rnnoise` coerenti con i cambi: Microfono fino a 6,99 s e dalla ripresa a 12,00 s;
+    - nessun `pulizia … interrotta`.
+  - I due avvisi `buffer underrun or overrun` all'apertura degli stream compaiono in tutte le sessioni, anche in quelle con DFN3: non dipendono dalla pulizia.
   - Test WASAPI in release, microfono KLIM Talk e altoparlanti Focusrite, 48 kHz stereo:
     - `rnnoise_due_ingressi_nativi_release`: 27 s, 0 frame persi su entrambi gli Ingressi, worker al 4,5% della durata, 4 Frasi.
     - `protezione_due_ingressi_nativi_release`: 0 frame persi, 4 Frasi.
