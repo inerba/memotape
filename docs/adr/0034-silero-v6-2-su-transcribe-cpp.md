@@ -52,7 +52,7 @@ Con il filtro del rumore sull'intera Frase si perdeva il testo della voce attenu
 
 ### Frase di rumore sul quarto più forte dei frame
 
-Il filtro è nato per il Microfono muto dei Tape reali (`docs/research/eco-e-loop-sui-tape-reali.md`), su cui Whisper ricopiava il prompt e Cohere inventava. Una sonda temporanea (`log/livello-sonda.log`) ha confrontato più livelli sulle Frasi del corpus e sui due Tape reali, copiati senza toccare gli originali: RMS intero, RMS senza i frame muti, RMS del 10%, del 25% e del 50% più forte dei frame, frame più forte. Il quarto più forte separa i due casi con circa 2,5 dB di margine per parte:
+Il filtro è nato per il Microfono muto dei Tape reali (`docs/research/eco-e-loop-sui-tape-reali.md`), su cui Whisper ricopiava il prompt e Cohere inventava. Una sonda temporanea (`log/livello-sonda.log`) ha confrontato più livelli sulle Frasi del corpus e sui due Tape reali, copiati senza toccare gli originali: RMS intero, RMS senza i frame muti, RMS del 10%, del 25% e del 50% più forte dei frame, frame più forte. Il quarto più forte separa i due casi sulle Frasi misurate, con 2,3 dB di margine sulla voce e 2,7 dB sul muto:
 
 | Frasi | RMS intero | Quarto più forte |
 | --- | --- | --- |
@@ -61,7 +61,9 @@ Il filtro è nato per il Microfono muto dei Tape reali (`docs/research/eco-e-loo
 | Microfono muto, le 2 Frasi tagliate da v6.2 | −73,0 / −77,8 | −67,6 / −72,3 |
 | Audio di sistema dei due Tape, 26 Frasi | da −45,3 a −14,5 | da −39,5 a −9,2 |
 
-Il frame più forte e il 10% più forte non separano: nel muto ci sono frame a −42 dBFS. Il 50% lascia la voce attenuata a 0,6 dB dalla soglia. Su finestre scorrevoli dell'intero Microfono muto, il quarto più forte supera −50 dBFS solo su finestre da 1 s o meno: −49,5 su 1 s, −46,9 su 0,5 s. Una Frase dura almeno prefill, onset e hangover, circa 1,1 s, e v6.2 non apre Frasi su quei tratti; su 2 s si scende a −52,0.
+Il frame più forte e il 10% più forte non separano: nel muto ci sono frame a −42 dBFS. Il 50% lascia la voce attenuata a 0,6 dB dalla soglia. Sulla Frase 23250–25410 la sonda misura −58,7 dBFS di RMS intero contro i −62,3 della ricerca (le altre 11 coincidono entro 0,3 dB): la sonda la ritaglia sui frame da 32 ms della traccia ricampionata, non dal PCM che il motore ricevette allora; la differenza non è spiegata, e il valore della sonda è il più sfavorevole.
+
+Su finestre scorrevoli dell'intero Microfono muto il quarto più forte vale al massimo −52,0 su 2 s, ma −49,1 su 1 s e −46,4 su 0,5 s. Una Frase di circa 1 s nel tratto più forte del muto passerebbe quindi il filtro. Frasi così corte esistono: prefill, onset e hangover fanno circa 1,1 s, ma la fine dell'audio, la Pausa o l'inizio della Sorgente le accorciano, e la tabella A ha una Frase da 990 ms. Sui due Tape v6.2 non apre Frasi su quei tratti.
 
 Con il nuovo filtro il test del corpus dà le 14 parole della voce attenuata con tutti e quattro gli ASR e a ogni livello, Selettivo compreso. Le false Frasi restano zero, e «Sì. No.» resta uguale a v6.2 con il filtro vecchio.
 
@@ -71,7 +73,7 @@ L'asserzione finale del test del corpus («Bilanciato ha meno false Frasi di Spe
 
 - ONNX Runtime, `vad-rs` e `silero_vad.onnx` possono uscire da build e bundle: `ORT_LIB_LOCATION` non serve più. Lo fa il ticket 04 di alleggerire-installer; non reintrodurre ONNX Runtime senza rileggere questo ADR.
 - Con v6.2 il corpus non contiene più false Frasi a Spento, quindi non mette più alla prova lo scarto del rumore della protezione: la nuova asserzione passerebbe anche con la protezione spenta. Per ritarare la Sensibilità in futuro serve un corpus con rumori che v6.2 scambia per parlato.
-- La Frase di rumore sul quarto più forte dei frame ha circa 2,5 dB di margine sia sul muto sia sulla voce a −30 dB. Una voce più debole di questa, o un muto con più frame forti di quelli misurati, va riverificata con lo stesso criterio. Un tratto di muto di 1 s o meno con i frame più forti della traccia passerebbe il filtro, se Silero ci aprisse una Frase.
+- La Frase di rumore sul quarto più forte dei frame ha 2,3 dB di margine sulla voce a −30 dB e 2,7 dB sulle Frasi di muto misurate. Una Frase di muto di 1 s o meno nel suo tratto più forte passerebbe il filtro (−49,1 dBFS), se Silero ci aprisse una Frase: il filtro resta una rete di sicurezza, e il primo argine sul muto è Silero v6.2. Una voce più debole di questa, o un muto con più frame forti di quelli misurati, va riverificata con lo stesso criterio.
 - La riverifica è sul corpus sintetico. L'ascolto umano e i respiri restano non collaudati, come nell'ADR-0023.
 
 ## Alternative scartate

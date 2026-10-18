@@ -149,7 +149,15 @@ Sulle finestre scorrevoli dell'intero Microfono muto, il quarto più forte vale 
 | 2 s | −52,0 / −51,9 |
 | 3 s | −53,7 / −53,6 |
 
-Una Frase dura almeno circa 1,1 s (prefill, onset e hangover).
+Una Frase di circa 1 s nel tratto più forte del muto supererebbe quindi la soglia. Frasi così corte
+possono esistere: prefill, onset e hangover fanno circa 1,1 s, ma la fine dell'audio, la Pausa e
+l'inizio della Sorgente le accorciano (nella tabella A c'è una Frase da 990 ms). Sui due Tape, con
+v6.2, Silero non apre Frasi in quei tratti.
+
+Sulla Frase 23250–25410 della tabella A la sonda misura −58,7 dBFS di RMS intero; la ricerca
+riporta −62,3. Le altre 11 coincidono entro 0,3 dB. La sonda la ritaglia sui frame da 32 ms della
+traccia ricampionata, non dal PCM che il motore ricevette con v4. La differenza non è spiegata, e
+qui vale il numero più sfavorevole.
 
 Il test del corpus è stato rilanciato in release con lo stesso comando (`log/corpus-v62-filtro.log`;
 si ferma ancora su `parakeet-primeline`):
