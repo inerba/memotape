@@ -36,7 +36,14 @@ CPU, sola elaborazione, Ryzen 7 3700X, un Ingresso, release, RTF (secondi di cal
 
 ## Esito
 
-Da compilare dopo l'ascolto: giudizio per campione, chiave aperta, verdetto secondo Q13 (non peggiore all'orecchio e nessun inizio di Frase perso da Silero in più rispetto a DFN3).
+Ascolto dell'utente, 18 ottobre 2026: «B è molto buona; siamo quasi ai livelli di C, quindi B va bene». Chiave aperta dopo il giudizio: sul ristorante (e sulla voce attenuata) B è **RNNoise 0.2** e C è **DFN3**. Le lettere cambiano da campione a campione: il giudizio vale per il ristorante, il campione dell'ADR-0019.
+
+Verdetto secondo Q13:
+
+- (a) Ascolto: RNNoise 0.2 accettato dall'utente come quasi al livello di DFN3.
+- (b) Silero: RNNoise 0.2 non perde inizi di Frase rispetto a DFN3; sulla voce attenuata di 30 dB li conserva dove DFN3 restituisce silenzio.
+
+Esito secondo Q17: passa RNNoise 0.2 (RNNoise 0.1 attenua poco e ha un falso avvio sul rumore intermittente). Si apre la decisione sulla sua build MSVC. Peso della libreria statica compilata (modello normale, AVX2): 5 701 470 byte, circa 5,0 MB compressi con xz, contro circa 11 MB compressi di DFN3 tra modello e tract.
 
 ## Riprodurre
 
