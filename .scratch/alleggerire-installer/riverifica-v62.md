@@ -118,10 +118,48 @@ Le soglie restano.
 - Le false Frasi scendono a zero a ogni livello, quindi Bilanciato non ha più niente da ridurre.
 - Il ramo di ritaratura del criterio («finché Bilanciato riduce le false Frasi») non ha più un obiettivo: Spento non ne ha. Le soglie del segmentatore non riportano la voce attenuata (vedi sopra). Conseguenza: questo corpus non mette più alla prova lo scarto del rumore della protezione, e la nuova asserzione passerebbe anche con la protezione spenta.
 
-La perdita di «Buongiorno a tutti» resta aperta, insieme alle 11 parole già perse con v4. Va
-corretta nel filtro del rumore, fuori da questo ticket.
+## Correzione del filtro del rumore
+
+Dopo la riverifica la Frase di rumore si misura sul quarto più forte dei frame da 32 ms, non più
+sull'intera Frase. La soglia resta −50 dBFS. Prima la misura veniva da una sonda temporanea
+(`log/livello-sonda.log`, già tolta) sul corpus e sui due Tape reali della ricerca sull'eco,
+copiati nello scratchpad: le copie hanno lo stesso SHA-256 degli originali.
+
+| Frasi | RMS intero | Quarto più forte |
+| --- | --- | --- |
+| voce-attenuata-30db, candidate 0..131 e 170..280 | −52,0 / −52,3 | −47,1 / −47,7 |
+| si-no, candidate 0..35 e 35..69 | −31,9 / −29,9 | −26,0 / −24,2 |
+| Microfono muto di 15-11-13, le 12 Frasi della tabella A della ricerca (tagliate da v4) | da −58,7 a −75,8 | da −52,7 a −71,1 |
+| Microfono muto di 15-11-13, le 2 Frasi tagliate da v6.2 (in 15-04-07 nessuna) | −73,0 / −77,8 | −67,6 / −72,3 |
+| Audio di sistema dei due Tape, 26 Frasi | da −45,3 a −14,5 | da −39,5 a −9,2 |
+
+Altri criteri misurati e scartati:
+
+- **Frame più forte:** non separa, perché nel muto ci sono frame fino a −42,3 dBFS.
+- **10% più forte:** la voce attenuata sta a −45,2 e il muto, su finestre corte, fino a −43,6.
+- **50% più forte:** la voce attenuata resta a 0,6 dB dalla soglia.
+- **RMS senza i frame muti:** la voce attenuata resta sotto, a −50,6.
+
+Sulle finestre scorrevoli dell'intero Microfono muto, il quarto più forte vale al massimo:
+
+| Finestra | Quarto più forte, massimo |
+| --- | --- |
+| 0,5 s | −46,9 / −46,4 |
+| 1 s | −49,5 / −49,1 |
+| 2 s | −52,0 / −51,9 |
+| 3 s | −53,7 / −53,6 |
+
+Una Frase dura almeno circa 1,1 s (prefill, onset e hangover).
+
+Il test del corpus è stato rilanciato in release con lo stesso comando (`log/corpus-v62-filtro.log`;
+si ferma ancora su `parakeet-primeline`):
+
+- **Voce attenuata senza pulizia:** a ogni livello, Selettivo compreso, e con tutti e quattro gli ASR esce «Buongiorno a tutti, oggi parliamo di trascrizione. Il computer trasforma la voce in testo.», cioè 14 parole su 14 (v4: 3; v6.2 con il filtro vecchio: 0).
+- **False Frasi:** zero a ogni livello.
+- **«Sì. No.»:** uguale a v6.2 con il filtro vecchio («C. No.» di Cohere e «C No» di Parakeet senza pulizia), con le stesse candidate.
+- **Le altre righe:** identiche.
 
 ## Log
 
 Sono in locale e non versionati, in `.scratch/alleggerire-installer/log/`: `misura-v62.log`,
-`corpus-v62.log`, `sonda-v62.log`, `frame-v62.log`, accanto ai `*-v4.log` del ticket 01.
+`corpus-v62.log`, `sonda-v62.log`, `frame-v62.log`, `livello-sonda.log`, `corpus-v62-filtro.log`, accanto ai `*-v4.log` del ticket 01.
