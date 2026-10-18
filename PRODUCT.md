@@ -191,8 +191,8 @@ Aprire, riprodurre o cambiare Impostazioni non riscrive né pulisce un Tape.
 La Forma d'onda mancante nei Tape vecchi viene calcolata in memoria. Player,
 riapertura, copia e ricerca leggono il risultato salvato.
 
-La licenza del codice è inclusa in Informazioni. La redistribuzione dei pesi
-resta da chiarire con gli autori; la verifica locale non autorizza un rilascio.
+RNNoise e i suoi pesi sono BSD-3-Clause: il testo della licenza è in Informazioni
+e tra i file del bundle.
 
 La pulizia delle Registrazioni si sceglie in Impostazioni → Registrazione,
 separatamente per Microfono e Audio di sistema, inizialmente spenta. Funziona
@@ -209,8 +209,7 @@ sessione corretta. Il Tape registra solo gli intervalli effettivamente trattati,
 anche se la Registrazione usa un solo Ingresso e conserva il solo mix.
 
 L'integrazione locale del ticket 03 è distinta dal collaudo completo di UI,
-dispositivi e carico su altre macchine. Bundle e redistribuzione dei pesi restano
-non verificati come nel ticket 02; nessun rilascio è autorizzato.
+dispositivi e carico su altre macchine.
 
 9. Come utente, voglio premere Trascrivi su un file audio e vedere comparire il testo, così ottengo la sbobinatura.
 10. Come utente, voglio trascrivere anche un video MP4, MOV, M4V o MKV senza prima estrarne l'audio, così risparmio un passaggio.
@@ -393,7 +392,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
 - **M7 (ticket 10)**: storie 59, 60, 63 e 68; con la Lingua dell'interfaccia anche la 61 è completa, e la 62 copre anche un file illeggibile.
   - L'interfaccia è in italiano, inglese, francese, spagnolo, tedesco e polacco, con le forme plurali di ogni lingua. In Impostazioni → Generale si sceglie la Lingua dell'interfaccia, con l'avviso che vale dal prossimo avvio. Finché non la si sceglie vale la lingua di Windows se è tra le sei, altrimenti l'inglese. Anche il prefisso delle Registrazioni segue la Lingua dell'interfaccia.
   - Il tema chiaro o scuro segue quello di Windows, compresi i controlli nativi come i selettori.
-  - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: ogni modello del catalogo con la sua quantizzazione (Parakeet, primeLine e Canary in CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer; Nemotron in OpenMDW-1.1; Cohere, Qwen3-ASR e Voxtral in Apache-2.0; Whisper con la MIT di OpenAI), Sortformer, Silero VAD, Symphonia (MPL-2.0), transcribe.cpp (con ggml e miniz), ONNX Runtime (con gli avvisi di terze parti) e vad-rs. I testi sono anche file del bundle, nella cartella `licenses`.
+  - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: ogni modello del catalogo con la sua quantizzazione (Parakeet, primeLine e Canary in CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer; Nemotron in OpenMDW-1.1; Cohere, Qwen3-ASR e Voxtral in Apache-2.0; Whisper con la MIT di OpenAI), Sortformer, RNNoise (BSD-3-Clause), Silero VAD, Symphonia (MPL-2.0), transcribe.cpp (con ggml e miniz), ONNX Runtime (con gli avvisi di terze parti) e vad-rs. I testi sono anche file del bundle, nella cartella `licenses`.
   - Se il file impostazioni esiste ma non si legge (per esempio bloccato da un altro programma), l'app parte con i valori predefiniti e la lingua di Windows, e la status bar mostra l'errore. Se il file è bloccato solo per un attimo (fino a circa un secondo) si legge lo stesso. Le impostazioni salvate non si perdono: finché il file non si legge una modifica non si salva e la status bar lo dice; appena si legge, la modifica si aggiunge alle impostazioni del file.
 - **M9 (ticket 12)**: storia 72.
   - `Memotape_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Memotape`, con il collegamento nel menu Start. Accanto all'exe mette l'ONNX Runtime, transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.

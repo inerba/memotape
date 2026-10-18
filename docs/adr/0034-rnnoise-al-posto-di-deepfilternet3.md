@@ -23,8 +23,12 @@ sul rumore intermittente. Con RNNoise 0.2, misurato con Silero v4 a soglia 0,4:
 
 - la voce a −30 dB resta parlato;
 - «sì» e «no» si conservano;
-- il rumore intermittente scende di 30 dB senza false Frasi, il soffio di 72 dB;
-- costa 0,009 secondi di CPU per secondo di audio, con AVX2.
+- il rumore intermittente scende di 30 dB senza false Frasi, il soffio di 72 dB.
+
+Il banco della prova differiva dalla produzione in tre punti: compilava RNNoise con AVX2
+fisso, usava le copie float dei pesi e compensava un solo frame di ritardo (le sue misure
+d'inizio Frase sono spostate di 10 ms). Lì costava 0,015 secondi di CPU per secondo di audio;
+in produzione, con l'int8 e la scelta a runtime, 0,009, su un Ryzen 7 3700X con AVX2.
 
 ## Cosa
 
@@ -57,15 +61,17 @@ sul rumore intermittente. Con RNNoise 0.2, misurato con Silero v4 a soglia 0,4:
   `v0.2/904a876dce1f9ab8860c0a5000ed151f9f6eef58/0b50c45/direct-v1`. I tratti `deepfilternet3`
   dei Tape esistenti restano e si leggono.
 - Escono `deep_filter`, i crate tract, il modello DFN3, le loro licenze e le ottimizzazioni del
-  profilo dev dedicate.
+  profilo dev dedicate. L'installer passa da 29,6 a 19,7 MB e l'app installata da 126,5 a
+  103,4 MB (`bun tauri build` del 18 ottobre, senza le modifiche della spec parallela
+  `alleggerire-installer`).
 
 ## Conseguenze e limiti
 
-- Con un rumore molto forte RNNoise degrada anche la voce, come ogni filtro a guadagno per
-  banda. Non c'è un controllo d'intensità.
-- Sulla voce a −30 dB pulita Silero trova le Frasi, ma nessun modello ASR scaricato ne
-  restituisce testo. Senza pulizia ne trascrivono solo «Buongiorno a tutti». I test con i
-  modelli veri chiedono che la voce debole resti una Frase per Silero, non che arrivi nella
-  Trascrizione.
+- Con un rumore molto forte ci si aspetta che RNNoise degradi anche la voce, come ogni filtro
+  a guadagno per banda; non è misurato. Non c'è un controllo d'intensità.
+- Sulla voce a −30 dB pulita Silero trova 2 Frasi contro le 3 dell'originale (si perde il
+  primo «Buongiorno a tutti»), e nessun modello ASR scaricato ne restituisce testo. Senza
+  pulizia ne trascrivono solo «Buongiorno a tutti». I test con i modelli veri chiedono che la
+  voce debole resti una Frase per Silero, non che arrivi nella Trascrizione.
 - La prova su una CPU senza AVX2 è tra le verifiche sull'hardware reale
   (`docs/sviluppo/verifica-manuale.md`).
