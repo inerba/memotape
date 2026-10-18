@@ -138,20 +138,12 @@ export const CREDITS: Credit[] = [
     "diarization"
   ),
   {
-    author: "Hendrik Schröter",
-    file: "deepfilter.txt",
-    license: "MIT (libDF)",
-    name: "DeepFilterNet3 / libDF 0.5.6",
-    notices: "deepfilter-model-notices.txt",
+    author: "Jean-Marc Valin, Xiph.Org",
+    file: "rnnoise.txt",
+    license: "BSD-3-Clause",
+    name: "RNNoise 0.2",
     role: "cleaning",
-    url: "https://github.com/Rikorose/DeepFilterNet/tree/978576aa8400552a4ce9730838c635aa30db5e61",
-  },
-  {
-    file: "tract.txt",
-    license: "MIT OR Apache-2.0",
-    name: "Tract 0.19.16",
-    role: "cleaning",
-    url: "https://github.com/sonos/tract/tree/v0.19.16",
+    url: "https://gitlab.xiph.org/xiph/rnnoise/-/tree/v0.2",
   },
   {
     author: "Silero Team",

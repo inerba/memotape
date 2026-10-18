@@ -114,10 +114,11 @@ Revisione approvata il 6 ottobre 2026, mockup in `.impeccable/mocks/home-riprend
 ### Trascrizione
 
 La pulizia di un file audio o video si sceglie nel dialog di Trascrivi, insieme a
-Sensibilità, modello, Lingua del parlato e Riconosci i parlanti, ed è inizialmente spenta. Usa DeepFilterNet3 standard sul PC,
-senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
-reintrodurre una miscela dell'audio originale. La pulizia può attenuare anche
-voce molto debole; la Sensibilità del parlato è un controllo indipendente e non
+Sensibilità, modello, Lingua del parlato e Riconosci i parlanti, ed è inizialmente spenta. Usa RNNoise 0.2 sul PC,
+su ogni CPU x64, senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
+reintrodurre una miscela dell'audio originale. La voce molto debole resta parlato per
+Silero, ma può non arrivare nella Trascrizione; con un rumore molto forte la pulizia
+degrada anche la voce. La Sensibilità del parlato è un controllo indipendente e non
 recupera la voce già attenuata. Il risultato elaborato alimenta Silero e il
 modello di Trascrizione e viene salvato come unico audio del Tape: player,
 Forma d'onda e analisi dei Parlanti si riferiscono a quel risultato. L'originale
@@ -132,7 +133,7 @@ lasciano un Tape parziale. La protezione aggiuntiva del parlato è disponibile n
 
 I tre profili conservano separatamente la Sensibilità del parlato: Spento,
 Più sensibile, Bilanciato (anche per impostazioni precedenti), Più selettivo.
-Non controlla DFN3. Spento mantiene Silero e la selezione precedente; i livelli
+Non controlla la pulizia. Spento mantiene Silero e la selezione precedente; i livelli
 attivi combinano evidenza Silero e caratteristiche acustiche della candidata
 Frase, senza liste di parole vietate o una soglia energetica assoluta.
 Più selettivo può perdere parole brevi o deboli. Nei Tape senza tracce distinte
@@ -147,18 +148,18 @@ dall'audio, dalla Forma d'onda o dall'analisi dei Parlanti.
 
 Durante la Registrazione ogni Ingresso usa il proprio profilo, anche quando
 un solo dispositivo viene salvato nel mix. La revisione viene fissata nel
-worker prima del ricampionamento, dei buffer DFN3 e delle code ASR. Il motore
+worker prima del ricampionamento, dei buffer della pulizia e delle code ASR. Il motore
 in ritardo usa quella revisione. La protezione ammette una candidata dal suo
 prefisso e conserva l'intera Frase fino alla fine: Nemotron continua a dare
 Parziali durante il parlato, senza ritiri dovuti alla protezione. Un cambio
-della sola sensibilità non resetta DFN3 e non modifica l'audio salvato.
+della sola sensibilità non resetta la pulizia e non modifica l'audio salvato.
 I cambi in Pausa valgono dalla ripresa; dopo Stop restano fissi per l'audio
 acquisito. Il bypass per guasto della pulizia mantiene la protezione del solo
 Ingresso e l'avviso di sessione previsto. La Diarizzazione resta dopo Stop
 e completamento ASR. I controlli al volo sono in Impostazioni e nella barra
 della Registrazione, accanto al Guadagno di ciascun Ingresso effettivo.
 La barra offre pulizia accesa/spenta e i quattro livelli di sensibilità,
-senza intensità DFN3 né profilo File e audio misto. Le due superfici condividono
+senza intensità della pulizia né profilo File e audio misto. Le due superfici condividono
 le preferenze persistenti: scelte rapide e contemporanee si applicano in ordine,
 senza sovrascrivere altri campi. L'avvio attende i salvataggi già richiesti.
 Un errore di salvataggio ripristina il valore confermato e viene mostrato.

@@ -19,7 +19,7 @@ pub use mcp::serve as serve_mcp;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands, collect_events};
 
-// Il default TRACE stampa migliaia di passaggi Tract prima della cattura.
+// Il default TRACE inonda terminale e log con i messaggi delle dipendenze.
 const APP_LOG_LEVEL: log::LevelFilter = log::LevelFilter::Info;
 
 /// Percorso di `bindings.ts`, relativo a `src-tauri` (la cwd di `tauri dev` e di `cargo test`).

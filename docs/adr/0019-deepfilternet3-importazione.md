@@ -2,6 +2,10 @@
 status: accepted
 ---
 
+> Superato in parte dall'ADR-0034 (18 ottobre 2026): la pulizia usa RNNoise 0.2, non più
+> DeepFilterNet3. Restano lo schema dell'adattatore (48 kHz interni, stato per canale,
+> compensazione del ritardo, scarico della coda, uscita diretta) e i tratti puliti del Tape.
+
 # DeepFilterNet3 sul PCM importato prima delle destinazioni
 
 ## Revisione del 6 ottobre 2026: uscita diretta

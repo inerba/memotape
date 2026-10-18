@@ -134,8 +134,8 @@
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}",
-      "audioCleaningMissing": "Il modello DeepFilterNet3 distribuito con l’app è assente. Reinstalla Memotape.",
-      "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
+      "audioCleaningMissing": "Il modello RNNoise distribuito con l’app è assente. Reinstalla Memotape.",
+      "audioCleaningIncompatible": "Il modello RNNoise distribuito con l’app è incompatibile: {{detail}}",
       "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
       "liveTranscriptionLagging": "La Trascrizione dal vivo è troppo indietro ed è stata interrotta. L’audio continua a essere registrato; potrai trascriverlo dopo Stop.",
       "noRecycleBin": "Il disco di {{detail}} non ha un Cestino di Windows",
@@ -269,8 +269,8 @@
     "cleaning": {
       "profile": "File e audio misto",
       "enable": "Filtra rumore",
-      "description": "DeepFilterNet3 riduce il rumore dei file audio e video importati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
-      "recordingDescription": "DeepFilterNet3 riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. Il Tape conserva l’audio elaborato: spegnerla non recupera l’originale."
+      "description": "RNNoise riduce il rumore dei file audio e video importati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
+      "recordingDescription": "RNNoise riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. Il Tape conserva l’audio elaborato: spegnerla non recupera l’originale."
     },
     "protection": {
       "label": "Sensibilità",
