@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Sorgenti C della libreria di xiph/rnnoise al tag `v0.2` (`904a876d`) nel repo, con licenza BSD-3-Clause e provenienza annotata; compilati con `cc` dallo script di build, con la scelta SIMD a runtime (generica, SSE4.1, AVX2). Niente bindgen, niente download durante la build.
 - [x] Il file dei pesi prodotto con `write_weights` dal modello `0b50c45` (tarball SHA-256 `4ac81c5c0884ec4bd5907026aaae16209b7b76cd9d7f71af582094a2f98f4b43`) tra le risorse del bundle; dimensione e SHA-256 del file fissati nel codice e verificati prima del caricamento, con gli errori distinti di oggi per assenza e incompatibilità. Procedura per rigenerarlo nel documento di sviluppo.

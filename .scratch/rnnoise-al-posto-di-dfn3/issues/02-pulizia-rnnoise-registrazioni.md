@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] La preparazione della Registrazione e la protezione dal vivo costruiscono l'adattatore RNNoise. Se il caricamento dei pesi è istantaneo (da misurare e riportare nei commenti), la preparazione in anticipo e il thread dedicato si semplificano, mantenendo il comportamento: la Registrazione parte subito e un modello assente si segnala come oggi.
 - [x] L'adattatore è `Send` senza thread dedicato: lo stato C di RNNoise non è legato al thread (motivo scritto accanto all'`unsafe impl`).
