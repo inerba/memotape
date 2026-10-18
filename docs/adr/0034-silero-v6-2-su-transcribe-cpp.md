@@ -4,7 +4,7 @@ status: accepted
 
 # Silero v6.2 su transcribe-cpp al posto di Silero v4 su ONNX Runtime
 
-Data: 18 ottobre 2026. Spec: `.scratch/alleggerire-installer/spec.md`. Misure: `.scratch/alleggerire-installer/baseline-v4.md` (prima) e `riverifica-v62.md` (dopo). Termini in `CONTEXT.md` (Frase, Sensibilità, Ingresso).
+Data: 18 ottobre 2026. Spec: `.scratch/alleggerire-installer/spec.md`. Misure: `.scratch/alleggerire-installer/baseline-v4.md` (prima) e `riverifica-v62.md` (dopo). Termini in `CONTEXT.md` (Frase, Frase di rumore, Sensibilità, Ingresso).
 
 ## Contesto
 
@@ -23,36 +23,39 @@ ONNX Runtime serviva solo a Silero v4, eseguito da `vad-rs`. Pesava 14,1 MB inst
 
 ## Riverifica della Sensibilità
 
-Il corpus è quello della pulizia audio 05. I due test ignorati sono stati eseguiti in release prima e dopo, con quattro ASR: Nemotron, Cohere, Whisper medium e Parakeet. Il test si ferma al primo modello non scaricato del catalogo, sia prima che dopo.
+Il corpus è quello della pulizia audio 05. Sono stati eseguiti in release, prima e dopo, i due test ignorati (misura dell'evidenza, corpus a quattro livelli) e la sonda temporanea delle probabilità con la pulizia, con quattro ASR: Nemotron, Cohere, Whisper medium e Parakeet. Il test del corpus si ferma al primo modello non scaricato del catalogo, sia prima che dopo. I nomi dei livelli sono quelli del codice: Sensibile e Selettivo sono Più sensibile e Più selettivo.
 
 | Esito | Silero v4 | Silero v6.2 |
 | --- | --- | --- |
 | Candidate senza pulizia: rumore intermittente (Spento / Sensibile / Bilanciato / Selettivo) | 1 / 1 / 0 / 0 | 0 / 0 / 0 / 0 |
-| Candidate senza pulizia: voce a −30 dB | 3 / 3 / 3 / 1 | 2 / 2 / 2 / 2 |
+| Candidate senza pulizia: campione `voce-attenuata-30db` | 3 / 3 / 3 / 1 | 2 / 2 / 2 / 2 |
 | Candidate «Sì. No.», con e senza pulizia | 2 a ogni livello | 2 a ogni livello |
-| Candidate con la pulizia: rumore e voce a −30 dB | 0 | 0 |
+| Candidate con la pulizia: rumore e voce attenuata | 0 | 0 |
 | False Frasi a Spento / Bilanciato, somma dei quattro ASR | 2 / 0 | 0 / 0 |
-| Parole della voce a −30 dB senza pulizia (Spento–Bilanciato) | 3 su 14 | 0 su 14 |
-| Picco di Silero sul rumore intermittente / sulla voce a −30 dB | 0,878 / 0,775 | 0,020 / 0,99999 |
+| Parole della voce attenuata senza pulizia (Spento–Bilanciato) | 3 su 14 | 0 su 14 |
+| Picco di Silero sul rumore intermittente / sulla voce attenuata | 0,878 / 0,775 | 0,020 / 0,99999 |
 
 v6.2 separa il parlato dal rumore molto meglio di v4.
 
 - **Rumore:** sparisce l'unica falsa Frase del corpus.
-- **Voce debole:** resta candidata anche a Selettivo, perché il picco supera 0,98.
-- **Regressioni:** quelle designate passano, cioè stesse candidate a Spento, Sensibile e Bilanciato sulla voce attenuata e su «Sì. No.». Per questo le soglie restano. Una ritaratura non cambierebbe nessun esito del corpus.
+- **Voce attenuata:** resta candidata anche a Selettivo, perché il picco supera 0,98.
+- **Regressioni:** quelle designate passano, cioè stesse candidate a Spento, Sensibile e Bilanciato sulla voce attenuata e su «Sì. No.».
+- **Soglie:** restano. Il ramo di ritaratura del criterio («finché Bilanciato riduce le false Frasi») non ha più un obiettivo, perché Spento non ne ha. Le candidate della voce attenuata superano già 0,98 di picco, e la protezione le ammette a ogni livello.
 
-La sola perdita è nel testo della voce a −30 dB, ma non viene dalla selezione:
+La sola perdita è nel testo della voce attenuata, ma non viene dalla selezione:
 
-- Silero v6.2 resta sopra 0,97 per tutta la prima frase parlata, pausa breve compresa. Le prime due candidate di v4 diventano una, a −52,0 dBFS di RMS.
-- Il filtro del rumore del motore (`livello::rumore`, −50 dBFS) non la dà al modello. Con v4 quel filtro scartava già due candidate su tre: 11 parole su 14.
-- Con v4 si salvava solo la prima candidata, corta e a −49,7 dBFS, che conteneva «Buongiorno a tutti».
+- Con v6.2 la prima frase parlata è un tratto unico. La probabilità per frame (`log/frame-v62.log`) sta sopra 0,4 nei frame 6..42 e 48..108; nei frame 43–47 (160 ms) scende sotto 0,4, meno dell'hangover di 22 frame. Le prime due candidate di v4 diventano una, a −52,0 dBFS di RMS.
+- Con v4 Silero vedeva solo l'inizio della frase: la prima candidata (frame 6..43 da 30 ms, −49,7 dBFS) aveva 3 frame sopra 0,4 e conteneva «Buongiorno a tutti». A Selettivo, che la scartava, si perdevano proprio quelle 3 parole.
+- Per spezzare la candidata servirebbe un hangover sotto i 160 ms, cioè una durata del segmentatore, che resta in millisecondi. Le soglie non bastano.
+- Una Frase di rumore (`livello::rumore`, −50 dBFS) non va al modello. Con v4 così si perdevano già due candidate su tre, 11 parole su 14; con v6.2 si perde anche la candidata unita. La causa è dedotta dall'RMS delle candidate, calcolato sul WAV: il test non ha un logger che stampi le Frasi di rumore.
 
-L'asserzione finale del test del corpus («Bilanciato ha meno false Frasi di Spento») non regge più quando Spento non ne ha: diventa «Bilanciato non tiene false Frasi», vera prima e dopo.
+L'asserzione finale del test del corpus («Bilanciato ha meno false Frasi di Spento») non regge più quando Spento non ne ha: diventa «Bilanciato non tiene false Frasi». Non è mai stata eseguita, né prima né dopo, perché il test si ferma prima sul modello mancante; il risultato vale sia per v4 sia per v6.2, calcolato a mano sulle righe stampate.
 
 ## Conseguenze
 
 - ONNX Runtime, `vad-rs` e `silero_vad.onnx` possono uscire da build e bundle: `ORT_LIB_LOCATION` non serve più. Lo fa il ticket 04 di alleggerire-installer; non reintrodurre ONNX Runtime senza rileggere questo ADR.
-- Il filtro del rumore a −50 dBFS sull'RMS dell'intera Frase penalizza la voce molto debole. Con candidate più lunghe la penalizza di più, perché la Frase include le pause. Una correzione (RMS sui soli frame con parlato, o una soglia diversa) va misurata sul microfono muto che ha motivato il filtro.
+- Con v6.2 il corpus non contiene più false Frasi a Spento, quindi non mette più alla prova lo scarto del rumore della protezione: la nuova asserzione passerebbe anche con la protezione spenta. Per ritarare la Sensibilità in futuro serve un corpus con rumori che v6.2 scambia per parlato.
+- Una Frase di rumore si riconosce dall'RMS dell'intera Frase, quindi il filtro penalizza la voce molto debole, e di più con candidate lunghe che includono le pause. Una correzione (RMS sui soli frame con parlato, o una soglia diversa) va misurata sul microfono muto che ha motivato il filtro.
 - La riverifica è sul corpus sintetico. L'ascolto umano e i respiri restano non collaudati, come nell'ADR-0023.
 
 ## Alternative scartate

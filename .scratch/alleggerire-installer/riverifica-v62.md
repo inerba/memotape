@@ -60,10 +60,10 @@ Differenze da v4:
 
 - **False Frasi:** zero a ogni livello. Con v4 il rumore intermittente senza pulizia dava una candidata, che Cohere («Il resto è finito.») e Whisper medium («Sottotitoli creati dalla comunità Amara.org») trascrivevano a Spento e a Sensibile. Totale a Spento: 2 → 0; a Bilanciato: 0 → 0.
 - **Risposte brevi:** le due candidate di «Sì. No.» restano a ogni livello, con e senza pulizia. Cambia il testo di Cohere senza pulizia: «Sì. No.» diventa «C. No.», un errore dell'ASR come quelli che Cohere e Parakeet facevano già con v4 («D.», «C», «T»). I confini delle due candidate si spostano di poco: 0..35 e 35..69 frame da 32 ms, contro 0..37 e 37..73 da 30 ms.
-- **Voce debole, senza pulizia:** le candidate non si perdono più a Selettivo (2 a ogni livello). Si perdono invece le 3 parole che restavano con v4 («Buongiorno a tutti»): il testo è vuoto con tutti e quattro gli ASR e a ogni livello. Sotto, la causa.
-- **Voce debole, con la pulizia:** nessuna candidata, come con v4.
+- **Voce attenuata, senza pulizia:** le candidate non si perdono più a Selettivo (2 a ogni livello). Si perdono invece le 3 parole che restavano con v4 («Buongiorno a tutti»): il testo è vuoto con tutti e quattro gli ASR e a ogni livello. Sotto, la causa.
+- **Voce attenuata, con la pulizia:** nessuna candidata, come con v4.
 
-## Perché la voce debole perde «Buongiorno a tutti»
+## Perché la voce attenuata perde «Buongiorno a tutti»
 
 La causa non sono le soglie della Sensibilità. È il filtro del rumore del motore
 (`livello::rumore`, commit `430117bb`): una Frase con RMS sotto −50 dBFS non va al modello.
@@ -77,8 +77,10 @@ La causa non sono le soglie della Sensibilità. È il filtro del rumore del moto
   | 182..299 | −52,3 dBFS |
 
   Quindi «Buongiorno a tutti» veniva solo dalla prima, e le altre 11 parole erano già perse.
-- Con v6.2 la probabilità resta tra 0,97 e 1,0 per tutta la prima frase parlata, compresa la pausa breve. Le prime due candidate di v4 diventano una sola (0..131, −52,0 dBFS) e il filtro scarta anche quella. La seconda candidata (170..280) è a −52,3 dBFS.
-- Né le soglie della protezione né quella del segmentatore separano le due parti: la probabilità è ~1,0 per frame. Ogni candidata della voce attenuata ha già picco ≥ 0,98, quindi la protezione la ammette a ogni livello.
+- Con v6.2 la prima frase parlata è un tratto unico (dump per frame in `log/frame-v62.log`, sonda temporanea già tolta). La probabilità sta sopra 0,4 nei frame 6..42 e 48..108; nei frame 43–47 (160 ms) scende sotto 0,4, meno dell'hangover di 22 frame. Le prime due candidate di v4 diventano una sola (0..131, −52,0 dBFS) e il filtro scarta anche quella. La seconda candidata (170..280) è a −52,3 dBFS.
+- Con v4 Silero vedeva solo l'inizio della frase: 3 frame sopra 0,4 nella candidata 6..43. A Selettivo, che la scartava, si perdevano proprio quelle 3 parole.
+- Le soglie non separano le due parti, perché nella pausa la probabilità è già sotto 0,4. Servirebbe un hangover sotto i 160 ms, una durata che resta in millisecondi. Ogni candidata della voce attenuata ha già picco ≥ 0,98, quindi la protezione la ammette a ogni livello.
+- La causa è dedotta dall'RMS: il test non ha un logger che stampi le Frasi di rumore.
 
 ## Probabilità di Silero v6.2
 
@@ -114,7 +116,7 @@ Le soglie restano.
 
 - Le asserzioni di regressione del test passano: stesse candidate a Spento, Sensibile e Bilanciato sulla voce attenuata e su «Sì. No.».
 - Le false Frasi scendono a zero a ogni livello, quindi Bilanciato non ha più niente da ridurre.
-- Nessuna ritaratura della protezione o del segmentatore cambierebbe un esito del corpus. Quella della protezione non toglierebbe false Frasi, che non ci sono più. Nessuna delle due farebbe tornare la voce debole, persa nel filtro del rumore e non nella selezione.
+- Il ramo di ritaratura del criterio («finché Bilanciato riduce le false Frasi») non ha più un obiettivo: Spento non ne ha. Le soglie del segmentatore non riportano la voce attenuata (vedi sopra). Conseguenza: questo corpus non mette più alla prova lo scarto del rumore della protezione, e la nuova asserzione passerebbe anche con la protezione spenta.
 
 La perdita di «Buongiorno a tutti» resta aperta, insieme alle 11 parole già perse con v4. Va
 corretta nel filtro del rumore, fuori da questo ticket.
@@ -122,4 +124,4 @@ corretta nel filtro del rumore, fuori da questo ticket.
 ## Log
 
 Sono in locale e non versionati, in `.scratch/alleggerire-installer/log/`: `misura-v62.log`,
-`corpus-v62.log`, `sonda-v62.log`, accanto ai `*-v4.log` del ticket 01.
+`corpus-v62.log`, `sonda-v62.log`, `frame-v62.log`, accanto ai `*-v4.log` del ticket 01.
