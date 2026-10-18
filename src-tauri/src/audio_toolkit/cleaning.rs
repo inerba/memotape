@@ -4,8 +4,9 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use super::deepfilter::DeepFilter;
+use super::deepfilter::{self, DeepFilter};
 use super::processing::{AudioProcessor, Boundary, Format, PcmBlock};
+use super::rnnoise::{self, RNNoise};
 use crate::error::AppError;
 use crate::transcript::Ingresso;
 
@@ -56,6 +57,9 @@ pub struct ConfiguredCleaning {
     prepared: Option<Box<dyn AudioProcessor>>,
     preparation_error: Option<AppError>,
     deferred: Option<DeferredFactory>,
+    /// `algoritmo` e `versione` dei tratti puliti.
+    algoritmo: &'static str,
+    versione: &'static str,
 }
 
 impl ConfiguredCleaning {
@@ -69,8 +73,27 @@ impl ConfiguredCleaning {
             Box::new(enabled),
             ingresso,
             log,
-            Box::new(move |format| Ok(Box::new(DeepFilter::new(&path, format)?))),
+            Box::new(move |format| Ok(Box::new(RNNoise::new(&path, format)?))),
         )
+    }
+
+    /// DFN3 per le Registrazioni, finché non passano anche loro a RNNoise (ticket 02).
+    pub fn dfn3(
+        path: PathBuf,
+        enabled: impl FnMut() -> bool + Send + 'static,
+        ingresso: Ingresso,
+        log: CleaningLog,
+    ) -> Self {
+        Self {
+            algoritmo: deepfilter::ALGORITMO,
+            versione: deepfilter::VERSIONE,
+            ..Self::with_factory(
+                Box::new(enabled),
+                ingresso,
+                log,
+                Box::new(move |format| Ok(Box::new(DeepFilter::new(&path, format)?))),
+            )
+        }
     }
 
     pub(crate) fn with_factory(
@@ -90,6 +113,8 @@ impl ConfiguredCleaning {
             prepared: None,
             preparation_error: None,
             deferred: None,
+            algoritmo: rnnoise::ALGORITMO,
+            versione: rnnoise::VERSIONE,
         }
     }
 
@@ -252,9 +277,8 @@ impl ConfiguredCleaning {
                 channels: block.format.channels,
                 interval: TrattoPulizia {
                     ingresso: self.ingresso,
-                    algoritmo: "deepfilternet3".into(),
-                    versione: "libDF-0.5.6/978576aa8400552a4ce9730838c635aa30db5e61/tract-0.19.16/direct-v1"
-                        .into(),
+                    algoritmo: self.algoritmo.into(),
+                    versione: self.versione.into(),
                     frequenza: block.format.rate,
                     inizio_frame: block.start_frame,
                     fine_frame: block.start_frame,
@@ -517,6 +541,7 @@ mod tests {
         let intervals = log.intervals();
         assert_eq!(intervals.len(), 1);
         assert_eq!(intervals[0].ingresso, Ingresso::Mix);
+        assert_eq!(intervals[0].algoritmo, "rnnoise");
         assert!(intervals[0].versione.ends_with("/direct-v1"));
         assert_eq!(
             (

@@ -26,6 +26,9 @@ const MODEL_SIZE: usize = 7_983_136;
 const MODEL_SHA256: &str = "c94d91f70911001c946e0fabb4aa9adc37045f45a03b56008cb0c8244cb63616";
 const RATE: u32 = 48_000;
 const HOP: usize = 480;
+pub const ALGORITMO: &str = "deepfilternet3";
+pub const VERSIONE: &str =
+    "libDF-0.5.6/978576aa8400552a4ce9730838c635aa30db5e61/tract-0.19.16/direct-v1";
 
 pub fn validate(path: &Path) -> Result<(), AppError> {
     let bytes = std::fs::read(path).map_err(|error| {

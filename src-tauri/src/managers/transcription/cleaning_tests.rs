@@ -181,24 +181,30 @@ fn pulizia_guasta_annullata_o_senza_parlato_non_lascia_tape_o_temporanei() {
 }
 
 #[test]
-#[ignore = "DFN3, Silero e ASR reali; eseguire separatamente e in sequenza"]
-fn dfn3_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
+#[ignore = "RNNoise, Silero e ASR reali; eseguire separatamente e in sequenza"]
+fn rnnoise_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let models_dir =
         PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
-    for model in models::catalog()
+    let downloaded: Vec<_> = models::catalog()
         .iter()
-        .filter(|m| m.kind == models::ModelKind::Trascrizione)
-    {
+        .filter(|m| m.kind == models::ModelKind::Trascrizione && m.path(&models_dir).is_file())
+        .collect();
+    assert!(
+        !downloaded.is_empty(),
+        "nessun modello in {}",
+        models_dir.display()
+    );
+    for model in downloaded {
         let mut engine = TranscribeCpp::load(&model.path(&models_dir)).unwrap();
         for name in ["parlato-it.wav", "parlato-it.mp4"] {
             let source = fixture(name);
-            let library = temp_dir(&format!("memotape-dfn3-{}-{name}", model.id));
+            let library = temp_dir(&format!("memotape-rnnoise-{}-{name}", model.id));
             let log = CleaningLog::default();
             let processor = ConfiguredCleaning::new(
-                std::env::var_os("MEMOTAPE_DFN3_BUNDLE")
+                std::env::var_os("MEMOTAPE_PULIZIA_BUNDLE")
                     .map(PathBuf::from)
-                    .unwrap_or_else(|| root.join(deepfilter::MODEL_FILE)),
+                    .unwrap_or_else(|| root.join(rnnoise::WEIGHTS_FILE)),
                 || true,
                 Ingresso::Mix,
                 log.clone(),
@@ -221,7 +227,7 @@ fn dfn3_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
             assert!(tape::forma_onda(&path).is_some());
             assert!((decoded_seconds(&path) - decoded_seconds(&source)).abs() < 0.0001);
             println!(
-                "DFN3 {} {name}: {}",
+                "RNNoise {} {name}: {}",
                 model.id,
                 document
                     .frasi
@@ -236,11 +242,11 @@ fn dfn3_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
 }
 
 #[test]
-#[ignore = "corpus sintetico DFN3/Silero/tre ASR: richiede MEMOTAPE_DFN3_SHORT, eseguire in sequenza"]
-fn dfn3_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
+#[ignore = "corpus sintetico RNNoise/Silero/tre ASR: richiede MEMOTAPE_PULIZIA_SHORT, eseguire in sequenza"]
+fn rnnoise_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
     use crate::audio_toolkit::processing::Bypass;
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let directory = temp_dir("memotape-dfn3-corpus");
+    let directory = temp_dir("memotape-rnnoise-corpus");
     let mut decoder = Decoder::open(&fixture("parlato-it.wav")).unwrap();
     let mut voice = Vec::new();
     while let Some(block) = decoder.next_block().unwrap() {
@@ -303,19 +309,25 @@ fn dfn3_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
     cases.push((
         "si-no",
         PathBuf::from(
-            std::env::var("MEMOTAPE_DFN3_SHORT")
+            std::env::var("MEMOTAPE_PULIZIA_SHORT")
                 .expect("generare si-no.wav con verification-02/generate-corpus.ps1"),
         ),
     ));
     let models_dir =
         PathBuf::from(std::env::var("APPDATA").unwrap()).join("it.memotape.desktop/models");
-    for model in models::catalog()
+    let downloaded: Vec<_> = models::catalog()
         .iter()
-        .filter(|m| m.kind == models::ModelKind::Trascrizione)
-    {
+        .filter(|m| m.kind == models::ModelKind::Trascrizione && m.path(&models_dir).is_file())
+        .collect();
+    assert!(
+        !downloaded.is_empty(),
+        "nessun modello in {}",
+        models_dir.display()
+    );
+    for model in downloaded {
         let mut engine = TranscribeCpp::load(&model.path(&models_dir)).unwrap();
         for (name, source) in &cases {
-            if std::env::var("MEMOTAPE_DFN3_ONLY")
+            if std::env::var("MEMOTAPE_PULIZIA_ONLY")
                 .ok()
                 .as_deref()
                 .is_some_and(|only| only != *name)
@@ -326,7 +338,7 @@ fn dfn3_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
                 let log = CleaningLog::default();
                 let processor: Box<dyn AudioProcessor> = if enabled {
                     Box::new(ConfiguredCleaning::new(
-                        root.join(deepfilter::MODEL_FILE),
+                        root.join(rnnoise::WEIGHTS_FILE),
                         || true,
                         Ingresso::Mix,
                         log.clone(),

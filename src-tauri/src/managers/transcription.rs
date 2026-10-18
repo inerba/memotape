@@ -17,8 +17,8 @@ use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
 use crate::audio_toolkit::decode::Decoder;
-use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::ogg_opus::OggCopy;
+use crate::audio_toolkit::rnnoise;
 use crate::audio_toolkit::vad::{Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
@@ -369,7 +369,7 @@ pub async fn transcribe(
     let importing = tape.is_none();
     let cleaning_path = app
         .path()
-        .resolve(deepfilter::MODEL_FILE, BaseDirectory::Resource)
+        .resolve(rnnoise::WEIGHTS_FILE, BaseDirectory::Resource)
         .map_err(|error| AppError::Internal(error.to_string()))?;
     tauri::async_runtime::spawn_blocking(move || {
         // La Trascrizione di ogni Ingresso, con la Diarizzazione; `copy` riceve l'audio di un file.

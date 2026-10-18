@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     link_vulkan_sdk();
     stage_runtime_libs();
+    build_rnnoise();
 
     // Il manifest con Common Controls v6 (richiesto da tauri-plugin-dialog) va incorporato
     // in tutti gli eseguibili, test compresi: senza, `cargo test` esce con
@@ -16,6 +17,74 @@ fn main() {
     println!("cargo:rerun-if-changed=windows-app-manifest.xml");
     println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
     println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+}
+
+/// RNNoise 0.2 di xiph (`vendor/rnnoise`, provenienza in `PROVENIENZA.md`) con la scelta SIMD a
+/// runtime della build ufficiale: il codice generico più le varianti SSE4.1 e AVX2, ognuna
+/// compilata con le sue istruzioni e scelta da `rnn_select_arch`. I pesi non sono nel codice
+/// (`USE_WEIGHTS_FILE`): si caricano dal file tra le risorse. Ottimizzato anche in debug, dove
+/// la pulizia di una Registrazione deve stare al passo con WASAPI.
+fn build_rnnoise() {
+    let root = Path::new("vendor/rnnoise");
+    println!("cargo:rerun-if-changed={}", root.display());
+    let build = |name: &str, files: &[&str], extra: &[(&str, Option<&str>)], flag: Option<&str>| {
+        let mut build = cc::Build::new();
+        build
+            .include(root.join("include"))
+            .include(root.join("src"))
+            .define("RNN_ENABLE_X86_RTCD", None)
+            .define("DISABLE_DEBUG_FLOAT", None)
+            .define("USE_WEIGHTS_FILE", None)
+            // SSE2 è la base di x86_64: GCC la dichiara sempre, MSVC no, e senza il codice
+            // generico di `vec.h` cerca un header che il tag non ha.
+            .define("__SSE__", None)
+            .define("__SSE2__", None)
+            .opt_level(2)
+            .warnings(false);
+        for (key, value) in extra {
+            build.define(key, *value);
+        }
+        if let Some(flag) = flag {
+            build.flag(flag);
+        }
+        for file in files {
+            build.file(root.join("src").join(file));
+        }
+        build.compile(name);
+    };
+    build(
+        "rnnoise",
+        &[
+            "denoise.c",
+            "rnn.c",
+            "pitch.c",
+            "kiss_fft.c",
+            "celt_lpc.c",
+            "nnet.c",
+            "nnet_default.c",
+            "parse_lpcnet_weights.c",
+            "rnnoise_data.c",
+            "rnnoise_tables.c",
+            "x86/x86_dnn_map.c",
+            "x86/x86cpu.c",
+        ],
+        &[],
+        None,
+    );
+    // MSVC non dichiara `__SSE4_1__` né `__FMA__`: li dichiara la build, come `-msse4.1` e
+    // `-mfma` con GCC. `rnn_select_arch` sceglie AVX2 solo se la CPU ha anche FMA.
+    build(
+        "rnnoise_sse4_1",
+        &["x86/nnet_sse4_1.c"],
+        &[("__SSE4_1__", None)],
+        None,
+    );
+    build(
+        "rnnoise_avx2",
+        &["x86/nnet_avx2.c"],
+        &[("__FMA__", None)],
+        Some("/arch:AVX2"),
+    );
 }
 
 /// La feature `vulkan` di transcribe-cpp linka `vulkan-1.lib`, che sta in `%VULKAN_SDK%\Lib`.

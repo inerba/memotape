@@ -290,7 +290,7 @@ fn cattura_nativa_non_diventa_silenzio_nel_mixer() {
             crate::transcript::Ingresso::Microfono,
             crate::transcript::Ingresso::Sistema,
         ] {
-            let mut processor = crate::audio_toolkit::cleaning::ConfiguredCleaning::new(
+            let mut processor = crate::audio_toolkit::cleaning::ConfiguredCleaning::dfn3(
                 model.clone(),
                 || true,
                 ingresso,

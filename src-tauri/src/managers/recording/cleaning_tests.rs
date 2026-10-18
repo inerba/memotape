@@ -72,7 +72,7 @@ fn dfn3_registrazione_coda_pause_e_stato_indipendente() {
         let enabled = Arc::new(AtomicBool::new(true));
         let control = enabled.clone();
         let log = CleaningLog::default();
-        let mut processor = ConfiguredCleaning::new(
+        let mut processor = ConfiguredCleaning::dfn3(
             path.clone(),
             move || control.load(Ordering::Relaxed),
             Ingresso::Sistema,
@@ -179,7 +179,7 @@ fn due_ingressi_nativi_release(protected: bool) {
         (Ingresso::Sistema, Kind::System),
     ] {
         let control = controls.clone();
-        let mut processor = ConfiguredCleaning::new(
+        let mut processor = ConfiguredCleaning::dfn3(
             root.join(deepfilter::MODEL_FILE),
             move || control.pulizia(kind),
             ingresso,

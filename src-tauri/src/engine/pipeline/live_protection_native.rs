@@ -25,7 +25,7 @@ fn corpus() -> Vec<(String, bool, Vec<Feed>)> {
     ] {
         for cleaning in [false, true] {
             let processor: Box<dyn AudioProcessor> = if cleaning {
-                Box::new(ConfiguredCleaning::new(
+                Box::new(ConfiguredCleaning::dfn3(
                     root.join(deepfilter::MODEL_FILE),
                     || true,
                     Ingresso::Mix,

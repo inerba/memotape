@@ -1038,7 +1038,7 @@ fn run(
             let deferred_filter = filter.clone();
             let (ready_app, ready_session) = (app.clone(), session_id.to_owned());
             let readiness_controls = Arc::clone(controls);
-            let mut processor = ConfiguredCleaning::new(
+            let mut processor = ConfiguredCleaning::dfn3(
                 model_path.clone(),
                 move || enabled.load(Ordering::Relaxed),
                 ingresso,

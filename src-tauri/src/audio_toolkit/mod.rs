@@ -11,5 +11,6 @@ pub mod ogg_opus;
 pub mod processing;
 pub mod protection;
 pub mod resample;
+pub mod rnnoise;
 pub mod segmenter;
 pub mod vad;
