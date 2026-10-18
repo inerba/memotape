@@ -29,4 +29,6 @@ Con un Memotape già installato e aperto sulla macchina (in `%LOCALAPPDATA%\Memo
 - nell'installer non ci sono `onnxruntime.dll` né `silero_vad.onnx`, c'è `resources\silero-vad-v6.2-F32.gguf`;
 - `memotape.exe` importa `transcribe.dll` e nessun `onnxruntime.dll`.
 
-Moduli caricati, Trascrizione e Registrazione dell'app installata non sono stati verificati: sulla macchina c'era l'app dell'utente aperta.
+Il 19 ottobre 2026 la verifica dal vivo è stata fatta con l'installazione sopra quella dell'utente, chiusa e con il suo consenso. Nessun `onnxruntime.dll` tra i moduli caricati; DLL di transcribe, ggml e VC++ dalla cartella d'installazione; fixture trascritta in 986 ms; Registrazione di 4 s salvata.
+
+Installando sopra una versione precedente, NSIS non toglie i file che non distribuisce più: `onnxruntime.dll`, `silero_vad.onnx` e le licenze di ONNX Runtime della 0.5.3 restano nella cartella (non caricati). Lo spazio si recupera solo disinstallando.
