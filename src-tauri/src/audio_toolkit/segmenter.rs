@@ -80,6 +80,16 @@ impl Segmenter {
         }
     }
 
+    /// Frame di prefill e onset che precedono il parlato di una Frase.
+    pub fn lead_frames(&self) -> usize {
+        self.prefill + self.onset
+    }
+
+    /// La durata massima di una Frase, in frame.
+    pub fn max_frames(&self) -> usize {
+        self.max_frames
+    }
+
     pub fn push(&mut self, frame: Vec<f32>, probability: f32) -> Vec<Event> {
         let speech = probability >= self.threshold;
         self.position += 1;

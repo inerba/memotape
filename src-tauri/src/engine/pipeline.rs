@@ -342,7 +342,8 @@ fn cut_phrases(
                             probability,
                             protection.level(((received - 1) * FRAME_SAMPLES) as u64),
                         ));
-                        if observations.len() > 612 {
+                        // Una Frase intera più prefill e onset (ADR-0023).
+                        if observations.len() > segmenter.max_frames() + segmenter.lead_frames() {
                             observations.pop_front();
                         }
                         segmenter.push(frame, probability)
@@ -668,8 +669,8 @@ impl SegmentedSource<'_> {
                         self.protection
                             .level(((self.received - 1) * FRAME_SAMPLES) as u64),
                     ));
-                    // Prefill di 10 frame + onset di 2, non una seconda coda dell'audio.
-                    if self.observations.len() > 12 {
+                    // Prefill e onset, non una seconda coda dell'audio.
+                    if self.observations.len() > self.segmenter.lead_frames() {
                         self.observations.pop_front();
                     }
                     let events = self.segmenter.push(frame, probability);
