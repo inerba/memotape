@@ -29,26 +29,12 @@ fn link_vulkan_sdk() {
     );
 }
 
-/// Le DLL da mettere accanto all'exe: l'ONNX Runtime ufficiale (`ORT_LIB_LOCATION`, `ort` è linkato
-/// in dinamico) e, con `dynamic-backends`, `transcribe.dll`, `ggml*.dll` e i moduli dei backend
-/// (`DEP_TRANSCRIBE_CPP_RUNTIME_DIR` e `MODULE_DIR`). transcribe-cpp-sys copia già le sue in
-/// `target/<profilo>` e `deps`; qui si copia `onnxruntime.dll` negli stessi posti, altrimenti
-/// Windows caricherebbe quello di System32, più vecchio. Tutte finiscono anche in `runtime-libs/`,
-/// che `tauri.windows.conf.json` mette accanto all'exe nel bundle (e in dev in `target/debug`).
+/// Le DLL da mettere accanto all'exe: con `dynamic-backends`, `transcribe.dll`, `ggml*.dll` e i
+/// moduli dei backend (`DEP_TRANSCRIBE_CPP_RUNTIME_DIR` e `MODULE_DIR`), che transcribe-cpp-sys
+/// copia già in `target/<profilo>` e `deps`. Tutte finiscono anche in `runtime-libs/`, che
+/// `tauri.windows.conf.json` mette accanto all'exe nel bundle (e in dev in `target/debug`).
 fn stage_runtime_libs() {
-    println!("cargo:rerun-if-env-changed=ORT_LIB_LOCATION");
-    let lib_dir = std::env::var("ORT_LIB_LOCATION")
-        .expect("ORT_LIB_LOCATION non impostata: vedi docs/sviluppo/prerequisiti.md");
-    let ort = Path::new(&lib_dir).join("onnxruntime.dll");
-    println!("cargo:rerun-if-changed={}", ort.display());
-    let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    // OUT_DIR = target/<profilo>/build/<crate>-<hash>/out
-    let profile_dir = out_dir.ancestors().nth(3).unwrap();
-    for dir in [profile_dir.to_path_buf(), profile_dir.join("deps")] {
-        copy_if_changed(&ort, &dir);
-    }
-
-    let mut dlls = vec![ort];
+    let mut dlls = Vec::new();
     for var in [
         "DEP_TRANSCRIBE_CPP_RUNTIME_DIR",
         "DEP_TRANSCRIBE_CPP_MODULE_DIR",
@@ -62,7 +48,7 @@ fn stage_runtime_libs() {
             }
         }
     }
-    // `msvcp140*`/`vcruntime140*`: le chiedono le DLL C++ (transcribe, ggml, ONNX Runtime), e un PC
+    // `msvcp140*`/`vcruntime140*`: le chiedono le DLL C++ (transcribe, ggml), e un PC
     // pulito può non avere il redistribuibile VC++. L'exe Rust no: tauri-build linka statico il
     // vcruntime.
     dlls.extend(vc_runtime_dlls());
@@ -97,8 +83,8 @@ fn stage_runtime_libs() {
 
 /// Le DLL del runtime VC++ per il deployment app-local, dal redistribuibile di Visual Studio:
 /// `VCToolsRedistDir` (prompt dei comandi di VS) o l'installazione con il workload C++ trovata da
-/// `vswhere`. Devono essere almeno della versione del toolset che ha linkato le DLL (ONNX Runtime
-/// 1.24.2 e transcribe.cpp: 14.44), altrimenti su un PC pulito possono andare in crash.
+/// `vswhere`. Devono essere almeno della versione del toolset che ha linkato le DLL (transcribe.cpp:
+/// 14.44), altrimenti su un PC pulito possono andare in crash.
 fn vc_runtime_dlls() -> Vec<PathBuf> {
     println!("cargo:rerun-if-env-changed=VCToolsRedistDir");
     let redist = std::env::var("VCToolsRedistDir")

@@ -391,8 +391,6 @@
       "vad": "Sprachaktivitätserkennung, die das Audio in Abschnitte aufteilt",
       "decoder": "Dekodierung von Audio- und Videodateien",
       "engine": "Ausführung der Transkriptionsmodelle",
-      "onnx": "Ausführung von Silero VAD",
-      "vadRs": "Verbindung zwischen Silero VAD und Rust",
       "diarization": "Sprechererkennung",
       "font": "Schrift der Oberfläche",
       "cleaning": "Lokale Rauschminderung"

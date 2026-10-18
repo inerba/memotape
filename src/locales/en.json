@@ -391,8 +391,6 @@
       "vad": "Speech detection, which splits the audio into phrases",
       "decoder": "Decoding of audio and video files",
       "engine": "Runs the transcription models",
-      "onnx": "Runs Silero VAD",
-      "vadRs": "Bridge between Silero VAD and Rust",
       "diarization": "Speaker recognition",
       "font": "Interface typeface",
       "cleaning": "Local audio noise reduction"

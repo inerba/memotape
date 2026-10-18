@@ -393,8 +393,6 @@
       "vad": "Wykrywanie mowy, które dzieli dźwięk na frazy",
       "decoder": "Dekodowanie plików audio i wideo",
       "engine": "Uruchamianie modeli transkrypcji",
-      "onnx": "Uruchamianie Silero VAD",
-      "vadRs": "Łącznik między Silero VAD a Rustem",
       "diarization": "Rozpoznawanie mówców",
       "font": "Krój pisma interfejsu",
       "cleaning": "Lokalna redukcja szumu"

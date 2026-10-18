@@ -1,7 +1,8 @@
 // Prepara un worktree di git per i sei controlli, riusando la build Rust del checkout principale.
 //   bun scripts/worktree-setup.ts [branch di base]
 // - scrive `.cargo/config.toml` (ignorato da git, quindi assente nel worktree) partendo da quello del
-//   checkout principale, con `LOCALAPPDATA` assoluto e `target-dir` sulla sua `src-tauri\target`:
+//   checkout principale, senza le variabili di ONNX Runtime, con `LOCALAPPDATA` assoluto e
+//   `target-dir` sulla sua `src-tauri\target`:
 //   transcribe-cpp non si ricompila da capo (vedi docs/sviluppo/prerequisiti.md);
 // - con un branch di base, si ferma se il worktree non ne discende;
 // - lancia `bun install`.
@@ -11,6 +12,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const RIGA_LOCALAPPDATA = /^\s*LOCALAPPDATA\s*=/;
+// ONNX Runtime non serve più (ADR-0034): le sue variabili non passano al worktree.
+const RIGA_ORT = /^\s*ORT_\w*\s*=/;
 const SEZIONE_BUILD = /\n\[build\][^[]*/;
 
 function git(...args: string[]): string {
@@ -21,11 +24,11 @@ function git(...args: string[]): string {
   return r.stdout.trim();
 }
 
-/** La config del worktree: quella principale con la cartella di build condivisa. */
+/** La config del worktree: quella principale, senza le variabili di ONNX Runtime, con la cartella di build condivisa. */
 export function configCondivisa(principale: string, target: string): string {
   const righe = principale
     .split("\n")
-    .filter((r) => !RIGA_LOCALAPPDATA.test(r));
+    .filter((r) => !(RIGA_LOCALAPPDATA.test(r) || RIGA_ORT.test(r)));
   const env = righe.findIndex((r) => r.trim() === "[env]");
   if (env === -1) {
     throw new Error("la config principale non ha la sezione [env]");

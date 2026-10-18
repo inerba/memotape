@@ -124,13 +124,6 @@ Development and packaging target Windows x64. Run the commands below from the re
 | Node.js | 22.22 or newer |
 | CMake | Available on `PATH` |
 | Vulkan SDK | LunarG SDK installed; configure `VULKAN_SDK` below |
-| ONNX Runtime | Official Windows x64 1.24.2 package, extracted outside the repository |
-
-Download [ONNX Runtime 1.24.2 for Windows x64](https://github.com/microsoft/onnxruntime/releases/download/v1.24.2/onnxruntime-win-x64-1.24.2.zip). The expected ZIP SHA-256 is:
-
-```text
-8e3e9c826375352e29cb2614fe44f3d7a4b0ff7b8028ad7a456af9d949a7e8b0
-```
 
 ### Configure native dependencies
 
@@ -140,8 +133,6 @@ Create a local `.cargo/config.toml` at the **repository root**, replacing the ex
 [env]
 LOCALAPPDATA = { value = "src-tauri/target", relative = true, force = true }
 VULKAN_SDK = { value = 'C:\VulkanSDK\<version>', force = false }
-ORT_LIB_LOCATION = 'D:\dependencies\onnxruntime-win-x64-1.24.2\lib'
-ORT_PREFER_DYNAMIC_LINK = "1"
 ```
 
 The local `LOCALAPPDATA` override lets the native transcription build use a short junction path. Keep this Cargo configuration at the root because the backend scripts run there. `build.rs` locates the Visual Studio redistributables through `vswhere` or `VCToolsRedistDir` and copies the required runtime DLLs.
@@ -209,7 +200,7 @@ The script does not commit, tag, or publish. Review `git diff`, test the install
 | A file's audio format is unsupported | Check the audio codec as well as the extension; a supported container can contain unsupported audio. |
 | A microphone or output device is unavailable | Check Windows devices and the device selected in **Settings → Recording and audio**. |
 | Recording levels are too low or clip | Adjust the gain next to each input meter; lower it when the meter reaches red. |
-| A native build fails | Check CMake on `PATH`, the Vulkan SDK, the ONNX Runtime `lib` path, and the root `.cargo/config.toml`. |
+| A native build fails | Check CMake on `PATH`, the Vulkan SDK, and the root `.cargo/config.toml`. |
 | Manually moved Tape files are missing from search | Bring the app back to the foreground or reopen it so the Library index refreshes. |
 
 Desktop logs are stored in `%LOCALAPPDATA%\it.memotape.desktop\logs\Memotape.log`.

@@ -71,7 +71,7 @@ L'asserzione finale del test del corpus («Bilanciato ha meno false Frasi di Spe
 
 ## Conseguenze
 
-- ONNX Runtime, `vad-rs` e `silero_vad.onnx` possono uscire da build e bundle: `ORT_LIB_LOCATION` non serve più. Lo fa il ticket 04 di alleggerire-installer; non reintrodurre ONNX Runtime senza rileggere questo ADR.
+- ONNX Runtime, `vad-rs` e `silero_vad.onnx` sono usciti da build e bundle (ticket 04 di alleggerire-installer), e con loro `ORT_LIB_LOCATION`: non reintrodurre ONNX Runtime senza rileggere questo ADR.
 - Con v6.2 il corpus non contiene più false Frasi a Spento, quindi non mette più alla prova lo scarto del rumore della protezione: la nuova asserzione passerebbe anche con la protezione spenta. Per ritarare la Sensibilità in futuro serve un corpus con rumori che v6.2 scambia per parlato.
 - La Frase di rumore sul quarto più forte dei frame ha 2,3 dB di margine sulla voce a −30 dB e 2,7 dB sulle Frasi di muto misurate. Una Frase di muto di 1 s o meno nel suo tratto più forte passerebbe il filtro (−49,1 dBFS), se Silero ci aprisse una Frase: il filtro resta una rete di sicurezza, e il primo argine sul muto è Silero v6.2. Una voce più debole di questa, o un muto con più frame forti di quelli misurati, va riverificata con lo stesso criterio.
 - La riverifica è sul corpus sintetico. L'ascolto umano e i respiri restano non collaudati, come nell'ADR-0023.
