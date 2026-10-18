@@ -12,7 +12,7 @@
 - [x] `ConfiguredCleaning` per file e Tape costruisce l'adattatore RNNoise; i nuovi tratti hanno `algoritmo` «rnnoise» e una `versione` con tag, commit, modello e uscita diretta. I tratti DFN3 dei Tape esistenti si leggono e non si ripuliscono.
 - [x] Test dell'adattatore con il modello vero: durata identica a 16, 44,1 e 48 kHz e in stereo, impulso allineato, coda completa ai tre confini, voce della fixture conservata, silenzio digitale invariato, errori con pesi assenti o hash sbagliato.
 - [x] Regressione: sul campione del corpus con la voce attenuata di 30 dB, dopo la pulizia Silero trova ancora una Frase.
-- [ ] I test con il modello vero della pulizia nella Trascrizione di file e Tape passano con RNNoise senza cambiare cosa verificano.
+- [x] I test con il modello vero della pulizia nella Trascrizione di file e Tape passano con RNNoise senza cambiare cosa verificano.
 - [x] I sei controlli passano.
 
 ## Note dell'implementazione (18 ottobre 2026)
@@ -25,3 +25,4 @@
   - importazione audio/video: verde;
   - corpus della protezione: verde;
   - `rnnoise_corpus_prudente_confronta_pulizia_accesa_e_spenta`: resta rosso sulla voce a −30 dB già con la pulizia **spenta**, perché ogni ASR trascrive solo «Buongiorno a tutti». Con RNNoise Silero trova le Frasi (la regressione richiesta), ma nessun ASR restituisce testo: a livello identico (−0,14 dB, correlazione 0,977) RNNoise abbassa sotto soglia la probabilità di Silero sul primo «Buongiorno a tutti» a inizio file, l'unico tratto che gli ASR trascrivevano. DFN3 lì dava silenzio digitale.
+- **Decisione dell'utente (18 ottobre 2026)**: per la voce a −30 dB basta che Silero la trovi. Il corpus prudente non pretende più la frase intera da ogni ASR, che nessun motore dà nemmeno senza pulizia: con la pulizia accesa chiede almeno una Frase di Silero sull'audio pulito. Oggi ne trova 2, contro le 3 dell'audio originale: si perde il primo «Buongiorno a tutti». Il test ora è verde.

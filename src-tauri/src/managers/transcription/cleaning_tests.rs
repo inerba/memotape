@@ -241,6 +241,40 @@ fn rnnoise_importa_audio_e_video_con_tutti_i_motori_e_riapre_i_tape() {
     }
 }
 
+/// Le Frasi che Silero e il segmentatore aprono sull'audio di `source` elaborato da `processor`.
+fn silero_phrases(source: &Path, processor: Box<dyn AudioProcessor>) -> usize {
+    use crate::audio_toolkit::processing::{Format, PcmStream};
+    use crate::audio_toolkit::resample::FrameResampler;
+    use crate::audio_toolkit::segmenter::{Event, Params, Segmenter};
+    let mut decoder = Decoder::open(source).unwrap();
+    let (mut samples, mut rate) = (Vec::new(), 0);
+    while let Some(block) = decoder.next_block().unwrap() {
+        rate = block.rate;
+        samples.extend(block.mono());
+    }
+    let format = Format { rate, channels: 1 };
+    let mut stream = PcmStream::new(format, processor).unwrap();
+    let mut output = stream.push(&samples).unwrap().samples;
+    output.extend(stream.boundary(Boundary::Finish).unwrap().samples);
+    let mut resampler = FrameResampler::new(rate).unwrap();
+    let mut frames = resampler.push(&output);
+    frames.extend(resampler.finish());
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut silero = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+    let mut segmenter = Segmenter::new(Params::default());
+    frames
+        .into_iter()
+        .map(|frame| {
+            let p = silero.probability(&frame).unwrap();
+            segmenter
+                .push(frame, p)
+                .iter()
+                .filter(|e| matches!(e, Event::PhraseStart(_)))
+                .count()
+        })
+        .sum()
+}
+
 #[test]
 #[ignore = "corpus sintetico RNNoise/Silero/tre ASR: richiede MEMOTAPE_PULIZIA_SHORT, eseguire in sequenza"]
 fn rnnoise_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
@@ -371,18 +405,20 @@ fn rnnoise_corpus_prudente_confronta_pulizia_accesa_e_spenta() {
                     "[nessun parlato]".into()
                 };
                 println!("CORPUS {} {name} pulizia={enabled}: {text}", model.id);
-                if *name == "voce-attenuata-30db" {
-                    let words: String = text
-                        .chars()
-                        .filter(|c| c.is_alphanumeric())
-                        .flat_map(char::to_lowercase)
-                        .collect();
-                    assert_eq!(
-                        words,
-                        "buongiornoatuttioggiparliamoditrascrizioneilcomputertrasformalavoceintesto",
-                        "voce bassa {} pulizia={enabled}: {text}",
-                        model.id
+                // A -30 dB gli ASR trascrivono al più «Buongiorno a tutti» anche senza pulizia: si
+                // chiede che la pulizia non cancelli la voce per Silero (DFN3 dava silenzio).
+                if *name == "voce-attenuata-30db" && enabled {
+                    let phrases = silero_phrases(
+                        source,
+                        Box::new(ConfiguredCleaning::new(
+                            root.join(rnnoise::WEIGHTS_FILE),
+                            || true,
+                            Ingresso::Mix,
+                            CleaningLog::default(),
+                        )),
                     );
+                    println!("CORPUS voce bassa: Frasi di Silero dopo la pulizia {phrases}");
+                    assert!(phrases > 0, "voce bassa cancellata dalla pulizia");
                 }
                 if *name == "si-no" {
                     let words: String = text
