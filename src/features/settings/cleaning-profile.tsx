@@ -48,7 +48,7 @@ const LAYOUTS = {
 
 /**
  * Filtra rumore e Sensibilità di un Profilo audio, che salvano subito. `layout`: in Impostazioni
- * uno sotto l'altro; nella barra della Registrazione su una riga; nel menu di Nuova registrazione
+ * uno sotto l'altro; nella barra della Registrazione su una riga; nel dialogo di Nuova registrazione
  * come righe con l'interruttore a destra e la Sensibilità a 13 px su tutta la larghezza, sotto la
  * sua etichetta tenue.
  */

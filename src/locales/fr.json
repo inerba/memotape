@@ -359,7 +359,7 @@
     },
     "level": "Niveau : {{input}}",
     "guadagno": "Gain : {{input}}",
-    "options": "Options d'enregistrement",
+    "description": "Choisissez la source de l'enregistrement et s'il faut transcrire pendant l'enregistrement.",
     "cleaningFailed": "Nettoyage du bruit interrompu pour {{input}}. Cet enregistrement continue en conservant l’audio de cette entrée sans nettoyage supplémentaire.",
     "cleaningBypass": "Nettoyage interrompu : votre choix reste enregistré, mais cette entrée continue sans nettoyage jusqu’à l’arrêt. La sensibilité conserve la valeur choisie.",
     "cleaningScope": "Les changements concernent uniquement l’audio suivant ; en pause, ils s’appliquent à la reprise. Désactiver le nettoyage ne restaure pas l’audio précédent.",

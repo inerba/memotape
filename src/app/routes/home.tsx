@@ -81,7 +81,7 @@ import { useNoteRegistrazione } from "@/features/notes/use-note-registrazione";
 import { useUscitaProtetta } from "@/features/notes/use-uscita-protetta";
 import { Player, type PlayerState, usePlayer } from "@/features/player/player";
 import { PreparationPanel } from "@/features/recording/preparation-panel";
-import { RecordMenu } from "@/features/recording/record-menu";
+import { RecordDialog } from "@/features/recording/record-dialog";
 import {
   activitySummary,
   afterRecording,
@@ -218,8 +218,10 @@ export function HomePage() {
   // Trascrivi passa sempre dal dialog delle scelte; su un Tape con testo avvisa che si sostituisce.
   const [confirmTranscribe, setConfirmTranscribe] = useState(false);
   const [confirmDiarize, setConfirmDiarize] = useState(false);
+  // Anche Nuova registrazione passa sempre dal dialog delle scelte.
+  const [confirmRecord, setConfirmRecord] = useState(false);
   const diarizationInFlight = useRef(false);
-  const confirmationOpen = confirmTranscribe || confirmDiarize;
+  const confirmationOpen = confirmTranscribe || confirmDiarize || confirmRecord;
   // I file trascinati da Esplora file sopra la finestra.
   const [dragged, setDragged] = useState<string[] | null>(null);
   const { lastPath, remember, move: moveLastTape, forget } = useLastTape();
@@ -685,7 +687,12 @@ export function HomePage() {
     () => proteggi(() => setConfirmTranscribe(true)),
     [proteggi]
   );
-  const newRecording = useCallback(() => proteggi(record), [proteggi, record]);
+  // Ctrl+N vale anche durante un'Attività, quando i pulsanti sono disabilitati: lì non apre nulla.
+  const newRecording = useCallback(() => {
+    if (!busy) {
+      proteggi(() => setConfirmRecord(true));
+    }
+  }, [busy, proteggi]);
   let transcribeTarget: TranscribeTarget = { kind: "tape" };
   if (source && !isTape(source)) {
     transcribeTarget = { kind: "file", name: fileName(source) };
@@ -1198,13 +1205,6 @@ export function HomePage() {
           onShowAll={showAll}
           onToggle={barra.alterna}
           operations={tapeOperations}
-          record={
-            <RecordMenu
-              disabled={busy}
-              onError={failed}
-              onRecord={newRecording}
-            />
-          }
           selected={selected.tape}
           showingAll={selected.library}
           showingHome={selected.home}
@@ -1228,6 +1228,12 @@ export function HomePage() {
         onTranscribe={transcribe}
         open={confirmTranscribe}
         target={transcribeTarget}
+      />
+      <RecordDialog
+        onError={failed}
+        onOpenChange={setConfirmRecord}
+        onRecord={record}
+        open={confirmRecord}
       />
       <AlertDialog onOpenChange={closeDiarizationConfirm} open={confirmDiarize}>
         <AlertDialogContent>

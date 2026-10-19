@@ -360,7 +360,7 @@
     },
     "level": "Poziom: {{input}}",
     "guadagno": "Wzmocnienie: {{input}}",
-    "options": "Opcje nagrywania",
+    "description": "Wybierz, z czego nagrywać i czy transkrybować podczas nagrywania.",
     "cleaningFailed": "Oczyszczanie szumu przerwane dla {{input}}. To nagranie trwa dalej, zachowując audio tego wejścia bez dalszego oczyszczania.",
     "cleaningBypass": "Czyszczenie przerwane: wybór pozostaje zapisany, ale to wejście działa bez czyszczenia do zatrzymania. Czułość zachowuje wybraną wartość.",
     "cleaningScope": "Zmiany dotyczą tylko kolejnego dźwięku; podczas pauzy obowiązują od wznowienia. Wyłączenie czyszczenia nie przywraca wcześniejszego dźwięku.",

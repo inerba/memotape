@@ -359,7 +359,7 @@
     },
     "level": "Nivel: {{input}}",
     "guadagno": "Ganancia: {{input}}",
-    "options": "Opciones de grabación",
+    "description": "Elige desde dónde grabar y si transcribir mientras grabas.",
     "cleaningFailed": "Limpieza de ruido interrumpida para {{input}}. Esta grabación continúa conservando el audio de esta entrada sin limpieza adicional.",
     "cleaningBypass": "Limpieza interrumpida: tu elección sigue guardada, pero esta entrada continúa sin limpieza hasta Detener. La sensibilidad conserva el valor elegido.",
     "cleaningScope": "Los cambios solo afectan al audio posterior; en pausa, se aplican al reanudar. Desactivar la limpieza no recupera el audio anterior.",

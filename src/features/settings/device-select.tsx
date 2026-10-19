@@ -8,7 +8,7 @@ import { shortDeviceName } from "./devices";
 /**
  * Un microfono o un dispositivo di uscita: il predefinito di sistema (`null`) o uno dei rilevati.
  * Un dispositivo salvato ma non collegato resta scelto, come "Non collegato", in mattone.
- * `devices` è `null` finché l'elenco non arriva. `compact` (il menu di Nuova registrazione) mostra
+ * `devices` è `null` finché l'elenco non arriva. `compact` (il dialogo di Nuova registrazione) mostra
  * i nomi senza il tipo generico di Windows, con il nome intero nel tooltip.
  */
 export function DeviceSelect({

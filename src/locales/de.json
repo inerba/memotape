@@ -358,7 +358,7 @@
     },
     "level": "Pegel: {{input}}",
     "guadagno": "Verstärkung: {{input}}",
-    "options": "Aufnahmeoptionen",
+    "description": "Wähle, wovon aufgenommen wird und ob während der Aufnahme transkribiert wird.",
     "cleaningFailed": "Rauschbereinigung für {{input}} unterbrochen. Diese Aufnahme wird fortgesetzt und das Audio dieses Eingangs ohne weitere Bereinigung gespeichert.",
     "cleaningBypass": "Bereinigung unterbrochen: Die Auswahl bleibt gespeichert, dieser Eingang läuft aber bis zum Stopp ohne Bereinigung weiter. Die Empfindlichkeit behält den gewählten Wert.",
     "cleaningScope": "Änderungen gelten nur für nachfolgendes Audio; während einer Pause erst nach dem Fortsetzen. Ausschalten stellt früheres Audio nicht wieder her.",

@@ -358,7 +358,7 @@
     },
     "level": "Level: {{input}}",
     "guadagno": "{{input}} gain",
-    "options": "Recording options",
+    "description": "Choose what to record from and whether to transcribe while you record.",
     "cleaningFailed": "Noise cleaning stopped for {{input}}. This recording continues keeping this input’s audio without further cleaning.",
     "cleaningBypass": "Cleaning stopped: your choice remains saved, but this input continues without cleaning until Stop. Speech sensitivity keeps its selected value.",
     "cleaningScope": "Changes affect only subsequent audio; while paused, they apply on resume. Turning cleaning off does not restore earlier audio.",

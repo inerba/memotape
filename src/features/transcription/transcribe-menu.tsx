@@ -55,6 +55,31 @@ export function TranscribeOptions({
   onError: (error: AppError) => void;
 }) {
   const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-3">
+      <ModelLanguage onError={onError} />
+      <SettingSwitch
+        label={t("transcription.parlanti")}
+        name="parlantiFile"
+        note={t("transcription.parlantiNote", { count: 4 })}
+        onError={onError}
+      />
+    </div>
+  );
+}
+
+/**
+ * Modello e Lingua del parlato, gli stessi per Trascrivi e per la Trascrizione dal vivo.
+ * `disabled`: nel dialogo di Nuova registrazione, finché Trascrivi dal vivo è spenta.
+ */
+export function ModelLanguage({
+  disabled = false,
+  onError,
+}: {
+  disabled?: boolean;
+  onError: (error: AppError) => void;
+}) {
+  const { t } = useTranslation();
   const { save, settings } = useSettings();
   const models = useModels();
   const {
@@ -95,12 +120,13 @@ export function TranscribeOptions({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
       <div className="flex flex-col gap-1.5">
         <label className="text-muted-foreground text-xs" htmlFor={modelId}>
           {t("models.choose")}
         </label>
         <NativeSelect
+          disabled={disabled}
           id={modelId}
           onChange={chooseModel}
           value={settings.model}
@@ -117,6 +143,7 @@ export function TranscribeOptions({
           {t("speechLanguage.label")}
         </label>
         <NativeSelect
+          disabled={disabled}
           id={languageId}
           onChange={chooseLanguage}
           value={language}
@@ -136,13 +163,7 @@ export function TranscribeOptions({
           </p>
         ) : null}
       </div>
-      <SettingSwitch
-        label={t("transcription.parlanti")}
-        name="parlantiFile"
-        note={t("transcription.parlantiNote", { count: 4 })}
-        onError={onError}
-      />
-    </div>
+    </>
   );
 }
 

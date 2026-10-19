@@ -359,7 +359,7 @@
     },
     "level": "Livello: {{input}}",
     "guadagno": "Guadagno: {{input}}",
-    "options": "Opzioni di Registrazione",
+    "description": "Scegli da dove registrare e se trascrivere mentre registri.",
     "cleaningFailed": "Pulizia del rumore interrotta per {{input}}. Questa Registrazione continua conservando l’audio di questo Ingresso senza ulteriore pulizia.",
     "cleaningBypass": "Pulizia interrotta: la scelta resta salvata, ma questo Ingresso continua senza pulizia fino a Stop. La sensibilità mantiene il valore scelto.",
     "cleaningScope": "I cambi valgono solo per l’audio successivo; in Pausa, dalla ripresa. Spegnere la pulizia non recupera l’audio precedente.",

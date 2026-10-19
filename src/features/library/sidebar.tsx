@@ -95,7 +95,7 @@ export function SidebarToggle({
 }
 
 /**
- * La barra laterale: il marchio, Nuova registrazione (`record`) e Importa un file, la ricerca
+ * La barra laterale: il marchio, Nuova registrazione e Importa un file, la ricerca
  * (Ctrl+K), i Tape recenti di tutta la Libreria per giorno (o i risultati della ricerca), l'Attività
  * in corso (solo se c'è) e in fondo la Libreria completa e Impostazioni. Chiusa (`aperta` falso) è
  * una striscia di icone; Ctrl+B la apre e la chiude.
@@ -116,7 +116,6 @@ export function Sidebar({
   onShowAll,
   onToggle,
   operations,
-  record,
   selected,
   showingAll,
   showingHome,
@@ -136,13 +135,12 @@ export function Sidebar({
   onHome: () => void;
   /** Un Tape della barra laterale o dei risultati, con la Frase trovata su cui aprirlo. */
   onOpen: (path: string, phrase?: Trovato) => void;
-  /** Nuova registrazione: il pulsante di `record`, l'icona della striscia e Ctrl+N. */
+  /** Nuova registrazione: il pulsante, l'icona della striscia e Ctrl+N. */
   onRecord: () => void;
   onShowAll: () => void;
   onToggle: () => void;
   /** Il menu e i tasti dei Recenti (non dei risultati della ricerca). */
   operations: TapeOperations;
-  record: ReactNode;
   /** Il Tape aperto. */
   selected: string | null;
   /** La Libreria completa è aperta. */
@@ -267,7 +265,16 @@ export function Sidebar({
         </button>
       </div>
       <div className="flex flex-col gap-1 px-3 pt-1">
-        {record}
+        <Button
+          aria-keyshortcuts={ariaTasti("nuovaRegistrazione")}
+          className="h-10 justify-start gap-2.5 pl-3.5 text-[0.9375rem]"
+          disabled={busy}
+          onClick={onRecord}
+          title={conTasti(t, t("sidebar.newRecording"), "nuovaRegistrazione")}
+        >
+          <Mic />
+          {t("sidebar.newRecording")}
+        </Button>
         <Button
           aria-keyshortcuts={ariaTasti("importa")}
           className="h-9 justify-start gap-2.5 px-3.5 font-normal text-sidebar-foreground/85"

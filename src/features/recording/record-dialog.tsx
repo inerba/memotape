@@ -1,9 +1,23 @@
-import { ChevronDown, Mic } from "lucide-react";
-import { type ChangeEvent, useCallback, useId, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { type AppError, type AudioDevice, commands } from "@/bindings";
-import { PopoverMenu } from "@/components/popover-menu";
-import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { MicFill, SpeakerFill } from "@/features/recording/ingresso-icons";
 import { CleaningProfile } from "@/features/settings/cleaning-profile";
@@ -18,7 +32,7 @@ import {
   withInput,
 } from "@/features/settings/settings";
 import { useSettings } from "@/features/settings/settings-context";
-import { ariaTasti, conTasti } from "@/features/shortcuts/shortcuts";
+import { ModelLanguage } from "@/features/transcription/transcribe-menu";
 
 /** Microfono e Audio di sistema: icona, profilo audio e scelta del dispositivo. */
 const INPUTS = {
@@ -41,88 +55,105 @@ interface Devices {
 }
 
 /**
- * Nuova registrazione ▾, l'azione principale della barra laterale. Il menu ha un riquadro per
- * Ingresso: nella testata l'interruttore "Registra da" e, se acceso, sotto con un solo rientro il
- * dispositivo, Filtra rumore, Sensibilità e Riconosci i parlanti (che vale solo dal vivo). In fondo,
- * separato, Trascrivi dal vivo con la sua spiegazione. I dispositivi si rileggono a ogni apertura.
+ * Le scelte prima di ogni Registrazione, da ogni Nuova registrazione (pulsante, striscia, Ctrl+N,
+ * Home). Un riquadro per Ingresso: nella testata l'interruttore "Registra da" e, se acceso, sotto con
+ * un solo rientro il dispositivo, Filtra rumore, Sensibilità e Riconosci i parlanti (che vale solo
+ * dal vivo). In fondo, separato, Trascrivi dal vivo con modello e Lingua del parlato, attivi solo
+ * con lei. Le scelte si salvano subito; Invio registra. I dispositivi si rileggono a ogni apertura.
  */
-export function RecordMenu({
-  disabled,
+export function RecordDialog({
   onError,
+  onOpenChange,
   onRecord,
+  open,
 }: {
-  disabled: boolean;
   onError: (error: AppError) => void;
+  onOpenChange: (open: boolean) => void;
   onRecord: () => void;
+  open: boolean;
 }) {
   const { t } = useTranslation();
+  const { settings } = useSettings();
+  const live = settings.trascrizioneDalVivo ?? false;
+  const start = useRef<HTMLButtonElement>(null);
   const [devices, setDevices] = useState<Devices>({ mic: null, system: null });
-  const loadDevices = useCallback(async () => {
-    const [mic, system] = await Promise.all([
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let current = true;
+    Promise.all([
       commands.listMicrophones(),
       commands.listOutputDevices(),
-    ]);
-    for (const result of [mic, system]) {
-      if (result.status === "error") {
-        onError(result.error);
+    ]).then(([mic, system]) => {
+      if (!current) {
+        return;
       }
-    }
-    setDevices({
-      mic: mic.status === "ok" ? mic.data : [],
-      system: system.status === "ok" ? system.data : [],
+      for (const result of [mic, system]) {
+        if (result.status === "error") {
+          onError(result.error);
+        }
+      }
+      setDevices({
+        mic: mic.status === "ok" ? mic.data : [],
+        system: system.status === "ok" ? system.data : [],
+      });
     });
-  }, [onError]);
+    return () => {
+      current = false;
+    };
+  }, [onError, open]);
+  const focusStart = useCallback((e: Event) => {
+    e.preventDefault();
+    start.current?.focus();
+  }, []);
   return (
-    <div className="flex">
-      <Button
-        aria-keyshortcuts={ariaTasti("nuovaRegistrazione")}
-        className="h-10 flex-1 justify-start gap-2.5 rounded-r-none pl-3.5 text-[0.9375rem]"
-        disabled={disabled}
-        onClick={onRecord}
-        title={conTasti(t, t("sidebar.newRecording"), "nuovaRegistrazione")}
-      >
-        <Mic />
-        {t("sidebar.newRecording")}
-      </Button>
-      <PopoverMenu
-        className="h-10 w-9 rounded-l-none border-primary-foreground/15 border-l"
-        disabled={disabled}
-        icon={<ChevronDown />}
-        id="record"
-        label={t("recording.options")}
-        onOpen={loadDevices}
-        panelClassName="w-[22rem]"
-        variant="default"
-      >
-        <div className="flex flex-col gap-2 p-0.5">
+    <AlertDialog onOpenChange={onOpenChange} open={open}>
+      <AlertDialogContent onOpenAutoFocus={focusStart}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("sidebar.newRecording")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("recording.description")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="flex flex-col gap-2">
           <InputGroup devices={devices.mic} input="mic" onError={onError} />
           <InputGroup
             devices={devices.system}
             input="system"
             onError={onError}
           />
-          <div className="flex flex-col gap-0.5 border-t px-2.5 pt-2 pb-1">
-            <div className="font-medium">
-              <SettingSwitch
-                end
-                inlineFeedback={false}
-                label={t("recording.live")}
-                name="trascrizioneDalVivo"
-                onError={onError}
-              />
+          <div className="flex flex-col gap-3 border-t px-2.5 pt-3">
+            <div className="flex flex-col gap-0.5">
+              <div className="font-medium">
+                <SettingSwitch
+                  end
+                  inlineFeedback={false}
+                  label={t("recording.live")}
+                  name="trascrizioneDalVivo"
+                  onError={onError}
+                />
+              </div>
+              <p className="text-muted-foreground text-xs">
+                {t("recording.liveHint")}
+              </p>
             </div>
-            <p className="text-muted-foreground text-xs">
-              {t("recording.liveHint")}
-            </p>
+            <ModelLanguage disabled={!live} onError={onError} />
           </div>
         </div>
-      </PopoverMenu>
-    </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("transcription.cancel")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onRecord} ref={start}>
+            {t("recording.start")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
 /**
- * Il riquadro di un Ingresso nel menu: le sue opzioni si vedono solo se l'Ingresso è acceso; spento
+ * Il riquadro di un Ingresso nel dialogo: le sue opzioni si vedono solo se l'Ingresso è acceso; spento
  * resta la sola testata, che dice "Spento" senza sembrare disabilitata.
  */
 function InputGroup({
