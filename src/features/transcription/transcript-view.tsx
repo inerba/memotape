@@ -991,6 +991,8 @@ function TagliaTurno({
 /**
  * Il testo del turno: con `onEdit` l'editor continuo del Turno, altrimenti le Frasi e i Parziali
  * in lettura, un paragrafo per Frase. `indented`: la prima riga rientra del nome (Intervista).
+ * Il testo si seleziona anche in lettura (dal vivo, appena arriva), contro il `select-none` della
+ * finestra; nomi, tempi e pulsanti del turno restano fuori dalla selezione.
  */
 function TurnText({
   highlight,
@@ -1015,7 +1017,7 @@ function TurnText({
 }) {
   return (
     <div
-      className={`flex min-w-0 flex-col gap-2 text-[1.0625rem] leading-[1.7] ${
+      className={`flex min-w-0 select-text flex-col gap-2 text-[1.0625rem] leading-[1.7] ${
         uncertain ? "text-muted-foreground" : ""
       } ${indented ? "[&>:first-child]:[text-indent:var(--rientro,0px)]" : ""}`}
     >
