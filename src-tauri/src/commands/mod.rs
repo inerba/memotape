@@ -85,12 +85,21 @@ pub fn open_source(app: AppHandle, source: String) -> Result<(), AppError> {
     opened.map_err(|e| AppError::Internal(e.to_string()))
 }
 
-/// Cerca una versione più recente su GitHub. `None` se non c'è o non si può sapere (offline, rate
-/// limit): il controllo non dà mai errori.
+/// Cerca un Aggiornamento in `latest.json` dell'ultima release. `None` se non c'è o non si può
+/// sapere (offline, file assente): il controllo non dà mai errori.
 #[tauri::command]
 #[specta::specta]
 pub async fn check_update(app: AppHandle) -> Option<UpdateInfo> {
-    updates::check(&app.package_info().version.to_string()).await
+    updates::check(&app).await
+}
+
+/// Scarica e installa l'Aggiornamento: se riesce l'app si chiude e l'installer la riapre. Tiene
+/// occupato il posto dell'Attività, così nel frattempo non parte una Registrazione che si perderebbe.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_update(app: AppHandle, activity: State<'_, Activity>) -> Result<(), AppError> {
+    let _guard = activity.begin(None, || {})?;
+    updates::install(&app).await
 }
 
 /// Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro.

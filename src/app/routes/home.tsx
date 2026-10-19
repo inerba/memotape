@@ -1,7 +1,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { TFunction } from "i18next";
-import { Check, CircleAlert, CircleArrowDown, Copy, X } from "lucide-react";
+import { Check, CircleAlert, Copy, X } from "lucide-react";
 import {
   createContext,
   type ReactNode,
@@ -139,6 +139,7 @@ import {
   type TranscribeTarget,
 } from "@/features/transcription/transcribe-menu";
 import { TranscriptView } from "@/features/transcription/transcript-view";
+import { UpdateNotice } from "@/features/updates/update-notice";
 
 const COPIED_MS = 2000;
 /** Quanto resta l'avviso di un esito, o di un errore di un'operazione sulla Libreria. */
@@ -1210,7 +1211,12 @@ export function HomePage() {
           showingHome={selected.home}
           update={
             update ? (
-              <UpdateNotice onDismiss={dismissUpdate} update={update} />
+              <UpdateNotice
+                busy={busy}
+                onDismiss={dismissUpdate}
+                onProteggi={proteggi}
+                update={update}
+              />
             ) : null
           }
         />
@@ -1508,48 +1514,6 @@ function TopBar({
       </header>
       {banner}
     </>
-  );
-}
-
-/**
- * Un aggiornamento disponibile, in fondo alla barra laterale: resta finché non si chiude, ma non
- * riguarda la vista e non le sta sopra.
- */
-function UpdateNotice({
-  onDismiss,
-  update,
-}: {
-  onDismiss: () => void;
-  update: UpdateInfo;
-}) {
-  const { t } = useTranslation();
-  const download = useCallback(
-    () => commands.openUpdate(update.url),
-    [update.url]
-  );
-  return (
-    <div className="mx-3 mb-2 flex items-start gap-2 rounded-lg border border-input bg-card py-2 pr-2 pl-3 text-sm">
-      <CircleArrowDown className="mt-[3px] size-4 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 flex-1 leading-relaxed" role="status">
-        {t("status.updateAvailable", { version: update.version })}{" "}
-        <button
-          className="-my-0.5 inline-flex min-h-6 items-center whitespace-nowrap rounded-sm font-medium underline underline-offset-4 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          onClick={download}
-          type="button"
-        >
-          {t("status.updateDownload")}
-        </button>
-      </p>
-      <button
-        aria-label={t("app.dismiss")}
-        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        onClick={onDismiss}
-        title={t("app.dismiss")}
-        type="button"
-      >
-        <X className="size-4" />
-      </button>
-    </div>
   );
 }
 

@@ -20,14 +20,19 @@ export const commands = {
 	 */
 	openSource: (source: string) => typedError<null, AppError>(__TAURI_INVOKE("open_source", { source })),
 	/**
-	 *  Cerca una versione più recente su GitHub. `None` se non c'è o non si può sapere (offline, rate
-	 *  limit): il controllo non dà mai errori.
+	 *  Cerca un Aggiornamento in `latest.json` dell'ultima release. `None` se non c'è o non si può
+	 *  sapere (offline, file assente): il controllo non dà mai errori.
 	 */
 	checkUpdate: () => __TAURI_INVOKE<{
 	version: string,
-	/**  La pagina della release. */
+	/**  La pagina della release, per le Novità e per scaricare a mano. */
 	url: string,
 } | null>("check_update"),
+	/**
+	 *  Scarica e installa l'Aggiornamento: se riesce l'app si chiude e l'installer la riapre. Tiene
+	 *  occupato il posto dell'Attività, così nel frattempo non parte una Registrazione che si perderebbe.
+	 */
+	installUpdate: () => typedError<null, AppError>(__TAURI_INVOKE("install_update")),
 	/**  Apre la pagina di una release nel browser. Solo pagine del repo: il frontend non apre altro. */
 	openUpdate: (url: string) => typedError<null, AppError>(__TAURI_INVOKE("open_update", { url })),
 	/**
@@ -249,6 +254,7 @@ export const events = {
 	transcriptPartial: makeEvent<TranscriptPartial>("transcript-partial"),
 	transcriptPhrase: makeEvent<TranscriptPhrase_Deserialize>("transcript-phrase"),
 	transcriptionProgress: makeEvent<TranscriptionProgress>("transcription-progress"),
+	updateProgress: makeEvent<UpdateProgress>("update-progress"),
 };
 
 /* Types */
@@ -260,6 +266,8 @@ export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaning
 { code: "diarizerMissing"; detail: string } | 
 /**  Il modello si sta caricando o lo usa una Trascrizione: non si elimina. */
 { code: "modelInUse"; detail: string } | { code: "downloadFailed"; detail: string } | 
+/**  Download, verifica della firma o avvio dell'installer dell'Aggiornamento non riusciti. */
+{ code: "updateFailed"; detail: string } | 
 /**  Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo. */
 { code: "verificationFailed"; detail: string } | 
 /**  Il dispositivo si è scollegato durante la Registrazione, che si è salvata: porta il nome. */
@@ -901,8 +909,13 @@ export type Tratto = {
 /**  Una versione più recente di quella in esecuzione. */
 export type UpdateInfo = {
 	version: string,
-	/**  La pagina della release. */
+	/**  La pagina della release, per le Novità e per scaricare a mano. */
 	url: string,
+};
+
+/**  Avanzamento del download dell'Aggiornamento, al massimo 10 volte al secondo. */
+export type UpdateProgress = {
+	percent: number,
 };
 
 /**  La resa della trascrizione: cambia solo come si legge chi parla e quando, non i turni. */

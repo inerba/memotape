@@ -57,7 +57,7 @@ src-tauri/src/
   player.rs              il protocollo `tape` del player (il `mix.ogg` di un Tape con le richieste `Range`) e la Forma d'onda
   mcp.rs                 il server MCP degli Assistenti (`memotape.exe --mcp`, ADR-0012): stdio; legge la Libreria
                          e, con il permesso, modifica i Tape (ADR-0031), mai l'indice
-  updates.rs             il controllo aggiornamenti: l'ultima release di GitHub contro la versione in esecuzione
+  updates.rs             l'Aggiornamento (ADR-0036): `tauri-plugin-updater`, `latest.json` dell'ultima release, installer firmato
 docs/brand/              il logo: SVG, PNG e `LINEE-GUIDA.md`; `genera.py` li rigenera, con `src-tauri/icons/`
 src-tauri/vendor/rnnoise/ sorgenti C di RNNoise 0.2 (xiph), compilati da `build.rs`; provenienza in `PROVENIENZA.md`
 src-tauri/resources/     risorse del bundle (`silero-vad-v6.2-F32.gguf`, i pesi della pulizia in `models/`, `licenses/` con i testi delle licenze)

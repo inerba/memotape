@@ -46,5 +46,16 @@
         "dragDropEnabled": true
       }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM5OTYwRDAyNDk0MUIyRjkKUldUNXNrRkpBZzJXeVdhQVQ2K0FPRzBuZVVMaDRKalNza29aUzduQmpLL2RKYjh5Um5vSG1rbTAK",
+      "endpoints": [
+        "https://github.com/inerba/memotape/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

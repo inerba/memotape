@@ -1,122 +1,113 @@
-//! Controllo aggiornamenti (ticket 11): l'ultima release di GitHub contro la versione in esecuzione.
-//! Senza Tauri. Ogni errore (rete, rate limit, JSON) vale "nessun aggiornamento".
+//! L'Aggiornamento (ADR-0036): `tauri-plugin-updater` legge `latest.json` dall'ultima release di
+//! GitHub, scarica l'installer, ne verifica la firma e lo avvia. Il controllo non dà mai errori:
+//! offline, `latest.json` assente o illeggibile valgono "nessun Aggiornamento".
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use semver::Version;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use specta::Type;
+use tauri::AppHandle;
+use tauri_plugin_updater::UpdaterExt;
+use tauri_specta::Event;
 
-const LATEST_URL: &str = "https://api.github.com/repos/inerba/memotape/releases/latest";
+use crate::error::AppError;
+
 /// Le pagine che `open_update` accetta di aprire.
 pub const RELEASES_PREFIX: &str = "https://github.com/inerba/memotape/";
+const CHECK_TIMEOUT: Duration = Duration::from_secs(10);
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Una versione più recente di quella in esecuzione.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
 pub struct UpdateInfo {
     pub version: String,
-    /// La pagina della release.
+    /// La pagina della release, per le Novità e per scaricare a mano.
     pub url: String,
 }
 
-#[derive(Deserialize)]
-struct Release {
-    tag_name: String,
-    html_url: String,
-    #[serde(default)]
-    prerelease: bool,
-    #[serde(default)]
-    draft: bool,
+/// Avanzamento del download dell'Aggiornamento, al massimo 10 volte al secondo.
+#[derive(Debug, Clone, Serialize, Type, tauri_specta::Event)]
+pub struct UpdateProgress {
+    pub percent: u8,
 }
 
-/// La versione di `tag` (con o senza `v`) se è una release stabile più recente di `current`.
-fn newer(current: &str, tag: &str) -> Option<Version> {
-    let candidate = Version::parse(tag.strip_prefix('v').unwrap_or(tag)).ok()?;
-    let current = Version::parse(current).ok()?;
-    (candidate.pre.is_empty() && candidate.cmp_precedence(&current).is_gt()).then_some(candidate)
+fn release_page(version: &str) -> String {
+    format!("{RELEASES_PREFIX}releases/tag/v{version}")
 }
 
-fn parse(json: &str, current: &str) -> Option<UpdateInfo> {
-    let release: Release = serde_json::from_str(json).ok()?;
-    if release.prerelease || release.draft || !release.html_url.starts_with(RELEASES_PREFIX) {
-        return None;
+/// La percentuale di `received` su `total`; 0 se la dimensione non è nota.
+fn percent(received: u64, total: Option<u64>) -> u8 {
+    match total {
+        Some(total) if total > 0 => (received.min(total) * 100 / total) as u8,
+        _ => 0,
     }
+}
+
+/// L'Aggiornamento disponibile, o `None` se non c'è o non si può sapere.
+pub async fn check(app: &AppHandle) -> Option<UpdateInfo> {
+    let updater = app.updater_builder().timeout(CHECK_TIMEOUT).build().ok()?;
+    let update = match updater.check().await {
+        Ok(update) => update?,
+        Err(e) => {
+            log::info!("controllo aggiornamenti: {e}");
+            return None;
+        }
+    };
     Some(UpdateInfo {
-        version: newer(current, &release.tag_name)?.to_string(),
-        url: release.html_url,
+        url: release_page(&update.version),
+        version: update.version,
     })
 }
 
-/// Chiede a GitHub l'ultima release; `None` se non ce n'è una più nuova o non si può sapere.
-pub async fn check(current: &str) -> Option<UpdateInfo> {
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("memotape/", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(10))
-        .build()
-        .ok()?;
-    let response = client
-        .get(LATEST_URL)
-        .header("Accept", "application/vnd.github+json")
-        .send()
+/// Scarica l'Aggiornamento con l'avanzamento in `UpdateProgress`, ne verifica la firma e avvia
+/// l'installer: su Windows il plugin chiude l'app, e l'installer la riapre aggiornata.
+pub async fn install(app: &AppHandle) -> Result<(), AppError> {
+    let failed = |e: tauri_plugin_updater::Error| AppError::UpdateFailed(e.to_string());
+    // Senza il timeout del controllo: su una connessione lenta l'installer ci mette di più.
+    let update = app
+        .updater()
+        .map_err(failed)?
+        .check()
         .await
-        .ok()?
-        .error_for_status()
-        .ok()?;
-    parse(&response.text().await.ok()?, current)
+        .map_err(failed)?
+        .ok_or_else(|| AppError::UpdateFailed("nessun aggiornamento disponibile".into()))?;
+    let mut received = 0;
+    let mut reported: Option<(u8, Instant)> = None;
+    let bytes = update
+        .download(
+            |chunk, total| {
+                received += chunk as u64;
+                let now = percent(received, total);
+                if reported.is_none_or(|(p, at)| p != now && at.elapsed() >= PROGRESS_INTERVAL) {
+                    let _ = UpdateProgress { percent: now }.emit(app);
+                    reported = Some((now, Instant::now()));
+                }
+            },
+            || {},
+        )
+        .await
+        .map_err(failed)?;
+    update.install(bytes).map_err(failed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn release(tag: &str, extra: &str) -> String {
-        format!(r#"{{"tag_name":"{tag}","html_url":"{RELEASES_PREFIX}releases/tag/{tag}"{extra}}}"#)
-    }
-
     #[test]
-    fn il_prefisso_v_si_toglie() {
-        assert_eq!(newer("0.1.0", "v0.2.0"), Version::parse("0.2.0").ok());
-        assert_eq!(newer("0.1.0", "0.2.0"), Version::parse("0.2.0").ok());
-    }
-
-    #[test]
-    fn versione_uguale_o_vecchia_non_e_un_aggiornamento() {
-        assert_eq!(newer("0.2.0", "v0.2.0"), None);
-        assert_eq!(newer("0.2.0", "v0.1.9"), None);
-    }
-
-    #[test]
-    fn le_prerelease_si_ignorano() {
-        assert_eq!(newer("0.1.0", "v0.2.0-beta.1"), None);
+    fn la_pagina_della_release_ha_il_tag_con_la_v() {
         assert_eq!(
-            parse(&release("v0.2.0", r#","prerelease":true"#), "0.1.0"),
-            None
+            release_page("0.6.1"),
+            "https://github.com/inerba/memotape/releases/tag/v0.6.1"
         );
-        assert_eq!(parse(&release("v0.2.0", r#","draft":true"#), "0.1.0"), None);
+        assert!(release_page("0.6.1").starts_with(RELEASES_PREFIX));
     }
 
     #[test]
-    fn dalla_prerelease_alla_stabile_si_aggiorna() {
-        assert!(newer("0.2.0-beta.1", "v0.2.0").is_some());
-    }
-
-    #[test]
-    fn una_release_piu_nuova_porta_versione_e_link() {
-        let info = parse(&release("v0.2.0", ""), "0.1.0").unwrap();
-        assert_eq!(info.version, "0.2.0");
-        assert_eq!(info.url, format!("{RELEASES_PREFIX}releases/tag/v0.2.0"));
-    }
-
-    #[test]
-    fn risposte_inutilizzabili_sono_silenziose() {
-        assert_eq!(parse("not json", "0.1.0"), None);
-        assert_eq!(parse(r#"{"message":"rate limit exceeded"}"#, "0.1.0"), None);
-        assert_eq!(parse(&release("latest", ""), "0.1.0"), None);
-    }
-
-    #[test]
-    fn il_link_deve_stare_nel_repo() {
-        let json = r#"{"tag_name":"v9.0.0","html_url":"https://evil.example/x"}"#;
-        assert_eq!(parse(json, "0.1.0"), None);
+    fn la_percentuale_non_supera_cento_e_senza_dimensione_e_zero() {
+        assert_eq!(percent(50, Some(200)), 25);
+        assert_eq!(percent(300, Some(200)), 100);
+        assert_eq!(percent(50, None), 0);
+        assert_eq!(percent(50, Some(0)), 0);
     }
 }

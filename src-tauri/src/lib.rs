@@ -35,6 +35,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::pick_source,
             commands::open_source,
             commands::check_update,
+            commands::install_update,
             commands::open_update,
             commands::open_link,
             commands::transcribe,
@@ -99,6 +100,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             managers::recording::RecordingCleaningFailed,
             managers::recording::RecordingPhaseChanged,
             managers::library::LibraryChanged,
+            updates::UpdateProgress,
         ])
 }
 
@@ -125,6 +127,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(managers::activity::Activity::default())
         .manage(managers::recording::Recorder::default())
         .manage(managers::transcription::LastTranscript::default())

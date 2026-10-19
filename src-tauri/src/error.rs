@@ -30,6 +30,9 @@ pub enum AppError {
     ModelInUse(String),
     #[error("download fallito: {0}")]
     DownloadFailed(String),
+    /// Download, verifica della firma o avvio dell'installer dell'Aggiornamento non riusciti.
+    #[error("aggiornamento non riuscito: {0}")]
+    UpdateFailed(String),
     /// Dimensione o SHA-256 del modello scaricato non corrispondono al catalogo.
     #[error("verifica fallita: {0}")]
     VerificationFailed(String),

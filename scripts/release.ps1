@@ -67,21 +67,58 @@ try {
         }
         Invoke-Checked 'cargo' @('test', '--locked', '--manifest-path', 'src-tauri/Cargo.toml')
     }
-    $installer = Join-Path $repo "src-tauri/target/release/bundle/nsis/Memotape_${Version}_x64-setup.exe"
+    $bundle = Join-Path $repo 'src-tauri/target/release/bundle/nsis'
+    $name = "Memotape_${Version}_x64-setup.exe"
+    $installer = Join-Path $bundle $name
+    $signature = "$installer.sig"
+    $latest = Join-Path $bundle 'latest.json'
+    $notes = Join-Path $repo ".scratch/release-$Version.md"
+    # L'Aggiornamento (ADR-0036): l'installer si firma con la chiave degli aggiornamenti.
+    $key = Join-Path $env:USERPROFILE '.tauri/memotape.key'
+    if (-not (Test-Path -LiteralPath $key)) { throw "Chiave degli aggiornamenti assente: $key" }
+    $password = Read-Host 'Password della chiave degli aggiornamenti' -AsSecureString
+    $env:TAURI_SIGNING_PRIVATE_KEY = $key
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = [Net.NetworkCredential]::new('', $password).Password
+    # Solo qui gli artefatti dell'Aggiornamento: un `bun tauri build` qualunque non chiede la chiave.
+    $updaterConfig = Join-Path $env:TEMP 'memotape-updater-artifacts.json'
+    [IO.File]::WriteAllText($updaterConfig, '{"bundle":{"createUpdaterArtifacts":true}}', [Text.UTF8Encoding]::new($false))
     $buildStarted = [DateTime]::UtcNow
-    Invoke-Checked 'bun' @('tauri', 'build', '--bundles', 'nsis')
-    if (-not (Test-Path -LiteralPath $installer)) { throw "Installer assente: $installer" }
-    $file = Get-Item -LiteralPath $installer
-    if ($file.LastWriteTimeUtc -lt $buildStarted -or $file.Length -eq 0) {
-        throw "La build non ha prodotto un nuovo installer: $installer"
+    try {
+        Invoke-Checked 'bun' @('tauri', 'build', '--bundles', 'nsis', '--config', $updaterConfig)
+    } finally {
+        Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY, Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $updaterConfig -ErrorAction SilentlyContinue
     }
+    foreach ($path in @($installer, $signature)) {
+        if (-not (Test-Path -LiteralPath $path)) { throw "File assente: $path" }
+        $file = Get-Item -LiteralPath $path
+        if ($file.LastWriteTimeUtc -lt $buildStarted -or $file.Length -eq 0) {
+            throw "La build non ha prodotto un nuovo file: $path"
+        }
+    }
+    # Il manifest che le app leggono da releases/latest/download/latest.json.
+    $manifest = [ordered]@{
+        version   = $Version
+        pub_date  = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+        platforms = [ordered]@{
+            'windows-x86_64' = [ordered]@{
+                signature = [IO.File]::ReadAllText($signature).Trim()
+                url       = "https://github.com/inerba/memotape/releases/download/$tag/$name"
+            }
+        }
+    }
+    [IO.File]::WriteAllText($latest, ($manifest | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
     Write-Host "`nInstaller pronto: $installer"
     Write-Host "SHA256: $((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash)"
+    Write-Host "Firma: $signature"
+    Write-Host "Manifest: $latest"
+    if (-not (Test-Path -LiteralPath $notes)) { Write-Warning "Note di rilascio assenti: $notes" }
     Write-Host "`nDopo aver revisionato e committato le modifiche di versione:"
     Write-Host "git tag -a $tag -m 'Memotape $Version'"
     Write-Host 'git push origin HEAD'
     Write-Host "git push origin $tag"
-    Write-Host "gh release create $tag `"$installer`" --verify-tag --title `"Memotape $Version`" --generate-notes"
+    Write-Host "gh release create $tag `"$installer`" `"$signature`" `"$latest`" --verify-tag --draft --title `"Memotape $Version`" --notes-file `"$notes`""
+    Write-Host 'Le app vedono la versione quando pubblichi la bozza.'
 } finally {
     Pop-Location
 }
