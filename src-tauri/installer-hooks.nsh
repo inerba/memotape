@@ -2,7 +2,7 @@
 
 ; Installando sopra una versione precedente, l'installer sovrascrive i file ma non toglie quelli
 ; che la versione nuova non distribuisce più. Qui si cancellano per nome, mai cartelle intere:
-; dopo la 0.5.3 ONNX Runtime, Silero v4 e DeepFilterNet3 non ci sono più.
+; dopo la 0.5.2 ONNX Runtime, Silero v4 e DeepFilterNet3 non ci sono più.
 !macro NSIS_HOOK_PREINSTALL
   Delete "$INSTDIR\onnxruntime.dll"
   Delete "$INSTDIR\resources\silero_vad.onnx"
