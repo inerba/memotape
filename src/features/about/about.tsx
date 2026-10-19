@@ -10,7 +10,7 @@ const REPO_URL = "https://github.com/inerba/memotape/";
 const openRepo = () => commands.openUpdate(REPO_URL);
 
 // I testi sono le stesse risorse che l'installer mette accanto all'app; Vite li carica solo quando
-// si apre un testo (gli avvisi di ONNX Runtime sono oltre 300 KB).
+// si apre un testo.
 const LICENSE_TEXTS = import.meta.glob<string>(
   "../../../src-tauri/resources/licenses/*.txt",
   { import: "default", query: "?raw" }

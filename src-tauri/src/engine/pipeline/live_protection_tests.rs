@@ -56,10 +56,12 @@ fn protezione_live_resta_attiva_sul_bypass_del_solo_ingresso_guasto() {
     )
     .unwrap()
     .with_tracks();
-    let noise: Vec<_> = (0..480)
+    let noise: Vec<_> = (0..FRAME_SAMPLES)
         .map(|i| if i % 2 == 0 { 0.1 } else { -0.1 })
         .collect();
-    let weak: Vec<_> = (0..480).map(|i| (i as f32 * 0.1).sin() * 0.00001).collect();
+    let weak: Vec<_> = (0..FRAME_SAMPLES)
+        .map(|i| (i as f32 * 0.1).sin() * 0.00001)
+        .collect();
     let mut mix = Vec::new();
     let mut saved = [Vec::new(), Vec::new()];
     for i in 0..4 {
@@ -145,9 +147,11 @@ impl VoiceDetector for Detector {
 fn protezione_live_ammissione_irrevocabile_e_parziale_prima_di_fine_parlato() {
     let timeline = ProtectionTimeline::default();
     timeline.record(0, Sensibilita::Bilanciato);
-    timeline.record(10 * 480, Sensibilita::Selettivo);
-    let weak: Vec<_> = (0..480).map(|i| (i as f32 * 0.1).sin() * 0.00001).collect();
-    let noise: Vec<_> = (0..480)
+    timeline.record(10 * FRAME_SAMPLES as u64, Sensibilita::Selettivo);
+    let weak: Vec<_> = (0..FRAME_SAMPLES)
+        .map(|i| (i as f32 * 0.1).sin() * 0.00001)
+        .collect();
+    let noise: Vec<_> = (0..FRAME_SAMPLES)
         .map(|i| if i % 2 == 0 { 0.1 } else { -0.1 })
         .collect();
     let source: Vec<_> = (0..100)
@@ -183,8 +187,8 @@ fn protezione_live_ammissione_irrevocabile_e_parziale_prima_di_fine_parlato() {
         &timeline,
     )
     .unwrap();
-    assert_eq!(partials[0], (10, 300));
-    assert_eq!(phrases, [(0, 3000)]);
+    assert_eq!(partials[0], (10, 10 * FRAME_MS));
+    assert_eq!(phrases, [(0, 100 * FRAME_MS)]);
     assert_eq!(engine.pcm, source.concat());
 }
 
@@ -203,12 +207,14 @@ fn protezione_live_coda_arretrata_ingressi_pause_stop_e_sessioni_indipendenti() 
             rate: 16_000,
             channels: 1,
         },
-        timeline.capture(Box::new(DelayedScale::new(480)), move || {
+        timeline.capture(Box::new(DelayedScale::new(FRAME_SAMPLES)), move || {
             *read.lock().unwrap()
         }),
     )
     .unwrap();
-    let weak: Vec<_> = (0..480).map(|i| (i as f32 * 0.1).sin() * 0.00001).collect();
+    let weak: Vec<_> = (0..FRAME_SAMPLES)
+        .map(|i| (i as f32 * 0.1).sin() * 0.00001)
+        .collect();
     let mut saved: Vec<f32> = Vec::new();
     // Il PCM attende nel processore; nessun motore ha ancora consumato la coda.
     for _ in 0..4 {
@@ -266,9 +272,9 @@ fn protezione_live_coda_arretrata_ingressi_pause_stop_e_sessioni_indipendenti() 
         &system_timeline,
     )
     .unwrap();
-    assert_eq!(duration, 240);
-    assert_eq!(mic_phrases, [(0, 120)]);
-    assert_eq!(mic_engine.pcm, saved[..1920]);
+    assert_eq!(duration, 8 * FRAME_MS);
+    assert_eq!(mic_phrases, [(0, 4 * FRAME_MS)]);
+    assert_eq!(mic_engine.pcm, saved[..4 * FRAME_SAMPLES]);
     assert_eq!(
         saved,
         weak.repeat(8).iter().map(|s| s * 0.5).collect::<Vec<_>>()
@@ -282,11 +288,16 @@ fn protezione_live_coda_arretrata_ingressi_pause_stop_e_sessioni_indipendenti() 
 fn protezione_live_cambio_sull_ultimo_frame_del_taglio_massimo_conserva_tutta_la_frase() {
     let timeline = ProtectionTimeline::default();
     timeline.record(0, Sensibilita::Bilanciato);
-    timeline.record(599 * 480, Sensibilita::Spento);
+    // Il taglio a 18 s, in frame per eccesso come nel segmentatore.
+    let max_frames = Params::default().max_phrase_ms.div_ceil(FRAME_MS);
+    timeline.record(
+        u64::from(max_frames - 1) * FRAME_SAMPLES as u64,
+        Sensibilita::Spento,
+    );
     let frame: Vec<_> = (0..FRAME_SAMPLES)
         .map(|i| if i % 2 == 0 { 0.1 } else { -0.1 })
         .collect();
-    let mut frames = (0..600).map(|_| Ok(Feed::Frame(frame.clone())));
+    let mut frames = (0..max_frames).map(|_| Ok(Feed::Frame(frame.clone())));
     let mut engine = FakeEngine::default();
     let mut phrases = Vec::new();
     transcribe_protected(
@@ -306,8 +317,8 @@ fn protezione_live_cambio_sull_ultimo_frame_del_taglio_massimo_conserva_tutta_la
         &timeline,
     )
     .unwrap();
-    assert_eq!(phrases, [(0, 18_000)]);
-    assert_eq!(engine.pcm, frame.repeat(600));
+    assert_eq!(phrases, [(0, max_frames * FRAME_MS)]);
+    assert_eq!(engine.pcm, frame.repeat(max_frames as usize));
 }
 
 #[test]
@@ -338,7 +349,7 @@ fn protezione_live_scarto_prima_di_asr_e_parziali_senza_cambiare_durata() {
         &timeline,
     )
     .unwrap();
-    assert_eq!(duration, 2100);
+    assert_eq!(duration, 70 * FRAME_MS);
     assert!(engine.samples.is_empty());
     assert!(!events.iter().any(|e| matches!(
         e,

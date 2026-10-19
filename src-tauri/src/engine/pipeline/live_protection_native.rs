@@ -68,7 +68,8 @@ fn protezione_live_prefissi_corpus() {
         for (i, level) in LEVELS.into_iter().enumerate() {
             let timeline = ProtectionTimeline::default();
             timeline.record(0, level);
-            let mut detector = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+            let mut detector =
+                Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
             let mut engine = tests::FakeEngine::default();
             transcribe_protected(
                 &mut feeds.clone().into_iter().map(Ok),
@@ -160,7 +161,7 @@ fn protezione_live_corpus_tre_asr() {
                         }
                     });
                     let mut detector =
-                        Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+                        Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
                     let mut measured = MeasuredEngine {
                         engine: &mut engine,
                         starts: 0,

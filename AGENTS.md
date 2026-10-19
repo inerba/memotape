@@ -29,7 +29,7 @@ Commit con prefissi convenzionali (`feat:`, `fix:`, `docs:`, `chore:`, `test:`, 
 
 ## Prerequisiti
 
-Rust MSVC, Visual Studio 2022 con il workload C++, Bun 1.4, Node 22.22, CMake, Vulkan SDK, ONNX Runtime 1.24.2 fuori dal repo e un `.cargo/config.toml` locale alla root (ignorato da git, quindi assente nei worktree): leggi `docs/sviluppo/prerequisiti.md` prima di preparare una build, un worktree o gli smoke test con i modelli veri.
+Rust MSVC, Visual Studio 2022 con il workload C++, Bun 1.4, Node 22.22, CMake, Vulkan SDK e un `.cargo/config.toml` locale alla root (ignorato da git, quindi assente nei worktree): leggi `docs/sviluppo/prerequisiti.md` prima di preparare una build, un worktree o gli smoke test con i modelli veri.
 
 ## Struttura
 
@@ -60,8 +60,8 @@ src-tauri/src/
   updates.rs             il controllo aggiornamenti: l'ultima release di GitHub contro la versione in esecuzione
 docs/brand/              il logo: SVG, PNG e `LINEE-GUIDA.md`; `genera.py` li rigenera, con `src-tauri/icons/`
 src-tauri/vendor/rnnoise/ sorgenti C di RNNoise 0.2 (xiph), compilati da `build.rs`; provenienza in `PROVENIENZA.md`
-src-tauri/resources/     risorse del bundle (`silero_vad.onnx`, i pesi della pulizia in `models/`, `licenses/` con i testi delle licenze)
-src-tauri/runtime-libs/  DLL copiate da `build.rs` (ONNX Runtime, transcribe.cpp e backend ggml, runtime VC++) e messe
+src-tauri/resources/     risorse del bundle (`silero-vad-v6.2-F32.gguf`, i pesi della pulizia in `models/`, `licenses/` con i testi delle licenze)
+src-tauri/runtime-libs/  DLL copiate da `build.rs` (transcribe.cpp e backend ggml, runtime VC++) e messe
                          accanto all'exe dal bundle, e in dev in `target/debug` (ignorata da git)
 src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di Windows) e lo stesso parlato in
                          `parlato-it.mp4` (H.264 + AAC, 30 KB, fatto con `Windows.Media.Editing` di Media Foundation);

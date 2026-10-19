@@ -213,7 +213,7 @@ fn due_ingressi_nativi_release(protected: bool) {
             .zip(engines),
     ) {
         feeds.push(feed);
-        let mut detector = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+        let mut detector = Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
         workers.push(std::thread::spawn(move || {
             let mut phrases = Vec::new();
             let protection = frames.protection();

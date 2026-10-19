@@ -7,7 +7,7 @@
       }
     },
     "resources": {
-      "resources/silero_vad.onnx": "resources/silero_vad.onnx",
+      "resources/silero-vad-v6.2-F32.gguf": "resources/silero-vad-v6.2-F32.gguf",
       "resources/models/rnnoise-0b50c45.bin": "resources/models/rnnoise-0b50c45.bin",
       "resources/licenses/": "licenses/",
       "runtime-libs/": "."

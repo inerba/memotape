@@ -1,6 +1,6 @@
 [package]
 name = "memotape"
-version = "0.5.3"
+version = "0.6.0"
 description = "Trascrizione locale di audio e video"
 edition = "2024"
 
@@ -35,8 +35,6 @@ symphonia = { version = "0.6.1", default-features = false, features = ["isomp4",
 symphonia-adapter-libopus = "0.3.0"
 rubato = "5.0.1"
 audioadapter-buffers = "5.1"
-# Fork usato da Handy: Silero v4 su ort rc.12. Senza `helpers` (samplerate, ebur128).
-vad-rs = { git = "https://github.com/cjpais/vad-rs", rev = "2a412ed858695b9251f3f5a1a20d95b59fa7c498", default-features = false }
 # Il default è `metal`. `dynamic-backends`: CPU e Vulkan sono DLL scelte a runtime (moduli CPU per
 # livello di ISA), quindi il binario non dipende dalla CPU della macchina di build. Vale anche in dev.
 # Wrapper, sys e C++ dallo stesso tag: il Vocabolario nativo (`RunOptions::vocabulary`) e

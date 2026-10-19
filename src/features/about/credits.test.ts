@@ -28,11 +28,9 @@ test("Informazioni elenca le licenze della spec, prima i modelli CC BY 4.0", () 
     ["Whisper Large v3", "MIT", "Q5_K_M"],
     ["Sortformer 4spk v2.1", "NVIDIA Open Model License", "Q8_0"],
     ["RNNoise 0.2", "BSD-3-Clause", undefined],
-    ["Silero VAD v4", "MIT", undefined],
+    ["Silero VAD v6.2", "MIT", undefined],
     ["Symphonia", "MPL-2.0", undefined],
     ["transcribe.cpp", "MIT", undefined],
-    ["ONNX Runtime", "MIT", undefined],
-    ["vad-rs", "MIT", undefined],
     ["Inter", "OFL-1.1", undefined],
     ["Commissioner", "OFL-1.1", undefined],
   ]);

@@ -136,6 +136,8 @@
       "internal": "Internal error: {{detail}}",
       "audioCleaningMissing": "The RNNoise model bundled with the app is missing. Reinstall Memotape.",
       "audioCleaningIncompatible": "The bundled RNNoise model is incompatible: {{detail}}",
+      "vadModelMissing": "The Silero VAD model bundled with the app is missing. Reinstall Memotape.",
+      "vadModelIncompatible": "The bundled Silero VAD model is incompatible: {{detail}}",
       "audioCleaningFailed": "Audio cleaning stopped; no new result was saved: {{detail}}",
       "liveTranscriptionLagging": "Live transcription fell too far behind and was stopped. Audio is still being recorded; you can transcribe it after Stop.",
       "noRecycleBin": "The drive of {{detail}} has no Windows Recycle Bin",
@@ -387,8 +389,6 @@
       "vad": "Speech detection, which splits the audio into phrases",
       "decoder": "Decoding of audio and video files",
       "engine": "Runs the transcription models",
-      "onnx": "Runs Silero VAD",
-      "vadRs": "Bridge between Silero VAD and Rust",
       "diarization": "Speaker recognition",
       "font": "Interface typeface",
       "cleaning": "Local audio noise reduction"

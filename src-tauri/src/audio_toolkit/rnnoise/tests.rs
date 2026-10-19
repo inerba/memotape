@@ -167,7 +167,7 @@ fn la_voce_attenuata_di_30_db_resta_una_frase_per_silero() {
     let mut resampler = FrameResampler::new(16_000).unwrap();
     let mut frames = resampler.push(&output);
     frames.extend(resampler.finish());
-    let mut silero = Silero::new(&root().join("resources/silero_vad.onnx")).unwrap();
+    let mut silero = Silero::new(&root().join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
     let probabilities: Vec<_> = frames
         .iter()
         .map(|frame| silero.probability(frame).unwrap())

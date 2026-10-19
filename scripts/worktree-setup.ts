@@ -11,6 +11,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const RIGA_LOCALAPPDATA = /^\s*LOCALAPPDATA\s*=/;
+// ONNX Runtime non serve più (ADR-0035): le sue variabili non passano al worktree.
+const RIGA_ORT = /^\s*ORT_\w*\s*=/;
 const SEZIONE_BUILD = /\n\[build\][^[]*/;
 
 function git(...args: string[]): string {
@@ -25,7 +27,7 @@ function git(...args: string[]): string {
 export function configCondivisa(principale: string, target: string): string {
   const righe = principale
     .split("\n")
-    .filter((r) => !RIGA_LOCALAPPDATA.test(r));
+    .filter((r) => !(RIGA_LOCALAPPDATA.test(r) || RIGA_ORT.test(r)));
   const env = righe.findIndex((r) => r.trim() === "[env]");
   if (env === -1) {
     throw new Error("la config principale non ha la sezione [env]");

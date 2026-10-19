@@ -145,7 +145,7 @@ _Avoid_: layout, modalità di lettura, nastro (per il Tape)
 _Avoid_: placeholder, testo mancante
 
 **Frase di rumore**:
-Una Frase che Silero ha aperto ma il cui audio sta sotto −50 dBFS di RMS: non va al modello e non entra nella Trascrizione.
+Una Frase che Silero ha aperto ma il cui livello (l'RMS del quarto più forte dei suoi frame) sta sotto −50 dBFS: non va al modello e non entra nella Trascrizione.
 _Avoid_: silenzio, Frase vuota
 
 **Correzione manuale**:

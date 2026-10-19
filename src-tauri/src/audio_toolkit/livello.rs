@@ -1,18 +1,33 @@
 //! Il livello di una Frase prima del modello: se è rumore, e dove dividerla.
 
-/// Sotto questo RMS una Frase è rumore: sui Tape reali il Microfono muto stava tra −62 e −76 dBFS
-/// e il parlato più debole 23 dB sopra (docs/research/eco-e-loop-sui-tape-reali.md).
-/// ponytail: soglia fissa, non provata su voci molto deboli o lontane; diventa regolabile se serve.
+/// Sotto questo livello (`livello`) una Frase è rumore. Sui Tape reali delle misure
+/// (docs/research/eco-e-loop-sui-tape-reali.md) le Frasi del Microfono senza segnale restavano
+/// sotto −52,7 dBFS e quelle dell'Audio di sistema sopra −39,5; la voce a −30 dB del corpus della
+/// pulizia sta a −47,1 e −47,7 (ADR-0035).
+/// ponytail: soglia fissa con 2,3 dB di margine sulla voce e 2,7 sul rumore misurato; un tratto
+/// di 1 s del Microfono senza segnale, nel suo punto più forte, arriva a −49,1 e passerebbe.
+/// Diventa regolabile, o si affianca a un altro indizio, se capita.
 const SOGLIA_DBFS: f32 = -50.0;
 
 /// Se la Frase `pcm` è rumore, da non dare al modello: Whisper ci ricopiava il prompt, Cohere
 /// inventava frasi intere.
 pub fn rumore(pcm: &[f32]) -> bool {
-    rms(pcm) < 10f32.powf(SOGLIA_DBFS / 20.0)
+    livello(pcm) < 10f32.powf(SOGLIA_DBFS / 20.0)
+}
+
+/// L'RMS del quarto più forte dei frame: le pause di una Frase lunga non abbassano il livello della
+/// voce che contiene, e qualche frame forte nel rumore non basta ad alzarlo.
+fn livello(pcm: &[f32]) -> f32 {
+    let mut frames: Vec<f32> = pcm
+        .chunks(super::resample::FRAME_SAMPLES)
+        .map(rms)
+        .collect();
+    frames.sort_by(|a, b| b.total_cmp(a));
+    rms(&frames[..frames.len().div_ceil(4)])
 }
 
 /// Il campione in cui dividere una Frase che il modello non riesce a trascrivere intera: il centro
-/// del frame da 30 ms più silenzioso nella metà centrale, così nessun pezzo è solo prefill o coda.
+/// del frame più silenzioso nella metà centrale, così nessun pezzo è solo prefill o coda.
 pub fn punto_piu_silenzioso(pcm: &[f32]) -> usize {
     let frame = super::resample::FRAME_SAMPLES;
     let (da, a) = (pcm.len() / 4, pcm.len() * 3 / 4);
@@ -40,16 +55,39 @@ mod tests {
             .collect()
     }
 
+    /// Il picco di una sinusoide con RMS di `dbfs`: il picco è RMS per √2.
+    fn picco(dbfs: f32) -> f32 {
+        10f32.powf(dbfs / 20.0) * std::f32::consts::SQRT_2
+    }
+
     #[test]
     fn sotto_meno_50_dbfs_una_frase_e_rumore() {
-        // Una sinusoide di picco p ha RMS p/√2: −62 dBFS come il Microfono muto dei Tape reali,
-        // −25 dBFS come una voce normale, −47 dBFS appena sopra la soglia.
-        let rms = |dbfs: f32| 10f32.powf(dbfs / 20.0) * std::f32::consts::SQRT_2;
-        assert!(rumore(&tono(rms(-62.0), 1.0)));
+        // −62 dBFS come il Microfono senza segnale dei Tape reali, −25 dBFS come una voce normale,
+        // −47 dBFS appena sopra la soglia.
+        assert!(rumore(&tono(picco(-62.0), 1.0)));
         assert!(rumore(&vec![0.0; 16_000]));
         assert!(rumore(&[]));
-        assert!(!rumore(&tono(rms(-25.0), 1.0)));
-        assert!(!rumore(&tono(rms(-47.0), 1.0)));
+        assert!(!rumore(&tono(picco(-25.0), 1.0)));
+        assert!(!rumore(&tono(picco(-47.0), 1.0)));
+    }
+
+    #[test]
+    fn una_voce_debole_con_lunghe_pause_non_e_rumore() {
+        // 0,6 s di voce a −46 dBFS e 2,4 s di silenzio: sull'intera Frase −53 dBFS, ma la voce c'è
+        // (il campione a −30 dB del corpus della pulizia, unito in una Frase da Silero v6.2).
+        let mut pcm = tono(picco(-46.0), 0.6);
+        pcm.extend(vec![0.0; 38_400]);
+        assert!(!rumore(&pcm));
+    }
+
+    #[test]
+    fn il_microfono_senza_segnale_con_un_frame_forte_resta_rumore() {
+        // 2,2 s a −62 dBFS, come la Frase più forte del Microfono senza segnale dei Tape reali, con
+        // un frame a −42 come il più forte della traccia: il quarto più forte sta a −53,9 dBFS.
+        let frame = super::super::resample::FRAME_SAMPLES;
+        let mut pcm = tono(picco(-62.0), 2.2);
+        pcm.splice(frame * 30..frame * 31, tono(picco(-42.0), 0.032));
+        assert!(rumore(&pcm));
     }
 
     #[test]

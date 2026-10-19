@@ -136,6 +136,8 @@
       "internal": "Error interno: {{detail}}",
       "audioCleaningMissing": "Falta el modelo RNNoise incluido con la aplicación. Reinstala Memotape.",
       "audioCleaningIncompatible": "El modelo RNNoise incluido es incompatible: {{detail}}",
+      "vadModelMissing": "Falta el modelo Silero VAD incluido con la aplicación. Reinstala Memotape.",
+      "vadModelIncompatible": "El modelo Silero VAD incluido es incompatible: {{detail}}",
       "audioCleaningFailed": "La limpieza de audio se ha detenido; no se ha guardado ningún resultado nuevo: {{detail}}",
       "liveTranscriptionLagging": "La transcripción en vivo se ha retrasado demasiado y se ha detenido. El audio sigue grabándose; podrás transcribirlo después de Detener.",
       "noRecycleBin": "El disco de {{detail}} no tiene Papelera de reciclaje de Windows",
@@ -388,8 +390,6 @@
       "vad": "Detección de voz, que divide el audio en frases",
       "decoder": "Decodificación de archivos de audio y vídeo",
       "engine": "Ejecución de los modelos de transcripción",
-      "onnx": "Ejecución de Silero VAD",
-      "vadRs": "Enlace entre Silero VAD y Rust",
       "diarization": "Reconocimiento de hablantes",
       "font": "Tipografía de la interfaz",
       "cleaning": "Reducción local del ruido de audio"

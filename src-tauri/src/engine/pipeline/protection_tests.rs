@@ -45,13 +45,20 @@ impl VoiceDetector for Probability {
 fn protezione_preserva_parole_deboli_scartando_rumore_senza_tagliare_pcm() {
     let noise = vec![
         Feed::Frame(
-            (0..480)
+            (0..FRAME_SAMPLES)
                 .map(|i| if i % 2 == 0 { 0.08 } else { -0.08 })
                 .collect()
         );
         12
     ];
-    let weak = vec![Feed::Frame((0..480).map(|i| (i as f32 * 0.1).sin() * 0.00001).collect()); 2];
+    let weak = vec![
+        Feed::Frame(
+            (0..FRAME_SAMPLES)
+                .map(|i| (i as f32 * 0.1).sin() * 0.00001)
+                .collect()
+        );
+        2
+    ];
     for level in [
         Sensibilita::Spento,
         Sensibilita::Sensibile,
@@ -70,7 +77,7 @@ fn protezione_preserva_parole_deboli_scartando_rumore_senza_tagliare_pcm() {
         );
         assert_eq!(
             cuts(
-                vec![Feed::Frame(vec![0.0; 480]); 20],
+                vec![Feed::Frame(vec![0.0; FRAME_SAMPLES]); 20],
                 &mut Probability(0.7),
                 &timeline
             )
@@ -100,16 +107,19 @@ fn protezione_preserva_parole_deboli_scartando_rumore_senza_tagliare_pcm() {
     )
     .unwrap();
     assert!(engine.samples.is_empty());
-    assert_eq!(duration, 8970);
-    assert_eq!(pcm.len(), 143520);
+    // La fixture in frame interi: 280.
+    assert_eq!(duration, 280 * FRAME_MS);
+    assert_eq!(pcm.len(), 280 * FRAME_SAMPLES);
 }
 
 #[test]
 fn cambio_sensibilita_non_revoca_parola_in_corso_ne_frasi_accodate() {
     let timeline = ProtectionTimeline::default();
     timeline.record(0, Sensibilita::Sensibile);
-    timeline.record(480 * 2, Sensibilita::Selettivo);
-    let frame: Vec<f32> = (0..480).map(|i| (i as f32 * 0.1).sin() * 0.00001).collect();
+    timeline.record(FRAME_SAMPLES as u64 * 2, Sensibilita::Selettivo);
+    let frame: Vec<f32> = (0..FRAME_SAMPLES)
+        .map(|i| (i as f32 * 0.1).sin() * 0.00001)
+        .collect();
     let selected = cuts(
         vec![Feed::Frame(frame); 10],
         &mut Probability(0.45),
@@ -117,7 +127,7 @@ fn cambio_sensibilita_non_revoca_parola_in_corso_ne_frasi_accodate() {
     );
     assert_eq!(selected.len(), 1);
     assert_eq!(selected[0].1.len(), 10);
-    timeline.record(480 * 10, Sensibilita::Spento);
+    timeline.record(FRAME_SAMPLES as u64 * 10, Sensibilita::Spento);
     let shared = Shared {
         progress: AtomicU8::new(0),
         stopped: AtomicBool::new(false),
@@ -140,15 +150,15 @@ fn cambio_sensibilita_non_revoca_parola_in_corso_ne_frasi_accodate() {
         &mut |e| events.push(e),
     )
     .unwrap();
-    assert_eq!(duration, 300);
-    assert_eq!(engine.samples, [4800]);
+    assert_eq!(duration, 10 * FRAME_MS);
+    assert_eq!(engine.samples, [10 * FRAME_SAMPLES]);
     assert!(matches!(
         &events[0],
         PipelineEvent::Phrase {
             inizio_ms: 0,
-            fine_ms: 300,
+            fine_ms,
             ..
-        }
+        } if *fine_ms == 10 * FRAME_MS
     ));
 }
 
@@ -158,7 +168,7 @@ fn revisione_catturata_sul_blocco_prima_del_ritardo_del_processore() {
     struct Delay(Vec<f32>);
     impl AudioProcessor for Delay {
         fn max_pending_frames(&self) -> usize {
-            480
+            FRAME_SAMPLES
         }
         fn process(&mut self, block: PcmBlock<'_>, out: &mut Vec<f32>) -> Result<(), AppError> {
             out.append(&mut self.0);
@@ -180,13 +190,22 @@ fn revisione_catturata_sul_blocco_prima_del_ritardo_del_processore() {
         timeline.capture(Box::new(Delay(Vec::new())), move || levels.next().unwrap()),
     )
     .unwrap();
-    assert!(stream.push(&[0.1; 480]).unwrap().samples.is_empty());
-    assert_eq!(stream.push(&[0.2; 480]).unwrap().samples, [0.1; 480]);
+    assert!(
+        stream
+            .push(&[0.1; FRAME_SAMPLES])
+            .unwrap()
+            .samples
+            .is_empty()
+    );
+    assert_eq!(
+        stream.push(&[0.2; FRAME_SAMPLES]).unwrap().samples,
+        [0.1; FRAME_SAMPLES]
+    );
     assert_eq!(timeline.level(0), Sensibilita::Sensibile);
-    assert_eq!(timeline.level(480), Sensibilita::Selettivo);
+    assert_eq!(timeline.level(FRAME_SAMPLES as u64), Sensibilita::Selettivo);
     assert_eq!(
         stream.boundary(Boundary::Finish).unwrap().samples,
-        [0.2; 480]
+        [0.2; FRAME_SAMPLES]
     );
 }
 
@@ -237,7 +256,8 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
             for level in levels {
                 let timeline = ProtectionTimeline::default();
                 timeline.record(0, level);
-                let mut detector = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+                let mut detector =
+                    Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
                 selections.push(cuts(frames.clone(), &mut detector, &timeline));
             }
             if ["voce-attenuata-30db", "si-no"].contains(&name) {
@@ -326,8 +346,10 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
         serde_json::to_vec_pretty(&report).unwrap(),
     )
     .unwrap();
-    assert!(
-        false_balanced < false_off,
+    // Con Silero v4 Spento dava 2 false Frasi sul rumore intermittente, con v6.2 nessuna: il
+    // criterio è che Bilanciato non ne tenga (ADR-0035).
+    assert_eq!(
+        false_balanced, 0,
         "false Frasi: spento={false_off}, bilanciato={false_balanced}"
     );
 }
@@ -346,7 +368,7 @@ fn misura_evidenza_corpus_protezione() {
         "si-no",
     ] {
         let source = corpus.join(format!("{name}.wav"));
-        let mut vad = Silero::new(&root.join("resources/silero_vad.onnx")).unwrap();
+        let mut vad = Silero::new(&root.join(crate::audio_toolkit::vad::SILERO_FILE)).unwrap();
         let mut segmenter = Segmenter::new(Params::default());
         let mut evidence = Vec::new();
         let mut starts = Vec::new();

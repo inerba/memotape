@@ -20,9 +20,7 @@ export interface Credit {
     | "engine"
     | "font"
     | "model"
-    | "onnx"
-    | "vad"
-    | "vadRs";
+    | "vad";
   url: string;
 }
 
@@ -149,9 +147,9 @@ export const CREDITS: Credit[] = [
     author: "Silero Team",
     file: "silero-vad.txt",
     license: "MIT",
-    name: "Silero VAD v4",
+    name: "Silero VAD v6.2",
     role: "vad",
-    url: "https://github.com/snakers4/silero-vad",
+    url: "https://huggingface.co/handy-computer/silero-vad-v6.2-gguf",
   },
   {
     author: "Philip Deljanov",
@@ -168,22 +166,6 @@ export const CREDITS: Credit[] = [
     name: "transcribe.cpp",
     role: "engine",
     url: "https://github.com/handy-computer/transcribe.cpp",
-  },
-  {
-    author: "Microsoft",
-    file: "onnxruntime.txt",
-    license: "MIT",
-    name: "ONNX Runtime",
-    notices: "onnxruntime-third-party-notices.txt",
-    role: "onnx",
-    url: "https://github.com/microsoft/onnxruntime",
-  },
-  {
-    file: "vad-rs.txt",
-    license: "MIT",
-    name: "vad-rs",
-    role: "vadRs",
-    url: "https://github.com/cjpais/vad-rs",
   },
   {
     author: "Rasmus Andersson",

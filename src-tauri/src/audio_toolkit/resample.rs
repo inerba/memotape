@@ -1,5 +1,5 @@
 //! Ricampionamento con rubato: `Resampler` da una frequenza all'altra (mono o stereo
-//! interleaved) e, per la Trascrizione, `FrameResampler` che produce frame da 30 ms a 16 kHz.
+//! interleaved) e, per la Trascrizione, `FrameResampler` che produce i frame del VAD a 16 kHz.
 
 use audioadapter_buffers::direct::InterleavedSlice;
 use rubato::{Fft, FixedSync, Indexing, Resampler as _};
@@ -7,8 +7,11 @@ use rubato::{Fft, FixedSync, Indexing, Resampler as _};
 use crate::error::AppError;
 
 pub const TARGET_RATE: usize = 16_000;
-/// 30 ms a 16 kHz, la dimensione che chiede Silero.
-pub const FRAME_SAMPLES: usize = 480;
+/// Il frame della pipeline: 32 ms a 16 kHz, la dimensione dei frame di Silero v6.2.
+pub const FRAME_SAMPLES: usize = 512;
+/// Durata di un frame della pipeline in millisecondi.
+pub const FRAME_MS: u32 = (FRAME_SAMPLES * 1000 / TARGET_RATE) as u32;
+const _: () = assert!((FRAME_SAMPLES * 1000).is_multiple_of(TARGET_RATE));
 const CHUNK: usize = 1024;
 
 /// Ricampiona audio interleaved a `channels` canali da `in_rate` a `out_rate`, senza il ritardo
@@ -174,7 +177,7 @@ impl Resampler {
     }
 }
 
-/// Audio mono a qualsiasi frequenza → frame da 30 ms a 16 kHz.
+/// Audio mono a qualsiasi frequenza → frame da `FRAME_SAMPLES` campioni a 16 kHz.
 pub struct FrameResampler {
     resampler: Resampler,
     output: Vec<f32>,
@@ -240,11 +243,11 @@ mod tests {
     }
 
     #[test]
-    fn un_secondo_a_qualsiasi_frequenza_diventa_16000_campioni_in_frame_da_480() {
+    fn un_secondo_a_qualsiasi_frequenza_diventa_16000_campioni_in_frame_interi() {
         for rate in [8_000, 16_000, 22_050, 44_100, 48_000] {
             let out = resample(rate, 1.0, 777);
-            // 16 000 campioni, completati a 34 frame.
-            assert_eq!(out.len(), 34 * FRAME_SAMPLES, "{rate} Hz");
+            // 16 000 campioni, completati a 32 frame.
+            assert_eq!(out.len(), 32 * FRAME_SAMPLES, "{rate} Hz");
             assert!(out[16_000..].iter().all(|&s| s == 0.0), "{rate} Hz");
         }
     }

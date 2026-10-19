@@ -252,7 +252,7 @@ export const events = {
 };
 
 /* Types */
-export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
+export type AppError = { code: "audioCleaningMissing" } | { code: "audioCleaningIncompatible"; detail: string } | { code: "audioCleaningFailed"; detail: string } | { code: "vadModelMissing" } | { code: "vadModelIncompatible"; detail: string } | { code: "unreadableFile"; detail: string } | { code: "unsupportedCodec"; detail: string } | { code: "unwritableFolder"; detail: string } | { code: "modelMissing"; detail: string } | 
 /**
  *  Riconosci i parlanti è attiva ma il modello di diarizzazione, di cui porta il nome, non è
  *  scaricato.
