@@ -30,7 +30,9 @@ Con un Memotape già installato e aperto sulla macchina (in `%LOCALAPPDATA%\Memo
 - nell'installer non ci sono `onnxruntime.dll` né `silero_vad.onnx`, c'è `resources\silero-vad-v6.2-F32.gguf`;
 - `memotape.exe` importa `transcribe.dll` e nessun `onnxruntime.dll`.
 
-Moduli caricati, Trascrizione e Registrazione dell'app installata non sono stati verificati: sulla macchina c'era l'app dell'utente aperta.
+Il 19 ottobre 2026 la verifica dal vivo è stata fatta con l'installazione sopra quella dell'utente, chiusa e con il suo consenso. Nessun `onnxruntime.dll` tra i moduli caricati; DLL di transcribe, ggml e VC++ dalla cartella d'installazione; fixture trascritta in 986 ms; Registrazione di 4 s salvata.
+
+Installando sopra una versione precedente, NSIS non toglie i file che non distribuisce più: `onnxruntime.dll`, `silero_vad.onnx` e le licenze di ONNX Runtime della 0.5.3 restavano nella cartella (non caricati). Li toglie l'hook di pre-installazione.
 
 Hook di pre-installazione, 2026-10-19: in `target/release/nsis/x64/installer.nsi` la macro sta in `Section Install`, dopo `SetOutPath $INSTDIR` e prima dei `File`. Senza toccare l'installazione dell'utente si prova con il `makensis.exe` scaricato da Tauri (`%LOCALAPPDATA%\tauri\NSIS`): uno script minimo che include `installer-hooks.nsh` e fa solo `SetOutPath` più `!insertmacro NSIS_HOOK_PREINSTALL`, lanciato con `/S` su una cartella di prova con i cinque file vecchi e qualche file attuale. I cinque spariscono, gli altri restano.
 
