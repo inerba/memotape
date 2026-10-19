@@ -54,7 +54,7 @@ Tutto in locale: l'audio non lascia il PC, niente account né chiavi, e dopo il 
 - Le funzioni sono le storie utente qui sotto; i termini sono quelli di `CONTEXT.md` (Sorgente, Attività, Frase, Parziale, Parlante, Tape…) e vanno usati uguali nell'interfaccia.
 - Sei lingue dell'interfaccia (it di riferimento, en, fr, es, de, pl): le etichette devono reggere i testi più lunghi di tedesco e polacco.
 - Tema chiaro o scuro da Windows, oppure scelto in Impostazioni; dialog di sistema nativi per file e cartelle.
-- La rete serve solo per scaricare i modelli e per il controllo aggiornamenti.
+- La rete serve solo per scaricare i modelli e per il controllo e il download degli Aggiornamenti.
 - Da decidere: editore dell'installer (oggi "EDITORE DA DEFINIRE"), firma dell'installer, licenza e modalità di distribuzione dell'app.
 
 ## Brand Commitments
@@ -332,7 +332,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
 
 64. Come utente, voglio una barra laterale sempre visibile (Nuova registrazione, Importa un file, ricerca, Attività, Recenti, Libreria, Impostazioni) e un pannello centrale che mostra il Tape aperto come un documento, la Registrazione in corso o la Libreria, così la finestra mostra solo ciò che serve.
 65. Come utente, voglio che la sezione Attività mostri sempre la fase in corso e la percentuale quando c'è, e che errori ed esiti compaiano in un avviso con messaggi dedicati, così so sempre cosa succede.
-66. Come utente, voglio che all'avvio, se c'è connessione, l'app controlli se esiste una versione più recente e mi proponga il link per scaricarla, così resto aggiornato.
+66. Come utente, voglio che all'avvio, se c'è connessione, l'app controlli se esiste una versione più recente e me la proponga con «Scarica e installa»: un clic la scarica, con l'avanzamento nell'avviso, e la installa, e l'app si riapre aggiornata (ADR-0036). Durante un'Attività il pulsante è disattivato; prima di installare le bozze delle Note si salvano o si sceglie cosa farne. Il link «Novità» apre la pagina della release; se il download o la verifica falliscono, l'avviso offre «Riprova» e il link per scaricare a mano.
 67. Come utente offline, voglio che il controllo aggiornamenti fallisca in silenzio, così non vedo errori inutili.
 68. Come utente, voglio che il tema chiaro o scuro segua quello di Windows, così l'app si integra con il sistema; in Impostazioni → Generale posso invece sceglierlo chiaro o scuro, e la scelta si applica subito.
 
@@ -633,7 +633,7 @@ Spec `.scratch/note/spec.md`, formato ed editor in ADR-0032, anteprime approvate
 - La Trascrizione di più file in coda (la Trascrizione durante la Registrazione è arrivata con la v2, ADR-0004).
 - Timestamp nel testo copiato o esportato, traduzione, prompt di contesto dei modelli, anche con i Termini del Vocabolario (ADR-0033), e Lingue del parlato oltre le sei dell'interfaccia.
 - Editor avanzato del testo, esportazioni diverse dal Markdown.
-- Installazione automatica degli aggiornamenti (`tauri-plugin-updater`) e firma del codice.
+- La firma del codice (Authenticode) dell'installer.
 - macOS, Linux, Windows ARM.
 - Assistenti che avviano Attività o spostano Tape e Raccolte, ricerca per significato, server MCP su HTTP e pacchetto `.mcpb` per Claude Desktop.
 - La scelta della GPU: `transcribe-cpp` usa Vulkan se disponibile, altrimenti la CPU.

@@ -181,3 +181,9 @@ _Avoid_: lingua, lingua della trascrizione
 **Lingua dell'interfaccia**:
 La lingua dei testi dell'app.
 _Avoid_: lingua, locale
+
+### Aggiornamenti
+
+**Aggiornamento**:
+La sostituzione di Memotape con una versione più recente pubblicata, scaricata e installata dall'app con un clic: l'app si chiude e si riapre aggiornata. Non è un'Attività e non parte mentre un'Attività è in corso.
+_Avoid_: update, upgrade, patch
