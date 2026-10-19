@@ -1,6 +1,6 @@
 # RNNoise 0.2 al posto di DeepFilterNet3
 
-Status: ready-for-agent
+Status: done
 
 Data: 18 ottobre 2026. Decisioni concordate in una sessione di grilling dopo l'inventario dell'installer 0.5.3 e la prova d'ascolto alla cieca in `.scratch/prova-denoiser/esito.md`. Procede in parallelo a `.scratch/alleggerire-installer/spec.md` (VAD e ONNX Runtime). Sostituisce la scelta del modello dell'ADR-0019; il percorso PCM condiviso (ADR-0018), la pulizia per Ingresso (ADR-0021) e il riuso dei tratti puliti (ADR-0022) restano.
 

@@ -3,7 +3,7 @@
 > Superato in parte da ADR-0029 (9 ottobre 2026): la Sensibilità non vale più in Trascrivi su
 > un Tape, che usa l'audio salvato così com'è. Per i file importati resta com'è descritta qui.
 >
-> Superato in parte da ADR-0034 (18 ottobre 2026): Silero v6.2 su transcribe-cpp, frame da 32 ms;
+> Superato in parte da ADR-0035 (18 ottobre 2026): Silero v6.2 su transcribe-cpp, frame da 32 ms;
 > la finestra delle osservazioni (qui 612 frame) si ricava dal segmentatore. Le soglie restano.
 
 Data: 6 ottobre 2026. Stato: adottata per l'implementazione locale del ticket 05;

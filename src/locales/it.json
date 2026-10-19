@@ -134,8 +134,8 @@
       "activityInProgress": "Un'altra Attività è in corso: aspetta che finisca o annullala",
       "cancelled": "Trascrizione annullata",
       "internal": "Errore interno: {{detail}}",
-      "audioCleaningMissing": "Il modello DeepFilterNet3 distribuito con l’app è assente. Reinstalla Memotape.",
-      "audioCleaningIncompatible": "Il modello DeepFilterNet3 distribuito con l’app è incompatibile: {{detail}}",
+      "audioCleaningMissing": "Il modello RNNoise distribuito con l’app è assente. Reinstalla Memotape.",
+      "audioCleaningIncompatible": "Il modello RNNoise distribuito con l’app è incompatibile: {{detail}}",
       "vadModelMissing": "Il modello Silero VAD distribuito con l’app è assente. Reinstalla Memotape.",
       "vadModelIncompatible": "Il modello Silero VAD distribuito con l’app è incompatibile: {{detail}}",
       "audioCleaningFailed": "Pulizia audio interrotta; nessun nuovo risultato è stato salvato: {{detail}}",
@@ -271,8 +271,8 @@
     "cleaning": {
       "profile": "File e audio misto",
       "enable": "Filtra rumore",
-      "description": "DeepFilterNet3 riduce il rumore dei file audio e video importati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
-      "recordingDescription": "DeepFilterNet3 riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. Il Tape conserva l’audio elaborato: spegnerla non recupera l’originale."
+      "description": "RNNoise riduce il rumore dei file audio e video importati. Il Tape conserva l’audio elaborato: spegnere la pulizia non recupera l’originale.",
+      "recordingDescription": "RNNoise riduce il rumore registrato, anche senza Trascrivi dal vivo. Vale dall’audio successivo; in Pausa, dalla ripresa. Il Tape conserva l’audio elaborato: spegnerla non recupera l’originale."
     },
     "protection": {
       "label": "Sensibilità",
@@ -366,11 +366,9 @@
     "preparation": {
       "saving": "Salvataggio impostazioni…",
       "preparing": "Preparazione registrazione…",
-      "cleaning": "Preparazione pulizia audio…",
       "devices": "Apertura dispositivi audio…"
     },
     "started": "Registrazione avviata, puoi parlare",
-    "cleaningPreparing": "Preparazione pulizia…",
     "mute": "Muto: {{input}}",
     "muteHint": "{{input}}: clic per il muto",
     "mutedHint": "{{input}} in muto: clic per togliere il muto",

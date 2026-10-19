@@ -17,8 +17,8 @@ use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
 use crate::audio_toolkit::decode::Decoder;
-use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::ogg_opus::OggCopy;
+use crate::audio_toolkit::rnnoise;
 use crate::audio_toolkit::vad::{SILERO_FILE, Silero, VoiceDetector};
 use crate::engine::live::LiveFrames;
 use crate::engine::pipeline::{self, PipelineEvent, transcribe_decoded};
@@ -365,10 +365,7 @@ pub async fn transcribe(
     let transcript = Mutex::new(begin_transcript(&app, title_of(&source), &settings));
     let cleaning_log = CleaningLog::default();
     let importing = tape.is_none();
-    let cleaning_path = app
-        .path()
-        .resolve(deepfilter::MODEL_FILE, BaseDirectory::Resource)
-        .map_err(|error| AppError::Internal(error.to_string()))?;
+    let cleaning_path = cleaning_path(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         // La Trascrizione di ogni Ingresso, con la Diarizzazione; `copy` riceve l'audio di un file.
         let run = |copy: Option<OggCopy>| {
@@ -1069,6 +1066,13 @@ fn tape_transcript(title: String, document: tape::Document) -> Transcript {
         parlanti: document.parlanti,
         diarizzazione: document.diarizzazione,
     }
+}
+
+/// I pesi di RNNoise tra le risorse, per la pulizia dei file e delle Registrazioni.
+pub(crate) fn cleaning_path(app: &AppHandle) -> Result<PathBuf, AppError> {
+    app.path()
+        .resolve(rnnoise::WEIGHTS_FILE, BaseDirectory::Resource)
+        .map_err(|e| AppError::Internal(e.to_string()))
 }
 
 fn silero_path(app: &AppHandle) -> Result<PathBuf, AppError> {

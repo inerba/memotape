@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const RIGA_LOCALAPPDATA = /^\s*LOCALAPPDATA\s*=/;
-// ONNX Runtime non serve più (ADR-0034): le sue variabili non passano al worktree.
+// ONNX Runtime non serve più (ADR-0035): le sue variabili non passano al worktree.
 const RIGA_ORT = /^\s*ORT_\w*\s*=/;
 const SEZIONE_BUILD = /\n\[build\][^[]*/;
 

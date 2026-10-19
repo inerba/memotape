@@ -210,10 +210,10 @@ fn revisione_catturata_sul_blocco_prima_del_ritardo_del_processore() {
 }
 
 #[test]
-#[ignore = "corpus DFN3/Silero/tre ASR, release sequenziale, senza Impostazioni o Libreria"]
+#[ignore = "corpus RNNoise/Silero/tre ASR, release sequenziale, senza Impostazioni o Libreria"]
 fn corpus_protezione_quattro_livelli_tre_asr() {
     use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning};
-    use crate::audio_toolkit::deepfilter;
+    use crate::audio_toolkit::rnnoise;
     use crate::engine::transcribe_cpp::TranscribeCpp;
     use crate::managers::models;
     use crate::transcript::Ingresso;
@@ -237,7 +237,7 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
         for cleaning in [false, true] {
             let processor: Box<dyn AudioProcessor> = if cleaning {
                 Box::new(ConfiguredCleaning::new(
-                    root.join(deepfilter::MODEL_FILE),
+                    root.join(rnnoise::WEIGHTS_FILE),
                     || true,
                     Ingresso::Mix,
                     CleaningLog::default(),
@@ -278,10 +278,16 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
     let mut report = Vec::new();
     let mut false_off = 0;
     let mut false_balanced = 0;
-    for model in models::catalog()
+    let downloaded: Vec<_> = models::catalog()
         .iter()
-        .filter(|m| m.kind == models::ModelKind::Trascrizione)
-    {
+        .filter(|m| m.kind == models::ModelKind::Trascrizione && m.path(&models_dir).is_file())
+        .collect();
+    assert!(
+        !downloaded.is_empty(),
+        "nessun modello in {}",
+        models_dir.display()
+    );
+    for model in downloaded {
         let mut engine = TranscribeCpp::load(&model.path(&models_dir)).unwrap();
         for (name, cleaning, selections) in &cases {
             let mut results = Vec::new();
@@ -341,7 +347,7 @@ fn corpus_protezione_quattro_livelli_tre_asr() {
     )
     .unwrap();
     // Con Silero v4 Spento dava 2 false Frasi sul rumore intermittente, con v6.2 nessuna: il
-    // criterio è che Bilanciato non ne tenga (ADR-0034).
+    // criterio è che Bilanciato non ne tenga (ADR-0035).
     assert_eq!(
         false_balanced, 0,
         "false Frasi: spento={false_off}, bilanciato={false_balanced}"

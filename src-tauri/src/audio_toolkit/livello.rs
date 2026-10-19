@@ -3,7 +3,7 @@
 /// Sotto questo livello (`livello`) una Frase è rumore. Sui Tape reali delle misure
 /// (docs/research/eco-e-loop-sui-tape-reali.md) le Frasi del Microfono senza segnale restavano
 /// sotto −52,7 dBFS e quelle dell'Audio di sistema sopra −39,5; la voce a −30 dB del corpus della
-/// pulizia sta a −47,1 e −47,7 (ADR-0034).
+/// pulizia sta a −47,1 e −47,7 (ADR-0035).
 /// ponytail: soglia fissa con 2,3 dB di margine sulla voce e 2,7 sul rumore misurato; un tratto
 /// di 1 s del Microfono senza segnale, nel suo punto più forte, arriva a −49,1 e passerebbe.
 /// Diventa regolabile, o si affianca a un altro indizio, se capita.

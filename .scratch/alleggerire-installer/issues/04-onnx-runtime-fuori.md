@@ -17,7 +17,7 @@
 - `vad-rs` è uscito dal manifest; dal lock spariscono `ort`, `ort-sys`, `vad-rs` e 14 dipendenze transitive, senza aggiornamenti. `build.rs` non legge più `ORT_LIB_LOCATION` e non copia `onnxruntime.dll`: la pulizia esistente l'ha tolta da `runtime-libs/`. Le DLL VC++ restano.
 - Le licenze di ONNX Runtime (con le note di terze parti) e di `vad-rs` sono uscite. `silero-vad.txt` è Silero v6.2, con il NOTICE e la revisione del GGUF di handy-computer. I ruoli `onnx` e `vadRs` sono spariti dai crediti, dal test e dalle sei lingue.
 - `worktree:setup` non copia più le variabili `ORT_*` della config principale (test in `scripts/worktree-setup.test.ts`). Il worktree, ripreparato con lo script nuovo, non ha variabili ORT, e i sei controlli passano lì senza ORT anche nell'ambiente.
-- Documenti aggiornati: `AGENTS.md`, `README.md`, `PRODUCT.md`, prerequisiti, insidie audio, installer, verifica manuale, ADR-0034, commento di `.gitignore`.
+- Documenti aggiornati: `AGENTS.md`, `README.md`, `PRODUCT.md`, prerequisiti, insidie audio, installer, verifica manuale, ADR-0035, commento di `.gitignore`.
 - Installer, da `bun tauri build` senza variabili ORT:
   - `Memotape_0.5.3_x64-setup.exe` pesa 26 048 604 byte (24,84 MiB), contro 29,6 MB della 0.5.3;
   - i file installati, estratti con `7z`, fanno 111 203 644 byte (più `uninstall.exe`), contro 126,5 MB;

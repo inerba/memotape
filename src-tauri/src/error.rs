@@ -3,9 +3,9 @@
 #[derive(Debug, Clone, PartialEq, thiserror::Error, serde::Serialize, specta::Type)]
 #[serde(tag = "code", content = "detail", rename_all = "camelCase")]
 pub enum AppError {
-    #[error("modello DeepFilterNet3 distribuito con l'app assente")]
+    #[error("modello della pulizia audio distribuito con l'app assente")]
     AudioCleaningMissing,
-    #[error("modello DeepFilterNet3 incompatibile: {0}")]
+    #[error("modello della pulizia audio incompatibile: {0}")]
     AudioCleaningIncompatible(String),
     #[error("pulizia audio interrotta: {0}")]
     AudioCleaningFailed(String),

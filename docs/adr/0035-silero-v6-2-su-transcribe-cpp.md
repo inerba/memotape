@@ -13,7 +13,7 @@ ONNX Runtime serviva solo a Silero v4, eseguito da `vad-rs`. Pesava 14,1 MB inst
 ## Decisione
 
 - **Esecuzione:** Silero VAD v6.2 gira su transcribe-cpp: `VadSession`, un frame alla volta con `stream_feed`, `stream_reset` per `VoiceDetector::reset`. Il trait `VoiceDetector` non cambia.
-- **Modello:** `handy-computer/silero-vad-v6.2-gguf`, file `silero-vad-v6.2-F32.gguf`, revisione `a9b2d61c20ae4ddf3644edb34969e8185a485448`, 1 241 056 byte, SHA-256 `0d871a800c420fdd5d1b17a3aea4296d1c39608f0ff4a9295eb76457eb1c88e6`, licenza MIT. È una risorsa del bundle. Si verifica prima del caricamento come DFN3, con gli errori `VadModelMissing` e `VadModelIncompatible`.
+- **Modello:** `handy-computer/silero-vad-v6.2-gguf`, file `silero-vad-v6.2-F32.gguf`, revisione `a9b2d61c20ae4ddf3644edb34969e8185a485448`, 1 241 056 byte, SHA-256 `0d871a800c420fdd5d1b17a3aea4296d1c39608f0ff4a9295eb76457eb1c88e6`, licenza MIT. È una risorsa del bundle. Si verifica prima del caricamento come i pesi della pulizia, con gli errori `VadModelMissing` e `VadModelIncompatible`.
 - **Backend:** CPU, la scelta di `AUTO` di transcribe-cpp per il VAD. La GPU è meno fedele al riferimento.
 - **Un modello per pipeline:** transcribe-cpp fa un calcolo alla volta per modello, e un modello condiviso serializzerebbe due Ingressi in parallelo. Il VAD è un modello diverso da quello di Trascrizione, quindi non entra in conflitto con lo stream ASR.
 - **Frame:** il frame della pipeline passa da 480 a 512 campioni a 16 kHz, da 30 a 32 ms: è la dimensione dei frame di Silero v6.2. `resample::FRAME_SAMPLES` e `resample::FRAME_MS` sono le sole costanti.

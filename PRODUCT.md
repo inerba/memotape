@@ -114,10 +114,11 @@ Revisione approvata il 6 ottobre 2026, mockup in `.impeccable/mocks/home-riprend
 ### Trascrizione
 
 La pulizia di un file audio o video si sceglie nel dialog di Trascrivi, insieme a
-Sensibilità, modello, Lingua del parlato e Riconosci i parlanti, ed è inizialmente spenta. Usa DeepFilterNet3 standard sul PC,
-senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
-reintrodurre una miscela dell'audio originale. La pulizia può attenuare anche
-voce molto debole; la Sensibilità del parlato è un controllo indipendente e non
+Sensibilità, modello, Lingua del parlato e Riconosci i parlanti, ed è inizialmente spenta. Usa RNNoise 0.2 sul PC,
+su ogni CPU x64, senza download aggiuntivi nell'uso. Usa il risultato diretto del modello, senza
+reintrodurre una miscela dell'audio originale. La voce molto debole resta parlato per
+Silero, ma può non arrivare nella Trascrizione; con un rumore molto forte la pulizia
+degrada anche la voce. La Sensibilità del parlato è un controllo indipendente e non
 recupera la voce già attenuata. Il risultato elaborato alimenta Silero e il
 modello di Trascrizione e viene salvato come unico audio del Tape: player,
 Forma d'onda e analisi dei Parlanti si riferiscono a quel risultato. L'originale
@@ -132,7 +133,7 @@ lasciano un Tape parziale. La protezione aggiuntiva del parlato è disponibile n
 
 I tre profili conservano separatamente la Sensibilità del parlato: Spento,
 Più sensibile, Bilanciato (anche per impostazioni precedenti), Più selettivo.
-Non controlla DFN3. Spento mantiene Silero e la selezione precedente; i livelli
+Non controlla la pulizia. Spento mantiene Silero e la selezione precedente; i livelli
 attivi combinano evidenza Silero e caratteristiche acustiche della candidata
 Frase, senza liste di parole vietate o una soglia energetica assoluta.
 Più selettivo può perdere parole brevi o deboli. Nei Tape senza tracce distinte
@@ -147,18 +148,18 @@ dall'audio, dalla Forma d'onda o dall'analisi dei Parlanti.
 
 Durante la Registrazione ogni Ingresso usa il proprio profilo, anche quando
 un solo dispositivo viene salvato nel mix. La revisione viene fissata nel
-worker prima del ricampionamento, dei buffer DFN3 e delle code ASR. Il motore
+worker prima del ricampionamento, dei buffer della pulizia e delle code ASR. Il motore
 in ritardo usa quella revisione. La protezione ammette una candidata dal suo
 prefisso e conserva l'intera Frase fino alla fine: Nemotron continua a dare
 Parziali durante il parlato, senza ritiri dovuti alla protezione. Un cambio
-della sola sensibilità non resetta DFN3 e non modifica l'audio salvato.
+della sola sensibilità non resetta la pulizia e non modifica l'audio salvato.
 I cambi in Pausa valgono dalla ripresa; dopo Stop restano fissi per l'audio
 acquisito. Il bypass per guasto della pulizia mantiene la protezione del solo
 Ingresso e l'avviso di sessione previsto. La Diarizzazione resta dopo Stop
 e completamento ASR. I controlli al volo sono in Impostazioni e nella barra
 della Registrazione, accanto al Guadagno di ciascun Ingresso effettivo.
 La barra offre pulizia accesa/spenta e i quattro livelli di sensibilità,
-senza intensità DFN3 né profilo File e audio misto. Le due superfici condividono
+senza intensità della pulizia né profilo File e audio misto. Le due superfici condividono
 le preferenze persistenti: scelte rapide e contemporanee si applicano in ordine,
 senza sovrascrivere altri campi. L'avvio attende i salvataggi già richiesti.
 Un errore di salvataggio ripristina il valore confermato e viene mostrato.
@@ -190,8 +191,8 @@ Aprire, riprodurre o cambiare Impostazioni non riscrive né pulisce un Tape.
 La Forma d'onda mancante nei Tape vecchi viene calcolata in memoria. Player,
 riapertura, copia e ricerca leggono il risultato salvato.
 
-La licenza del codice è inclusa in Informazioni. La redistribuzione dei pesi
-resta da chiarire con gli autori; la verifica locale non autorizza un rilascio.
+RNNoise e i suoi pesi sono BSD-3-Clause: il testo della licenza è in Informazioni
+e tra i file del bundle.
 
 La pulizia delle Registrazioni si sceglie in Impostazioni → Registrazione,
 separatamente per Microfono e Audio di sistema, inizialmente spenta. Funziona
@@ -208,8 +209,7 @@ sessione corretta. Il Tape registra solo gli intervalli effettivamente trattati,
 anche se la Registrazione usa un solo Ingresso e conserva il solo mix.
 
 L'integrazione locale del ticket 03 è distinta dal collaudo completo di UI,
-dispositivi e carico su altre macchine. Bundle e redistribuzione dei pesi restano
-non verificati come nel ticket 02; nessun rilascio è autorizzato.
+dispositivi e carico su altre macchine.
 
 9. Come utente, voglio premere Trascrivi su un file audio e vedere comparire il testo, così ottengo la sbobinatura.
 10. Come utente, voglio trascrivere anche un video MP4, MOV, M4V o MKV senza prima estrarne l'audio, così risparmio un passaggio.
@@ -392,7 +392,7 @@ l'errore con Riprova, conservando le altre scelte salvate.
 - **M7 (ticket 10)**: storie 59, 60, 63 e 68; con la Lingua dell'interfaccia anche la 61 è completa, e la 62 copre anche un file illeggibile.
   - L'interfaccia è in italiano, inglese, francese, spagnolo, tedesco e polacco, con le forme plurali di ogni lingua. In Impostazioni → Generale si sceglie la Lingua dell'interfaccia, con l'avviso che vale dal prossimo avvio. Finché non la si sceglie vale la lingua di Windows se è tra le sei, altrimenti l'inglese. Anche il prefisso delle Registrazioni segue la Lingua dell'interfaccia.
   - Il tema chiaro o scuro segue quello di Windows, compresi i controlli nativi come i selettori.
-  - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: ogni modello del catalogo con la sua quantizzazione (Parakeet, primeLine e Canary in CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer; Nemotron in OpenMDW-1.1; Cohere, Qwen3-ASR e Voxtral in Apache-2.0; Whisper con la MIT di OpenAI), Sortformer, Silero VAD v6.2 (MIT, con la conversione GGUF di handy-computer), DeepFilterNet3 e Tract, Symphonia (MPL-2.0) e transcribe.cpp (con ggml e miniz). I testi sono anche file del bundle, nella cartella `licenses`.
+  - Impostazioni → Informazioni mostra la versione dell'app e, per ogni componente, autore, licenza, ruolo e fonte, con il testo della licenza da aprire: ogni modello del catalogo con la sua quantizzazione (Parakeet, primeLine e Canary in CC BY 4.0, con l'attribuzione e la conversione GGUF di handy-computer; Nemotron in OpenMDW-1.1; Cohere, Qwen3-ASR e Voxtral in Apache-2.0; Whisper con la MIT di OpenAI), Sortformer, RNNoise (BSD-3-Clause), Silero VAD v6.2 (MIT, con la conversione GGUF di handy-computer), Symphonia (MPL-2.0) e transcribe.cpp (con ggml e miniz). I testi sono anche file del bundle, nella cartella `licenses`.
   - Se il file impostazioni esiste ma non si legge (per esempio bloccato da un altro programma), l'app parte con i valori predefiniti e la lingua di Windows, e la status bar mostra l'errore. Se il file è bloccato solo per un attimo (fino a circa un secondo) si legge lo stesso. Le impostazioni salvate non si perdono: finché il file non si legge una modifica non si salva e la status bar lo dice; appena si legge, la modifica si aggiunge alle impostazioni del file.
 - **M9 (ticket 12)**: storia 72.
   - `Memotape_<versione>_x64-setup.exe` (NSIS) installa l'app per l'utente corrente, senza diritti di amministratore, in `%LOCALAPPDATA%\Memotape`, con il collegamento nel menu Start. Accanto all'exe mette transcribe.cpp con i suoi backend (CPU scelta a runtime per il processore della macchina, Vulkan se c'è una GPU con driver Vulkan) e il runtime VC++, quindi non serve installare altro (su un Windows 10 senza WebView2 l'installer la scarica); con i file arrivano Silero e i testi delle licenze.
@@ -545,13 +545,9 @@ con parlato reale resta distinto dalle prove automatiche.
 - Annulla prima dell'avvio ripristina la vista precedente senza creare un Tape
   o perdere Correzioni manuali. Dopo l'avvio, Stop conserva l'audio registrato.
   La preparazione non permette doppi avvii o altre Attività incompatibili.
-- La Pulizia audio si prepara in background e riusa le risorse compatibili
-  fra Registrazioni, accettando maggiore memoria residente. Ogni sessione e
-  Ingresso hanno stato audio nuovo. La preparazione non apre i dispositivi.
-- Se la pulizia è attiva al clic, se ne attende la disponibilità per applicarla
-  dall'inizio. Se è spenta, la sua preparazione non ritarda la Registrazione.
-  Accenderla durante una Registrazione mentre si prepara mostra «Preparazione
-  pulizia…»: l'audio continua e il filtro vale appena pronto, sull'audio successivo.
+- La Pulizia audio non ha preparazione: si carica in pochi millisecondi
+  quando serve, all'avvio o quando la si accende durante una Registrazione, e
+  vale dall'audio successivo. Ogni sessione e Ingresso hanno stato audio nuovo.
 - Un guasto a pulizia o Trascrizione dal vivo lascia registrare l'audio con
   un avviso esplicito. Dispositivi o scrittura non disponibili impediscono
   l'avvio; dopo l'avvio restano le regole di arresto e recupero già previste.

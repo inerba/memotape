@@ -17,8 +17,6 @@ use transcribe_cpp::CancelToken;
 
 use crate::audio_toolkit::capture::{self, Capture, Kind};
 use crate::audio_toolkit::cleaning::{CleaningLog, ConfiguredCleaning, TrattoPulizia};
-#[cfg(test)]
-use crate::audio_toolkit::deepfilter;
 use crate::audio_toolkit::mixer::Mixer;
 use crate::audio_toolkit::ogg_opus::OggOpusWriter;
 use crate::audio_toolkit::processing::AudioProcessor;
@@ -39,14 +37,10 @@ use crate::managers::transcription::{
 use crate::tape;
 use crate::transcript::Ingresso;
 
-mod preparation;
-pub(crate) use preparation::{RecordingFilters, preload};
-
 #[derive(Debug, Clone, Copy, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum RecordingPhase {
     Preparing,
-    Cleaning,
     Devices,
     Recording,
 }
@@ -58,14 +52,6 @@ pub struct RecordingPhaseChanged {
     pub phase: RecordingPhase,
 }
 
-#[derive(Debug, Clone, serde::Serialize, specta::Type, Event)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordingCleaningPreparing {
-    pub session_id: String,
-    pub ingresso: Ingresso,
-    pub preparing: bool,
-}
-
 fn emit_phase(app: &AppHandle, session_id: &str, phase: RecordingPhase) {
     if let Err(error) = (RecordingPhaseChanged {
         session_id: session_id.into(),
@@ -74,18 +60,6 @@ fn emit_phase(app: &AppHandle, session_id: &str, phase: RecordingPhase) {
     .emit(app)
     {
         log::warn!("fase Registrazione non emessa: {error}");
-    }
-}
-
-fn emit_cleaning_preparing(app: &AppHandle, session_id: &str, ingresso: Ingresso, preparing: bool) {
-    if let Err(error) = (RecordingCleaningPreparing {
-        session_id: session_id.into(),
-        ingresso,
-        preparing,
-    })
-    .emit(app)
-    {
-        log::warn!("preparazione pulizia non emessa: {error}");
     }
 }
 
@@ -192,7 +166,6 @@ struct Controls {
     guadagno_sistema: AtomicI8,
     pulizia_microfono: AtomicBool,
     pulizia_sistema: AtomicBool,
-    cleaning_pending: [AtomicBool; 2],
     sensibilita: Mutex<[Sensibilita; 2]>,
     /// Il Muto del microfono e dell'audio di sistema: ogni Registrazione parte senza.
     muto: [AtomicBool; 2],
@@ -234,11 +207,6 @@ impl Controls {
             .store(settings.audio_microfono.pulizia, Ordering::Relaxed);
         self.pulizia_sistema
             .store(settings.audio_sistema.pulizia, Ordering::Relaxed);
-        for kind in [Kind::Microphone, Kind::System] {
-            if !self.pulizia(kind) {
-                self.cleaning_preparing(kind, false);
-            }
-        }
         *self
             .sensibilita
             .lock()
@@ -333,11 +301,6 @@ impl Controls {
             Kind::Microphone => self.pulizia_microfono.load(Ordering::Relaxed),
             Kind::System => self.pulizia_sistema.load(Ordering::Relaxed),
         }
-    }
-
-    /// Deduplica l'attesa per Ingresso; OFF la azzera anche fra due blocchi PCM.
-    fn cleaning_preparing(&self, kind: Kind, pending: bool) -> bool {
-        self.cleaning_pending[kind_index(kind)].swap(pending, Ordering::Relaxed) != pending
     }
 
     fn muto(&self, kind: Kind) -> bool {
@@ -1019,15 +982,14 @@ fn run(
                 .map_or_else(ProtectionTimeline::default, LiveFeed::protection)
         })
         .collect();
-    let model_path = preparation::resource_path(app)?;
-    let filters = app
-        .state::<RecordingFilters>()
-        .configure(model_path.clone(), settings);
+    // RNNoise si carica in circa 2 ms (lettura, SHA-256 e stati C, misurati in debug e in
+    // release): nessuna preparazione in anticipo, il processore nasce al primo blocco con la
+    // pulizia accesa, anche se la si accende al volo.
+    let model_path = crate::managers::transcription::cleaning_path(app)?;
     let processors = kinds
         .iter()
         .zip(&enabled)
-        .zip(filters)
-        .map(|((&kind, enabled), filter)| {
+        .map(|(&kind, enabled)| {
             controls.checkpoint()?;
             let ingresso = match kind {
                 Kind::Microphone => Ingresso::Microfono,
@@ -1035,34 +997,12 @@ fn run(
             };
             let enabled = Arc::clone(enabled);
             let (notify_app, notify_session) = (app.clone(), session_id.to_owned());
-            let deferred_filter = filter.clone();
-            let (ready_app, ready_session) = (app.clone(), session_id.to_owned());
-            let readiness_controls = Arc::clone(controls);
-            let mut processor = ConfiguredCleaning::new(
+            let processor = ConfiguredCleaning::new(
                 model_path.clone(),
                 move || enabled.load(Ordering::Relaxed),
                 ingresso,
                 log.clone(),
             )
-            .deferred(Box::new(move || {
-                // Lo stesso lock di Stop decide se l'attivazione è ancora valida.
-                let _started = readiness_controls
-                    .started
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner);
-                if readiness_controls.stop.load(Ordering::Acquire)
-                    || readiness_controls.paused.load(Ordering::Relaxed)
-                    || !readiness_controls.pulizia(kind)
-                {
-                    return Ok(None);
-                }
-                let ready = deferred_filter.take_ready()?;
-                let pending = ready.is_none();
-                if readiness_controls.cleaning_preparing(kind, pending) {
-                    emit_cleaning_preparing(&ready_app, &ready_session, ingresso, pending);
-                }
-                Ok(ready.map(|filter| Box::new(filter) as Box<dyn AudioProcessor>))
-            }))
             .recovering(move |error| {
                 log::warn!("pulizia {ingresso:?} interrotta: {error}");
                 if let Err(error) = (RecordingCleaningFailed {
@@ -1075,21 +1015,6 @@ fn run(
                     log::warn!("recording-cleaning-failed non emesso: {error}");
                 }
             });
-            if controls.pulizia(kind) {
-                emit_phase(app, session_id, RecordingPhase::Cleaning);
-                let waiting_at = Instant::now();
-                match filter
-                    .wait(|| controls.stop.load(Ordering::Acquire) || !controls.pulizia(kind))
-                {
-                    Ok(filter) => processor = processor.prepared(Box::new(filter)),
-                    Err(AppError::Cancelled) => controls.checkpoint()?,
-                    Err(error) => processor.preparation_failed(error)?,
-                }
-                log::info!(
-                    "sessione {session_id}: attesa pulizia {ingresso:?} {:?}",
-                    waiting_at.elapsed()
-                );
-            }
             Ok(Box::new(processor) as Box<dyn AudioProcessor>)
         })
         .collect::<Result<Vec<_>, AppError>>()?;

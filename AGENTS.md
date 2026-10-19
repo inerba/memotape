@@ -59,7 +59,8 @@ src-tauri/src/
                          e, con il permesso, modifica i Tape (ADR-0031), mai l'indice
   updates.rs             il controllo aggiornamenti: l'ultima release di GitHub contro la versione in esecuzione
 docs/brand/              il logo: SVG, PNG e `LINEE-GUIDA.md`; `genera.py` li rigenera, con `src-tauri/icons/`
-src-tauri/resources/     risorse del bundle (`silero-vad-v6.2-F32.gguf`, `models/` con DFN3, `licenses/` con i testi delle licenze)
+src-tauri/vendor/rnnoise/ sorgenti C di RNNoise 0.2 (xiph), compilati da `build.rs`; provenienza in `PROVENIENZA.md`
+src-tauri/resources/     risorse del bundle (`silero-vad-v6.2-F32.gguf`, i pesi della pulizia in `models/`, `licenses/` con i testi delle licenze)
 src-tauri/runtime-libs/  DLL copiate da `build.rs` (transcribe.cpp e backend ggml, runtime VC++) e messe
                          accanto all'exe dal bundle, e in dev in `target/debug` (ignorata da git)
 src-tauri/tests/fixtures/ audio per i test: `parlato-it.wav` (sintesi vocale di Windows) e lo stesso parlato in

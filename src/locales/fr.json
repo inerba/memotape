@@ -134,8 +134,8 @@
       "activityInProgress": "Une autre activité est en cours : attendez qu'elle se termine ou annulez-la",
       "cancelled": "Transcription annulée",
       "internal": "Erreur interne : {{detail}}",
-      "audioCleaningMissing": "Le modèle DeepFilterNet3 fourni avec l’application est absent. Réinstallez Memotape.",
-      "audioCleaningIncompatible": "Le modèle DeepFilterNet3 fourni est incompatible : {{detail}}",
+      "audioCleaningMissing": "Le modèle RNNoise fourni avec l’application est absent. Réinstallez Memotape.",
+      "audioCleaningIncompatible": "Le modèle RNNoise fourni est incompatible : {{detail}}",
       "vadModelMissing": "Le modèle Silero VAD fourni avec l’application est absent. Réinstallez Memotape.",
       "vadModelIncompatible": "Le modèle Silero VAD fourni est incompatible : {{detail}}",
       "audioCleaningFailed": "Le nettoyage audio s’est arrêté ; aucun nouveau résultat n’a été enregistré : {{detail}}",
@@ -271,8 +271,8 @@
     "cleaning": {
       "profile": "Fichiers et audio mixte",
       "enable": "Filtrer le bruit",
-      "description": "DeepFilterNet3 réduit le bruit des fichiers audio et vidéo importés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
-      "recordingDescription": "DeepFilterNet3 réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Le Tape conserve l’audio traité : le désactiver ne restaure pas l’original."
+      "description": "RNNoise réduit le bruit des fichiers audio et vidéo importés. Le Tape conserve l’audio traité : désactiver le nettoyage ne restaure pas l’original.",
+      "recordingDescription": "RNNoise réduit le bruit enregistré, même sans Transcription en direct. Les changements valent pour l’audio suivant ; en pause, à la reprise. Le Tape conserve l’audio traité : le désactiver ne restaure pas l’original."
     },
     "protection": {
       "label": "Sensibilité",
@@ -366,11 +366,9 @@
     "preparation": {
       "saving": "Enregistrement des paramètres…",
       "preparing": "Préparation de l’enregistrement…",
-      "cleaning": "Préparation du nettoyage audio…",
       "devices": "Ouverture des périphériques audio…"
     },
     "started": "Enregistrement démarré, vous pouvez parler",
-    "cleaningPreparing": "Préparation du nettoyage audio…",
     "mute": "Muet : {{input}}",
     "muteHint": "{{input}} : cliquez pour couper le son",
     "mutedHint": "{{input}} coupé : cliquez pour rétablir le son",
